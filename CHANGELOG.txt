@@ -171,3 +171,22 @@ PUSH 18  |  e96f39d  |  Reactions, photos, notif bell, mute, private accounts, n
 - Private account toggle in Settings: when enabled, users who don't follow you see a 🔒 lock screen instead of your sessions and stats
 - Notification preferences in Settings: two toggle switches to independently enable/disable follow notifications and session activity notifications
 - Session activity notifications: automatically generated when followed users post new sessions within the last 24 hours; de-duplicated so you never see the same session twice
+
+
+──────────────────────────────────────────────────────────────
+PUSH 19  |  16d68d6  |  Notifications tab, comments, reaction counts, private follow requests
+──────────────────────────────────────────────────────────────
+- Notifications moved to Social tab (Feed tab removed — followed sessions stay on Home only)
+- Notifications tab shows full list with × dismiss button per item
+- 🔔 bell panel on Home screen also gets per-item × dismiss buttons
+- Reaction counts (🔥💪✨) now visible to everyone via aggregate kv store (sessionReactions:{id})
+- Counts displayed inline next to each emoji on feed cards
+- Comment button (💬) added to every feed card; tapping opens a comment panel (bottom sheet)
+- Comment panel shows existing comments and lets you post a new one
+- Private accounts: tapping Follow sends a follow request instead of following immediately
+- Follow button shows "Requested" state while request is pending
+- Follow request inbox appears on your Profile screen when requests are waiting; Accept / Deny per request
+- Accepting updates both sides' follower/following data automatically
+- All new state (pendingFollowRequests, myFollowRequests, feedReactionCounts, comments) persists across sessions and resets on logout
+- Location dropdown fix: clicking ▼ now immediately shows all location options (was broken due to click bubbling)
+- New location "Save" button moved inline next to the text input (no longer at bottom of dropdown)
