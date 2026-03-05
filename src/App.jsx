@@ -226,22 +226,28 @@ const TagChips = ({ wallTypes = [], holdTypes = [] }) => {
 
 const LocationDropdown = ({ value, onChange, open, setOpen, knownLocations, onRemove }) => {
   const W = useTheme() || THEMES.espresso;
+  const filtered = value.trim()
+    ? knownLocations.filter(l => l.toLowerCase().includes(value.toLowerCase()))
+    : knownLocations;
+  const isNew = value.trim() && !knownLocations.some(l => l.toLowerCase() === value.trim().toLowerCase());
   return (
-  <div style={{ position: "relative" }}>
-    <div style={{ display: "flex", alignItems: "center", background: W.surface, border: `2px solid ${open ? W.accent : W.border}`, borderRadius: open && knownLocations.length ? "12px 12px 0 0" : "12px", overflow: "hidden" }}>
+  <div style={{ position: "relative" }} onClick={e => e.stopPropagation()}>
+    <div style={{ display: "flex", alignItems: "center", background: W.surface, border: `2px solid ${open ? W.accent : W.border}`, borderRadius: open && filtered.length ? "12px 12px 0 0" : "12px", overflow: "hidden" }}>
       <input value={value} onChange={e => { onChange(e.target.value); setOpen(true); }} onFocus={() => setOpen(true)} placeholder="e.g. Boulder Barn" style={{ flex: 1, padding: "11px 14px", background: "transparent", border: "none", outline: "none", color: W.text, fontSize: 14, fontFamily: "inherit" }} />
-      <button onClick={() => setOpen(o => !o)} style={{ background: "none", border: "none", padding: "0 12px", cursor: "pointer", color: W.textMuted, fontSize: 14 }}>{open ? "▲" : "▼"}</button>
+      {isNew && (
+        <button onClick={() => { onChange(value); setOpen(false); }} style={{ background: W.accent, border: "none", padding: "0 14px", alignSelf: "stretch", cursor: "pointer", color: "#fff", fontSize: 12, fontWeight: 700, whiteSpace: "nowrap" }}>Save</button>
+      )}
+      <button onClick={() => setOpen(o => !o)} style={{ background: "none", border: "none", padding: "0 12px", cursor: "pointer", color: W.textMuted, fontSize: 14, alignSelf: "stretch" }}>{open ? "▲" : "▼"}</button>
     </div>
-    {open && (
+    {open && filtered.length > 0 && (
       <div style={{ position: "absolute", top: "100%", left: 0, right: 0, background: W.surface, border: `2px solid ${W.accent}`, borderTop: "none", borderRadius: "0 0 12px 12px", zIndex: 100, maxHeight: 200, overflowY: "auto", boxShadow: "0 8px 20px rgba(0,0,0,0.12)" }}>
-        {knownLocations.length > 0 && <div style={{ padding: "8px 14px 4px", fontSize: 10, fontWeight: 700, color: W.textDim, textTransform: "uppercase", letterSpacing: 1 }}>Previous Locations</div>}
-        {knownLocations.map(loc => (
+        <div style={{ padding: "8px 14px 4px", fontSize: 10, fontWeight: 700, color: W.textDim, textTransform: "uppercase", letterSpacing: 1 }}>Locations</div>
+        {filtered.map(loc => (
           <div key={loc} style={{ display: "flex", alignItems: "center", borderBottom: `1px solid ${W.border}`, background: loc === value ? W.surface2 : "transparent" }}>
             <div onClick={() => { onChange(loc); setOpen(false); }} style={{ flex: 1, padding: "10px 14px", cursor: "pointer", color: W.text, fontSize: 14, fontWeight: loc === value ? 700 : 400 }}>📍 {loc}</div>
             {onRemove && <button onClick={e => { e.stopPropagation(); onRemove(loc); }} style={{ background: "none", border: "none", padding: "0 12px", cursor: "pointer", color: W.textDim, fontSize: 16, lineHeight: 1 }} title="Remove location">×</button>}
           </div>
         ))}
-        {value && !knownLocations.includes(value) && <div onClick={() => { onChange(value); setOpen(false); }} style={{ padding: "10px 14px", cursor: "pointer", color: W.accent, fontSize: 14, fontWeight: 700 }}>✚ Save "{value}" as new location</div>}
       </div>
     )}
   </div>
@@ -317,7 +323,7 @@ export default function App() {
   // ── SOCIAL STATE ───────────────────────────────────────────
   const [socialFollowing, setSocialFollowing] = useState([]);
   const [socialFollowers, setSocialFollowers] = useState([]);
-  const [socialTab, setSocialTab]             = useState("feed");
+  const [socialTab, setSocialTab]             = useState("notifications");
   const [socialQuery, setSocialQuery]         = useState("");
   const [socialResults, setSocialResults]     = useState(null); // null = not searched yet
   const [socialFeed, setSocialFeed]           = useState([]);
@@ -333,8 +339,15 @@ export default function App() {
   const [showNotifPanel, setShowNotifPanel]       = useState(false);
   const [mutedUsers, setMutedUsers]               = useState([]);
   const [myReactions, setMyReactions]             = useState({}); // { sessionId: emoji }
+  const [feedReactionCounts, setFeedReactionCounts] = useState({}); // { sessionId: { "🔥": 2 } }
   const [notifPrefs, setNotifPrefs]               = useState({ follows: true, sessions: true });
   const [isPrivate, setIsPrivate]                 = useState(false);
+  const [pendingFollowRequests, setPendingFollowRequests] = useState([]); // usernames I've requested
+  const [myFollowRequests, setMyFollowRequests]   = useState([]); // incoming requests to me
+  const [commentPanelId, setCommentPanelId]       = useState(null); // sessionId with open comments
+  const [sessionComments, setSessionComments]     = useState({}); // { sessionId: [comments] }
+  const [commentText, setCommentText]             = useState("");
+  const [commentLoading, setCommentLoading]       = useState(false);
 
   // ── INIT: check for existing session ──────────────────────
   useEffect(() => {
@@ -359,6 +372,8 @@ export default function App() {
           storage.get(`followers:${username}`).then(r => setSocialFollowers(r ? JSON.parse(r.value) : [])).catch(() => {});
           loadNotifications(username).then(n => { setNotifications(n); setNotifCount(n.filter(x => !x.read).length); }).catch(() => {});
           loadMyReactions(username).then(setMyReactions).catch(() => {});
+          setPendingFollowRequests(userData.profile?.pendingFollowRequests || []);
+          storage.get(`followRequests:${username}`).then(r => setMyFollowRequests(r ? JSON.parse(r.value) : [])).catch(() => {});
           setAuthScreen("app");
         } else {
           setAuthScreen("login");
@@ -378,7 +393,7 @@ export default function App() {
     setSaveStatus("saving");
     saveTimeoutRef.current = setTimeout(async () => {
       const userData = {
-        profile: { displayName: currentUser.displayName, preferredScale, hiddenLocations, following: socialFollowing, colorTheme, mutedUsers, notifPrefs, isPrivate },
+        profile: { displayName: currentUser.displayName, preferredScale, hiddenLocations, following: socialFollowing, colorTheme, mutedUsers, notifPrefs, isPrivate, pendingFollowRequests },
         sessions,
         projects,
       };
@@ -387,7 +402,7 @@ export default function App() {
       setTimeout(() => setSaveStatus(""), 2000);
     }, 1000);
     return () => clearTimeout(saveTimeoutRef.current);
-  }, [sessions, projects, preferredScale, hiddenLocations, socialFollowing, colorTheme, mutedUsers, notifPrefs, isPrivate]);
+  }, [sessions, projects, preferredScale, hiddenLocations, socialFollowing, colorTheme, mutedUsers, notifPrefs, isPrivate, pendingFollowRequests]);
 
   useEffect(() => {
     if (timerRunning) { timerRef.current = setInterval(() => setSessionTimer(t => t + 1), 1000); }
@@ -471,6 +486,8 @@ export default function App() {
       storage.get(`followers:${username.toLowerCase()}`).then(r => setSocialFollowers(r ? JSON.parse(r.value) : [])).catch(() => {});
       loadNotifications(username.toLowerCase()).then(n => { setNotifications(n); setNotifCount(n.filter(x => !x.read).length); }).catch(() => {});
       loadMyReactions(username.toLowerCase()).then(setMyReactions).catch(() => {});
+      setPendingFollowRequests(safeData.profile?.pendingFollowRequests || []);
+      storage.get(`followRequests:${username.toLowerCase()}`).then(r => setMyFollowRequests(r ? JSON.parse(r.value) : [])).catch(() => {});
       setAuthScreen("app");
     } catch (e) {
       setAuthError("Something went wrong. Please try again.");
@@ -503,6 +520,12 @@ export default function App() {
     setSocialFeed([]);
     setSocialUserList(null);
     setViewedUser(null);
+    setPendingFollowRequests([]);
+    setMyFollowRequests([]);
+    setFeedReactionCounts({});
+    setCommentPanelId(null);
+    setSessionComments({});
+    setCommentText("");
     setShowAccountPanel(false);
     setConfirmLogout(false);
     setAuthScreen("login");
@@ -702,6 +725,21 @@ export default function App() {
       }
       feedItems.sort((a, b) => new Date(b.date) - new Date(a.date));
       setSocialFeed(feedItems);
+      // Load aggregate reaction counts for all feed sessions
+      Promise.all(feedItems.map(async s => {
+        try {
+          const r = await storage.get(`sessionReactions:${s.id}`);
+          if (!r) return { sessionId: s.id, counts: {} };
+          const agg = JSON.parse(r.value);
+          const counts = {};
+          Object.values(agg).forEach(e => { counts[e] = (counts[e] || 0) + 1; });
+          return { sessionId: s.id, counts };
+        } catch { return { sessionId: s.id, counts: {} }; }
+      })).then(results => {
+        const combined = {};
+        results.forEach(({ sessionId, counts }) => { combined[sessionId] = counts; });
+        setFeedReactionCounts(combined);
+      });
       // Session activity notifications (last 24h, no duplicates)
       if (notifPrefs.sessions) {
         const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
@@ -773,6 +811,73 @@ export default function App() {
     } catch {}
   };
 
+  const loadFollowRequestsFor = async (username) => {
+    try {
+      const r = await storage.get(`followRequests:${username}`);
+      return r ? JSON.parse(r.value) : [];
+    } catch { return []; }
+  };
+
+  const acceptFollowRequest = async (requesterUsername, requesterDisplay) => {
+    // Add to own followers
+    const fresh = await loadFollowersStore(currentUser.username);
+    if (!fresh.includes(requesterUsername)) await updateFollowersStore(currentUser.username, [...fresh, requesterUsername]);
+    setSocialFollowers(prev => prev.includes(requesterUsername) ? prev : [...prev, requesterUsername]);
+    // Add currentUser to their following list
+    try {
+      const theirData = await loadUserData(requesterUsername);
+      if (theirData?.profile) {
+        const theirFollowing = [...new Set([...(theirData.profile.following || []), currentUser.username])];
+        await saveUserData(requesterUsername, { ...theirData, profile: { ...theirData.profile, following: theirFollowing } });
+      }
+    } catch {}
+    // Remove from followRequests
+    const updated = myFollowRequests.filter(r => r.from !== requesterUsername);
+    setMyFollowRequests(updated);
+    await storage.set(`followRequests:${currentUser.username}`, JSON.stringify(updated)).catch(() => {});
+  };
+
+  const denyFollowRequest = async (requesterUsername) => {
+    const updated = myFollowRequests.filter(r => r.from !== requesterUsername);
+    setMyFollowRequests(updated);
+    await storage.set(`followRequests:${currentUser.username}`, JSON.stringify(updated)).catch(() => {});
+  };
+
+  const dismissNotification = async (index) => {
+    const notif = notifications[index];
+    const updated = notifications.filter((_, i) => i !== index);
+    setNotifications(updated);
+    if (!notif.read) setNotifCount(c => Math.max(0, c - 1));
+    await storage.set(`notifications:${currentUser.username}`, JSON.stringify(updated)).catch(() => {});
+  };
+
+  const loadComments = async (sessionId) => {
+    try {
+      const r = await storage.get(`comments:${sessionId}`);
+      return r ? JSON.parse(r.value) : [];
+    } catch { return []; }
+  };
+
+  const openCommentPanel = async (sessionId) => {
+    setCommentPanelId(sessionId);
+    if (!sessionComments[sessionId]) {
+      const comments = await loadComments(sessionId);
+      setSessionComments(prev => ({ ...prev, [sessionId]: comments }));
+    }
+  };
+
+  const submitComment = async (sessionId) => {
+    if (!commentText.trim() || commentLoading) return;
+    setCommentLoading(true);
+    const existing = sessionComments[sessionId] || await loadComments(sessionId);
+    const comment = { id: Date.now(), username: currentUser.username, displayName: currentUser.displayName, text: commentText.trim(), at: new Date().toISOString() };
+    const updated = [...existing, comment];
+    await storage.set(`comments:${sessionId}`, JSON.stringify(updated)).catch(() => {});
+    setSessionComments(prev => ({ ...prev, [sessionId]: updated }));
+    setCommentText("");
+    setCommentLoading(false);
+  };
+
   const loadMyReactions = async (username) => {
     try {
       const r = await storage.get(`myReactions:${username}`);
@@ -787,6 +892,20 @@ export default function App() {
       : { ...myReactions, [sessionId]: emoji };
     setMyReactions(updated);
     try { await storage.set(`myReactions:${currentUser.username}`, JSON.stringify(updated)); } catch {}
+    // Maintain aggregate sessionReactions:{sessionId} so counts are visible to all
+    try {
+      const r = await storage.get(`sessionReactions:${sessionId}`);
+      const agg = r ? JSON.parse(r.value) : {};
+      if (current === emoji) {
+        delete agg[currentUser.username];
+      } else {
+        agg[currentUser.username] = emoji;
+      }
+      await storage.set(`sessionReactions:${sessionId}`, JSON.stringify(agg));
+      const counts = {};
+      Object.values(agg).forEach(e => { counts[e] = (counts[e] || 0) + 1; });
+      setFeedReactionCounts(prev => ({ ...prev, [sessionId]: counts }));
+    } catch {}
   };
 
   const toggleMute = (username) => {
@@ -808,15 +927,30 @@ export default function App() {
     } catch {}
   };
 
-  const toggleFollow = async (username) => {
+  const toggleFollow = async (username, targetIsPrivate = false) => {
     const isNowFollowing = !socialFollowing.includes(username);
+    // If target is private and we're not yet following, send a follow request instead
+    if (isNowFollowing && targetIsPrivate) {
+      if (pendingFollowRequests.includes(username)) return;
+      setPendingFollowRequests(prev => [...prev, username]);
+      try {
+        const existing = await loadFollowRequestsFor(username);
+        if (!existing.some(r => r.from === currentUser.username)) {
+          const updated = [...existing, { from: currentUser.username, fromDisplay: currentUser.displayName || currentUser.username, at: new Date().toISOString() }];
+          await storage.set(`followRequests:${username}`, JSON.stringify(updated));
+        }
+      } catch {}
+      return;
+    }
     setSocialFollowing(prev => isNowFollowing ? [...prev, username] : prev.filter(u => u !== username));
     setConfirmUnfollowUser(null);
+    // If unfollowing, also cancel any pending request
+    if (!isNowFollowing) setPendingFollowRequests(prev => prev.filter(u => u !== username));
     const theirFollowers = await loadFollowersStore(username);
-    const updated = isNowFollowing
+    const updatedFollowers = isNowFollowing
       ? [...new Set([...theirFollowers, currentUser.username])]
       : theirFollowers.filter(u => u !== currentUser.username);
-    await updateFollowersStore(username, updated);
+    await updateFollowersStore(username, updatedFollowers);
     if (isNowFollowing && notifPrefs.follows) {
       await addNotification(username, { type: "follow", from: currentUser.username, fromDisplay: currentUser.displayName || currentUser.username, at: new Date().toISOString(), read: false });
     }
@@ -876,15 +1010,16 @@ export default function App() {
     }
   };
 
-  // Reload feed when home/social tab opens or following list changes
+  // Reload feed when home screen opens or following list changes
   useEffect(() => {
-    if (screen === "home" || (screen === "social" && socialTab === "feed")) loadSocialFeed();
-  }, [screen, socialTab, socialFollowing]);
+    if (screen === "home") loadSocialFeed();
+  }, [screen, socialFollowing]);
 
   // Refresh own follower count + mark notifications read when profile screen opens
   useEffect(() => {
     if (screen === "profile" && currentUser) {
       loadFollowersStore(currentUser.username).then(setSocialFollowers).catch(() => {});
+      storage.get(`followRequests:${currentUser.username}`).then(r => setMyFollowRequests(r ? JSON.parse(r.value) : [])).catch(() => {});
       if (notifCount > 0) {
         const marked = notifications.map(n => ({ ...n, read: true }));
         setNotifications(marked);
@@ -1211,17 +1346,21 @@ export default function App() {
             </div>
           ))}
         </div>
-        {/* Reactions — only on social feed cards */}
+        {/* Reactions + Comments — only on social feed cards */}
         {poster && (
-          <div style={{ display: "flex", gap: 8, padding: "10px 16px", borderTop: `1px solid ${W.border}` }}>
+          <div style={{ display: "flex", gap: 8, padding: "10px 16px", borderTop: `1px solid ${W.border}`, alignItems: "center" }}>
             {["🔥", "💪", "✨"].map(emoji => {
               const active = myReactions[session.id] === emoji;
+              const count = feedReactionCounts[session.id]?.[emoji] || 0;
               return (
-                <button key={emoji} onClick={e => { e.stopPropagation(); toggleReaction(session.id, emoji); }} style={{ padding: "5px 14px", borderRadius: 20, border: `1.5px solid ${active ? W.accent : W.border}`, background: active ? W.accent + "22" : "transparent", fontSize: 15, cursor: "pointer", fontWeight: active ? 700 : 400, color: active ? W.accent : W.textMuted }}>
-                  {emoji}
+                <button key={emoji} onClick={e => { e.stopPropagation(); toggleReaction(session.id, emoji); }} style={{ padding: "5px 12px", borderRadius: 20, border: `1.5px solid ${active ? W.accent : W.border}`, background: active ? W.accent + "22" : "transparent", fontSize: 15, cursor: "pointer", fontWeight: active ? 700 : 400, color: active ? W.accent : W.textMuted, display: "flex", alignItems: "center", gap: 4 }}>
+                  {emoji}{count > 0 && <span style={{ fontSize: 11, fontWeight: 700 }}>{count}</span>}
                 </button>
               );
             })}
+            <button onClick={e => { e.stopPropagation(); openCommentPanel(session.id); }} style={{ marginLeft: "auto", padding: "5px 12px", borderRadius: 20, border: `1.5px solid ${W.border}`, background: "transparent", fontSize: 13, cursor: "pointer", color: W.textMuted, display: "flex", alignItems: "center", gap: 4 }}>
+              💬{sessionComments[session.id]?.length > 0 && <span style={{ fontSize: 11, fontWeight: 700 }}>{sessionComments[session.id].length}</span>}
+            </button>
           </div>
         )}
       </div>
@@ -1493,6 +1632,25 @@ export default function App() {
             </button>
           ))}
         </div>
+
+        {/* Pending follow requests from others */}
+        {myFollowRequests.length > 0 && (
+          <div style={{ background: W.surface, borderRadius: 16, padding: "14px 16px", marginBottom: 14, border: `1px solid ${W.border}` }}>
+            <div style={{ fontWeight: 700, color: W.text, fontSize: 13, marginBottom: 10 }}>Follow Requests ({myFollowRequests.length})</div>
+            {myFollowRequests.map(req => (
+              <div key={req.from} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", paddingBottom: 8, marginBottom: 8, borderBottom: `1px solid ${W.border}` }}>
+                <div onClick={() => openUserProfile(req.from, req.fromDisplay, "profile")} style={{ flex: 1, cursor: "pointer" }}>
+                  <div style={{ fontWeight: 700, color: W.text, fontSize: 13 }}>{req.fromDisplay}</div>
+                  <div style={{ fontSize: 11, color: W.accent }}>@{req.from} ›</div>
+                </div>
+                <div style={{ display: "flex", gap: 6 }}>
+                  <button onClick={() => acceptFollowRequest(req.from, req.fromDisplay)} style={{ padding: "5px 12px", background: `linear-gradient(135deg, ${W.accent}, ${W.accentDark})`, border: "none", borderRadius: 8, color: "#fff", fontWeight: 700, fontSize: 12, cursor: "pointer" }}>Accept</button>
+                  <button onClick={() => denyFollowRequest(req.from)} style={{ padding: "5px 10px", background: W.surface2, border: `1px solid ${W.border}`, borderRadius: 8, color: W.textMuted, fontWeight: 700, fontSize: 12, cursor: "pointer" }}>Deny</button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
 
         {showAccountPanel && (
           <div style={{ background: W.surface, borderRadius: 16, padding: "16px", marginBottom: 20, border: `1px solid ${W.border}` }}>
@@ -2266,7 +2424,9 @@ export default function App() {
                       <button onClick={() => toggleFollow(username)} style={{ padding: "5px 10px", background: W.red, border: `1px solid ${W.redDark}`, borderRadius: 8, color: W.redDark, fontWeight: 700, fontSize: 11, cursor: "pointer" }}>Unfollow</button>
                     </div>
                   </div>
-                : <button onClick={() => isFollowing ? setConfirmUnfollowUser(username) : toggleFollow(username)} style={{ padding: "9px 18px", background: isFollowing ? W.surface2 : `linear-gradient(135deg, ${W.accent}, ${W.accentDark})`, border: isFollowing ? `2px solid ${W.border}` : "none", borderRadius: 12, color: isFollowing ? W.textMuted : "#fff", fontWeight: 700, fontSize: 13, cursor: "pointer", flexShrink: 0 }}>
+                : pendingFollowRequests.includes(username)
+                ? <div style={{ padding: "9px 14px", background: W.surface2, border: `2px solid ${W.border}`, borderRadius: 12, color: W.textDim, fontWeight: 700, fontSize: 12, flexShrink: 0 }}>Requested</div>
+                : <button onClick={() => isFollowing ? setConfirmUnfollowUser(username) : toggleFollow(username, profileIsPrivate)} style={{ padding: "9px 18px", background: isFollowing ? W.surface2 : `linear-gradient(135deg, ${W.accent}, ${W.accentDark})`, border: isFollowing ? `2px solid ${W.border}` : "none", borderRadius: 12, color: isFollowing ? W.textMuted : "#fff", fontWeight: 700, fontSize: 13, cursor: "pointer", flexShrink: 0 }}>
                     {isFollowing ? "Following" : "Follow"}
                   </button>
             }
@@ -2368,51 +2528,37 @@ export default function App() {
         <h2 style={{ fontSize: 22, fontWeight: 800, color: W.text, margin: "0 0 16px" }}>Social</h2>
         {/* Tabs */}
         <div style={{ display: "flex", background: W.surface2, borderRadius: 12, padding: 4, marginBottom: 20, border: `1px solid ${W.border}` }}>
-          {[["feed", "Feed"], ["search", "Find Climbers"]].map(([id, label]) => (
+          {[["notifications", "Notifications"], ["search", "Find Climbers"]].map(([id, label]) => (
             <button key={id} onClick={() => setSocialTab(id)} style={{ flex: 1, padding: "9px 4px", borderRadius: 9, border: "none", background: socialTab === id ? `linear-gradient(135deg, ${W.accent}, ${W.accentDark})` : "transparent", color: socialTab === id ? "#fff" : W.textDim, fontWeight: 700, fontSize: 13, cursor: "pointer" }}>{label}</button>
           ))}
         </div>
 
-        {/* FEED TAB */}
-        {socialTab === "feed" && (() => {
-          if (socialFollowing.length === 0) return (
+        {/* NOTIFICATIONS TAB */}
+        {socialTab === "notifications" && (() => {
+          if (notifications.length === 0) return (
             <div style={{ textAlign: "center", padding: "48px 20px" }}>
-              <div style={{ fontSize: 40, marginBottom: 12 }}>👥</div>
-              <div style={{ color: W.text, fontWeight: 700, fontSize: 16, marginBottom: 8 }}>No one followed yet</div>
-              <div style={{ color: W.textMuted, fontSize: 13, marginBottom: 20 }}>Search for climbers to follow and see their sessions here.</div>
-              <button onClick={() => setSocialTab("search")} style={{ padding: "11px 24px", background: `linear-gradient(135deg, ${W.accent}, ${W.accentDark})`, border: "none", borderRadius: 12, color: "#fff", fontWeight: 700, fontSize: 14, cursor: "pointer" }}>Find Climbers</button>
+              <div style={{ fontSize: 40, marginBottom: 12 }}>🔔</div>
+              <div style={{ color: W.text, fontWeight: 700, fontSize: 16, marginBottom: 8 }}>No notifications yet</div>
+              <div style={{ color: W.textMuted, fontSize: 13 }}>You'll see follows and session activity here.</div>
             </div>
           );
-          if (socialFeedLoading) return (
-            <div style={{ textAlign: "center", padding: "48px 20px", color: W.textMuted }}>Loading feed…</div>
-          );
-          if (!socialFeed.length) return (
-            <div style={{ textAlign: "center", padding: "48px 20px", color: W.textMuted }}>No recent sessions from people you follow.</div>
-          );
-          return socialFeed.map((s, i) => {
-            const sends = s.climbs?.filter(c => c.completed).length || 0;
-            const top = topGrade(s.climbs);
-            return (
-              <div key={`${s.id}-${i}`} style={{ background: W.surface, borderRadius: 16, padding: "14px 16px", marginBottom: 12, border: `1px solid ${W.border}` }}>
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 8 }}>
-                  <div onClick={() => openUserProfile(s.feedUsername, s.feedDisplayName, "social")} style={{ cursor: "pointer" }}>
-                    <div style={{ fontWeight: 800, color: W.accent, fontSize: 14 }}>@{s.feedUsername} ›</div>
-                    <div style={{ color: W.textMuted, fontSize: 12 }}>{s.feedDisplayName}</div>
+          return (
+            <div>
+              {notifications.map((n, i) => (
+                <div key={i} style={{ display: "flex", alignItems: "flex-start", gap: 10, padding: "12px 0", borderBottom: `1px solid ${W.border}` }}>
+                  <div style={{ width: 8, height: 8, borderRadius: "50%", background: n.read ? W.border : W.accent, flexShrink: 0, marginTop: 5 }} />
+                  <div style={{ flex: 1 }}>
+                    {n.type === "follow"
+                      ? <div style={{ fontSize: 13, color: W.text }}><span style={{ fontWeight: 700 }}>{n.fromDisplay}</span> started following you</div>
+                      : <div style={{ fontSize: 13, color: W.text }}><span style={{ fontWeight: 700 }}>{n.fromDisplay}</span> logged a session{n.location ? ` at ${n.location}` : ""}</div>
+                    }
+                    <div style={{ fontSize: 11, color: W.textDim, marginTop: 2 }}>{new Date(n.at).toLocaleDateString()}</div>
                   </div>
-                  <div style={{ textAlign: "right" }}>
-                    <div style={{ color: W.textDim, fontSize: 11 }}>{formatDate(s.date)}</div>
-                    {s.location && <div style={{ color: W.textMuted, fontSize: 12, marginTop: 2 }}>📍 {s.location}</div>}
-                  </div>
+                  <button onClick={() => dismissNotification(i)} style={{ background: "none", border: "none", color: W.textDim, fontSize: 16, cursor: "pointer", padding: "0 4px", flexShrink: 0 }}>×</button>
                 </div>
-                <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                  <span style={{ background: W.green, color: W.greenDark, borderRadius: 8, padding: "3px 10px", fontSize: 12, fontWeight: 700 }}>{sends} sends</span>
-                  <span style={{ background: W.surface2, color: W.textMuted, borderRadius: 8, padding: "3px 10px", fontSize: 12, fontWeight: 600 }}>{s.climbs?.length || 0} climbs</span>
-                  {top && <span style={{ background: W.purple, color: W.purpleDark, borderRadius: 8, padding: "3px 10px", fontSize: 12, fontWeight: 700 }}>Top: {top}</span>}
-                  {s.duration > 0 && <span style={{ background: W.surface2, color: W.textDim, borderRadius: 8, padding: "3px 10px", fontSize: 12 }}>{formatTotalTime(s.duration)}</span>}
-                </div>
-              </div>
-            );
-          });
+              ))}
+            </div>
+          );
         })()}
 
         {/* SEARCH TAB */}
@@ -2537,9 +2683,40 @@ export default function App() {
                       }
                       <div style={{ fontSize: 11, color: W.textDim, marginTop: 2 }}>{new Date(n.at).toLocaleDateString()}</div>
                     </div>
+                    <button onClick={() => dismissNotification(i)} style={{ background: "none", border: "none", color: W.textDim, fontSize: 16, cursor: "pointer", padding: "0 4px", flexShrink: 0 }}>×</button>
                   </div>
                 ))
             }
+          </div>
+        </div>
+      )}
+
+      {/* Comment panel */}
+      {commentPanelId && (
+        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.55)", zIndex: 200, display: "flex", alignItems: "flex-end", justifyContent: "center" }} onClick={() => setCommentPanelId(null)}>
+          <div style={{ width: "100%", maxWidth: 420, background: W.surface, borderRadius: "20px 20px 0 0", padding: "20px 20px 24px", maxHeight: "70vh", display: "flex", flexDirection: "column" }} onClick={e => e.stopPropagation()}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
+              <div style={{ fontWeight: 800, color: W.text, fontSize: 17 }}>Comments</div>
+              <button onClick={() => setCommentPanelId(null)} style={{ background: "none", border: "none", color: W.textMuted, fontSize: 20, cursor: "pointer", padding: 0 }}>×</button>
+            </div>
+            <div style={{ flex: 1, overflowY: "auto", marginBottom: 12 }}>
+              {(sessionComments[commentPanelId] || []).length === 0
+                ? <div style={{ textAlign: "center", color: W.textMuted, padding: "28px 0", fontSize: 14 }}>No comments yet. Be the first!</div>
+                : (sessionComments[commentPanelId] || []).map(c => (
+                    <div key={c.id} style={{ padding: "10px 0", borderBottom: `1px solid ${W.border}` }}>
+                      <div style={{ display: "flex", gap: 6, marginBottom: 3 }}>
+                        <span style={{ fontWeight: 700, color: W.accent, fontSize: 13 }}>{c.displayName}</span>
+                        <span style={{ color: W.textDim, fontSize: 11, alignSelf: "flex-end" }}>{new Date(c.at).toLocaleDateString()}</span>
+                      </div>
+                      <div style={{ fontSize: 14, color: W.text }}>{c.text}</div>
+                    </div>
+                  ))
+              }
+            </div>
+            <div style={{ display: "flex", gap: 8 }}>
+              <input value={commentText} onChange={e => setCommentText(e.target.value)} onKeyDown={e => e.key === "Enter" && submitComment(commentPanelId)} placeholder="Add a comment…" style={{ flex: 1, padding: "10px 14px", background: W.surface2, border: `2px solid ${W.border}`, borderRadius: 12, color: W.text, fontSize: 14, fontFamily: "inherit" }} />
+              <button onClick={() => submitComment(commentPanelId)} disabled={commentLoading || !commentText.trim()} style={{ padding: "10px 16px", background: commentText.trim() ? `linear-gradient(135deg, ${W.accent}, ${W.accentDark})` : W.border, border: "none", borderRadius: 12, color: "#fff", fontWeight: 700, fontSize: 14, cursor: commentText.trim() ? "pointer" : "default" }}>Post</button>
+            </div>
           </div>
         </div>
       )}
