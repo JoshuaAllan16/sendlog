@@ -34,6 +34,7 @@ const getGradeColor = (g) => GRADE_COLORS[g] || GRADE_COLORS["default"];
 const formatDate    = (iso) => new Date(iso).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
 const formatDuration = (s) => `${Math.floor(s / 60)}:${(s % 60).toString().padStart(2, "0")}`;
 const formatTotalTime = (s) => { const h = Math.floor(s / 3600); const m = Math.floor((s % 3600) / 60); return h > 0 ? `${h}h ${m}m` : `${m}m`; };
+const formatRestSec  = (s) => { if (s === null || s === undefined) return "—"; const m = Math.floor(s / 60), sec = Math.round(s % 60); return m > 0 ? (sec ? `${m}m ${sec}s` : `${m}m`) : `${sec}s`; };
 
 const W = {
   bg: "linear-gradient(160deg, #2c1a0c 0%, #1f1208 50%, #160c04 100%)",
@@ -466,7 +467,7 @@ export default function App() {
       setActiveSession(s => ({ ...s, climbs: s.climbs.map(c => c.id === editingClimbId ? { ...c, ...climbForm, photo: photoPreview } : c) }));
     } else {
       const pid = climbForm.isProject ? (climbForm.projectId || Date.now() + 1) : null;
-      const newClimb = { ...climbForm, photo: photoPreview, projectId: pid, id: Date.now(), tries: 0, completed: false };
+      const newClimb = { ...climbForm, photo: photoPreview, projectId: pid, id: Date.now(), loggedAt: Date.now(), tries: 0, completed: false };
       if (newClimb.isProject && !climbForm.projectId) setProjects(prev => [...prev, { id: pid, name: newClimb.name, grade: newClimb.grade, scale: newClimb.scale, comments: newClimb.comments, active: true, completed: false, dateAdded: new Date().toISOString(), dateSent: null }]);
       setActiveSession(s => ({ ...s, climbs: [...s.climbs, newClimb] }));
     }
@@ -521,6 +522,14 @@ export default function App() {
     const uniqueGyms = Object.keys(gymVisits).length;
     const mostGymVisits = Object.values(gymVisits).length ? Math.max(...Object.values(gymVisits)) : 0;
     const totalTimeClimbed = tfSessions.reduce((sum, s) => sum + (s.duration || 0), 0);
+    // Time-between-attempts stats across all sessions
+    const allRestGaps = [];
+    tfSessions.forEach(s => {
+      const ts = s.climbs.map(c => c.loggedAt).filter(t => t).sort((a, b) => a - b);
+      for (let i = 1; i < ts.length; i++) allRestGaps.push((ts[i] - ts[i - 1]) / 1000);
+    });
+    const avgClimbRestSec = allRestGaps.length ? Math.round(allRestGaps.reduce((a, b) => a + b, 0) / allRestGaps.length) : null;
+    const maxClimbRestSec = allRestGaps.length ? Math.round(Math.max(...allRestGaps)) : null;
     const sortedSessionDays = [...new Set(tfSessions.map(s => s.date.slice(0, 10)))].sort();
     let restTotal = 0, restCount = 0;
     for (let i = 1; i < sortedSessionDays.length; i++) {
@@ -528,7 +537,7 @@ export default function App() {
       restCount++;
     }
     const avgRestDays = restCount > 0 ? (restTotal / restCount).toFixed(1) : "—";
-    return { base, completed, flashes, flashRate, avgTries, bestGrade, gradeBreakdown, mostInDay, mostAttemptsInDay, totalAttempts, uniqueGyms, mostGymVisits, totalTimeClimbed, sessionCount: tfSessions.length, avgRestDays };
+    return { base, completed, flashes, flashRate, avgTries, bestGrade, gradeBreakdown, mostInDay, mostAttemptsInDay, totalAttempts, uniqueGyms, mostGymVisits, totalTimeClimbed, sessionCount: tfSessions.length, avgRestDays, avgClimbRestSec, maxClimbRestSec };
   };
 
   const getProjectHistory    = (pid) => sessions.flatMap(s => s.climbs.filter(c => c.projectId === pid).map(c => ({ ...c, sessionDate: s.date, sessionLocation: s.location }))).sort((a, b) => new Date(b.sessionDate) - new Date(a.sessionDate));
@@ -573,7 +582,13 @@ export default function App() {
     const sortedByGrade = (arr) => [...arr].sort((a, b) => getGradeIndex(b.grade, b.scale) - getGradeIndex(a.grade, a.scale));
     const hardestAttempted = session.climbs.length ? sortedByGrade(session.climbs)[0]?.grade : "—";
     const hardestSent = session.climbs.filter(c => c.completed).length ? sortedByGrade(session.climbs.filter(c => c.completed))[0]?.grade : "—";
-    return { sends, total, totalTries, flashes, flashRate, avgTries, gradeBreakdown, hardestAttempted, hardestSent };
+    // Time between attempts (uses loggedAt timestamps)
+    const loggedTimes = session.climbs.map(c => c.loggedAt).filter(t => t).sort((a, b) => a - b);
+    const restGapsSec = loggedTimes.length > 1 ? loggedTimes.slice(1).map((t, i) => (t - loggedTimes[i]) / 1000) : [];
+    const avgAttemptRest = restGapsSec.length ? Math.round(restGapsSec.reduce((a, b) => a + b, 0) / restGapsSec.length) : null;
+    const maxAttemptRest = restGapsSec.length ? Math.round(Math.max(...restGapsSec)) : null;
+    const minAttemptRest = restGapsSec.length ? Math.round(Math.min(...restGapsSec)) : null;
+    return { sends, total, totalTries, flashes, flashRate, avgTries, gradeBreakdown, hardestAttempted, hardestSent, avgAttemptRest, maxAttemptRest, minAttemptRest };
   };
 
   // ── AUTH SCREENS ───────────────────────────────────────────
@@ -1316,6 +1331,8 @@ export default function App() {
                 { icon: "🏅", label: "Top Gym Visits",      value: displayStats.mostGymVisits,                       sub: "visits to one gym",                  bg: W.goldLight, tc: W.yellowDark },
                 { icon: "😴", label: "Avg Rest Days",       value: displayStats.avgRestDays,                         sub: "between sessions",                   bg: W.surface2,  tc: W.accentDark },
                 { icon: "🔁", label: "Avg Tries",           value: displayStats.avgTries,                            sub: "per climb",                          bg: W.green,     tc: W.greenDark },
+                { icon: "⏸", label: "Avg Rest (Climbs)",   value: formatRestSec(displayStats.avgClimbRestSec),      sub: "between logged climbs",              bg: W.purple,    tc: W.purpleDark },
+                { icon: "🐢", label: "Longest Climb Rest",  value: formatRestSec(displayStats.maxClimbRestSec),      sub: "single longest gap",                 bg: W.surface2,  tc: W.accentDark },
               ].map(s => (
                 <div key={s.label} style={{ background: s.bg, borderRadius: 14, padding: "14px", border: `1px solid ${W.border}` }}>
                   <div style={{ fontSize: 20, marginBottom: 4 }}>{s.icon}</div>
@@ -1358,31 +1375,33 @@ export default function App() {
                 const anySelected = pieSelGrade !== null;
                 const selSlice = pieData.slices.find(s => s.grade === pieSelGrade);
                 return (
-                  <div style={{ display: "flex", gap: 16, alignItems: "flex-start" }}>
-                    <svg width={120} height={120} viewBox="0 0 100 100" style={{ flexShrink: 0 }}>
-                      {pieData.slices.map((sl, i) => (
-                        <path key={i} d={sl.grade === pieSelGrade ? sl.pathSel : sl.path} fill={sl.color} opacity={anySelected ? (sl.grade === pieSelGrade ? 1 : 0.25) : 0.9} style={{ cursor: "pointer", transition: "opacity 0.15s" }} onClick={() => setPieSelGrade(pieSelGrade === sl.grade ? null : sl.grade)} />
-                      ))}
-                      {selSlice ? (
-                        <>
-                          <text x="50" y="45" textAnchor="middle" fontSize="9" fontWeight="bold" fill={selSlice.color}>{selSlice.grade}</text>
-                          <text x="50" y="57" textAnchor="middle" fontSize="13" fontWeight="bold" fill={W.text}>{selSlice.value}</text>
-                          <text x="50" y="66" textAnchor="middle" fontSize="7" fill={W.textMuted}>{Math.round((selSlice.value / pieData.total) * 100)}%</text>
-                        </>
-                      ) : (
-                        <>
-                          <text x="50" y="47" textAnchor="middle" fontSize="12" fontWeight="bold" fill={W.text}>{pieData.total}</text>
-                          <text x="50" y="59" textAnchor="middle" fontSize="7" fill={W.textMuted}>total</text>
-                        </>
-                      )}
-                    </svg>
-                    <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 7 }}>
+                  <div>
+                    <div style={{ display: "flex", justifyContent: "center", marginBottom: 16 }}>
+                      <svg width={220} height={220} viewBox="-6 -6 112 112" style={{ display: "block" }}>
+                        {pieData.slices.map((sl, i) => (
+                          <path key={i} d={sl.grade === pieSelGrade ? sl.pathSel : sl.path} fill={sl.color} opacity={anySelected ? (sl.grade === pieSelGrade ? 1 : 0.25) : 0.9} style={{ cursor: "pointer", transition: "opacity 0.15s" }} onClick={() => setPieSelGrade(pieSelGrade === sl.grade ? null : sl.grade)} />
+                        ))}
+                        {selSlice ? (
+                          <>
+                            <text x="50" y="44" textAnchor="middle" fontSize="9" fontWeight="bold" fill={selSlice.color}>{selSlice.grade}</text>
+                            <text x="50" y="57" textAnchor="middle" fontSize="14" fontWeight="bold" fill={W.text}>{selSlice.value}</text>
+                            <text x="50" y="67" textAnchor="middle" fontSize="7" fill={W.textMuted}>{Math.round((selSlice.value / pieData.total) * 100)}%</text>
+                          </>
+                        ) : (
+                          <>
+                            <text x="50" y="47" textAnchor="middle" fontSize="13" fontWeight="bold" fill={W.text}>{pieData.total}</text>
+                            <text x="50" y="58" textAnchor="middle" fontSize="7" fill={W.textMuted}>total</text>
+                          </>
+                        )}
+                      </svg>
+                    </div>
+                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
                       {pieData.slices.map(sl => {
                         const isSel = pieSelGrade === sl.grade;
                         return (
-                          <div key={sl.grade} onClick={() => setPieSelGrade(pieSelGrade === sl.grade ? null : sl.grade)} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", cursor: "pointer", opacity: anySelected ? (isSel ? 1 : 0.4) : 1, transition: "opacity 0.15s" }}>
+                          <div key={sl.grade} onClick={() => setPieSelGrade(pieSelGrade === sl.grade ? null : sl.grade)} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", cursor: "pointer", opacity: anySelected ? (isSel ? 1 : 0.4) : 1, transition: "opacity 0.15s", background: isSel ? sl.color + "18" : "transparent", borderRadius: 8, padding: "5px 8px", border: `1px solid ${isSel ? sl.color + "60" : "transparent"}` }}>
                             <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                              <div style={{ width: 10, height: 10, borderRadius: 3, background: sl.color, flexShrink: 0, outline: isSel ? `2px solid ${sl.color}` : "none", outlineOffset: 1 }} />
+                              <div style={{ width: 10, height: 10, borderRadius: 3, background: sl.color, flexShrink: 0 }} />
                               <span style={{ fontSize: 12, fontWeight: isSel ? 900 : 700, color: sl.color }}>{sl.grade}</span>
                             </div>
                             <div>
@@ -1641,6 +1660,7 @@ export default function App() {
 
   const SessionSummaryScreen = ({ session }) => {
     const stats = getSessionStats(session);
+    const hasRestData = stats.avgAttemptRest !== null;
     const gradeEntries = Object.entries(stats.gradeBreakdown).sort((a, b) => getGradeIndex(b[0], b[1].scale || "V-Scale") - getGradeIndex(a[0], a[1].scale || "V-Scale"));
     let pieAngle = -Math.PI / 2;
     const pieTotal = gradeEntries.reduce((s, [, v]) => s + v.tries, 0);
@@ -1695,6 +1715,18 @@ export default function App() {
               <div style={{ fontSize: 20, marginBottom: 4 }}>{s.icon}</div>
               <div style={{ fontSize: 20, fontWeight: 800, color: s.tc }}>{s.value}</div>
               <div style={{ fontSize: 11, color: W.textMuted, marginTop: 2 }}>{s.label}</div>
+            </div>
+          ))}
+          {hasRestData && [
+            { icon: "⏸", label: "Avg Rest", value: formatRestSec(stats.avgAttemptRest), sub: "between climbs", bg: W.surface2, tc: W.accentDark },
+            { icon: "🐢", label: "Longest Rest", value: formatRestSec(stats.maxAttemptRest), sub: "single gap", bg: W.purple, tc: W.purpleDark },
+            { icon: "⚡", label: "Shortest Rest", value: formatRestSec(stats.minAttemptRest), sub: "single gap", bg: W.yellow, tc: W.yellowDark },
+          ].map(s => (
+            <div key={s.label} style={{ background: s.bg, borderRadius: 14, padding: "14px", border: `1px solid ${W.border}` }}>
+              <div style={{ fontSize: 20, marginBottom: 4 }}>{s.icon}</div>
+              <div style={{ fontSize: 18, fontWeight: 800, color: s.tc }}>{s.value}</div>
+              <div style={{ fontSize: 11, color: W.textMuted, marginTop: 2 }}>{s.label}</div>
+              <div style={{ fontSize: 10, color: W.textDim, marginTop: 1 }}>{s.sub}</div>
             </div>
           ))}
         </div>
