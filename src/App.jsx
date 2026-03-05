@@ -280,11 +280,13 @@ export default function App() {
 
   // ── SOCIAL STATE ───────────────────────────────────────────
   const [socialFollowing, setSocialFollowing] = useState([]);
+  const [socialFollowers, setSocialFollowers] = useState([]);
   const [socialTab, setSocialTab]             = useState("feed");
   const [socialQuery, setSocialQuery]         = useState("");
   const [socialResults, setSocialResults]     = useState(null); // null = not searched yet
   const [socialFeed, setSocialFeed]           = useState([]);
   const [socialFeedLoading, setSocialFeedLoading] = useState(false);
+  const [socialUserList, setSocialUserList]   = useState(null); // null | { type, users }
 
   // ── INIT: check for existing session ──────────────────────
   useEffect(() => {
@@ -299,6 +301,7 @@ export default function App() {
           setPreferredScale(userData.profile?.preferredScale || "V-Scale");
           setHiddenLocations(userData.profile?.hiddenLocations || []);
           setSocialFollowing(userData.profile?.following || []);
+          storage.get(`followers:${username}`).then(r => setSocialFollowers(r ? JSON.parse(r.value) : [])).catch(() => {});
           setAuthScreen("app");
         } else {
           setAuthScreen("login");
@@ -404,6 +407,7 @@ export default function App() {
       setPreferredScale(safeData.profile?.preferredScale || "V-Scale");
       setHiddenLocations(safeData.profile?.hiddenLocations || []);
       setSocialFollowing(safeData.profile?.following || []);
+      storage.get(`followers:${username.toLowerCase()}`).then(r => setSocialFollowers(r ? JSON.parse(r.value) : [])).catch(() => {});
       setAuthScreen("app");
     } catch (e) {
       setAuthError("Something went wrong. Please try again.");
@@ -422,8 +426,10 @@ export default function App() {
     setPreferredScale("V-Scale");
     setHiddenLocations([]);
     setSocialFollowing([]);
+    setSocialFollowers([]);
     setSocialResults(null);
     setSocialFeed([]);
+    setSocialUserList(null);
     setShowAccountPanel(false);
     setConfirmLogout(false);
     setAuthScreen("login");
@@ -636,16 +642,51 @@ export default function App() {
     } catch (e) { setSocialResults([]); }
   };
 
-  const toggleFollow = (username) => {
-    setSocialFollowing(prev =>
-      prev.includes(username) ? prev.filter(u => u !== username) : [...prev, username]
-    );
+  const loadFollowersStore = async (username) => {
+    try {
+      const r = await storage.get(`followers:${username}`);
+      return r ? JSON.parse(r.value) : [];
+    } catch { return []; }
   };
 
-  // Reload feed when social tab opens or following list changes
+  const updateFollowersStore = async (username, list) => {
+    try { await storage.set(`followers:${username}`, JSON.stringify(list)); } catch {}
+  };
+
+  const toggleFollow = async (username) => {
+    const isNowFollowing = !socialFollowing.includes(username);
+    setSocialFollowing(prev => isNowFollowing ? [...prev, username] : prev.filter(u => u !== username));
+    const theirFollowers = await loadFollowersStore(username);
+    const updated = isNowFollowing
+      ? [...new Set([...theirFollowers, currentUser.username])]
+      : theirFollowers.filter(u => u !== currentUser.username);
+    await updateFollowersStore(username, updated);
+  };
+
+  const showUserList = async (type) => {
+    const accounts = await loadAccountIndex();
+    if (type === "following") {
+      const users = socialFollowing.map(u => ({ username: u, displayName: accounts[u]?.displayName || u }));
+      setSocialUserList({ type: "following", users });
+    } else {
+      const fresh = await loadFollowersStore(currentUser.username);
+      setSocialFollowers(fresh);
+      const users = fresh.map(u => ({ username: u, displayName: accounts[u]?.displayName || u }));
+      setSocialUserList({ type: "followers", users });
+    }
+  };
+
+  // Reload feed when home/social tab opens or following list changes
   useEffect(() => {
-    if (screen === "social" && socialTab === "feed") loadSocialFeed();
+    if (screen === "home" || (screen === "social" && socialTab === "feed")) loadSocialFeed();
   }, [screen, socialTab, socialFollowing]);
+
+  // Refresh own follower count when profile screen opens
+  useEffect(() => {
+    if (screen === "profile" && currentUser) {
+      loadFollowersStore(currentUser.username).then(setSocialFollowers).catch(() => {});
+    }
+  }, [screen]);
 
   // ── AUTH SCREENS ───────────────────────────────────────────
   if (authScreen === "loading") {
@@ -892,7 +933,7 @@ export default function App() {
   };
 
 
-  const LogbookSessionCard = ({ session }) => {
+  const LogbookSessionCard = ({ session, poster }) => {
     const stats = getSessionStats(session);
     const gradeEntries = Object.entries(stats.gradeBreakdown).sort((a, b) => getGradeIndex(b[0], b[1].scale || "V-Scale") - getGradeIndex(a[0], a[1].scale || "V-Scale"));
     const pieTotal = gradeEntries.reduce((s, [, v]) => s + v.tries, 0);
@@ -912,6 +953,14 @@ export default function App() {
     });
     return (
       <div style={{ background: W.surface, borderRadius: 18, border: `1px solid ${W.border}`, marginBottom: 16, overflow: "hidden" }}>
+        {/* Posted-by row (only in feed) */}
+        {poster && (
+          <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 16px", borderBottom: `1px solid ${W.border}`, background: W.surface2 }}>
+            <div style={{ width: 24, height: 24, borderRadius: 8, background: `linear-gradient(135deg, ${W.accent}, ${W.accentDark})`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12 }}>🧗</div>
+            <span style={{ fontWeight: 700, color: W.accent, fontSize: 13 }}>{poster.displayName}</span>
+            <span style={{ color: W.textDim, fontSize: 12 }}>@{poster.username}</span>
+          </div>
+        )}
         {/* Header */}
         <div onClick={() => { setSelectedSession(session); setScreen("sessionDetail"); }} style={{ padding: "14px 16px", cursor: "pointer", borderBottom: `1px solid ${W.border}`, display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
           <div>
@@ -961,16 +1010,63 @@ export default function App() {
   };
 
   // ── SCREENS ────────────────────────────────────────────────
-  const HomeScreen = () => (
-    <div style={{ padding: "24px 20px" }}>
-      <h1 style={{ fontSize: 26, fontWeight: 800, color: W.text, margin: "0 0 4px" }}>Hey, {currentUser?.displayName || "Climber"} 👋</h1>
-      <p style={{ color: W.textMuted, margin: "0 0 22px", fontSize: 14 }}>Ready to send something today?</p>
-      <button onClick={goToSessionSetup} style={{ width: "100%", padding: "16px", background: `linear-gradient(135deg, ${W.accent}, ${W.accentDark})`, border: "none", borderRadius: 16, color: "#fff", fontSize: 16, fontWeight: 700, cursor: "pointer", marginBottom: 28, boxShadow: `0 4px 20px ${W.accentGlow}` }}>▶ Start a Session</button>
-      <div style={{ fontSize: 13, fontWeight: 700, color: W.textMuted, marginBottom: 12, textTransform: "uppercase", letterSpacing: 1 }}>Previous Sessions</div>
-      {sessions.length === 0 ? <div style={{ textAlign: "center", color: W.textDim, padding: "40px 0" }}>No sessions yet!</div>
-        : sessions.map(s => <LogbookSessionCard key={s.id} session={s} />)}
-    </div>
-  );
+  const HomeScreen = () => {
+    // Build combined feed: own sessions + followed users' sessions, sorted newest first
+    const ownFeedItems = sessions.map(s => ({
+      ...s,
+      feedUsername: currentUser.username,
+      feedDisplayName: currentUser.displayName,
+      isOwn: true,
+    }));
+    const combined = [...ownFeedItems, ...socialFeed]
+      .sort((a, b) => new Date(b.date) - new Date(a.date));
+
+    return (
+      <div style={{ padding: "24px 20px" }}>
+        <h1 style={{ fontSize: 26, fontWeight: 800, color: W.text, margin: "0 0 4px" }}>Hey, {currentUser?.displayName || "Climber"} 👋</h1>
+        <p style={{ color: W.textMuted, margin: "0 0 22px", fontSize: 14 }}>Ready to send something today?</p>
+        <button onClick={goToSessionSetup} style={{ width: "100%", padding: "16px", background: `linear-gradient(135deg, ${W.accent}, ${W.accentDark})`, border: "none", borderRadius: 16, color: "#fff", fontSize: 16, fontWeight: 700, cursor: "pointer", marginBottom: 28, boxShadow: `0 4px 20px ${W.accentGlow}` }}>▶ Start a Session</button>
+        <div style={{ fontSize: 13, fontWeight: 700, color: W.textMuted, marginBottom: 12, textTransform: "uppercase", letterSpacing: 1 }}>
+          {socialFollowing.length > 0 ? "Feed" : "Previous Sessions"}
+        </div>
+        {combined.length === 0
+          ? <div style={{ textAlign: "center", color: W.textDim, padding: "40px 0" }}>No sessions yet!</div>
+          : combined.map((s, i) => (
+              s.isOwn
+                ? <LogbookSessionCard key={`own-${s.id}`} session={s} poster={socialFollowing.length > 0 ? { username: s.feedUsername, displayName: s.feedDisplayName } : null} />
+                : (
+                  <div key={`feed-${s.id}-${i}`} style={{ background: W.surface, borderRadius: 18, border: `1px solid ${W.border}`, marginBottom: 16, overflow: "hidden" }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 16px", borderBottom: `1px solid ${W.border}`, background: W.surface2 }}>
+                      <div style={{ width: 24, height: 24, borderRadius: 8, background: `linear-gradient(135deg, ${W.accent}, ${W.accentDark})`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12 }}>🧗</div>
+                      <span style={{ fontWeight: 700, color: W.accent, fontSize: 13 }}>{s.feedDisplayName}</span>
+                      <span style={{ color: W.textDim, fontSize: 12 }}>@{s.feedUsername}</span>
+                    </div>
+                    <div style={{ padding: "12px 16px", borderBottom: `1px solid ${W.border}` }}>
+                      <div style={{ fontWeight: 900, fontSize: 15, color: W.text }}>{formatDate(s.date)}</div>
+                      {s.location && <div style={{ fontSize: 13, fontWeight: 700, color: W.textMuted, marginTop: 2 }}>📍 {s.location}</div>}
+                      {s.duration > 0 && <div style={{ fontSize: 11, color: W.textDim, marginTop: 1 }}>⏱ {formatDuration(s.duration)}</div>}
+                    </div>
+                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr" }}>
+                      {[
+                        { label: "Sends", value: `${s.climbs?.filter(c => c.completed).length || 0}/${s.climbs?.length || 0}` },
+                        { label: "Tries", value: s.climbs?.reduce((t, c) => t + c.tries, 0) || 0 },
+                        { label: "Flashes", value: s.climbs?.filter(c => c.completed && c.tries === 1).length || 0 },
+                        { label: "Top", value: (() => { const sent = s.climbs?.filter(c => c.completed); if (!sent?.length) return "—"; return sent.reduce((b, c) => (GRADES[c.scale || "V-Scale"] || []).indexOf(c.grade) > (GRADES[b.scale || "V-Scale"] || []).indexOf(b.grade) ? c : b, sent[0])?.grade || "—"; })() },
+                      ].map((st, j) => (
+                        <div key={st.label} style={{ padding: "10px 6px", textAlign: "center", borderRight: j < 3 ? `1px solid ${W.border}` : "none" }}>
+                          <div style={{ fontSize: 16, fontWeight: 900, color: W.text }}>{st.value}</div>
+                          <div style={{ fontSize: 10, color: W.textDim, marginTop: 1 }}>{st.label}</div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )
+            )
+          )
+        }
+      </div>
+    );
+  };
 
   const SessionSetupScreen = () => (
     <div style={{ padding: "32px 24px" }}>
@@ -1145,13 +1241,25 @@ export default function App() {
 
     return (
       <div style={{ padding: "24px 20px" }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 14, marginBottom: 22 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 14, marginBottom: 14 }}>
           <div style={{ width: 58, height: 58, borderRadius: 18, background: `linear-gradient(135deg, ${W.accent}, ${W.accentDark})`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 26, boxShadow: `0 4px 14px ${W.accentGlow}` }}>🧗</div>
           <div style={{ flex: 1 }}>
             <div style={{ fontSize: 20, fontWeight: 800, color: W.text }}>{currentUser?.displayName || "Climber"}</div>
             <div style={{ fontSize: 12, color: W.textMuted }}>@{currentUser?.username} · {sessions.length} sessions · {allClimbs.length} climbs</div>
           </div>
           <button onClick={() => setShowAccountPanel(o => !o)} style={{ background: W.surface2, border: `1px solid ${W.border}`, borderRadius: 10, padding: "8px 12px", fontSize: 12, color: W.textMuted, fontWeight: 700, cursor: "pointer" }}>⚙️</button>
+        </div>
+        {/* Follower / Following counts */}
+        <div style={{ display: "flex", gap: 10, marginBottom: 22 }}>
+          {[
+            { label: "Following", count: socialFollowing.length, type: "following" },
+            { label: "Followers", count: socialFollowers.length, type: "followers" },
+          ].map(item => (
+            <button key={item.type} onClick={() => showUserList(item.type)} style={{ flex: 1, background: W.surface2, border: `1px solid ${W.border}`, borderRadius: 12, padding: "10px 8px", cursor: "pointer", textAlign: "center" }}>
+              <div style={{ fontSize: 20, fontWeight: 900, color: W.text }}>{item.count}</div>
+              <div style={{ fontSize: 11, color: W.textMuted, fontWeight: 600, marginTop: 2 }}>{item.label}</div>
+            </button>
+          ))}
         </div>
 
         {showAccountPanel && (
@@ -1968,6 +2076,32 @@ export default function App() {
         {screen === "projectDetail" && selectedProject && <ProjectDetailScreen project={projects.find(p => p.id === selectedProject.id) || selectedProject} />}
         {screen === "sessionSummary" && sessionSummary && <SessionSummaryScreen session={sessionSummary} />}
       </div>
+
+      {/* Follower / Following list modal */}
+      {socialUserList && (
+        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.55)", zIndex: 200, display: "flex", alignItems: "flex-end", justifyContent: "center" }} onClick={() => setSocialUserList(null)}>
+          <div style={{ width: "100%", maxWidth: 420, background: W.surface, borderRadius: "20px 20px 0 0", padding: "20px 20px 40px", maxHeight: "60vh", overflowY: "auto" }} onClick={e => e.stopPropagation()}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
+              <div style={{ fontWeight: 800, color: W.text, fontSize: 17 }}>{socialUserList.type === "following" ? "Following" : "Followers"}</div>
+              <button onClick={() => setSocialUserList(null)} style={{ background: "none", border: "none", color: W.textMuted, fontSize: 20, cursor: "pointer", padding: 0 }}>×</button>
+            </div>
+            {socialUserList.users.length === 0
+              ? <div style={{ textAlign: "center", color: W.textMuted, padding: "24px 0", fontSize: 14 }}>{socialUserList.type === "following" ? "Not following anyone yet." : "No followers yet."}</div>
+              : socialUserList.users.map(u => (
+                  <div key={u.username} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 0", borderBottom: `1px solid ${W.border}` }}>
+                    <div>
+                      <div style={{ fontWeight: 700, color: W.text, fontSize: 14 }}>{u.displayName}</div>
+                      <div style={{ fontSize: 12, color: W.textMuted }}>@{u.username}</div>
+                    </div>
+                    {socialUserList.type === "following" && (
+                      <button onClick={() => toggleFollow(u.username)} style={{ padding: "6px 14px", background: W.surface2, border: `1px solid ${W.border}`, borderRadius: 10, color: W.textMuted, fontWeight: 700, fontSize: 12, cursor: "pointer" }}>Unfollow</button>
+                    )}
+                  </div>
+                ))
+            }
+          </div>
+        </div>
+      )}
 
       <div style={{ position: "fixed", bottom: 0, left: "50%", transform: "translateX(-50%)", width: "100%", maxWidth: 420, background: W.navBg, borderTop: `1px solid ${W.border}`, display: "flex", justifyContent: "space-around", padding: "10px 0 18px", zIndex: 10 }}>
         {navItems.map(item => (
