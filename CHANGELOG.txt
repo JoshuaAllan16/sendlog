@@ -190,3 +190,17 @@ PUSH 19  |  16d68d6  |  Notifications tab, comments, reaction counts, private fo
 - All new state (pendingFollowRequests, myFollowRequests, feedReactionCounts, comments) persists across sessions and resets on logout
 - Location dropdown fix: clicking ▼ now immediately shows all location options (was broken due to click bubbling)
 - New location "Save" button moved inline next to the text input (no longer at bottom of dropdown)
+
+
+──────────────────────────────────────────────────────────────
+PUSH 20  |  7eade8e  |  Comment notifications, reactions on profiles, notification polish
+──────────────────────────────────────────────────────────────
+- Comment notifications: posting a comment sends a notification to the session owner
+- Delete your own comments: × button appears on your own comments in the comment panel
+- Reactions (🔥💪✨) and comment button added to recent sessions on other users' profile pages
+- Comments section added to session detail screen (read-only view): shows preview of up to 3 comments and a "Comment" button to open the full panel
+- Follow request notifications: requesting to follow a private account sends them a notification
+- Notification types expanded: comment and followRequest types shown with correct copy in all notification UIs
+- Notification badge removed from Profile nav button — notifications now accessed only via Social tab or bell
+- Unread badge moved to the Notifications tab label in the Social screen; tapping marks all as read
+- Profile screen no longer clears notification count on open
