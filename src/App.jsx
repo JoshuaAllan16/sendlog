@@ -348,6 +348,7 @@ export default function App() {
   const [sessionComments, setSessionComments]     = useState({}); // { sessionId: [comments] }
   const [commentText, setCommentText]             = useState("");
   const [commentLoading, setCommentLoading]       = useState(false);
+  const [commentPanelOwner, setCommentPanelOwner] = useState(null); // username of session owner
 
   // ── INIT: check for existing session ──────────────────────
   useEffect(() => {
@@ -524,6 +525,7 @@ export default function App() {
     setMyFollowRequests([]);
     setFeedReactionCounts({});
     setCommentPanelId(null);
+    setCommentPanelOwner(null);
     setSessionComments({});
     setCommentText("");
     setShowAccountPanel(false);
@@ -858,8 +860,9 @@ export default function App() {
     } catch { return []; }
   };
 
-  const openCommentPanel = async (sessionId) => {
+  const openCommentPanel = async (sessionId, ownerUsername = null) => {
     setCommentPanelId(sessionId);
+    setCommentPanelOwner(ownerUsername);
     if (!sessionComments[sessionId]) {
       const comments = await loadComments(sessionId);
       setSessionComments(prev => ({ ...prev, [sessionId]: comments }));
@@ -874,8 +877,20 @@ export default function App() {
     const updated = [...existing, comment];
     await storage.set(`comments:${sessionId}`, JSON.stringify(updated)).catch(() => {});
     setSessionComments(prev => ({ ...prev, [sessionId]: updated }));
+    // Notify session owner (skip if owner is the commenter)
+    const owner = commentPanelOwner;
+    if (owner && owner !== currentUser.username) {
+      addNotification(owner, { type: "comment", from: currentUser.username, fromDisplay: currentUser.displayName || currentUser.username, sessionId, at: new Date().toISOString(), read: false }).catch(() => {});
+    }
     setCommentText("");
     setCommentLoading(false);
+  };
+
+  const deleteComment = async (sessionId, commentId) => {
+    const existing = sessionComments[sessionId] || await loadComments(sessionId);
+    const updated = existing.filter(c => c.id !== commentId);
+    await storage.set(`comments:${sessionId}`, JSON.stringify(updated)).catch(() => {});
+    setSessionComments(prev => ({ ...prev, [sessionId]: updated }));
   };
 
   const loadMyReactions = async (username) => {
@@ -940,6 +955,8 @@ export default function App() {
           await storage.set(`followRequests:${username}`, JSON.stringify(updated));
         }
       } catch {}
+      // Notify the target about the follow request
+      await addNotification(username, { type: "followRequest", from: currentUser.username, fromDisplay: currentUser.displayName || currentUser.username, at: new Date().toISOString(), read: false });
       return;
     }
     setSocialFollowing(prev => isNowFollowing ? [...prev, username] : prev.filter(u => u !== username));
@@ -1015,17 +1032,11 @@ export default function App() {
     if (screen === "home") loadSocialFeed();
   }, [screen, socialFollowing]);
 
-  // Refresh own follower count + mark notifications read when profile screen opens
+  // Refresh own follower count + follow requests when profile screen opens
   useEffect(() => {
     if (screen === "profile" && currentUser) {
       loadFollowersStore(currentUser.username).then(setSocialFollowers).catch(() => {});
       storage.get(`followRequests:${currentUser.username}`).then(r => setMyFollowRequests(r ? JSON.parse(r.value) : [])).catch(() => {});
-      if (notifCount > 0) {
-        const marked = notifications.map(n => ({ ...n, read: true }));
-        setNotifications(marked);
-        setNotifCount(0);
-        storage.set(`notifications:${currentUser.username}`, JSON.stringify(marked)).catch(() => {});
-      }
     }
   }, [screen]);
 
@@ -1358,7 +1369,7 @@ export default function App() {
                 </button>
               );
             })}
-            <button onClick={e => { e.stopPropagation(); openCommentPanel(session.id); }} style={{ marginLeft: "auto", padding: "5px 12px", borderRadius: 20, border: `1.5px solid ${W.border}`, background: "transparent", fontSize: 13, cursor: "pointer", color: W.textMuted, display: "flex", alignItems: "center", gap: 4 }}>
+            <button onClick={e => { e.stopPropagation(); openCommentPanel(session.id, poster?.username || currentUser.username); }} style={{ marginLeft: "auto", padding: "5px 12px", borderRadius: 20, border: `1.5px solid ${W.border}`, background: "transparent", fontSize: 13, cursor: "pointer", color: W.textMuted, display: "flex", alignItems: "center", gap: 4 }}>
               💬{sessionComments[session.id]?.length > 0 && <span style={{ fontSize: 11, fontWeight: 700 }}>{sessionComments[session.id].length}</span>}
             </button>
           </div>
@@ -1581,6 +1592,27 @@ export default function App() {
             </div>
           );
         })()}
+        {/* Comments section — only on read-only (someone else's) sessions */}
+        {readOnly && (
+          <div style={{ marginTop: 24 }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
+              <div style={{ fontSize: 13, fontWeight: 700, color: W.textMuted, textTransform: "uppercase", letterSpacing: 1 }}>Comments{sessionComments[session.id]?.length > 0 ? ` (${sessionComments[session.id].length})` : ""}</div>
+              <button onClick={() => openCommentPanel(session.id, session.feedUsername || null)} style={{ padding: "5px 14px", background: `linear-gradient(135deg, ${W.accent}, ${W.accentDark})`, border: "none", borderRadius: 10, color: "#fff", fontWeight: 700, fontSize: 12, cursor: "pointer" }}>💬 Comment</button>
+            </div>
+            {(sessionComments[session.id] || []).slice(0, 3).map(c => (
+              <div key={c.id} style={{ background: W.surface, borderRadius: 12, padding: "10px 14px", marginBottom: 8, border: `1px solid ${W.border}` }}>
+                <div style={{ fontWeight: 700, color: W.accent, fontSize: 12, marginBottom: 3 }}>{c.displayName}</div>
+                <div style={{ fontSize: 14, color: W.text }}>{c.text}</div>
+              </div>
+            ))}
+            {(sessionComments[session.id] || []).length > 3 && (
+              <button onClick={() => openCommentPanel(session.id, session.feedUsername || null)} style={{ width: "100%", padding: "8px", background: "transparent", border: `1px solid ${W.border}`, borderRadius: 10, color: W.textMuted, fontSize: 13, cursor: "pointer" }}>View all {sessionComments[session.id].length} comments</button>
+            )}
+            {!sessionComments[session.id] && (
+              <button onClick={() => openCommentPanel(session.id, session.feedUsername || null)} style={{ width: "100%", padding: "8px", background: "transparent", border: `1px solid ${W.border}`, borderRadius: 10, color: W.textMuted, fontSize: 13, cursor: "pointer" }}>Load comments</button>
+            )}
+          </div>
+        )}
         {!readOnly && !showClimbForm && (
           <div style={{ marginTop: 24 }}>
             {!confirmDelete
@@ -2486,16 +2518,36 @@ export default function App() {
                 {recentSessions.map((s, i) => {
                   const sends = s.climbs?.filter(c => c.completed).length || 0;
                   const total = s.climbs?.length || 0;
+                  const isOwnProfile = username === currentUser.username;
                   return (
-                    <div key={i} style={{ background: W.surface, borderRadius: 14, padding: "12px 16px", marginBottom: 10, border: `1px solid ${W.border}`, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                      <div>
-                        <div style={{ fontWeight: 700, color: W.text, fontSize: 14 }}>{formatDate(s.date)}</div>
-                        {s.location && <div style={{ fontSize: 12, color: W.textMuted, marginTop: 2 }}>📍 {s.location}</div>}
+                    <div key={i} style={{ background: W.surface, borderRadius: 14, marginBottom: 10, border: `1px solid ${W.border}`, overflow: "hidden" }}>
+                      <div style={{ padding: "12px 16px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                        <div>
+                          <div style={{ fontWeight: 700, color: W.text, fontSize: 14 }}>{formatDate(s.date)}</div>
+                          {s.location && <div style={{ fontSize: 12, color: W.textMuted, marginTop: 2 }}>📍 {s.location}</div>}
+                        </div>
+                        <div style={{ textAlign: "right" }}>
+                          <div style={{ fontWeight: 800, color: W.greenDark, fontSize: 14 }}>{sends}/{total} sends</div>
+                          {s.duration > 0 && <div style={{ fontSize: 11, color: W.textDim, marginTop: 1 }}>⏱ {formatTotalTime(s.duration)}</div>}
+                        </div>
                       </div>
-                      <div style={{ textAlign: "right" }}>
-                        <div style={{ fontWeight: 800, color: W.greenDark, fontSize: 14 }}>{sends}/{total} sends</div>
-                        {s.duration > 0 && <div style={{ fontSize: 11, color: W.textDim, marginTop: 1 }}>⏱ {formatTotalTime(s.duration)}</div>}
-                      </div>
+                      {/* Reactions + comments (only for other users' sessions) */}
+                      {!isOwnProfile && (
+                        <div style={{ display: "flex", gap: 8, padding: "8px 16px", borderTop: `1px solid ${W.border}`, alignItems: "center" }}>
+                          {["🔥", "💪", "✨"].map(emoji => {
+                            const active = myReactions[s.id] === emoji;
+                            const count = feedReactionCounts[s.id]?.[emoji] || 0;
+                            return (
+                              <button key={emoji} onClick={() => toggleReaction(s.id, emoji)} style={{ padding: "4px 10px", borderRadius: 20, border: `1.5px solid ${active ? W.accent : W.border}`, background: active ? W.accent + "22" : "transparent", fontSize: 14, cursor: "pointer", color: active ? W.accent : W.textMuted, display: "flex", alignItems: "center", gap: 3 }}>
+                                {emoji}{count > 0 && <span style={{ fontSize: 11, fontWeight: 700 }}>{count}</span>}
+                              </button>
+                            );
+                          })}
+                          <button onClick={() => openCommentPanel(s.id, username)} style={{ marginLeft: "auto", padding: "4px 10px", borderRadius: 20, border: `1.5px solid ${W.border}`, background: "transparent", fontSize: 13, cursor: "pointer", color: W.textMuted, display: "flex", alignItems: "center", gap: 3 }}>
+                            💬{sessionComments[s.id]?.length > 0 && <span style={{ fontSize: 11, fontWeight: 700 }}>{sessionComments[s.id].length}</span>}
+                          </button>
+                        </div>
+                      )}
                     </div>
                   );
                 })}
@@ -2529,7 +2581,20 @@ export default function App() {
         {/* Tabs */}
         <div style={{ display: "flex", background: W.surface2, borderRadius: 12, padding: 4, marginBottom: 20, border: `1px solid ${W.border}` }}>
           {[["notifications", "Notifications"], ["search", "Find Climbers"]].map(([id, label]) => (
-            <button key={id} onClick={() => setSocialTab(id)} style={{ flex: 1, padding: "9px 4px", borderRadius: 9, border: "none", background: socialTab === id ? `linear-gradient(135deg, ${W.accent}, ${W.accentDark})` : "transparent", color: socialTab === id ? "#fff" : W.textDim, fontWeight: 700, fontSize: 13, cursor: "pointer" }}>{label}</button>
+            <button key={id} onClick={() => {
+              setSocialTab(id);
+              if (id === "notifications" && notifCount > 0) {
+                const marked = notifications.map(n => ({ ...n, read: true }));
+                setNotifications(marked);
+                setNotifCount(0);
+                storage.set(`notifications:${currentUser.username}`, JSON.stringify(marked)).catch(() => {});
+              }
+            }} style={{ flex: 1, padding: "9px 4px", borderRadius: 9, border: "none", background: socialTab === id ? `linear-gradient(135deg, ${W.accent}, ${W.accentDark})` : "transparent", color: socialTab === id ? "#fff" : W.textDim, fontWeight: 700, fontSize: 13, cursor: "pointer", position: "relative" }}>
+              {label}
+              {id === "notifications" && notifCount > 0 && (
+                <span style={{ position: "absolute", top: 2, right: 6, background: W.accent, color: "#fff", borderRadius: "50%", minWidth: 14, height: 14, fontSize: 9, fontWeight: 800, display: "inline-flex", alignItems: "center", justifyContent: "center", padding: "0 2px" }}>{notifCount > 9 ? "9+" : notifCount}</span>
+              )}
+            </button>
           ))}
         </div>
 
@@ -2549,17 +2614,21 @@ export default function App() {
                   <div style={{ width: 8, height: 8, borderRadius: "50%", background: n.read ? W.border : W.accent, flexShrink: 0, marginTop: 5 }} />
                   <div style={{ flex: 1 }}>
                     {n.type === "follow"
-                      ? <div style={{ fontSize: 13, color: W.text }}><span style={{ fontWeight: 700 }}>{n.fromDisplay}</span> started following you</div>
-                      : <div style={{ fontSize: 13, color: W.text }}><span style={{ fontWeight: 700 }}>{n.fromDisplay}</span> logged a session{n.location ? ` at ${n.location}` : ""}</div>
-                    }
-                    <div style={{ fontSize: 11, color: W.textDim, marginTop: 2 }}>{new Date(n.at).toLocaleDateString()}</div>
-                  </div>
-                  <button onClick={() => dismissNotification(i)} style={{ background: "none", border: "none", color: W.textDim, fontSize: 16, cursor: "pointer", padding: "0 4px", flexShrink: 0 }}>×</button>
+                    ? <div style={{ fontSize: 13, color: W.text }}><span style={{ fontWeight: 700 }}>{n.fromDisplay}</span> started following you</div>
+                    : n.type === "followRequest"
+                    ? <div style={{ fontSize: 13, color: W.text }}><span style={{ fontWeight: 700 }}>{n.fromDisplay}</span> requested to follow you</div>
+                    : n.type === "comment"
+                    ? <div style={{ fontSize: 13, color: W.text }}><span style={{ fontWeight: 700 }}>{n.fromDisplay}</span> commented on your session</div>
+                    : <div style={{ fontSize: 13, color: W.text }}><span style={{ fontWeight: 700 }}>{n.fromDisplay}</span> logged a session{n.location ? ` at ${n.location}` : ""}</div>
+                  }
+                  <div style={{ fontSize: 11, color: W.textDim, marginTop: 2 }}>{new Date(n.at).toLocaleDateString()}</div>
                 </div>
-              ))}
-            </div>
-          );
-        })()}
+                <button onClick={() => dismissNotification(i)} style={{ background: "none", border: "none", color: W.textDim, fontSize: 16, cursor: "pointer", padding: "0 4px", flexShrink: 0 }}>×</button>
+              </div>
+            ))}
+          </div>
+        );
+      })()}
 
         {/* SEARCH TAB */}
         {socialTab === "search" && (() => (
@@ -2679,6 +2748,10 @@ export default function App() {
                     <div style={{ flex: 1 }}>
                       {n.type === "follow"
                         ? <div style={{ fontSize: 13, color: W.text }}><span style={{ fontWeight: 700 }}>{n.fromDisplay}</span> started following you</div>
+                        : n.type === "followRequest"
+                        ? <div style={{ fontSize: 13, color: W.text }}><span style={{ fontWeight: 700 }}>{n.fromDisplay}</span> requested to follow you</div>
+                        : n.type === "comment"
+                        ? <div style={{ fontSize: 13, color: W.text }}><span style={{ fontWeight: 700 }}>{n.fromDisplay}</span> commented on your session</div>
                         : <div style={{ fontSize: 13, color: W.text }}><span style={{ fontWeight: 700 }}>{n.fromDisplay}</span> logged a session{n.location ? ` at ${n.location}` : ""}</div>
                       }
                       <div style={{ fontSize: 11, color: W.textDim, marginTop: 2 }}>{new Date(n.at).toLocaleDateString()}</div>
@@ -2704,9 +2777,12 @@ export default function App() {
                 ? <div style={{ textAlign: "center", color: W.textMuted, padding: "28px 0", fontSize: 14 }}>No comments yet. Be the first!</div>
                 : (sessionComments[commentPanelId] || []).map(c => (
                     <div key={c.id} style={{ padding: "10px 0", borderBottom: `1px solid ${W.border}` }}>
-                      <div style={{ display: "flex", gap: 6, marginBottom: 3 }}>
+                      <div style={{ display: "flex", gap: 6, marginBottom: 3, alignItems: "center" }}>
                         <span style={{ fontWeight: 700, color: W.accent, fontSize: 13 }}>{c.displayName}</span>
-                        <span style={{ color: W.textDim, fontSize: 11, alignSelf: "flex-end" }}>{new Date(c.at).toLocaleDateString()}</span>
+                        <span style={{ color: W.textDim, fontSize: 11 }}>{new Date(c.at).toLocaleDateString()}</span>
+                        {c.username === currentUser.username && (
+                          <button onClick={() => deleteComment(commentPanelId, c.id)} style={{ marginLeft: "auto", background: "none", border: "none", color: W.textDim, fontSize: 14, cursor: "pointer", padding: "0 2px", lineHeight: 1 }}>×</button>
+                        )}
                       </div>
                       <div style={{ fontSize: 14, color: W.text }}>{c.text}</div>
                     </div>
@@ -2776,9 +2852,6 @@ export default function App() {
           <button key={item.id} onClick={item.action || (() => setScreen(item.id))} style={{ background: "none", border: "none", display: "flex", flexDirection: "column", alignItems: "center", gap: 3, cursor: "pointer", color: (screen === item.id || (item.id === "session" && screen === "session")) ? W.accent : W.textDim }}>
             <span style={{ fontSize: 22, position: "relative", display: "inline-block" }}>
               {item.label}
-              {item.id === "profile" && notifCount > 0 && (
-                <span style={{ position: "absolute", top: -3, right: -6, background: W.accent, color: "#fff", borderRadius: "50%", minWidth: 15, height: 15, fontSize: 9, fontWeight: 800, display: "flex", alignItems: "center", justifyContent: "center", padding: "0 2px" }}>{notifCount > 9 ? "9+" : notifCount}</span>
-              )}
             </span>
             <span style={{ fontSize: 11, fontWeight: 600 }}>{item.text}</span>
             {item.id === "session" && timerRunning && <div style={{ width: 6, height: 6, borderRadius: "50%", background: W.accent }} />}
