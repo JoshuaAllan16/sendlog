@@ -268,6 +268,7 @@ export default function App() {
   const [statsTimeFrame, setStatsTimeFrame]         = useState("2w");
   const [statsChart, setStatsChart]                 = useState("time");
   const [statsBarSel, setStatsBarSel]               = useState(null);
+  const [statsShowCalendar, setStatsShowCalendar]   = useState(false);
   const [analyzeOpen, setAnalyzeOpen] = useState(false);
 
   // ── INIT: check for existing session ──────────────────────
@@ -504,11 +505,17 @@ export default function App() {
     const vBase     = tfClimbs.filter(c => c.completed && c.scale === preferredScale);
     const bestGrade = vBase.length ? [...vBase].sort((a, b) => (GRADES[preferredScale] || []).indexOf(b.grade) - (GRADES[preferredScale] || []).indexOf(a.grade))[0]?.grade : "—";
     const gradeBreakdown = (GRADES[statsScaleFilter] || []).map(g => ({ grade: g, count: completed.filter(c => c.grade === g).length })).filter(g => g.count > 0);
-    const climbsByDay = {};
-    tfSessions.forEach(s => { const day = s.date.slice(0, 10); climbsByDay[day] = (climbsByDay[day] || 0) + s.climbs.length; });
+    const totalAttempts = base.reduce((a, c) => a + c.tries, 0);
+    const climbsByDay = {}, attemptsByDay = {};
+    tfSessions.forEach(s => { const day = s.date.slice(0, 10); climbsByDay[day] = (climbsByDay[day] || 0) + s.climbs.length; attemptsByDay[day] = (attemptsByDay[day] || 0) + s.climbs.reduce((t,c)=>t+c.tries,0); });
     const mostInDay = Object.values(climbsByDay).length ? Math.max(...Object.values(climbsByDay)) : 0;
+    const mostAttemptsInDay = Object.values(attemptsByDay).length ? Math.max(...Object.values(attemptsByDay)) : 0;
+    const gymVisits = {};
+    tfSessions.forEach(s => { gymVisits[s.location] = (gymVisits[s.location] || 0) + 1; });
+    const uniqueGyms = Object.keys(gymVisits).length;
+    const mostGymVisits = Object.values(gymVisits).length ? Math.max(...Object.values(gymVisits)) : 0;
     const totalTimeClimbed = tfSessions.reduce((sum, s) => sum + (s.duration || 0), 0);
-    return { base, completed, flashes, flashRate, avgTries, bestGrade, gradeBreakdown, mostInDay, totalTimeClimbed, sessionCount: tfSessions.length };
+    return { base, completed, flashes, flashRate, avgTries, bestGrade, gradeBreakdown, mostInDay, mostAttemptsInDay, totalAttempts, uniqueGyms, mostGymVisits, totalTimeClimbed, sessionCount: tfSessions.length };
   };
 
   const getProjectHistory    = (pid) => sessions.flatMap(s => s.climbs.filter(c => c.projectId === pid).map(c => ({ ...c, sessionDate: s.date, sessionLocation: s.location }))).sort((a, b) => new Date(b.sessionDate) - new Date(a.sessionDate));
@@ -1122,7 +1129,8 @@ export default function App() {
               return Array.from({ length: 5 }, (_, i) => {
                 const ws = new Date(now); ws.setDate(ws.getDate() - (4-i)*7); ws.setHours(0,0,0,0);
                 const we = new Date(ws); we.setDate(ws.getDate() + 6); we.setHours(23,59,59,999);
-                return mkBucket(`W${i+1}`, tfSessions.filter(s => { const d = new Date(s.date); return d >= ws && d <= we; }));
+                const label = `${ws.getMonth()+1}/${ws.getDate()}-${we.getMonth()+1}/${we.getDate()}`;
+                return mkBucket(label, tfSessions.filter(s => { const d = new Date(s.date); return d >= ws && d <= we; }));
               });
             }
             if (statsTimeFrame === "all") {
@@ -1155,64 +1163,72 @@ export default function App() {
           const selLabel = selBucket ? (selBucket.label || `Point ${statsBarSel + 1}`) : null;
           return (
           <div>
-            {/* Activity chart — top */}
-            <div style={{ background: W.surface, borderRadius: 16, padding: "16px", border: `1px solid ${W.border}`, marginBottom: 16 }}>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
-                <div style={{ fontSize: 12, fontWeight: 700, color: W.textMuted, textTransform: "uppercase", letterSpacing: 1 }}>Activity</div>
-                <select value={statsChart} onChange={e => { setStatsChart(e.target.value); setStatsBarSel(null); }} style={{ background: W.surface2, border: `1px solid ${W.border}`, borderRadius: 8, padding: "5px 10px", color: W.text, fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}>
-                  <option value="time">Time on Wall</option>
-                  <option value="sends">Sends</option>
-                  <option value="attempts">Attempts</option>
-                </select>
-              </div>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
-                <span style={{ fontSize: 11, color: W.textDim }}>total: {cVals.reduce((a,b)=>a+b,0)}{cUnit ? ` ${cUnit}` : ""}</span>
-                {statsBarSel !== null && cVals[statsBarSel] !== undefined && (
-                  <span style={{ fontSize: 12, fontWeight: 800, color: cColor }}>{chartBuckets[statsBarSel]?.label}: {cVals[statsBarSel]}{cUnit ? ` ${cUnit}` : ""}</span>
+            {/* Activity chart OR calendar */}
+            {!statsShowCalendar ? (
+              <div style={{ background: W.surface, borderRadius: 16, padding: "16px", border: `1px solid ${W.border}`, marginBottom: 10 }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+                  <div style={{ fontSize: 12, fontWeight: 700, color: W.textMuted, textTransform: "uppercase", letterSpacing: 1 }}>Activity</div>
+                  <select value={statsChart} onChange={e => { setStatsChart(e.target.value); setStatsBarSel(null); }} style={{ background: W.surface2, border: `1px solid ${W.border}`, borderRadius: 8, padding: "5px 10px", color: W.text, fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}>
+                    <option value="time">Time on Wall</option>
+                    <option value="sends">Sends</option>
+                    <option value="attempts">Attempts</option>
+                  </select>
+                </div>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
+                  <span style={{ fontSize: 11, color: W.textDim }}>total: {cVals.reduce((a,b)=>a+b,0)}{cUnit ? ` ${cUnit}` : ""}</span>
+                  {statsBarSel !== null && cVals[statsBarSel] !== undefined && (
+                    <span style={{ fontSize: 12, fontWeight: 800, color: cColor }}>{chartBuckets[statsBarSel]?.label}: {cVals[statsBarSel]}{cUnit ? ` ${cUnit}` : ""}</span>
+                  )}
+                </div>
+                {statsTimeFrame === "all" ? (
+                  (() => {
+                    const pts = cVals.map((v, i) => {
+                      const x = cVals.length > 1 ? (i / (cVals.length - 1)) * 300 : 150;
+                      const y = 56 - Math.round((v / cMax) * 52);
+                      return { x, y, v };
+                    });
+                    const polyline = pts.map(p => `${p.x},${p.y}`).join(" ");
+                    return (
+                      <div style={{ position: "relative" }}>
+                        <svg width="100%" height={64} viewBox="0 0 300 64" preserveAspectRatio="none" style={{ display: "block" }}>
+                          <polyline points={polyline} fill="none" stroke={cColor} strokeWidth={2.5} strokeLinejoin="round" strokeLinecap="round" />
+                          {pts.map((p, i) => (
+                            <circle key={i} cx={p.x} cy={p.y} r={statsBarSel === i ? 5 : 3} fill={statsBarSel === i ? cColor : W.surface2} stroke={cColor} strokeWidth={2} style={{ cursor: "pointer" }} onClick={() => setStatsBarSel(statsBarSel === i ? null : i)} />
+                          ))}
+                        </svg>
+                      </div>
+                    );
+                  })()
+                ) : (
+                  <div style={{ display: "flex", alignItems: "flex-end", gap: 2, height: 64 }}>
+                    {cVals.map((v, i) => (
+                      <div key={i} onClick={() => setStatsBarSel(statsBarSel === i ? null : i)} style={{ flex: 1, height: "100%", display: "flex", alignItems: "flex-end", cursor: "pointer" }}>
+                        <div style={{ width: "100%", borderRadius: "3px 3px 0 0", background: v > 0 ? cColor : W.border, height: `${Math.max(Math.round((v / cMax) * 100), v > 0 ? 4 : 1)}%`, opacity: statsBarSel === null || statsBarSel === i ? (v > 0 ? 1 : 0.3) : 0.25, outline: statsBarSel === i ? `2px solid ${cColor}` : "none", transition: "opacity 0.15s" }} />
+                      </div>
+                    ))}
+                  </div>
                 )}
-              </div>
-              {statsTimeFrame === "all" ? (
-                /* Line chart for all-time */
-                (() => {
-                  const pts = cVals.map((v, i) => {
-                    const x = cVals.length > 1 ? (i / (cVals.length - 1)) * 300 : 150;
-                    const y = 56 - Math.round((v / cMax) * 52);
-                    return { x, y, v };
-                  });
-                  const polyline = pts.map(p => `${p.x},${p.y}`).join(" ");
-                  return (
-                    <div style={{ position: "relative" }}>
-                      <svg width="100%" height={64} viewBox="0 0 300 64" preserveAspectRatio="none" style={{ display: "block" }}>
-                        <polyline points={polyline} fill="none" stroke={cColor} strokeWidth={2.5} strokeLinejoin="round" strokeLinecap="round" />
-                        {pts.map((p, i) => (
-                          <circle key={i} cx={p.x} cy={p.y} r={statsBarSel === i ? 5 : 3} fill={statsBarSel === i ? cColor : W.surface2} stroke={cColor} strokeWidth={2} style={{ cursor: "pointer" }} onClick={() => setStatsBarSel(statsBarSel === i ? null : i)} />
-                        ))}
-                      </svg>
-                    </div>
-                  );
-                })()
-              ) : (
-                /* Bar chart */
-                <div style={{ display: "flex", alignItems: "flex-end", gap: 2, height: 64 }}>
-                  {cVals.map((v, i) => (
-                    <div key={i} onClick={() => setStatsBarSel(statsBarSel === i ? null : i)} style={{ flex: 1, height: "100%", display: "flex", alignItems: "flex-end", cursor: "pointer" }}>
-                      <div style={{ width: "100%", borderRadius: "3px 3px 0 0", background: v > 0 ? cColor : W.border, height: `${Math.max(Math.round((v / cMax) * 100), v > 0 ? 4 : 1)}%`, opacity: statsBarSel === null || statsBarSel === i ? (v > 0 ? 1 : 0.3) : 0.25, outline: statsBarSel === i ? `2px solid ${cColor}` : "none", transition: "opacity 0.15s" }} />
-                    </div>
+                <div style={{ display: "flex", gap: 2, marginTop: 3, marginBottom: 10 }}>
+                  {chartBuckets.map((b, i) => (
+                    <div key={i} style={{ flex: 1, textAlign: "center", fontSize: 7, color: statsBarSel === i ? cColor : W.textDim, fontWeight: statsBarSel === i ? 800 : 400, overflow: "hidden" }}>{b.label}</div>
                   ))}
                 </div>
-              )}
-              <div style={{ display: "flex", gap: 2, marginTop: 3, marginBottom: 12 }}>
-                {chartBuckets.map((b, i) => (
-                  <div key={i} style={{ flex: 1, textAlign: "center", fontSize: 7, color: statsBarSel === i ? cColor : W.textDim, fontWeight: statsBarSel === i ? 800 : 400, overflow: "hidden" }}>{b.label}</div>
-                ))}
+                <div style={{ display: "flex", gap: 4, overflowX: "auto", paddingTop: 6, paddingBottom: 2 }}>
+                  {[["2w","2W"],["1m","1M"],["6m","6M"],["1y","1Y"],["all","All"]].map(([id, lbl]) => (
+                    <button key={id} onClick={() => { setStatsTimeFrame(id); setStatsBarSel(null); }} style={{ flexShrink: 0, padding: "4px 10px", borderRadius: 14, border: "2px solid", borderColor: statsTimeFrame === id ? W.accent : W.border, background: statsTimeFrame === id ? `linear-gradient(135deg, ${W.accent}, ${W.accentDark})` : W.surface, color: statsTimeFrame === id ? "#fff" : W.textDim, cursor: "pointer", fontSize: 10, fontWeight: 700 }}>{lbl}</button>
+                  ))}
+                </div>
               </div>
-              {/* Time frame pills inside chart card */}
-              <div style={{ display: "flex", gap: 4, overflowX: "auto", paddingBottom: 1 }}>
-                {[["2w","2W"],["1m","1M"],["6m","6M"],["1y","1Y"],["all","All"]].map(([id, lbl]) => (
-                  <button key={id} onClick={() => { setStatsTimeFrame(id); setStatsBarSel(null); }} style={{ flexShrink: 0, padding: "4px 10px", borderRadius: 14, border: "2px solid", borderColor: statsTimeFrame === id ? W.accent : W.border, background: statsTimeFrame === id ? `linear-gradient(135deg, ${W.accent}, ${W.accentDark})` : W.surface, color: statsTimeFrame === id ? "#fff" : W.textDim, cursor: "pointer", fontSize: 10, fontWeight: 700 }}>{lbl}</button>
-                ))}
+            ) : (
+              <div style={{ background: W.surface, borderRadius: 16, border: `1px solid ${W.border}`, marginBottom: 10, overflow: "hidden" }}>
+                {CalendarScreen()}
               </div>
-            </div>
+            )}
+
+            {/* Calendar / Chart toggle button */}
+            <button onClick={() => setStatsShowCalendar(s => !s)} style={{ width: "100%", padding: "12px", background: statsShowCalendar ? W.surface2 : `linear-gradient(135deg, ${W.gold}, #d97706)`, border: `1px solid ${W.border}`, borderRadius: 14, color: statsShowCalendar ? W.textMuted : "#fff", fontSize: 13, fontWeight: 700, cursor: "pointer", marginBottom: 16 }}>
+              {statsShowCalendar ? "📊 View Stats Chart" : "📅 View Climbing Calendar"}
+            </button>
 
             <div style={{ marginBottom: 16 }}>
               <button onClick={() => setAnalyzeOpen(o => !o)} style={{ width: "100%", padding: "13px 16px", background: W.surface2, border: `1px solid ${W.border}`, borderRadius: analyzeOpen ? "14px 14px 0 0" : "14px", cursor: "pointer", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
@@ -1234,14 +1250,18 @@ export default function App() {
             </div>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 16 }}>
               {[
-                { icon: "🏆", label: "Best Grade", value: displayStats.bestGrade, sub: `${preferredScale} · ${selLabel || tfLabels[statsTimeFrame]}`, bg: W.goldLight, tc: W.yellowDark },
-                { icon: "⏱", label: "Time Climbed", value: formatTotalTime(displayStats.totalTimeClimbed), sub: selLabel || tfLabels[statsTimeFrame], bg: W.purple, tc: W.purpleDark },
-                { icon: "⚡", label: "Flash Rate", value: `${displayStats.flashRate}%`, sub: `${displayStats.flashes.length} flashes`, bg: W.yellow, tc: W.yellowDark },
-                { icon: "🔁", label: "Avg Tries", value: displayStats.avgTries, sub: "per climb", bg: W.green, tc: W.greenDark },
-                { icon: "🧗", label: "Total Sends", value: displayStats.completed.length, sub: "completed", bg: W.surface2, tc: W.accent },
-                { icon: "📅", label: "Sessions", value: displayStats.sessionCount, sub: selLabel || tfLabels[statsTimeFrame], bg: W.surface2, tc: W.accentDark },
-                { icon: "🎯", label: "Projects", value: activeProjects.length, sub: "active", bg: W.pink, tc: W.pinkDark },
-                { icon: "📈", label: "Best Day", value: displayStats.mostInDay, sub: "climbs in one day", bg: W.surface2, tc: W.accentDark },
+                { icon: "🧗", label: "Total Sends",        value: displayStats.completed.length,                    sub: selLabel || tfLabels[statsTimeFrame], bg: W.surface2,  tc: W.accent },
+                { icon: "⏱", label: "Time Climbed",        value: formatTotalTime(displayStats.totalTimeClimbed),   sub: selLabel || tfLabels[statsTimeFrame], bg: W.purple,    tc: W.purpleDark },
+                { icon: "🔁", label: "Total Attempts",      value: displayStats.totalAttempts,                       sub: selLabel || tfLabels[statsTimeFrame], bg: W.green,     tc: W.greenDark },
+                { icon: "📅", label: "Sessions",            value: displayStats.sessionCount,                        sub: selLabel || tfLabels[statsTimeFrame], bg: W.surface2,  tc: W.accentDark },
+                { icon: "⚡", label: "Flash Rate",          value: `${displayStats.flashRate}%`,                     sub: `${displayStats.flashes.length} flashes`,             bg: W.yellow,    tc: W.yellowDark },
+                { icon: "🏆", label: "Best Grade",          value: displayStats.bestGrade,                           sub: `${preferredScale} · ${selLabel || tfLabels[statsTimeFrame]}`, bg: W.goldLight, tc: W.yellowDark },
+                { icon: "✅", label: "Projects Sent",       value: completedProjects.length,                         sub: "all time",                           bg: W.green,     tc: W.greenDark },
+                { icon: "🎯", label: "Active Projects",     value: activeProjects.length,                            sub: "in progress",                        bg: W.pink,      tc: W.pinkDark },
+                { icon: "📈", label: "Best Day (Climbs)",   value: displayStats.mostInDay,                           sub: "climbs in one session",              bg: W.surface2,  tc: W.accentDark },
+                { icon: "💥", label: "Best Day (Attempts)", value: displayStats.mostAttemptsInDay,                   sub: "attempts in one session",            bg: W.surface2,  tc: W.accentDark },
+                { icon: "📍", label: "Unique Gyms",         value: displayStats.uniqueGyms,                          sub: "visited",                            bg: W.surface2,  tc: W.accent },
+                { icon: "🏅", label: "Top Gym Visits",      value: displayStats.mostGymVisits,                       sub: "visits to one gym",                  bg: W.goldLight, tc: W.yellowDark },
               ].map(s => (
                 <div key={s.label} style={{ background: s.bg, borderRadius: 14, padding: "14px", border: `1px solid ${W.border}` }}>
                   <div style={{ fontSize: 20, marginBottom: 4 }}>{s.icon}</div>
@@ -1251,7 +1271,6 @@ export default function App() {
                 </div>
               ))}
             </div>
-            <button onClick={() => setScreen("calendar")} style={{ width: "100%", padding: "14px", background: `linear-gradient(135deg, ${W.gold}, #d97706)`, border: "none", borderRadius: 14, color: "#fff", fontSize: 15, fontWeight: 700, cursor: "pointer", marginBottom: 16 }}>📅 View Climbing Calendar</button>
             {displayStats.gradeBreakdown.length > 0 && (
               <div style={{ background: W.surface, borderRadius: 16, padding: "16px", border: `1px solid ${W.border}` }}>
                 <div style={{ fontSize: 12, fontWeight: 700, color: W.textMuted, textTransform: "uppercase", letterSpacing: 1, marginBottom: 14 }}>Grade Breakdown</div>
