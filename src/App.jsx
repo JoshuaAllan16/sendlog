@@ -521,7 +521,14 @@ export default function App() {
     const uniqueGyms = Object.keys(gymVisits).length;
     const mostGymVisits = Object.values(gymVisits).length ? Math.max(...Object.values(gymVisits)) : 0;
     const totalTimeClimbed = tfSessions.reduce((sum, s) => sum + (s.duration || 0), 0);
-    return { base, completed, flashes, flashRate, avgTries, bestGrade, gradeBreakdown, mostInDay, mostAttemptsInDay, totalAttempts, uniqueGyms, mostGymVisits, totalTimeClimbed, sessionCount: tfSessions.length };
+    const sortedSessionDays = [...new Set(tfSessions.map(s => s.date.slice(0, 10)))].sort();
+    let restTotal = 0, restCount = 0;
+    for (let i = 1; i < sortedSessionDays.length; i++) {
+      restTotal += (new Date(sortedSessionDays[i]) - new Date(sortedSessionDays[i - 1])) / 86400000;
+      restCount++;
+    }
+    const avgRestDays = restCount > 0 ? (restTotal / restCount).toFixed(1) : "—";
+    return { base, completed, flashes, flashRate, avgTries, bestGrade, gradeBreakdown, mostInDay, mostAttemptsInDay, totalAttempts, uniqueGyms, mostGymVisits, totalTimeClimbed, sessionCount: tfSessions.length, avgRestDays };
   };
 
   const getProjectHistory    = (pid) => sessions.flatMap(s => s.climbs.filter(c => c.projectId === pid).map(c => ({ ...c, sessionDate: s.date, sessionLocation: s.location }))).sort((a, b) => new Date(b.sessionDate) - new Date(a.sessionDate));
@@ -1188,16 +1195,17 @@ export default function App() {
             const slices = raw.map(d => {
               const sweep = (d.value / total) * 2 * Math.PI;
               const end = angle + sweep;
+              const sa = angle; // capture start angle before mutation
+              angle = end;
               const ir = 22, cx = 50, cy = 50;
               const mkPath = (r) => {
-                const x1 = cx + r * Math.cos(angle), y1 = cy + r * Math.sin(angle);
-                const x2 = cx + r * Math.cos(end),   y2 = cy + r * Math.sin(end);
-                const ix1 = cx + ir * Math.cos(angle), iy1 = cy + ir * Math.sin(angle);
-                const ix2 = cx + ir * Math.cos(end),   iy2 = cy + ir * Math.sin(end);
+                const x1 = cx + r * Math.cos(sa),  y1 = cy + r * Math.sin(sa);
+                const x2 = cx + r * Math.cos(end), y2 = cy + r * Math.sin(end);
+                const ix1 = cx + ir * Math.cos(sa),  iy1 = cy + ir * Math.sin(sa);
+                const ix2 = cx + ir * Math.cos(end), iy2 = cy + ir * Math.sin(end);
                 const large = sweep > Math.PI ? 1 : 0;
                 return `M ${ix1.toFixed(2)} ${iy1.toFixed(2)} L ${x1.toFixed(2)} ${y1.toFixed(2)} A ${r} ${r} 0 ${large} 1 ${x2.toFixed(2)} ${y2.toFixed(2)} L ${ix2.toFixed(2)} ${iy2.toFixed(2)} A ${ir} ${ir} 0 ${large} 0 ${ix1.toFixed(2)} ${iy1.toFixed(2)} Z`;
               };
-              angle = end;
               return { ...d, path: mkPath(42), pathSel: mkPath(47) };
             });
             return { slices, total };
@@ -1306,6 +1314,8 @@ export default function App() {
                 { icon: "💥", label: "Best Day (Attempts)", value: displayStats.mostAttemptsInDay,                   sub: "attempts in one session",            bg: W.surface2,  tc: W.accentDark },
                 { icon: "📍", label: "Unique Gyms",         value: displayStats.uniqueGyms,                          sub: "visited",                            bg: W.surface2,  tc: W.accent },
                 { icon: "🏅", label: "Top Gym Visits",      value: displayStats.mostGymVisits,                       sub: "visits to one gym",                  bg: W.goldLight, tc: W.yellowDark },
+                { icon: "😴", label: "Avg Rest Days",       value: displayStats.avgRestDays,                         sub: "between sessions",                   bg: W.surface2,  tc: W.accentDark },
+                { icon: "🔁", label: "Avg Tries",           value: displayStats.avgTries,                            sub: "per climb",                          bg: W.green,     tc: W.greenDark },
               ].map(s => (
                 <div key={s.label} style={{ background: s.bg, borderRadius: 14, padding: "14px", border: `1px solid ${W.border}` }}>
                   <div style={{ fontSize: 20, marginBottom: 4 }}>{s.icon}</div>
