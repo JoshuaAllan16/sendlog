@@ -1,0 +1,161 @@
+SENDLOG — CHANGELOG
+===================
+A log of all features, fixes, and improvements grouped by push.
+
+
+──────────────────────────────────────────────────────────────
+PUSH 1  |  6437ed9  |  Initial commit
+──────────────────────────────────────────────────────────────
+- Initial project scaffold (React + Vite)
+
+
+──────────────────────────────────────────────────────────────
+PUSH 2  |  f3fdc64  |  Add user save features
+──────────────────────────────────────────────────────────────
+- User accounts: sign up, log in, sign out
+- Supabase kv_store used to persist all user data
+- Sessions, climbs, and projects saved per user
+
+
+──────────────────────────────────────────────────────────────
+PUSH 3  |  23112bb  |  Core app build-out
+──────────────────────────────────────────────────────────────
+- Full climbing session tracking (start, log climbs, end session)
+- Active session timer with live clock
+- Climb form: name, grade, scale, tries, completed/project flag, comments, photo, color, wall types, hold types
+- Session logbook in profile (filterable by scale, grade, gym, sort order)
+- Projects tab: active, completed (sent), and retired projects
+- Stats tab: send count, flash rate, best grade, total attempts, session count
+- Grade breakdown cards and bar chart with time-frame selector (2W / 1M / 6M / 1Y / All)
+- Preferred grading system setting (V-Scale, Font, YDS, etc.)
+- Location dropdown with known gyms + ability to hide/remove locations
+- Tag chips for wall type and hold type on climb cards
+- Session summary screen shown at end of each session
+- Calendar view of sessions by month
+- Bottom navigation: Home, Session, Profile
+
+
+──────────────────────────────────────────────────────────────
+PUSH 4  |  f621d68  |  UI updates and new features
+──────────────────────────────────────────────────────────────
+- UI polish across cards, buttons, and spacing
+- Additional stat cards and layout improvements
+
+
+──────────────────────────────────────────────────────────────
+PUSH 5  |  6dbdaba  |  Fix all-time chart + filter stats by bar
+──────────────────────────────────────────────────────────────
+- Fixed all-time line chart to correctly span full session history
+- Clicking a bar/point on the chart now filters all stat cards to show data for that period only
+- Selected bar label shown above the stat cards
+
+
+──────────────────────────────────────────────────────────────
+PUSH 6  |  920d13b  |  Stats rearrangement and new cards
+──────────────────────────────────────────────────────────────
+- Fixed pill/chip spacing across the stats tab
+- Date-range labels added to stat cards (e.g. "Past 2 Weeks")
+- Calendar toggle button moved to a cleaner position in stats
+- New stat cards: Best Day (climbs), Active Projects, Projects Sent
+
+
+──────────────────────────────────────────────────────────────
+PUSH 7  |  56a4a1d  |  Calendar gym colors + grade pie chart
+──────────────────────────────────────────────────────────────
+- Calendar dots now colored by gym/location (each gym gets a unique color)
+- Sessions dropdown on calendar shows sessions for the selected month
+- Grade pie chart added to stats tab: shows grade distribution of completed climbs
+- Pie chart is filterable by grading scale
+- Pie slices are clickable to highlight and filter
+
+
+──────────────────────────────────────────────────────────────
+PUSH 8  |  90f60a8  |  Pie chart fix + new stat cards
+──────────────────────────────────────────────────────────────
+- Fixed pie chart angle bug (slices were rendering incorrectly)
+- Added Average Rest Days stat (days between sessions)
+- Added Average Tries per climb stat card
+
+
+──────────────────────────────────────────────────────────────
+PUSH 9  |  c95a84a  |  Rest tracking + bigger pie chart
+──────────────────────────────────────────────────────────────
+- Time between attempts is now tracked and displayed
+- Pie chart made larger with a bottom legend showing grade + count
+- Rest-related stat cards added to the stats overview
+
+
+──────────────────────────────────────────────────────────────
+PUSH 10  |  0b79f4a  |  Social tab — search, follow, feed
+──────────────────────────────────────────────────────────────
+- New Social tab in bottom navigation
+- Search for other users by username or display name
+- Follow / Unfollow any user
+- Social feed tab: see sessions from people you follow combined with your own
+
+
+──────────────────────────────────────────────────────────────
+PUSH 11  |  7b6ed83  |  Follower/following counts + combined home feed
+──────────────────────────────────────────────────────────────
+- Follower and Following counts shown on your own profile
+- Combined home feed: your own sessions + followed users' sessions sorted by date
+- Sessions from followed users show a "posted by" label
+- Social sessions in home feed show full pie chart and are tappable (read-only)
+
+
+──────────────────────────────────────────────────────────────
+PUSH 12  |  c2a7a33  |  User profile screen
+──────────────────────────────────────────────────────────────
+- Tapping a user in search, follower list, or feed opens their full profile
+- User profile shows their stats, recent sessions, and projects (read-only)
+- Follow / Unfollow button on user profile
+- Profile accessible from social search, follower/following modal, and feed cards
+
+
+──────────────────────────────────────────────────────────────
+PUSH 13  |  08c25f5  |  Social bug fixes and polish
+──────────────────────────────────────────────────────────────
+- Fixed typing bug: search input was losing focus after every character (caused by JSX re-mounting)
+- Fixed following list not persisting across sessions (was reading stale cached data)
+- Search results now show stats beside each user (sessions, climbs, best grade)
+- Home feed social sessions now show the full pie chart correctly
+
+
+──────────────────────────────────────────────────────────────
+PUSH 14  |  86a0d74  |  Tappable follower/following on other profiles
+──────────────────────────────────────────────────────────────
+- Follower and Following counts on other users' profiles are now tappable
+- Opens a list of their followers or following with the option to view each profile
+- Consistent with how it works on your own profile
+
+
+──────────────────────────────────────────────────────────────
+PUSH 15  |  5fa38ee  |  Color themes + social moved to profile + UI tweaks
+──────────────────────────────────────────────────────────────
+- Three color themes added, selectable in Settings:
+    Espresso  ☕  — warm dark (default)
+    Alpine    🏔  — light natural
+    Chalk     🎨  — colorful warm
+- Theme preference saved to your profile and restored on login
+- Social moved from bottom nav to a button (👥) on the profile screen header
+- Follower/Following count pills made smaller and more compact
+- Fixed LocationDropdown syntax error from previous session
+
+
+──────────────────────────────────────────────────────────────
+PUSH 16  |  72c99f8  |  Social follow UX fixes
+──────────────────────────────────────────────────────────────
+- Blocked following yourself: search results, user profiles, and follower/following modals all show a "You" badge instead of a follow button
+- Followers modal now shows "Follow Back" button for users you don't follow yet, and a "Following" label for those you do
+- Follower/Following count pills made even smaller on your own profile
+- Stats chart axis labels made bolder for better readability
+
+
+──────────────────────────────────────────────────────────────
+PUSH 17  |  b4811f1  |  Mutual follow, notifications, remove follower, unfollow confirm
+──────────────────────────────────────────────────────────────
+- "Follows you" badge shown on user profiles when they follow you back
+- Unfollow now requires two taps to confirm (shows "Unfollow?" with Cancel / Confirm) — works in user profiles, search results, and the following modal
+- Follow notifications: when someone follows you, a notification is stored; a badge appears on the Profile nav button showing unread count; notifications are listed in your profile screen with an unread dot indicator; all marked as read when you open the profile
+- Remove follower: your own Followers list now has a Remove button per user — removes them from your followers and removes you from their following list
+- Home feed empty state: brand new users with no sessions see a friendly prompt with a "Find Climbers" CTA instead of a blank screen
