@@ -689,19 +689,19 @@ export default function App() {
     const accounts = await loadAccountIndex();
     if (type === "following") {
       const users = socialFollowing.map(u => ({ username: u, displayName: accounts[u]?.displayName || u }));
-      setSocialUserList({ type: "following", users });
+      setSocialUserList({ type: "following", users, canUnfollow: true });
     } else {
       const fresh = await loadFollowersStore(currentUser.username);
       setSocialFollowers(fresh);
       const users = fresh.map(u => ({ username: u, displayName: accounts[u]?.displayName || u }));
-      setSocialUserList({ type: "followers", users });
+      setSocialUserList({ type: "followers", users, canUnfollow: true });
     }
   };
 
   const openUserProfile = async (username, displayName, backTo = "social") => {
-    setSocialUserList(null); // close any open modal
+    setSocialUserList(null);
     setUserProfileBackTo(backTo);
-    setViewedUser({ username, displayName, sessions: null, projects: null });
+    setViewedUser({ username, displayName, sessions: null, projects: null, following: [], followersList: [] });
     setViewedUserLoading(true);
     setScreen("userProfile");
     try {
@@ -709,18 +709,33 @@ export default function App() {
         loadUserData(username),
         loadFollowersStore(username),
       ]);
+      const theirFollowing = data?.profile?.following || [];
       setViewedUser({
         username,
         displayName: data?.profile?.displayName || displayName,
         sessions: data?.sessions || [],
         projects: data?.projects || [],
+        following: theirFollowing,
+        followersList: followers,
         followersCount: followers.length,
-        followingCount: (data?.profile?.following || []).length,
+        followingCount: theirFollowing.length,
       });
     } catch {
-      setViewedUser({ username, displayName, sessions: [], projects: [], followersCount: 0, followingCount: 0 });
+      setViewedUser({ username, displayName, sessions: [], projects: [], following: [], followersList: [], followersCount: 0, followingCount: 0 });
     }
     setViewedUserLoading(false);
+  };
+
+  const showViewedUserList = async (type) => {
+    if (!viewedUser) return;
+    const accounts = await loadAccountIndex();
+    if (type === "following") {
+      const users = (viewedUser.following || []).map(u => ({ username: u, displayName: accounts[u]?.displayName || u }));
+      setSocialUserList({ type: "following", users, canUnfollow: false });
+    } else {
+      const users = (viewedUser.followersList || []).map(u => ({ username: u, displayName: accounts[u]?.displayName || u }));
+      setSocialUserList({ type: "followers", users, canUnfollow: false });
+    }
   };
 
   // Reload feed when home/social tab opens or following list changes
@@ -2000,11 +2015,11 @@ export default function App() {
           </div>
           {/* Follower / Following counts */}
           <div style={{ display: "flex", gap: 10 }}>
-            {[{ label: "Following", count: followingCount ?? "—" }, { label: "Followers", count: followersCount ?? "—" }].map(item => (
-              <div key={item.label} style={{ flex: 1, background: W.surface2, borderRadius: 12, padding: "10px 8px", textAlign: "center", border: `1px solid ${W.border}` }}>
+            {[{ label: "Following", count: followingCount ?? "—", type: "following" }, { label: "Followers", count: followersCount ?? "—", type: "followers" }].map(item => (
+              <button key={item.label} onClick={() => !viewedUserLoading && showViewedUserList(item.type)} style={{ flex: 1, background: W.surface2, borderRadius: 12, padding: "10px 8px", textAlign: "center", border: `1px solid ${W.border}`, cursor: viewedUserLoading ? "default" : "pointer" }}>
                 <div style={{ fontSize: 20, fontWeight: 900, color: W.text }}>{item.count}</div>
                 <div style={{ fontSize: 11, color: W.textMuted, fontWeight: 600, marginTop: 2 }}>{item.label}</div>
-              </div>
+              </button>
             ))}
           </div>
         </div>
@@ -2230,7 +2245,7 @@ export default function App() {
                       <div style={{ fontWeight: 700, color: W.text, fontSize: 14 }}>{u.displayName}</div>
                       <div style={{ fontSize: 12, color: W.accent }}>@{u.username} ›</div>
                     </div>
-                    {socialUserList.type === "following" && (
+                    {socialUserList.type === "following" && socialUserList.canUnfollow && (
                       <button onClick={() => toggleFollow(u.username)} style={{ padding: "6px 14px", background: W.surface2, border: `1px solid ${W.border}`, borderRadius: 10, color: W.textMuted, fontWeight: 700, fontSize: 12, cursor: "pointer" }}>Unfollow</button>
                     )}
                   </div>
