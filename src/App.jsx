@@ -290,6 +290,7 @@ export default function App() {
   const [viewedUser, setViewedUser]           = useState(null);
   const [viewedUserLoading, setViewedUserLoading] = useState(false);
   const [userProfileBackTo, setUserProfileBackTo] = useState("social");
+  const [sessionReadOnly, setSessionReadOnly]     = useState(false);
 
   // ── INIT: check for existing session ──────────────────────
   useEffect(() => {
@@ -297,7 +298,10 @@ export default function App() {
       try {
         const sessionResult = await storage.get("active:session");
         if (sessionResult) {
-          const { username, userData } = JSON.parse(sessionResult.value);
+          const { username, userData: cachedData } = JSON.parse(sessionResult.value);
+          // Always load fresh data from Supabase so following/sessions are never stale
+          const freshData = await loadUserData(username).catch(() => null);
+          const userData = freshData || cachedData;
           setCurrentUser({ username, ...userData.profile });
           setSessions(userData.sessions || []);
           setProjects(userData.projects || []);
@@ -639,11 +643,25 @@ export default function App() {
     try {
       const accounts = await loadAccountIndex();
       const q = socialQuery.toLowerCase().trim();
-      const results = Object.entries(accounts)
+      const matched = Object.entries(accounts)
         .filter(([u]) => u !== currentUser.username && u.includes(q))
         .map(([u, data]) => ({ username: u, displayName: data.displayName }));
-      setSocialResults(results);
-    } catch (e) { setSocialResults([]); }
+      setSocialResults(matched); // show names immediately
+      // Load stats for each matched user in parallel
+      const withStats = await Promise.all(matched.map(async user => {
+        try {
+          const data = await loadUserData(user.username);
+          const uSessions = data?.sessions || [];
+          const uClimbs = uSessions.flatMap(s => s.climbs);
+          const sent = uClimbs.filter(c => c.completed);
+          const bestGrade = sent.length
+            ? [...sent].sort((a, b) => (GRADES[b.scale || "V-Scale"] || []).indexOf(b.grade) - (GRADES[a.scale || "V-Scale"] || []).indexOf(a.grade))[0]?.grade
+            : null;
+          return { ...user, sessionsCount: uSessions.length, climbsCount: uClimbs.length, bestGrade };
+        } catch { return user; }
+      }));
+      setSocialResults(withStats);
+    } catch { setSocialResults([]); }
   };
 
   const loadFollowersStore = async (username) => {
@@ -962,7 +980,7 @@ export default function App() {
   };
 
 
-  const LogbookSessionCard = ({ session, poster }) => {
+  const LogbookSessionCard = ({ session, poster, onNavigate }) => {
     const stats = getSessionStats(session);
     const gradeEntries = Object.entries(stats.gradeBreakdown).sort((a, b) => getGradeIndex(b[0], b[1].scale || "V-Scale") - getGradeIndex(a[0], a[1].scale || "V-Scale"));
     const pieTotal = gradeEntries.reduce((s, [, v]) => s + v.tries, 0);
@@ -991,7 +1009,7 @@ export default function App() {
           </div>
         )}
         {/* Header */}
-        <div onClick={() => { setSelectedSession(session); setScreen("sessionDetail"); }} style={{ padding: "14px 16px", cursor: "pointer", borderBottom: `1px solid ${W.border}`, display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+        <div onClick={onNavigate || (() => { setSessionReadOnly(false); setSelectedSession(session); setScreen("sessionDetail"); })} style={{ padding: "14px 16px", cursor: "pointer", borderBottom: `1px solid ${W.border}`, display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
           <div>
             <div style={{ fontWeight: 900, fontSize: 17, color: W.text }}>{formatDate(session.date)}</div>
             <div style={{ fontSize: 14, fontWeight: 700, color: W.textMuted, marginTop: 2 }}>📍 {session.location}</div>
@@ -1063,33 +1081,12 @@ export default function App() {
           : combined.map((s, i) => (
               s.isOwn
                 ? <LogbookSessionCard key={`own-${s.id}`} session={s} poster={socialFollowing.length > 0 ? { username: s.feedUsername, displayName: s.feedDisplayName } : null} />
-                : (
-                  <div key={`feed-${s.id}-${i}`} style={{ background: W.surface, borderRadius: 18, border: `1px solid ${W.border}`, marginBottom: 16, overflow: "hidden" }}>
-                    <div onClick={() => openUserProfile(s.feedUsername, s.feedDisplayName, "home")} style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 16px", borderBottom: `1px solid ${W.border}`, background: W.surface2, cursor: "pointer" }}>
-                      <div style={{ width: 24, height: 24, borderRadius: 8, background: `linear-gradient(135deg, ${W.accent}, ${W.accentDark})`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12 }}>🧗</div>
-                      <span style={{ fontWeight: 700, color: W.accent, fontSize: 13 }}>{s.feedDisplayName} ›</span>
-                      <span style={{ color: W.textDim, fontSize: 12 }}>@{s.feedUsername}</span>
-                    </div>
-                    <div style={{ padding: "12px 16px", borderBottom: `1px solid ${W.border}` }}>
-                      <div style={{ fontWeight: 900, fontSize: 15, color: W.text }}>{formatDate(s.date)}</div>
-                      {s.location && <div style={{ fontSize: 13, fontWeight: 700, color: W.textMuted, marginTop: 2 }}>📍 {s.location}</div>}
-                      {s.duration > 0 && <div style={{ fontSize: 11, color: W.textDim, marginTop: 1 }}>⏱ {formatDuration(s.duration)}</div>}
-                    </div>
-                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr" }}>
-                      {[
-                        { label: "Sends", value: `${s.climbs?.filter(c => c.completed).length || 0}/${s.climbs?.length || 0}` },
-                        { label: "Tries", value: s.climbs?.reduce((t, c) => t + c.tries, 0) || 0 },
-                        { label: "Flashes", value: s.climbs?.filter(c => c.completed && c.tries === 1).length || 0 },
-                        { label: "Top", value: (() => { const sent = s.climbs?.filter(c => c.completed); if (!sent?.length) return "—"; return sent.reduce((b, c) => (GRADES[c.scale || "V-Scale"] || []).indexOf(c.grade) > (GRADES[b.scale || "V-Scale"] || []).indexOf(b.grade) ? c : b, sent[0])?.grade || "—"; })() },
-                      ].map((st, j) => (
-                        <div key={st.label} style={{ padding: "10px 6px", textAlign: "center", borderRight: j < 3 ? `1px solid ${W.border}` : "none" }}>
-                          <div style={{ fontSize: 16, fontWeight: 900, color: W.text }}>{st.value}</div>
-                          <div style={{ fontSize: 10, color: W.textDim, marginTop: 1 }}>{st.label}</div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )
+                : <LogbookSessionCard
+                    key={`feed-${s.id}-${i}`}
+                    session={s}
+                    poster={{ username: s.feedUsername, displayName: s.feedDisplayName }}
+                    onNavigate={() => { setSessionReadOnly(true); setSelectedSession(s); setScreen("sessionDetail"); }}
+                  />
             )
           )
         }
@@ -1193,6 +1190,7 @@ export default function App() {
   };
 
   const SessionDetailScreen = ({ session }) => {
+    const readOnly = sessionReadOnly;
     const [editingLocation, setEditingLocation] = useState(false);
     const [locationVal, setLocationVal]         = useState(session.location);
     const [locDropOpen, setLocDropOpen]         = useState(false);
@@ -1201,8 +1199,13 @@ export default function App() {
     const saveLocation = () => { setSessions(prev => prev.map(s => s.id === session.id ? { ...s, location: locationVal } : s)); setSelectedSession(s => ({ ...s, location: locationVal })); setEditingLocation(false); };
     return (
       <div style={{ padding: "24px 20px" }}>
+        {readOnly && (
+          <div style={{ background: W.surface2, borderRadius: 12, padding: "8px 14px", marginBottom: 14, border: `1px solid ${W.border}`, display: "flex", alignItems: "center", gap: 8 }}>
+            <span style={{ fontSize: 12, color: W.textMuted }}>👤 Viewing someone else's session</span>
+          </div>
+        )}
         <div style={{ background: W.surface2, borderRadius: 16, padding: "16px", marginBottom: 16, border: `1px solid ${W.border}` }}>
-          {editingLocation ? (
+          {!readOnly && editingLocation ? (
             <div>
               <LocationDropdown value={locationVal} onChange={setLocationVal} open={locDropOpen} setOpen={setLocDropOpen} knownLocations={knownLocations} onRemove={loc => setHiddenLocations(h => [...h, loc])} />
               <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
@@ -1213,7 +1216,7 @@ export default function App() {
           ) : (
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
               <div><div style={{ fontWeight: 800, fontSize: 18, color: W.text }}>{session.location}</div><div style={{ fontSize: 13, color: W.textMuted, marginTop: 2 }}>{formatDate(session.date)}</div></div>
-              <button onClick={() => setEditingLocation(true)} style={{ background: W.surface, border: `1px solid ${W.border}`, borderRadius: 8, padding: "5px 10px", fontSize: 12, color: W.accent, fontWeight: 700, cursor: "pointer" }}>Edit</button>
+              {!readOnly && <button onClick={() => setEditingLocation(true)} style={{ background: W.surface, border: `1px solid ${W.border}`, borderRadius: 8, padding: "5px 10px", fontSize: 12, color: W.accent, fontWeight: 700, cursor: "pointer" }}>Edit</button>}
             </div>
           )}
           <div style={{ display: "flex", gap: 8, marginTop: 12, flexWrap: "wrap" }}>
@@ -1232,17 +1235,17 @@ export default function App() {
           ))}
         </div>
         <div style={{ fontSize: 13, fontWeight: 700, color: W.textMuted, textTransform: "uppercase", letterSpacing: 1, marginBottom: 10 }}>Climbs</div>
-        {showClimbForm && editingClimbId ? (
+        {!readOnly && showClimbForm && editingClimbId ? (
           <ClimbFormPanel onSave={() => saveClimbToFinishedSession(session.id)} onCancel={() => { setShowClimbForm(false); setEditingClimbId(null); setEditingSessionId(null); }} />
         ) : (
           session.climbs.map(c => (
             <ClimbRow key={c.id} climb={c}
-              onEdit={climb => { setEditingClimbId(climb.id); setEditingSessionId(session.id); setClimbForm({ name: climb.name || "", grade: climb.grade, scale: climb.scale, tries: climb.tries, completed: climb.completed, isProject: climb.isProject, comments: climb.comments, photo: climb.photo, projectId: climb.projectId, color: climb.color || null, wallTypes: climb.wallTypes || [], holdTypes: climb.holdTypes || [] }); setPhotoPreview(climb.photo); setShowClimbForm(true); }}
-              onRemove={climbId => removeClimbFromSession(session.id, climbId)}
+              onEdit={readOnly ? null : (climb => { setEditingClimbId(climb.id); setEditingSessionId(session.id); setClimbForm({ name: climb.name || "", grade: climb.grade, scale: climb.scale, tries: climb.tries, completed: climb.completed, isProject: climb.isProject, comments: climb.comments, photo: climb.photo, projectId: climb.projectId, color: climb.color || null, wallTypes: climb.wallTypes || [], holdTypes: climb.holdTypes || [] }); setPhotoPreview(climb.photo); setShowClimbForm(true); })}
+              onRemove={readOnly ? null : (climbId => removeClimbFromSession(session.id, climbId))}
             />
           ))
         )}
-        {!showClimbForm && (
+        {!readOnly && !showClimbForm && (
           <div style={{ marginTop: 24 }}>
             {!confirmDelete
               ? <button onClick={() => setConfirmDelete(true)} style={{ width: "100%", padding: "13px", background: "transparent", border: `2px solid ${W.redDark}`, borderRadius: 14, color: W.redDark, fontWeight: 700, fontSize: 14, cursor: "pointer" }}>🗑 Delete This Session</button>
@@ -2152,6 +2155,14 @@ export default function App() {
                   <div onClick={() => openUserProfile(user.username, user.displayName, "social")} style={{ flex: 1, cursor: "pointer" }}>
                     <div style={{ fontWeight: 700, color: W.text, fontSize: 15 }}>{user.displayName}</div>
                     <div style={{ color: W.accent, fontSize: 12 }}>@{user.username} ›</div>
+                    {(user.sessionsCount !== undefined) && (
+                      <div style={{ display: "flex", gap: 8, marginTop: 4, flexWrap: "wrap" }}>
+                        <span style={{ fontSize: 11, color: W.textDim }}>{user.sessionsCount} sessions</span>
+                        <span style={{ fontSize: 11, color: W.textDim }}>·</span>
+                        <span style={{ fontSize: 11, color: W.textDim }}>{user.climbsCount} climbs</span>
+                        {user.bestGrade && <><span style={{ fontSize: 11, color: W.textDim }}>·</span><span style={{ fontSize: 11, color: W.textMuted, fontWeight: 700 }}>Best: {user.bestGrade}</span></>}
+                      </div>
+                    )}
                   </div>
                   <button onClick={() => toggleFollow(user.username)} style={{ padding: "8px 16px", background: isFollowing ? W.surface2 : `linear-gradient(135deg, ${W.accent}, ${W.accentDark})`, border: isFollowing ? `2px solid ${W.border}` : "none", borderRadius: 10, color: isFollowing ? W.textMuted : "#fff", fontWeight: 700, fontSize: 13, cursor: "pointer", marginLeft: 10 }}>
                     {isFollowing ? "Following" : "Follow"}
@@ -2179,7 +2190,7 @@ export default function App() {
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "14px 20px", borderBottom: `1px solid ${W.border}`, background: W.navBg }}>
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
           {(backMap[screen] || screen === "session") && (
-            <button onClick={() => { if (screen === "session" && !sessionStarted) setScreen("home"); else if (backMap[screen]) { setScreen(backMap[screen]); setShowClimbForm(false); if (screen === "calendar" || screen === "projectDetail") setProfileTab("stats"); } }} style={{ background: "none", border: "none", color: W.accent, fontSize: 16, cursor: "pointer", padding: 0, marginRight: 4 }}>←</button>
+            <button onClick={() => { if (screen === "session" && !sessionStarted) setScreen("home"); else if (backMap[screen]) { setScreen(backMap[screen]); setShowClimbForm(false); if (screen === "calendar" || screen === "projectDetail") setProfileTab("stats"); if (screen === "sessionDetail") setSessionReadOnly(false); } }} style={{ background: "none", border: "none", color: W.accent, fontSize: 16, cursor: "pointer", padding: 0, marginRight: 4 }}>←</button>
           )}
           <span style={{ fontSize: 20 }}>🧗</span>
           <span style={{ fontWeight: 800, fontSize: 18, color: W.text }}>SendLog</span>
@@ -2194,8 +2205,8 @@ export default function App() {
       <div style={{ flex: 1, overflowY: "auto", paddingBottom: 80 }} onClick={() => { setLocationDropdownOpen(false); setActiveLocationDropdownOpen(false); }}>
         {screen === "home"          && <HomeScreen />}
         {screen === "session"       && (sessionStarted ? SessionActiveScreen() : SessionSetupScreen())}
-        {screen === "social"        && <SocialScreen />}
-        {screen === "userProfile"   && <UserProfileScreen />}
+        {screen === "social"        && SocialScreen()}
+        {screen === "userProfile"   && UserProfileScreen()}
         {screen === "profile"       && ProfileScreen()}
         {screen === "sessionDetail" && selectedSession && <SessionDetailScreen session={selectedSession} />}
         {screen === "calendar"      && <CalendarScreen />}
