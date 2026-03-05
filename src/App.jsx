@@ -1291,23 +1291,10 @@ export default function App() {
   const LogbookSessionCard = ({ session, poster, onNavigate }) => {
     const stats = getSessionStats(session);
     const gradeEntries = Object.entries(stats.gradeBreakdown).sort((a, b) => getGradeIndex(b[0], b[1].scale || "V-Scale") - getGradeIndex(a[0], a[1].scale || "V-Scale"));
-    const pieTotal = gradeEntries.reduce((s, [, v]) => s + v.tries, 0);
-    let pieAngle = -Math.PI / 2;
-    const pieSlices = gradeEntries.map(([grade, data]) => {
-      const angle = (data.tries / pieTotal) * 2 * Math.PI;
-      const end = pieAngle + angle;
-      const r = 42, ir = 22, cx = 50, cy = 50;
-      const x1 = cx + r * Math.cos(pieAngle), y1 = cy + r * Math.sin(pieAngle);
-      const x2 = cx + r * Math.cos(end), y2 = cy + r * Math.sin(end);
-      const ix1 = cx + ir * Math.cos(pieAngle), iy1 = cy + ir * Math.sin(pieAngle);
-      const ix2 = cx + ir * Math.cos(end), iy2 = cy + ir * Math.sin(end);
-      const large = angle > Math.PI ? 1 : 0;
-      const path = `M ${ix1.toFixed(2)} ${iy1.toFixed(2)} L ${x1.toFixed(2)} ${y1.toFixed(2)} A ${r} ${r} 0 ${large} 1 ${x2.toFixed(2)} ${y2.toFixed(2)} L ${ix2.toFixed(2)} ${iy2.toFixed(2)} A ${ir} ${ir} 0 ${large} 0 ${ix1.toFixed(2)} ${iy1.toFixed(2)} Z`;
-      pieAngle = end;
-      return { grade, path, color: getGradeColor(grade), data };
-    });
+    const barMax = gradeEntries.reduce((m, [, v]) => Math.max(m, v.tries), 0);
+    const climbPhotos = session.climbs.filter(c => c.photo);
     return (
-      <div style={{ background: W.surface, borderRadius: 18, border: `1px solid ${W.border}`, marginBottom: 16, overflow: "hidden" }}>
+      <div style={{ background: W.surface, borderRadius: 18, border: `2px solid ${W.accent}40`, marginBottom: 16, overflow: "hidden", boxShadow: `0 2px 12px ${W.accentGlow}` }}>
         {/* Posted-by row (only in feed) */}
         {poster && (
           <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 16px", borderBottom: `1px solid ${W.border}`, background: W.surface2 }}>
@@ -1325,21 +1312,29 @@ export default function App() {
           </div>
           <div style={{ color: W.accent, fontSize: 13, fontWeight: 700 }}>Details ›</div>
         </div>
-        {/* Pie chart at top, side-by-side with compact legend */}
+        {/* Photos strip */}
+        {climbPhotos.length > 0 && (
+          <div style={{ display: "flex", gap: 6, padding: "10px 16px", overflowX: "auto", borderBottom: `1px solid ${W.border}` }}>
+            {climbPhotos.map(c => (
+              <div key={c.id} style={{ position: "relative", flexShrink: 0 }}>
+                <img src={c.photo} alt={c.name || c.grade} style={{ width: 72, height: 72, objectFit: "cover", borderRadius: 10, display: "block" }} />
+                <div style={{ position: "absolute", bottom: 4, left: 4, background: getGradeColor(c.grade) + "ee", borderRadius: 5, padding: "1px 6px", fontSize: 10, fontWeight: 800, color: "#fff" }}>{c.grade}</div>
+              </div>
+            ))}
+          </div>
+        )}
+        {/* Bar chart — attempts per grade */}
         {gradeEntries.length > 0 && (
-          <div style={{ padding: "12px 16px", borderBottom: `1px solid ${W.border}`, display: "flex", alignItems: "center", gap: 14 }}>
-            <svg width={80} height={80} viewBox="0 0 100 100" style={{ flexShrink: 0 }}>
-              {pieSlices.map((s, i) => <path key={i} d={s.path} fill={s.color} />)}
-            </svg>
-            <div style={{ flex: 1, display: "grid", gridTemplateColumns: "1fr 1fr", gap: "2px 8px" }}>
-              {pieSlices.map(s => (
-                <div key={s.grade} style={{ display: "flex", alignItems: "center", gap: 4 }}>
-                  <div style={{ width: 7, height: 7, borderRadius: 2, background: s.color, flexShrink: 0 }} />
-                  <span style={{ fontSize: 11, fontWeight: 800, color: s.color }}>{s.grade}</span>
-                  <span style={{ fontSize: 13, fontWeight: 900, color: W.text, marginLeft: "auto" }}>{s.data.tries}</span>
+          <div style={{ padding: "12px 16px", borderBottom: `1px solid ${W.border}` }}>
+            {gradeEntries.map(([grade, data]) => (
+              <div key={grade} style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 5 }}>
+                <div style={{ width: 28, fontSize: 11, fontWeight: 800, color: getGradeColor(grade), flexShrink: 0, textAlign: "right" }}>{grade}</div>
+                <div style={{ flex: 1, height: 14, background: W.surface2, borderRadius: 4, overflow: "hidden" }}>
+                  <div style={{ height: "100%", width: `${(data.tries / barMax) * 100}%`, background: getGradeColor(grade), borderRadius: 4, minWidth: 4 }} />
                 </div>
-              ))}
-            </div>
+                <div style={{ width: 20, fontSize: 12, fontWeight: 700, color: W.text, flexShrink: 0 }}>{data.tries}</div>
+              </div>
+            ))}
           </div>
         )}
         {/* Stats row */}
