@@ -278,6 +278,14 @@ export default function App() {
   const [pieSelGrade, setPieSelGrade]               = useState(null);
   const [analyzeOpen, setAnalyzeOpen] = useState(false);
 
+  // ── SOCIAL STATE ───────────────────────────────────────────
+  const [socialFollowing, setSocialFollowing] = useState([]);
+  const [socialTab, setSocialTab]             = useState("feed");
+  const [socialQuery, setSocialQuery]         = useState("");
+  const [socialResults, setSocialResults]     = useState(null); // null = not searched yet
+  const [socialFeed, setSocialFeed]           = useState([]);
+  const [socialFeedLoading, setSocialFeedLoading] = useState(false);
+
   // ── INIT: check for existing session ──────────────────────
   useEffect(() => {
     const checkSession = async () => {
@@ -290,6 +298,7 @@ export default function App() {
           setProjects(userData.projects || []);
           setPreferredScale(userData.profile?.preferredScale || "V-Scale");
           setHiddenLocations(userData.profile?.hiddenLocations || []);
+          setSocialFollowing(userData.profile?.following || []);
           setAuthScreen("app");
         } else {
           setAuthScreen("login");
@@ -309,7 +318,7 @@ export default function App() {
     setSaveStatus("saving");
     saveTimeoutRef.current = setTimeout(async () => {
       const userData = {
-        profile: { displayName: currentUser.displayName, preferredScale, hiddenLocations },
+        profile: { displayName: currentUser.displayName, preferredScale, hiddenLocations, following: socialFollowing },
         sessions,
         projects,
       };
@@ -318,7 +327,7 @@ export default function App() {
       setTimeout(() => setSaveStatus(""), 2000);
     }, 1000);
     return () => clearTimeout(saveTimeoutRef.current);
-  }, [sessions, projects, preferredScale, hiddenLocations]);
+  }, [sessions, projects, preferredScale, hiddenLocations, socialFollowing]);
 
   useEffect(() => {
     if (timerRunning) { timerRef.current = setInterval(() => setSessionTimer(t => t + 1), 1000); }
@@ -394,6 +403,7 @@ export default function App() {
       setProjects(safeData.projects || []);
       setPreferredScale(safeData.profile?.preferredScale || "V-Scale");
       setHiddenLocations(safeData.profile?.hiddenLocations || []);
+      setSocialFollowing(safeData.profile?.following || []);
       setAuthScreen("app");
     } catch (e) {
       setAuthError("Something went wrong. Please try again.");
@@ -411,6 +421,9 @@ export default function App() {
     setAuthError("");
     setPreferredScale("V-Scale");
     setHiddenLocations([]);
+    setSocialFollowing([]);
+    setSocialResults(null);
+    setSocialFeed([]);
     setShowAccountPanel(false);
     setConfirmLogout(false);
     setAuthScreen("login");
@@ -590,6 +603,49 @@ export default function App() {
     const minAttemptRest = restGapsSec.length ? Math.round(Math.min(...restGapsSec)) : null;
     return { sends, total, totalTries, flashes, flashRate, avgTries, gradeBreakdown, hardestAttempted, hardestSent, avgAttemptRest, maxAttemptRest, minAttemptRest };
   };
+
+  // ── SOCIAL HELPERS ─────────────────────────────────────────
+  const loadSocialFeed = async () => {
+    if (!currentUser || socialFollowing.length === 0) { setSocialFeed([]); setSocialFeedLoading(false); return; }
+    setSocialFeedLoading(true);
+    try {
+      const feedItems = [];
+      for (const username of socialFollowing) {
+        const data = await loadUserData(username);
+        if (data?.sessions) {
+          data.sessions.slice(0, 20).forEach(s =>
+            feedItems.push({ ...s, feedUsername: username, feedDisplayName: data.profile?.displayName || username })
+          );
+        }
+      }
+      feedItems.sort((a, b) => new Date(b.date) - new Date(a.date));
+      setSocialFeed(feedItems);
+    } catch (e) { console.error(e); }
+    setSocialFeedLoading(false);
+  };
+
+  const searchUsers = async () => {
+    if (!socialQuery.trim()) return;
+    try {
+      const accounts = await loadAccountIndex();
+      const q = socialQuery.toLowerCase().trim();
+      const results = Object.entries(accounts)
+        .filter(([u]) => u !== currentUser.username && u.includes(q))
+        .map(([u, data]) => ({ username: u, displayName: data.displayName }));
+      setSocialResults(results);
+    } catch (e) { setSocialResults([]); }
+  };
+
+  const toggleFollow = (username) => {
+    setSocialFollowing(prev =>
+      prev.includes(username) ? prev.filter(u => u !== username) : [...prev, username]
+    );
+  };
+
+  // Reload feed when social tab opens or following list changes
+  useEffect(() => {
+    if (screen === "social" && socialTab === "feed") loadSocialFeed();
+  }, [screen, socialTab, socialFollowing]);
 
   // ── AUTH SCREENS ───────────────────────────────────────────
   if (authScreen === "loading") {
@@ -1772,10 +1828,115 @@ export default function App() {
     );
   };
 
+  const SocialScreen = () => {
+    const topGrade = (climbs) => {
+      if (!climbs?.length) return null;
+      const sent = climbs.filter(c => c.completed);
+      if (!sent.length) return null;
+      return sent.reduce((best, c) => {
+        const scale = c.scale || "V-Scale";
+        const idx = (GRADES[scale] || []).indexOf(c.grade);
+        const bIdx = (GRADES[best.scale] || []).indexOf(best.grade);
+        return idx > bIdx ? c : best;
+      }, sent[0])?.grade;
+    };
+
+    return (
+      <div style={{ padding: "20px" }}>
+        <h2 style={{ fontSize: 22, fontWeight: 800, color: W.text, margin: "0 0 16px" }}>Social</h2>
+        {/* Tabs */}
+        <div style={{ display: "flex", background: W.surface2, borderRadius: 12, padding: 4, marginBottom: 20, border: `1px solid ${W.border}` }}>
+          {[["feed", "Feed"], ["search", "Find Climbers"]].map(([id, label]) => (
+            <button key={id} onClick={() => setSocialTab(id)} style={{ flex: 1, padding: "9px 4px", borderRadius: 9, border: "none", background: socialTab === id ? `linear-gradient(135deg, ${W.accent}, ${W.accentDark})` : "transparent", color: socialTab === id ? "#fff" : W.textDim, fontWeight: 700, fontSize: 13, cursor: "pointer" }}>{label}</button>
+          ))}
+        </div>
+
+        {/* FEED TAB */}
+        {socialTab === "feed" && (() => {
+          if (socialFollowing.length === 0) return (
+            <div style={{ textAlign: "center", padding: "48px 20px" }}>
+              <div style={{ fontSize: 40, marginBottom: 12 }}>👥</div>
+              <div style={{ color: W.text, fontWeight: 700, fontSize: 16, marginBottom: 8 }}>No one followed yet</div>
+              <div style={{ color: W.textMuted, fontSize: 13, marginBottom: 20 }}>Search for climbers to follow and see their sessions here.</div>
+              <button onClick={() => setSocialTab("search")} style={{ padding: "11px 24px", background: `linear-gradient(135deg, ${W.accent}, ${W.accentDark})`, border: "none", borderRadius: 12, color: "#fff", fontWeight: 700, fontSize: 14, cursor: "pointer" }}>Find Climbers</button>
+            </div>
+          );
+          if (socialFeedLoading) return (
+            <div style={{ textAlign: "center", padding: "48px 20px", color: W.textMuted }}>Loading feed…</div>
+          );
+          if (!socialFeed.length) return (
+            <div style={{ textAlign: "center", padding: "48px 20px", color: W.textMuted }}>No recent sessions from people you follow.</div>
+          );
+          return socialFeed.map((s, i) => {
+            const sends = s.climbs?.filter(c => c.completed).length || 0;
+            const top = topGrade(s.climbs);
+            return (
+              <div key={`${s.id}-${i}`} style={{ background: W.surface, borderRadius: 16, padding: "14px 16px", marginBottom: 12, border: `1px solid ${W.border}` }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 8 }}>
+                  <div>
+                    <div style={{ fontWeight: 800, color: W.accent, fontSize: 14 }}>@{s.feedUsername}</div>
+                    <div style={{ color: W.textMuted, fontSize: 12 }}>{s.feedDisplayName}</div>
+                  </div>
+                  <div style={{ textAlign: "right" }}>
+                    <div style={{ color: W.textDim, fontSize: 11 }}>{formatDate(s.date)}</div>
+                    {s.location && <div style={{ color: W.textMuted, fontSize: 12, marginTop: 2 }}>📍 {s.location}</div>}
+                  </div>
+                </div>
+                <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                  <span style={{ background: W.green, color: W.greenDark, borderRadius: 8, padding: "3px 10px", fontSize: 12, fontWeight: 700 }}>{sends} sends</span>
+                  <span style={{ background: W.surface2, color: W.textMuted, borderRadius: 8, padding: "3px 10px", fontSize: 12, fontWeight: 600 }}>{s.climbs?.length || 0} climbs</span>
+                  {top && <span style={{ background: W.purple, color: W.purpleDark, borderRadius: 8, padding: "3px 10px", fontSize: 12, fontWeight: 700 }}>Top: {top}</span>}
+                  {s.duration > 0 && <span style={{ background: W.surface2, color: W.textDim, borderRadius: 8, padding: "3px 10px", fontSize: 12 }}>{formatTotalTime(s.duration)}</span>}
+                </div>
+              </div>
+            );
+          });
+        })()}
+
+        {/* SEARCH TAB */}
+        {socialTab === "search" && (() => (
+          <div>
+            <div style={{ display: "flex", gap: 8, marginBottom: 16 }}>
+              <input
+                value={socialQuery}
+                onChange={e => setSocialQuery(e.target.value)}
+                onKeyDown={e => e.key === "Enter" && searchUsers()}
+                placeholder="Search by username…"
+                style={{ flex: 1, padding: "11px 14px", background: W.surface, border: `2px solid ${W.border}`, borderRadius: 12, color: W.text, fontSize: 14, fontFamily: "inherit" }}
+              />
+              <button onClick={searchUsers} style={{ padding: "11px 16px", background: `linear-gradient(135deg, ${W.accent}, ${W.accentDark})`, border: "none", borderRadius: 12, color: "#fff", fontWeight: 700, fontSize: 14, cursor: "pointer" }}>Search</button>
+            </div>
+            {socialResults === null && (
+              <div style={{ textAlign: "center", padding: "32px 20px", color: W.textMuted, fontSize: 14 }}>Search for a username to find other climbers.</div>
+            )}
+            {socialResults !== null && socialResults.length === 0 && (
+              <div style={{ textAlign: "center", padding: "32px 20px", color: W.textMuted, fontSize: 14 }}>No users found matching "{socialQuery}".</div>
+            )}
+            {socialResults?.map(user => {
+              const isFollowing = socialFollowing.includes(user.username);
+              return (
+                <div key={user.username} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", background: W.surface, borderRadius: 14, padding: "12px 16px", marginBottom: 10, border: `1px solid ${W.border}` }}>
+                  <div>
+                    <div style={{ fontWeight: 700, color: W.text, fontSize: 15 }}>{user.displayName}</div>
+                    <div style={{ color: W.textMuted, fontSize: 12 }}>@{user.username}</div>
+                  </div>
+                  <button onClick={() => toggleFollow(user.username)} style={{ padding: "8px 16px", background: isFollowing ? W.surface2 : `linear-gradient(135deg, ${W.accent}, ${W.accentDark})`, border: isFollowing ? `2px solid ${W.border}` : "none", borderRadius: 10, color: isFollowing ? W.textMuted : "#fff", fontWeight: 700, fontSize: 13, cursor: "pointer" }}>
+                    {isFollowing ? "Following" : "Follow"}
+                  </button>
+                </div>
+              );
+            })}
+          </div>
+        ))()}
+      </div>
+    );
+  };
+
   const backMap  = { sessionDetail: "home", calendar: "profile", projectDetail: "profile" };
   const navItems = [
     { id: "home",    label: "🏠", text: "Home" },
     { id: "session", label: "⏱", text: "Session", action: () => activeSession ? setScreen("session") : goToSessionSetup() },
+    { id: "social",  label: "👥", text: "Social" },
     { id: "profile", label: "👤", text: "Profile" },
   ];
 
@@ -1800,6 +1961,7 @@ export default function App() {
       <div style={{ flex: 1, overflowY: "auto", paddingBottom: 80 }} onClick={() => { setLocationDropdownOpen(false); setActiveLocationDropdownOpen(false); }}>
         {screen === "home"          && <HomeScreen />}
         {screen === "session"       && (sessionStarted ? SessionActiveScreen() : SessionSetupScreen())}
+        {screen === "social"        && <SocialScreen />}
         {screen === "profile"       && ProfileScreen()}
         {screen === "sessionDetail" && selectedSession && <SessionDetailScreen session={selectedSession} />}
         {screen === "calendar"      && <CalendarScreen />}
