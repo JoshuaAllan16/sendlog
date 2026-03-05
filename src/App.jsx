@@ -289,6 +289,7 @@ export default function App() {
   const [hiddenLocations, setHiddenLocations]   = useState([]);
   const [showAccountPanel, setShowAccountPanel] = useState(false);
   const [confirmLogout, setConfirmLogout]       = useState(false);
+  const [notifPrefsOpen, setNotifPrefsOpen]     = useState(false);
   const [colorTheme, setColorTheme]             = useState("espresso");
   const [showEndConfirm, setShowEndConfirm]     = useState(false);
   const [sessionSummary, setSessionSummary]     = useState(null);
@@ -1631,7 +1632,6 @@ export default function App() {
   };
 
   const ProfileScreen = () => {
-    const [notifPrefsOpen, setNotifPrefsOpen] = useState(false);
     const stats = getStats();
     const logbookClimbs = getLogbookClimbs();
     const filteredSessions = getFilteredSessions();
