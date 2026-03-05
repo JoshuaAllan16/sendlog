@@ -291,6 +291,7 @@ export default function App() {
   const [confirmLogout, setConfirmLogout]       = useState(false);
   const [notifPrefsOpen, setNotifPrefsOpen]       = useState(false);
   const [followRequestsOpen, setFollowRequestsOpen] = useState(false);
+  const [profileNotifsOpen, setProfileNotifsOpen]   = useState(false);
   const [colorTheme, setColorTheme]             = useState("espresso");
   const [showEndConfirm, setShowEndConfirm]     = useState(false);
   const [sessionSummary, setSessionSummary]     = useState(null);
@@ -1780,18 +1781,30 @@ export default function App() {
         )}
 
         {notifications.length > 0 && (
-          <div style={{ background: W.surface, borderRadius: 14, padding: "12px 14px", marginBottom: 16, border: `1px solid ${W.border}` }}>
-            <div style={{ fontSize: 11, fontWeight: 700, color: W.textMuted, textTransform: "uppercase", letterSpacing: 1.1, marginBottom: 10 }}>Notifications</div>
-            {notifications.slice(0, 5).map((n, i) => (
-              <div key={i} style={{ display: "flex", alignItems: "center", gap: 10, paddingBottom: i < Math.min(notifications.length, 5) - 1 ? 8 : 0, marginBottom: i < Math.min(notifications.length, 5) - 1 ? 8 : 0, borderBottom: i < Math.min(notifications.length, 5) - 1 ? `1px solid ${W.border}` : "none" }}>
-                <div style={{ width: 8, height: 8, borderRadius: "50%", background: n.read ? W.border : W.accent, flexShrink: 0 }} />
-                <div style={{ flex: 1 }}>
-                  <span style={{ fontWeight: 700, color: W.text, fontSize: 13 }}>{n.fromDisplay}</span>
-                  <span style={{ color: W.textMuted, fontSize: 13 }}> started following you</span>
-                </div>
-                <div style={{ fontSize: 10, color: W.textDim, flexShrink: 0 }}>{new Date(n.at).toLocaleDateString()}</div>
+          <div style={{ background: W.surface, borderRadius: 14, marginBottom: 16, border: `1px solid ${W.border}`, overflow: "hidden" }}>
+            <button onClick={() => setProfileNotifsOpen(o => !o)} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", width: "100%", background: "none", border: "none", padding: "12px 14px", cursor: "pointer" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <span style={{ fontSize: 11, fontWeight: 700, color: W.textMuted, textTransform: "uppercase", letterSpacing: 1.1 }}>Notifications</span>
+                {notifCount > 0 && <span style={{ background: W.accent, color: "#fff", borderRadius: 20, minWidth: 18, height: 18, fontSize: 10, fontWeight: 800, display: "inline-flex", alignItems: "center", justifyContent: "center", padding: "0 4px" }}>{notifCount}</span>}
               </div>
-            ))}
+              <span style={{ fontSize: 12, color: W.textDim }}>{profileNotifsOpen ? "▲" : "▼"}</span>
+            </button>
+            {profileNotifsOpen && (
+              <div style={{ borderTop: `1px solid ${W.border}`, padding: "4px 14px 12px" }}>
+                {notifications.slice(0, 5).map((n, i) => (
+                  <div key={i} style={{ display: "flex", alignItems: "center", gap: 10, paddingTop: 8, paddingBottom: i < Math.min(notifications.length, 5) - 1 ? 8 : 0, borderBottom: i < Math.min(notifications.length, 5) - 1 ? `1px solid ${W.border}` : "none" }}>
+                    <div style={{ width: 8, height: 8, borderRadius: "50%", background: n.read ? W.border : W.accent, flexShrink: 0 }} />
+                    <div style={{ flex: 1 }}>
+                      <span style={{ fontWeight: 700, color: W.text, fontSize: 13 }}>{n.fromDisplay}</span>
+                      <span style={{ color: W.textMuted, fontSize: 13 }}>
+                        {n.type === "follow" ? " started following you" : n.type === "followRequest" ? " requested to follow you" : n.type === "comment" ? " commented on your session" : ` logged a session${n.location ? ` at ${n.location}` : ""}`}
+                      </span>
+                    </div>
+                    <div style={{ fontSize: 10, color: W.textDim, flexShrink: 0 }}>{new Date(n.at).toLocaleDateString()}</div>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         )}
 
