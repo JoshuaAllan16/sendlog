@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, createContext, useContext } from "react";
 import { createClient } from "@supabase/supabase-js";
 
 const GRADES = {
@@ -36,18 +36,49 @@ const formatDuration = (s) => `${Math.floor(s / 60)}:${(s % 60).toString().padSt
 const formatTotalTime = (s) => { const h = Math.floor(s / 3600); const m = Math.floor((s % 3600) / 60); return h > 0 ? `${h}h ${m}m` : `${m}m`; };
 const formatRestSec  = (s) => { if (s === null || s === undefined) return "—"; const m = Math.floor(s / 60), sec = Math.round(s % 60); return m > 0 ? (sec ? `${m}m ${sec}s` : `${m}m`) : `${sec}s`; };
 
-const W = {
-  bg: "linear-gradient(160deg, #2c1a0c 0%, #1f1208 50%, #160c04 100%)",
-  surface: "rgba(44, 24, 8, 0.97)", surface2: "rgba(60, 34, 10, 0.92)",
-  border: "#5c3218", accent: "#f09040", accentGlow: "rgba(240,144,64,0.28)", accentDark: "#c86818",
-  text: "#f0dcc0", textMuted: "#c89060", textDim: "#8a6040",
-  gold: "#f59e0b", goldLight: "#3a2800",
-  pink: "#3d0a1c", pinkDark: "#f472b6",
-  yellow: "#2e2200", yellowDark: "#fbbf24",
-  green: "#0a2c12", greenDark: "#4ade80",
-  red: "#2e0a0a", redDark: "#f87171",
-  purple: "#1e0a3e", purpleDark: "#c084fc",
-  navBg: "#110702",
+const ThemeCtx = createContext(null);
+const useTheme = () => useContext(ThemeCtx);
+
+const THEMES = {
+  espresso: {
+    bg: "linear-gradient(160deg, #2c1a0c 0%, #1f1208 50%, #160c04 100%)",
+    surface: "rgba(44, 24, 8, 0.97)", surface2: "rgba(60, 34, 10, 0.92)",
+    border: "#5c3218", accent: "#f09040", accentGlow: "rgba(240,144,64,0.28)", accentDark: "#c86818",
+    text: "#f0dcc0", textMuted: "#c89060", textDim: "#8a6040",
+    gold: "#f59e0b", goldLight: "#3a2800",
+    pink: "#3d0a1c", pinkDark: "#f472b6",
+    yellow: "#2e2200", yellowDark: "#fbbf24",
+    green: "#0a2c12", greenDark: "#4ade80",
+    red: "#2e0a0a", redDark: "#f87171",
+    purple: "#1e0a3e", purpleDark: "#c084fc",
+    navBg: "#110702",
+  },
+  alpine: {
+    bg: "linear-gradient(160deg, #f0f5ea 0%, #e8f0e0 50%, #dfe9d5 100%)",
+    surface: "rgba(255, 255, 252, 0.99)", surface2: "rgba(236, 243, 228, 0.97)",
+    border: "#bfcfb0", accent: "#3a7848", accentGlow: "rgba(58,120,72,0.18)", accentDark: "#275c34",
+    text: "#1a2416", textMuted: "#4a5e42", textDim: "#8a9e84",
+    gold: "#9a6e08", goldLight: "#eee8c8",
+    pink: "#f0dce4", pinkDark: "#a01e50",
+    yellow: "#f4f0c8", yellowDark: "#806000",
+    green: "#d0eccb", greenDark: "#1e7636",
+    red: "#f0dcd8", redDark: "#9e2626",
+    purple: "#e2d4f4", purpleDark: "#58209e",
+    navBg: "#d4e2c8",
+  },
+  chalk: {
+    bg: "linear-gradient(160deg, #fef5e0 0%, #fdedc8 50%, #fce4b0 100%)",
+    surface: "rgba(255, 252, 238, 0.99)", surface2: "rgba(252, 243, 215, 0.97)",
+    border: "#e4c27a", accent: "#d85818", accentGlow: "rgba(216,88,24,0.22)", accentDark: "#b04010",
+    text: "#281408", textMuted: "#7a4c28", textDim: "#b08458",
+    gold: "#c67800", goldLight: "#feefaa",
+    pink: "#fce0ee", pinkDark: "#c02068",
+    yellow: "#fef5aa", yellowDark: "#9a6800",
+    green: "#d4f2d4", greenDark: "#1a7c38",
+    red: "#fce0d4", redDark: "#c01c14",
+    purple: "#e8d4fc", purpleDark: "#6618bc",
+    navBg: "#f6d888",
+  },
 };
 
 const SAMPLE_PROJECTS = [
@@ -179,6 +210,7 @@ const ColorDot = ({ colorId, size = 12 }) => {
 
 // Tag chips for wall / hold types
 const TagChips = ({ wallTypes = [], holdTypes = [] }) => {
+  const W = useTheme() || THEMES.espresso;
   if (!wallTypes.length && !holdTypes.length) return null;
   return (
     <div style={{ display: "flex", gap: 4, flexWrap: "wrap", marginTop: 4 }}>
@@ -192,7 +224,9 @@ const TagChips = ({ wallTypes = [], holdTypes = [] }) => {
   );
 };
 
-const LocationDropdown = ({ value, onChange, open, setOpen, knownLocations, onRemove }) => (
+const LocationDropdown = ({ value, onChange, open, setOpen, knownLocations, onRemove }) => {
+  const W = useTheme() || THEMES.espresso;
+  return (
   <div style={{ position: "relative" }}>
     <div style={{ display: "flex", alignItems: "center", background: W.surface, border: `2px solid ${open ? W.accent : W.border}`, borderRadius: open && knownLocations.length ? "12px 12px 0 0" : "12px", overflow: "hidden" }}>
       <input value={value} onChange={e => { onChange(e.target.value); setOpen(true); }} onFocus={() => setOpen(true)} placeholder="e.g. Boulder Barn" style={{ flex: 1, padding: "11px 14px", background: "transparent", border: "none", outline: "none", color: W.text, fontSize: 14, fontFamily: "inherit" }} />
@@ -211,7 +245,8 @@ const LocationDropdown = ({ value, onChange, open, setOpen, knownLocations, onRe
       </div>
     )}
   </div>
-);
+  );
+};
 
 export default function App() {
   // ── AUTH STATE ─────────────────────────────────────────────
@@ -248,6 +283,7 @@ export default function App() {
   const [hiddenLocations, setHiddenLocations]   = useState([]);
   const [showAccountPanel, setShowAccountPanel] = useState(false);
   const [confirmLogout, setConfirmLogout]       = useState(false);
+  const [colorTheme, setColorTheme]             = useState("espresso");
   const [showEndConfirm, setShowEndConfirm]     = useState(false);
   const [sessionSummary, setSessionSummary]     = useState(null);
 
@@ -308,6 +344,7 @@ export default function App() {
           setPreferredScale(userData.profile?.preferredScale || "V-Scale");
           setHiddenLocations(userData.profile?.hiddenLocations || []);
           setSocialFollowing(userData.profile?.following || []);
+          setColorTheme(userData.profile?.colorTheme || "espresso");
           storage.get(`followers:${username}`).then(r => setSocialFollowers(r ? JSON.parse(r.value) : [])).catch(() => {});
           setAuthScreen("app");
         } else {
@@ -328,7 +365,7 @@ export default function App() {
     setSaveStatus("saving");
     saveTimeoutRef.current = setTimeout(async () => {
       const userData = {
-        profile: { displayName: currentUser.displayName, preferredScale, hiddenLocations, following: socialFollowing },
+        profile: { displayName: currentUser.displayName, preferredScale, hiddenLocations, following: socialFollowing, colorTheme },
         sessions,
         projects,
       };
@@ -337,7 +374,7 @@ export default function App() {
       setTimeout(() => setSaveStatus(""), 2000);
     }, 1000);
     return () => clearTimeout(saveTimeoutRef.current);
-  }, [sessions, projects, preferredScale, hiddenLocations, socialFollowing]);
+  }, [sessions, projects, preferredScale, hiddenLocations, socialFollowing, colorTheme]);
 
   useEffect(() => {
     if (timerRunning) { timerRef.current = setInterval(() => setSessionTimer(t => t + 1), 1000); }
@@ -414,6 +451,7 @@ export default function App() {
       setPreferredScale(safeData.profile?.preferredScale || "V-Scale");
       setHiddenLocations(safeData.profile?.hiddenLocations || []);
       setSocialFollowing(safeData.profile?.following || []);
+      setColorTheme(safeData.profile?.colorTheme || "espresso");
       storage.get(`followers:${username.toLowerCase()}`).then(r => setSocialFollowers(r ? JSON.parse(r.value) : [])).catch(() => {});
       setAuthScreen("app");
     } catch (e) {
@@ -432,6 +470,7 @@ export default function App() {
     setAuthError("");
     setPreferredScale("V-Scale");
     setHiddenLocations([]);
+    setColorTheme("espresso");
     setSocialFollowing([]);
     setSocialFollowers([]);
     setSocialResults(null);
@@ -442,6 +481,8 @@ export default function App() {
     setConfirmLogout(false);
     setAuthScreen("login");
   };
+
+  const W = THEMES[colorTheme] || THEMES.espresso;
 
   // ── APP LOGIC ──────────────────────────────────────────────
   const knownLocations = [...new Set([...KNOWN_GYMS, ...sessions.map(s => s.location).filter(Boolean)])].filter(l => !hiddenLocations.includes(l));
@@ -1294,17 +1335,20 @@ export default function App() {
             <div style={{ fontSize: 20, fontWeight: 800, color: W.text }}>{currentUser?.displayName || "Climber"}</div>
             <div style={{ fontSize: 12, color: W.textMuted }}>@{currentUser?.username} · {sessions.length} sessions · {allClimbs.length} climbs</div>
           </div>
-          <button onClick={() => setShowAccountPanel(o => !o)} style={{ background: W.surface2, border: `1px solid ${W.border}`, borderRadius: 10, padding: "8px 12px", fontSize: 12, color: W.textMuted, fontWeight: 700, cursor: "pointer" }}>⚙️</button>
+          <div style={{ display: "flex", gap: 6 }}>
+            <button onClick={() => setScreen("social")} style={{ background: W.surface2, border: `1px solid ${W.border}`, borderRadius: 10, padding: "8px 12px", fontSize: 12, color: W.textMuted, fontWeight: 700, cursor: "pointer" }}>👥</button>
+            <button onClick={() => setShowAccountPanel(o => !o)} style={{ background: W.surface2, border: `1px solid ${W.border}`, borderRadius: 10, padding: "8px 12px", fontSize: 12, color: W.textMuted, fontWeight: 700, cursor: "pointer" }}>⚙️</button>
+          </div>
         </div>
         {/* Follower / Following counts */}
-        <div style={{ display: "flex", gap: 10, marginBottom: 22 }}>
+        <div style={{ display: "flex", gap: 8, marginBottom: 18 }}>
           {[
             { label: "Following", count: socialFollowing.length, type: "following" },
             { label: "Followers", count: socialFollowers.length, type: "followers" },
           ].map(item => (
-            <button key={item.type} onClick={() => showUserList(item.type)} style={{ flex: 1, background: W.surface2, border: `1px solid ${W.border}`, borderRadius: 12, padding: "10px 8px", cursor: "pointer", textAlign: "center" }}>
-              <div style={{ fontSize: 20, fontWeight: 900, color: W.text }}>{item.count}</div>
-              <div style={{ fontSize: 11, color: W.textMuted, fontWeight: 600, marginTop: 2 }}>{item.label}</div>
+            <button key={item.type} onClick={() => showUserList(item.type)} style={{ flex: 1, background: W.surface2, border: `1px solid ${W.border}`, borderRadius: 10, padding: "6px 8px", cursor: "pointer", textAlign: "center" }}>
+              <div style={{ fontSize: 15, fontWeight: 800, color: W.text }}>{item.count}</div>
+              <div style={{ fontSize: 10, color: W.textMuted, fontWeight: 600, marginTop: 1 }}>{item.label}</div>
             </button>
           ))}
         </div>
@@ -1324,6 +1368,21 @@ export default function App() {
               <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
                 {Object.keys(GRADES).map(s => (
                   <button key={s} onClick={() => setPreferredScale(s)} style={{ padding: "6px 12px", borderRadius: 16, border: "2px solid", borderColor: preferredScale === s ? W.accent : W.border, background: preferredScale === s ? W.accent + "22" : W.surface2, color: preferredScale === s ? W.accent : W.textDim, cursor: "pointer", fontSize: 12, fontWeight: preferredScale === s ? 700 : 500 }}>{s}</button>
+                ))}
+              </div>
+            </div>
+            <div style={{ marginBottom: 14 }}>
+              <div style={{ fontSize: 11, fontWeight: 700, color: W.textMuted, textTransform: "uppercase", letterSpacing: 1.2, marginBottom: 8 }}>App Theme</div>
+              <div style={{ display: "flex", gap: 6 }}>
+                {[
+                  { id: "espresso", label: "Espresso", icon: "☕" },
+                  { id: "alpine",   label: "Alpine",   icon: "🏔" },
+                  { id: "chalk",    label: "Chalk",    icon: "🎨" },
+                ].map(t => (
+                  <button key={t.id} onClick={() => setColorTheme(t.id)} style={{ flex: 1, padding: "8px 4px", borderRadius: 12, border: `2px solid`, borderColor: colorTheme === t.id ? W.accent : W.border, background: colorTheme === t.id ? W.accent + "22" : W.surface2, color: colorTheme === t.id ? W.accent : W.textDim, cursor: "pointer", fontSize: 11, fontWeight: colorTheme === t.id ? 700 : 500, textAlign: "center" }}>
+                    <div style={{ fontSize: 18 }}>{t.icon}</div>
+                    <div>{t.label}</div>
+                  </button>
                 ))}
               </div>
             </div>
@@ -2191,15 +2250,15 @@ export default function App() {
     );
   };
 
-  const backMap  = { sessionDetail: "home", calendar: "profile", projectDetail: "profile", userProfile: userProfileBackTo };
+  const backMap  = { sessionDetail: "home", calendar: "profile", projectDetail: "profile", userProfile: userProfileBackTo, social: "profile" };
   const navItems = [
     { id: "home",    label: "🏠", text: "Home" },
     { id: "session", label: "⏱", text: "Session", action: () => activeSession ? setScreen("session") : goToSessionSetup() },
-    { id: "social",  label: "👥", text: "Social" },
     { id: "profile", label: "👤", text: "Profile" },
   ];
 
   return (
+    <ThemeCtx.Provider value={W}>
     <div style={{ width: "100%", minHeight: "100vh", background: W.bg, fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif", display: "flex", justifyContent: "center" }}>
     <div style={{ width: "100%", maxWidth: 420, display: "flex", flexDirection: "column" }}>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "14px 20px", borderBottom: `1px solid ${W.border}`, background: W.navBg }}>
@@ -2266,5 +2325,6 @@ export default function App() {
       </div>
     </div>
     </div>
+    </ThemeCtx.Provider>
   );
 }
