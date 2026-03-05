@@ -1346,9 +1346,9 @@ export default function App() {
             { label: "Following", count: socialFollowing.length, type: "following" },
             { label: "Followers", count: socialFollowers.length, type: "followers" },
           ].map(item => (
-            <button key={item.type} onClick={() => showUserList(item.type)} style={{ flex: 1, background: W.surface2, border: `1px solid ${W.border}`, borderRadius: 10, padding: "6px 8px", cursor: "pointer", textAlign: "center" }}>
-              <div style={{ fontSize: 15, fontWeight: 800, color: W.text }}>{item.count}</div>
-              <div style={{ fontSize: 10, color: W.textMuted, fontWeight: 600, marginTop: 1 }}>{item.label}</div>
+            <button key={item.type} onClick={() => showUserList(item.type)} style={{ flex: 1, background: W.surface2, border: `1px solid ${W.border}`, borderRadius: 10, padding: "4px 6px", cursor: "pointer", textAlign: "center" }}>
+              <div style={{ fontSize: 12, fontWeight: 700, color: W.text }}>{item.count}</div>
+              <div style={{ fontSize: 9, color: W.textMuted, fontWeight: 600, marginTop: 1 }}>{item.label}</div>
             </button>
           ))}
         </div>
@@ -1547,7 +1547,7 @@ export default function App() {
                 )}
                 <div style={{ display: "flex", gap: 2, marginTop: 3, marginBottom: 10 }}>
                   {chartBuckets.map((b, i) => (
-                    <div key={i} style={{ flex: 1, textAlign: "center", fontSize: 7, color: statsBarSel === i ? cColor : W.textDim, fontWeight: statsBarSel === i ? 800 : 400, overflow: "hidden" }}>{b.label}</div>
+                    <div key={i} style={{ flex: 1, textAlign: "center", fontSize: 7, color: statsBarSel === i ? cColor : W.textDim, fontWeight: statsBarSel === i ? 900 : 700, overflow: "hidden" }}>{b.label}</div>
                   ))}
                 </div>
                 <div style={{ display: "flex", gap: 4, overflowX: "auto", paddingTop: 6, paddingBottom: 2 }}>
@@ -2068,9 +2068,12 @@ export default function App() {
               <div style={{ fontSize: 20, fontWeight: 800, color: W.text }}>{displayName}</div>
               <div style={{ fontSize: 13, color: W.textMuted }}>@{username}</div>
             </div>
-            <button onClick={() => toggleFollow(username)} style={{ padding: "9px 18px", background: isFollowing ? W.surface2 : `linear-gradient(135deg, ${W.accent}, ${W.accentDark})`, border: isFollowing ? `2px solid ${W.border}` : "none", borderRadius: 12, color: isFollowing ? W.textMuted : "#fff", fontWeight: 700, fontSize: 13, cursor: "pointer", flexShrink: 0 }}>
-              {isFollowing ? "Following" : "Follow"}
-            </button>
+            {username === currentUser.username
+              ? <div style={{ padding: "6px 14px", background: W.surface2, border: `1px solid ${W.border}`, borderRadius: 12, color: W.textDim, fontWeight: 700, fontSize: 12 }}>You</div>
+              : <button onClick={() => toggleFollow(username)} style={{ padding: "9px 18px", background: isFollowing ? W.surface2 : `linear-gradient(135deg, ${W.accent}, ${W.accentDark})`, border: isFollowing ? `2px solid ${W.border}` : "none", borderRadius: 12, color: isFollowing ? W.textMuted : "#fff", fontWeight: 700, fontSize: 13, cursor: "pointer", flexShrink: 0 }}>
+                  {isFollowing ? "Following" : "Follow"}
+                </button>
+            }
           </div>
           {/* Follower / Following counts */}
           <div style={{ display: "flex", gap: 10 }}>
@@ -2238,9 +2241,12 @@ export default function App() {
                       </div>
                     )}
                   </div>
-                  <button onClick={() => toggleFollow(user.username)} style={{ padding: "8px 16px", background: isFollowing ? W.surface2 : `linear-gradient(135deg, ${W.accent}, ${W.accentDark})`, border: isFollowing ? `2px solid ${W.border}` : "none", borderRadius: 10, color: isFollowing ? W.textMuted : "#fff", fontWeight: 700, fontSize: 13, cursor: "pointer", marginLeft: 10 }}>
-                    {isFollowing ? "Following" : "Follow"}
-                  </button>
+                  {user.username === currentUser.username
+                    ? <div style={{ padding: "6px 12px", background: W.surface2, border: `1px solid ${W.border}`, borderRadius: 10, color: W.textDim, fontWeight: 700, fontSize: 12, marginLeft: 10 }}>You</div>
+                    : <button onClick={() => toggleFollow(user.username)} style={{ padding: "8px 16px", background: isFollowing ? W.surface2 : `linear-gradient(135deg, ${W.accent}, ${W.accentDark})`, border: isFollowing ? `2px solid ${W.border}` : "none", borderRadius: 10, color: isFollowing ? W.textMuted : "#fff", fontWeight: 700, fontSize: 13, cursor: "pointer", marginLeft: 10 }}>
+                        {isFollowing ? "Following" : "Follow"}
+                      </button>
+                  }
                 </div>
               );
             })}
@@ -2298,17 +2304,28 @@ export default function App() {
             </div>
             {socialUserList.users.length === 0
               ? <div style={{ textAlign: "center", color: W.textMuted, padding: "24px 0", fontSize: 14 }}>{socialUserList.type === "following" ? "Not following anyone yet." : "No followers yet."}</div>
-              : socialUserList.users.map(u => (
-                  <div key={u.username} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 0", borderBottom: `1px solid ${W.border}` }}>
-                    <div onClick={() => openUserProfile(u.username, u.displayName, "profile")} style={{ flex: 1, cursor: "pointer" }}>
-                      <div style={{ fontWeight: 700, color: W.text, fontSize: 14 }}>{u.displayName}</div>
-                      <div style={{ fontSize: 12, color: W.accent }}>@{u.username} ›</div>
+              : socialUserList.users.map(u => {
+                  const isMe = u.username === currentUser.username;
+                  const iAlreadyFollow = socialFollowing.includes(u.username);
+                  return (
+                    <div key={u.username} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 0", borderBottom: `1px solid ${W.border}` }}>
+                      <div onClick={() => !isMe && openUserProfile(u.username, u.displayName, "profile")} style={{ flex: 1, cursor: isMe ? "default" : "pointer" }}>
+                        <div style={{ fontWeight: 700, color: W.text, fontSize: 14 }}>{u.displayName}</div>
+                        <div style={{ fontSize: 12, color: W.accent }}>@{u.username}{isMe ? "" : " ›"}</div>
+                      </div>
+                      {isMe
+                        ? <div style={{ padding: "4px 10px", background: W.surface2, border: `1px solid ${W.border}`, borderRadius: 10, color: W.textDim, fontWeight: 700, fontSize: 11 }}>You</div>
+                        : socialUserList.type === "following" && socialUserList.canUnfollow
+                          ? <button onClick={() => toggleFollow(u.username)} style={{ padding: "6px 14px", background: W.surface2, border: `1px solid ${W.border}`, borderRadius: 10, color: W.textMuted, fontWeight: 700, fontSize: 12, cursor: "pointer" }}>Unfollow</button>
+                          : socialUserList.type === "followers"
+                            ? iAlreadyFollow
+                              ? <div style={{ padding: "4px 10px", background: W.surface2, border: `1px solid ${W.border}`, borderRadius: 10, color: W.textDim, fontWeight: 700, fontSize: 11 }}>Following</div>
+                              : <button onClick={() => toggleFollow(u.username)} style={{ padding: "6px 14px", background: `linear-gradient(135deg, ${W.accent}, ${W.accentDark})`, border: "none", borderRadius: 10, color: "#fff", fontWeight: 700, fontSize: 12, cursor: "pointer" }}>Follow Back</button>
+                            : null
+                      }
                     </div>
-                    {socialUserList.type === "following" && socialUserList.canUnfollow && (
-                      <button onClick={() => toggleFollow(u.username)} style={{ padding: "6px 14px", background: W.surface2, border: `1px solid ${W.border}`, borderRadius: 10, color: W.textMuted, fontWeight: 700, fontSize: 12, cursor: "pointer" }}>Unfollow</button>
-                    )}
-                  </div>
-                ))
+                  );
+                })
             }
           </div>
         </div>
