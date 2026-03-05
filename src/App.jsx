@@ -493,8 +493,8 @@ export default function App() {
     return sessions.filter(s => new Date(s.date).getTime() >= cutoff);
   };
 
-  const getStats = () => {
-    const tfSessions = getTimeframeSessions();
+  const getStats = (overrideSessions) => {
+    const tfSessions = overrideSessions !== undefined ? overrideSessions : getTimeframeSessions();
     const tfClimbs = tfSessions.flatMap(s => s.climbs);
     const base = tfClimbs.filter(c => (statsScaleFilter === "All Scales" || c.scale === statsScaleFilter) && (statsGradeFilter === "All" || c.grade === statsGradeFilter));
     const completed = base.filter(c => c.completed);
@@ -508,7 +508,7 @@ export default function App() {
     tfSessions.forEach(s => { const day = s.date.slice(0, 10); climbsByDay[day] = (climbsByDay[day] || 0) + s.climbs.length; });
     const mostInDay = Object.values(climbsByDay).length ? Math.max(...Object.values(climbsByDay)) : 0;
     const totalTimeClimbed = tfSessions.reduce((sum, s) => sum + (s.duration || 0), 0);
-    return { base, completed, flashes, flashRate, avgTries, bestGrade, gradeBreakdown, mostInDay, totalTimeClimbed };
+    return { base, completed, flashes, flashRate, avgTries, bestGrade, gradeBreakdown, mostInDay, totalTimeClimbed, sessionCount: tfSessions.length };
   };
 
   const getProjectHistory    = (pid) => sessions.flatMap(s => s.climbs.filter(c => c.projectId === pid).map(c => ({ ...c, sessionDate: s.date, sessionLocation: s.location }))).sort((a, b) => new Date(b.sessionDate) - new Date(a.sessionDate));
@@ -1110,27 +1110,36 @@ export default function App() {
           const tfSessions = getTimeframeSessions();
           const chartBuckets = (() => {
             const now = new Date();
+            const mkBucket = (label, ss) => ({ label, sessions: ss, sends: ss.flatMap(s => s.climbs).filter(c => c.completed).length, attempts: ss.flatMap(s => s.climbs).reduce((t,c)=>t+c.tries,0), time: ss.reduce((t,s)=>t+(s.duration||0),0) });
             if (statsTimeFrame === "2w") {
               return Array.from({ length: 14 }, (_, i) => {
                 const d = new Date(now); d.setDate(d.getDate() - 13 + i);
                 const key = d.toISOString().slice(0, 10);
-                const ss = tfSessions.filter(s => s.date.slice(0, 10) === key);
-                return { label: ["Su","Mo","Tu","We","Th","Fr","Sa"][d.getDay()], sends: ss.flatMap(s => s.climbs).filter(c => c.completed).length, attempts: ss.flatMap(s => s.climbs).reduce((t,c)=>t+c.tries,0), time: ss.reduce((t,s)=>t+(s.duration||0),0) };
+                return mkBucket(["Su","Mo","Tu","We","Th","Fr","Sa"][d.getDay()], tfSessions.filter(s => s.date.slice(0, 10) === key));
               });
             }
             if (statsTimeFrame === "1m") {
               return Array.from({ length: 5 }, (_, i) => {
                 const ws = new Date(now); ws.setDate(ws.getDate() - (4-i)*7); ws.setHours(0,0,0,0);
                 const we = new Date(ws); we.setDate(ws.getDate() + 6); we.setHours(23,59,59,999);
-                const ss = tfSessions.filter(s => { const d = new Date(s.date); return d >= ws && d <= we; });
-                return { label: `W${i+1}`, sends: ss.flatMap(s => s.climbs).filter(c => c.completed).length, attempts: ss.flatMap(s => s.climbs).reduce((t,c)=>t+c.tries,0), time: ss.reduce((t,s)=>t+(s.duration||0),0) };
+                return mkBucket(`W${i+1}`, tfSessions.filter(s => { const d = new Date(s.date); return d >= ws && d <= we; }));
+              });
+            }
+            if (statsTimeFrame === "all") {
+              if (!sessions.length) return [];
+              const earliest = new Date(Math.min(...sessions.map(s => new Date(s.date).getTime())));
+              const sy = earliest.getFullYear(), sm = earliest.getMonth();
+              const totalMonths = (now.getFullYear() - sy) * 12 + (now.getMonth() - sm) + 1;
+              return Array.from({ length: totalMonths }, (_, i) => {
+                const d = new Date(sy, sm + i, 1);
+                const ss = sessions.filter(s => { const sd = new Date(s.date); return sd.getFullYear() === d.getFullYear() && sd.getMonth() === d.getMonth(); });
+                return mkBucket(d.getMonth() === 0 ? String(d.getFullYear()) : "", ss);
               });
             }
             const months = statsTimeFrame === "6m" ? 6 : 12;
             return Array.from({ length: months }, (_, i) => {
               const d = new Date(now.getFullYear(), now.getMonth() - (months-1) + i, 1);
-              const ss = (statsTimeFrame === "all" ? sessions : tfSessions).filter(s => { const sd = new Date(s.date); return sd.getFullYear() === d.getFullYear() && sd.getMonth() === d.getMonth(); });
-              return { label: d.toLocaleDateString("en-US", { month: "short" }), sends: ss.flatMap(s => s.climbs).filter(c => c.completed).length, attempts: ss.flatMap(s => s.climbs).reduce((t,c)=>t+c.tries,0), time: ss.reduce((t,s)=>t+(s.duration||0),0) };
+              return mkBucket(d.toLocaleDateString("en-US", { month: "short" }), tfSessions.filter(s => { const sd = new Date(s.date); return sd.getFullYear() === d.getFullYear() && sd.getMonth() === d.getMonth(); }));
             });
           })();
           const chartConfigs = {
@@ -1141,6 +1150,9 @@ export default function App() {
           const { key: cKey, color: cColor, xform: cXform, unit: cUnit } = chartConfigs[statsChart];
           const cVals = chartBuckets.map(b => cXform(b[cKey]));
           const cMax  = Math.max(...cVals, 1);
+          const selBucket = statsBarSel !== null ? chartBuckets[statsBarSel] : null;
+          const displayStats = selBucket ? getStats(selBucket.sessions) : stats;
+          const selLabel = selBucket ? (selBucket.label || `Point ${statsBarSel + 1}`) : null;
           return (
           <div>
             {/* Activity chart — top */}
@@ -1222,14 +1234,14 @@ export default function App() {
             </div>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 16 }}>
               {[
-                { icon: "🏆", label: "Best Grade", value: stats.bestGrade, sub: `${preferredScale} · ${tfLabels[statsTimeFrame]}`, bg: W.goldLight, tc: W.yellowDark },
-                { icon: "⏱", label: "Time Climbed", value: formatTotalTime(stats.totalTimeClimbed), sub: tfLabels[statsTimeFrame], bg: W.purple, tc: W.purpleDark },
-                { icon: "⚡", label: "Flash Rate", value: `${stats.flashRate}%`, sub: `${stats.flashes.length} flashes`, bg: W.yellow, tc: W.yellowDark },
-                { icon: "🔁", label: "Avg Tries", value: stats.avgTries, sub: "per climb", bg: W.green, tc: W.greenDark },
-                { icon: "🧗", label: "Total Sends", value: stats.completed.length, sub: "completed", bg: W.surface2, tc: W.accent },
-                { icon: "📅", label: "Sessions", value: tfSessions.length, sub: tfLabels[statsTimeFrame], bg: W.surface2, tc: W.accentDark },
+                { icon: "🏆", label: "Best Grade", value: displayStats.bestGrade, sub: `${preferredScale} · ${selLabel || tfLabels[statsTimeFrame]}`, bg: W.goldLight, tc: W.yellowDark },
+                { icon: "⏱", label: "Time Climbed", value: formatTotalTime(displayStats.totalTimeClimbed), sub: selLabel || tfLabels[statsTimeFrame], bg: W.purple, tc: W.purpleDark },
+                { icon: "⚡", label: "Flash Rate", value: `${displayStats.flashRate}%`, sub: `${displayStats.flashes.length} flashes`, bg: W.yellow, tc: W.yellowDark },
+                { icon: "🔁", label: "Avg Tries", value: displayStats.avgTries, sub: "per climb", bg: W.green, tc: W.greenDark },
+                { icon: "🧗", label: "Total Sends", value: displayStats.completed.length, sub: "completed", bg: W.surface2, tc: W.accent },
+                { icon: "📅", label: "Sessions", value: displayStats.sessionCount, sub: selLabel || tfLabels[statsTimeFrame], bg: W.surface2, tc: W.accentDark },
                 { icon: "🎯", label: "Projects", value: activeProjects.length, sub: "active", bg: W.pink, tc: W.pinkDark },
-                { icon: "📈", label: "Best Day", value: stats.mostInDay, sub: "climbs in one day", bg: W.surface2, tc: W.accentDark },
+                { icon: "📈", label: "Best Day", value: displayStats.mostInDay, sub: "climbs in one day", bg: W.surface2, tc: W.accentDark },
               ].map(s => (
                 <div key={s.label} style={{ background: s.bg, borderRadius: 14, padding: "14px", border: `1px solid ${W.border}` }}>
                   <div style={{ fontSize: 20, marginBottom: 4 }}>{s.icon}</div>
@@ -1240,10 +1252,10 @@ export default function App() {
               ))}
             </div>
             <button onClick={() => setScreen("calendar")} style={{ width: "100%", padding: "14px", background: `linear-gradient(135deg, ${W.gold}, #d97706)`, border: "none", borderRadius: 14, color: "#fff", fontSize: 15, fontWeight: 700, cursor: "pointer", marginBottom: 16 }}>📅 View Climbing Calendar</button>
-            {stats.gradeBreakdown.length > 0 && (
+            {displayStats.gradeBreakdown.length > 0 && (
               <div style={{ background: W.surface, borderRadius: 16, padding: "16px", border: `1px solid ${W.border}` }}>
                 <div style={{ fontSize: 12, fontWeight: 700, color: W.textMuted, textTransform: "uppercase", letterSpacing: 1, marginBottom: 14 }}>Grade Breakdown</div>
-                {stats.gradeBreakdown.map(({ grade, count }) => { const max = Math.max(...stats.gradeBreakdown.map(g => g.count)); return (<div key={grade} style={{ marginBottom: 10 }}><div style={{ display: "flex", justifyContent: "space-between", marginBottom: 3 }}><span style={{ fontSize: 12, fontWeight: 700, color: getGradeColor(grade) }}>{grade}</span><span style={{ fontSize: 12, color: W.textDim }}>{count} send{count !== 1 ? "s" : ""}</span></div><div style={{ background: W.surface2, borderRadius: 6, height: 8, overflow: "hidden" }}><div style={{ width: `${Math.round((count / max) * 100)}%`, height: "100%", borderRadius: 6, background: getGradeColor(grade) }} /></div></div>); })}
+                {displayStats.gradeBreakdown.map(({ grade, count }) => { const max = Math.max(...displayStats.gradeBreakdown.map(g => g.count)); return (<div key={grade} style={{ marginBottom: 10 }}><div style={{ display: "flex", justifyContent: "space-between", marginBottom: 3 }}><span style={{ fontSize: 12, fontWeight: 700, color: getGradeColor(grade) }}>{grade}</span><span style={{ fontSize: 12, color: W.textDim }}>{count} send{count !== 1 ? "s" : ""}</span></div><div style={{ background: W.surface2, borderRadius: 6, height: 8, overflow: "hidden" }}><div style={{ width: `${Math.round((count / max) * 100)}%`, height: "100%", borderRadius: 6, background: getGradeColor(grade) }} /></div></div>); })}
               </div>
             )}
           </div>
