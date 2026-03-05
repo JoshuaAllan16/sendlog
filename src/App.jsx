@@ -1631,6 +1631,7 @@ export default function App() {
   };
 
   const ProfileScreen = () => {
+    const [notifPrefsOpen, setNotifPrefsOpen] = useState(false);
     const stats = getStats();
     const logbookClimbs = getLogbookClimbs();
     const filteredSessions = getFilteredSessions();
@@ -1718,14 +1719,17 @@ export default function App() {
               </div>
             </div>
             <div style={{ marginBottom: 14 }}>
-              <div style={{ fontSize: 11, fontWeight: 700, color: W.textMuted, textTransform: "uppercase", letterSpacing: 1.2, marginBottom: 8 }}>Notifications</div>
-              {[
+              <button onClick={() => setNotifPrefsOpen(o => !o)} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", width: "100%", background: "none", border: "none", padding: 0, cursor: "pointer", marginBottom: notifPrefsOpen ? 10 : 0 }}>
+                <div style={{ fontSize: 11, fontWeight: 700, color: W.textMuted, textTransform: "uppercase", letterSpacing: 1.2 }}>Notifications</div>
+                <span style={{ fontSize: 12, color: W.textDim }}>{notifPrefsOpen ? "▲" : "▼"}</span>
+              </button>
+              {notifPrefsOpen && [
                 { key: "follows", label: "New followers" },
                 { key: "sessions", label: "New sessions from people you follow" },
               ].map(({ key, label }) => (
                 <div key={key} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
                   <span style={{ fontSize: 13, color: W.text }}>{label}</span>
-                  <button onClick={() => setNotifPrefs(p => ({ ...p, [key]: !p[key] }))} style={{ width: 42, height: 24, borderRadius: 12, border: "none", background: notifPrefs[key] ? W.accent : W.border, cursor: "pointer", position: "relative", transition: "background 0.2s" }}>
+                  <button onClick={() => setNotifPrefs(p => ({ ...p, [key]: !p[key] }))} style={{ width: 42, height: 24, borderRadius: 12, border: "none", background: notifPrefs[key] ? W.accent : W.border, cursor: "pointer", position: "relative", flexShrink: 0, marginLeft: 12, transition: "background 0.2s" }}>
                     <div style={{ position: "absolute", top: 3, left: notifPrefs[key] ? 21 : 3, width: 18, height: 18, borderRadius: "50%", background: "#fff", transition: "left 0.2s" }} />
                   </button>
                 </div>
