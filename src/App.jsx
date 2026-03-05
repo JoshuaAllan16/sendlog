@@ -327,6 +327,9 @@ export default function App() {
   const [viewedUserLoading, setViewedUserLoading] = useState(false);
   const [userProfileBackTo, setUserProfileBackTo] = useState("social");
   const [sessionReadOnly, setSessionReadOnly]     = useState(false);
+  const [confirmUnfollowUser, setConfirmUnfollowUser] = useState(null); // username pending unfollow confirm
+  const [notifications, setNotifications]         = useState([]);
+  const [notifCount, setNotifCount]               = useState(0);
 
   // ── INIT: check for existing session ──────────────────────
   useEffect(() => {
@@ -346,6 +349,7 @@ export default function App() {
           setSocialFollowing(userData.profile?.following || []);
           setColorTheme(userData.profile?.colorTheme || "espresso");
           storage.get(`followers:${username}`).then(r => setSocialFollowers(r ? JSON.parse(r.value) : [])).catch(() => {});
+          loadNotifications(username).then(n => { setNotifications(n); setNotifCount(n.filter(x => !x.read).length); }).catch(() => {});
           setAuthScreen("app");
         } else {
           setAuthScreen("login");
@@ -453,6 +457,7 @@ export default function App() {
       setSocialFollowing(safeData.profile?.following || []);
       setColorTheme(safeData.profile?.colorTheme || "espresso");
       storage.get(`followers:${username.toLowerCase()}`).then(r => setSocialFollowers(r ? JSON.parse(r.value) : [])).catch(() => {});
+      loadNotifications(username.toLowerCase()).then(n => { setNotifications(n); setNotifCount(n.filter(x => !x.read).length); }).catch(() => {});
       setAuthScreen("app");
     } catch (e) {
       setAuthError("Something went wrong. Please try again.");
@@ -471,6 +476,9 @@ export default function App() {
     setPreferredScale("V-Scale");
     setHiddenLocations([]);
     setColorTheme("espresso");
+    setNotifications([]);
+    setNotifCount(0);
+    setConfirmUnfollowUser(null);
     setSocialFollowing([]);
     setSocialFollowers([]);
     setSocialResults(null);
@@ -716,14 +724,48 @@ export default function App() {
     try { await storage.set(`followers:${username}`, JSON.stringify(list)); } catch {}
   };
 
+  const loadNotifications = async (username) => {
+    try {
+      const r = await storage.get(`notifications:${username}`);
+      return r ? JSON.parse(r.value) : [];
+    } catch { return []; }
+  };
+
+  const addNotification = async (toUsername, notif) => {
+    try {
+      const existing = await loadNotifications(toUsername);
+      const updated = [notif, ...existing].slice(0, 50);
+      await storage.set(`notifications:${toUsername}`, JSON.stringify(updated));
+    } catch {}
+  };
+
+  const removeFollower = async (followerUsername) => {
+    const fresh = await loadFollowersStore(currentUser.username);
+    const updated = fresh.filter(u => u !== followerUsername);
+    await updateFollowersStore(currentUser.username, updated);
+    setSocialFollowers(updated);
+    setSocialUserList(prev => prev ? { ...prev, users: prev.users.filter(u => u.username !== followerUsername) } : null);
+    try {
+      const theirData = await loadUserData(followerUsername);
+      if (theirData?.profile) {
+        const theirFollowing = (theirData.profile.following || []).filter(u => u !== currentUser.username);
+        await saveUserData(followerUsername, { ...theirData, profile: { ...theirData.profile, following: theirFollowing } });
+      }
+    } catch {}
+  };
+
   const toggleFollow = async (username) => {
     const isNowFollowing = !socialFollowing.includes(username);
     setSocialFollowing(prev => isNowFollowing ? [...prev, username] : prev.filter(u => u !== username));
+    setConfirmUnfollowUser(null);
     const theirFollowers = await loadFollowersStore(username);
     const updated = isNowFollowing
       ? [...new Set([...theirFollowers, currentUser.username])]
       : theirFollowers.filter(u => u !== currentUser.username);
     await updateFollowersStore(username, updated);
+    if (isNowFollowing) {
+      await addNotification(username, { type: "follow", from: currentUser.username, fromDisplay: currentUser.displayName || currentUser.username, at: new Date().toISOString(), read: false });
+    }
   };
 
   const showUserList = async (type) => {
@@ -784,10 +826,16 @@ export default function App() {
     if (screen === "home" || (screen === "social" && socialTab === "feed")) loadSocialFeed();
   }, [screen, socialTab, socialFollowing]);
 
-  // Refresh own follower count when profile screen opens
+  // Refresh own follower count + mark notifications read when profile screen opens
   useEffect(() => {
     if (screen === "profile" && currentUser) {
       loadFollowersStore(currentUser.username).then(setSocialFollowers).catch(() => {});
+      if (notifCount > 0) {
+        const marked = notifications.map(n => ({ ...n, read: true }));
+        setNotifications(marked);
+        setNotifCount(0);
+        storage.set(`notifications:${currentUser.username}`, JSON.stringify(marked)).catch(() => {});
+      }
     }
   }, [screen]);
 
@@ -1133,7 +1181,14 @@ export default function App() {
           {socialFollowing.length > 0 ? "Feed" : "Previous Sessions"}
         </div>
         {combined.length === 0
-          ? <div style={{ textAlign: "center", color: W.textDim, padding: "40px 0" }}>No sessions yet!</div>
+          ? sessions.length === 0
+            ? <div style={{ textAlign: "center", padding: "40px 20px" }}>
+                <div style={{ fontSize: 38, marginBottom: 12 }}>🧗</div>
+                <div style={{ fontWeight: 700, color: W.text, fontSize: 15, marginBottom: 6 }}>No sessions yet</div>
+                <div style={{ color: W.textMuted, fontSize: 13, marginBottom: 18 }}>Log your first session, then follow other climbers to see their activity here.</div>
+                <button onClick={() => { setScreen("social"); setSocialTab("search"); }} style={{ padding: "10px 20px", background: `linear-gradient(135deg, ${W.accent}, ${W.accentDark})`, border: "none", borderRadius: 12, color: "#fff", fontWeight: 700, fontSize: 13, cursor: "pointer" }}>Find Climbers</button>
+              </div>
+            : <div style={{ textAlign: "center", color: W.textDim, padding: "40px 0", fontSize: 13 }}>No recent sessions from people you follow.</div>
           : combined.map((s, i) => (
               s.isOwn
                 ? <LogbookSessionCard key={`own-${s.id}`} session={s} poster={socialFollowing.length > 0 ? { username: s.feedUsername, displayName: s.feedDisplayName } : null} />
@@ -1400,6 +1455,22 @@ export default function App() {
                     <button onClick={handleLogout} style={{ padding: "9px", background: W.redDark, border: "none", borderRadius: 10, color: "#fff", cursor: "pointer", fontWeight: 700 }}>Sign Out</button>
                   </div>
                 </div>}
+          </div>
+        )}
+
+        {notifications.length > 0 && (
+          <div style={{ background: W.surface, borderRadius: 14, padding: "12px 14px", marginBottom: 16, border: `1px solid ${W.border}` }}>
+            <div style={{ fontSize: 11, fontWeight: 700, color: W.textMuted, textTransform: "uppercase", letterSpacing: 1.1, marginBottom: 10 }}>Notifications</div>
+            {notifications.slice(0, 5).map((n, i) => (
+              <div key={i} style={{ display: "flex", alignItems: "center", gap: 10, paddingBottom: i < Math.min(notifications.length, 5) - 1 ? 8 : 0, marginBottom: i < Math.min(notifications.length, 5) - 1 ? 8 : 0, borderBottom: i < Math.min(notifications.length, 5) - 1 ? `1px solid ${W.border}` : "none" }}>
+                <div style={{ width: 8, height: 8, borderRadius: "50%", background: n.read ? W.border : W.accent, flexShrink: 0 }} />
+                <div style={{ flex: 1 }}>
+                  <span style={{ fontWeight: 700, color: W.text, fontSize: 13 }}>{n.fromDisplay}</span>
+                  <span style={{ color: W.textMuted, fontSize: 13 }}> started following you</span>
+                </div>
+                <div style={{ fontSize: 10, color: W.textDim, flexShrink: 0 }}>{new Date(n.at).toLocaleDateString()}</div>
+              </div>
+            ))}
           </div>
         )}
 
@@ -2067,12 +2138,23 @@ export default function App() {
             <div style={{ flex: 1 }}>
               <div style={{ fontSize: 20, fontWeight: 800, color: W.text }}>{displayName}</div>
               <div style={{ fontSize: 13, color: W.textMuted }}>@{username}</div>
+              {!viewedUserLoading && viewedUser?.following?.includes(currentUser.username) && (
+                <div style={{ fontSize: 11, color: W.accent, fontWeight: 700, marginTop: 3 }}>Follows you</div>
+              )}
             </div>
             {username === currentUser.username
               ? <div style={{ padding: "6px 14px", background: W.surface2, border: `1px solid ${W.border}`, borderRadius: 12, color: W.textDim, fontWeight: 700, fontSize: 12 }}>You</div>
-              : <button onClick={() => toggleFollow(username)} style={{ padding: "9px 18px", background: isFollowing ? W.surface2 : `linear-gradient(135deg, ${W.accent}, ${W.accentDark})`, border: isFollowing ? `2px solid ${W.border}` : "none", borderRadius: 12, color: isFollowing ? W.textMuted : "#fff", fontWeight: 700, fontSize: 13, cursor: "pointer", flexShrink: 0 }}>
-                  {isFollowing ? "Following" : "Follow"}
-                </button>
+              : confirmUnfollowUser === username
+                ? <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 5 }}>
+                    <div style={{ fontSize: 11, color: W.textMuted, fontWeight: 600 }}>Unfollow?</div>
+                    <div style={{ display: "flex", gap: 6 }}>
+                      <button onClick={() => setConfirmUnfollowUser(null)} style={{ padding: "5px 10px", background: W.surface2, border: `1px solid ${W.border}`, borderRadius: 8, color: W.textMuted, fontWeight: 700, fontSize: 11, cursor: "pointer" }}>Cancel</button>
+                      <button onClick={() => toggleFollow(username)} style={{ padding: "5px 10px", background: W.red, border: `1px solid ${W.redDark}`, borderRadius: 8, color: W.redDark, fontWeight: 700, fontSize: 11, cursor: "pointer" }}>Unfollow</button>
+                    </div>
+                  </div>
+                : <button onClick={() => isFollowing ? setConfirmUnfollowUser(username) : toggleFollow(username)} style={{ padding: "9px 18px", background: isFollowing ? W.surface2 : `linear-gradient(135deg, ${W.accent}, ${W.accentDark})`, border: isFollowing ? `2px solid ${W.border}` : "none", borderRadius: 12, color: isFollowing ? W.textMuted : "#fff", fontWeight: 700, fontSize: 13, cursor: "pointer", flexShrink: 0 }}>
+                    {isFollowing ? "Following" : "Follow"}
+                  </button>
             }
           </div>
           {/* Follower / Following counts */}
@@ -2243,9 +2325,17 @@ export default function App() {
                   </div>
                   {user.username === currentUser.username
                     ? <div style={{ padding: "6px 12px", background: W.surface2, border: `1px solid ${W.border}`, borderRadius: 10, color: W.textDim, fontWeight: 700, fontSize: 12, marginLeft: 10 }}>You</div>
-                    : <button onClick={() => toggleFollow(user.username)} style={{ padding: "8px 16px", background: isFollowing ? W.surface2 : `linear-gradient(135deg, ${W.accent}, ${W.accentDark})`, border: isFollowing ? `2px solid ${W.border}` : "none", borderRadius: 10, color: isFollowing ? W.textMuted : "#fff", fontWeight: 700, fontSize: 13, cursor: "pointer", marginLeft: 10 }}>
-                        {isFollowing ? "Following" : "Follow"}
-                      </button>
+                    : confirmUnfollowUser === user.username
+                      ? <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 5, marginLeft: 10 }}>
+                          <div style={{ fontSize: 11, color: W.textMuted, fontWeight: 600 }}>Unfollow?</div>
+                          <div style={{ display: "flex", gap: 5 }}>
+                            <button onClick={() => setConfirmUnfollowUser(null)} style={{ padding: "5px 8px", background: W.surface2, border: `1px solid ${W.border}`, borderRadius: 7, color: W.textMuted, fontWeight: 700, fontSize: 11, cursor: "pointer" }}>Cancel</button>
+                            <button onClick={() => toggleFollow(user.username)} style={{ padding: "5px 8px", background: W.red, border: `1px solid ${W.redDark}`, borderRadius: 7, color: W.redDark, fontWeight: 700, fontSize: 11, cursor: "pointer" }}>Unfollow</button>
+                          </div>
+                        </div>
+                      : <button onClick={() => isFollowing ? setConfirmUnfollowUser(user.username) : toggleFollow(user.username)} style={{ padding: "8px 16px", background: isFollowing ? W.surface2 : `linear-gradient(135deg, ${W.accent}, ${W.accentDark})`, border: isFollowing ? `2px solid ${W.border}` : "none", borderRadius: 10, color: isFollowing ? W.textMuted : "#fff", fontWeight: 700, fontSize: 13, cursor: "pointer", marginLeft: 10 }}>
+                          {isFollowing ? "Following" : "Follow"}
+                        </button>
                   }
                 </div>
               );
@@ -2316,12 +2406,25 @@ export default function App() {
                       {isMe
                         ? <div style={{ padding: "4px 10px", background: W.surface2, border: `1px solid ${W.border}`, borderRadius: 10, color: W.textDim, fontWeight: 700, fontSize: 11 }}>You</div>
                         : socialUserList.type === "following" && socialUserList.canUnfollow
-                          ? <button onClick={() => toggleFollow(u.username)} style={{ padding: "6px 14px", background: W.surface2, border: `1px solid ${W.border}`, borderRadius: 10, color: W.textMuted, fontWeight: 700, fontSize: 12, cursor: "pointer" }}>Unfollow</button>
-                          : socialUserList.type === "followers"
-                            ? iAlreadyFollow
-                              ? <div style={{ padding: "4px 10px", background: W.surface2, border: `1px solid ${W.border}`, borderRadius: 10, color: W.textDim, fontWeight: 700, fontSize: 11 }}>Following</div>
-                              : <button onClick={() => toggleFollow(u.username)} style={{ padding: "6px 14px", background: `linear-gradient(135deg, ${W.accent}, ${W.accentDark})`, border: "none", borderRadius: 10, color: "#fff", fontWeight: 700, fontSize: 12, cursor: "pointer" }}>Follow Back</button>
-                            : null
+                          ? confirmUnfollowUser === u.username
+                            ? <div style={{ display: "flex", gap: 5 }}>
+                                <button onClick={() => setConfirmUnfollowUser(null)} style={{ padding: "5px 8px", background: W.surface2, border: `1px solid ${W.border}`, borderRadius: 7, color: W.textMuted, fontWeight: 700, fontSize: 11, cursor: "pointer" }}>Cancel</button>
+                                <button onClick={() => toggleFollow(u.username)} style={{ padding: "5px 8px", background: W.red, border: `1px solid ${W.redDark}`, borderRadius: 7, color: W.redDark, fontWeight: 700, fontSize: 11, cursor: "pointer" }}>Unfollow</button>
+                              </div>
+                            : <button onClick={() => setConfirmUnfollowUser(u.username)} style={{ padding: "6px 14px", background: W.surface2, border: `1px solid ${W.border}`, borderRadius: 10, color: W.textMuted, fontWeight: 700, fontSize: 12, cursor: "pointer" }}>Unfollow</button>
+                          : socialUserList.type === "followers" && socialUserList.canUnfollow
+                            ? <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+                                {iAlreadyFollow
+                                  ? <div style={{ padding: "4px 10px", background: W.surface2, border: `1px solid ${W.border}`, borderRadius: 10, color: W.textDim, fontWeight: 700, fontSize: 11 }}>Following</div>
+                                  : <button onClick={() => toggleFollow(u.username)} style={{ padding: "5px 12px", background: `linear-gradient(135deg, ${W.accent}, ${W.accentDark})`, border: "none", borderRadius: 10, color: "#fff", fontWeight: 700, fontSize: 11, cursor: "pointer" }}>Follow Back</button>
+                                }
+                                <button onClick={() => removeFollower(u.username)} style={{ padding: "5px 10px", background: W.red, border: `1px solid ${W.redDark}`, borderRadius: 10, color: W.redDark, fontWeight: 700, fontSize: 11, cursor: "pointer" }}>Remove</button>
+                              </div>
+                            : socialUserList.type === "followers"
+                              ? iAlreadyFollow
+                                ? <div style={{ padding: "4px 10px", background: W.surface2, border: `1px solid ${W.border}`, borderRadius: 10, color: W.textDim, fontWeight: 700, fontSize: 11 }}>Following</div>
+                                : <button onClick={() => toggleFollow(u.username)} style={{ padding: "6px 14px", background: `linear-gradient(135deg, ${W.accent}, ${W.accentDark})`, border: "none", borderRadius: 10, color: "#fff", fontWeight: 700, fontSize: 12, cursor: "pointer" }}>Follow Back</button>
+                              : null
                       }
                     </div>
                   );
@@ -2334,7 +2437,12 @@ export default function App() {
       <div style={{ position: "fixed", bottom: 0, left: "50%", transform: "translateX(-50%)", width: "100%", maxWidth: 420, background: W.navBg, borderTop: `1px solid ${W.border}`, display: "flex", justifyContent: "space-around", padding: "10px 0 18px", zIndex: 10 }}>
         {navItems.map(item => (
           <button key={item.id} onClick={item.action || (() => setScreen(item.id))} style={{ background: "none", border: "none", display: "flex", flexDirection: "column", alignItems: "center", gap: 3, cursor: "pointer", color: (screen === item.id || (item.id === "session" && screen === "session")) ? W.accent : W.textDim }}>
-            <span style={{ fontSize: 22 }}>{item.label}</span>
+            <span style={{ fontSize: 22, position: "relative", display: "inline-block" }}>
+              {item.label}
+              {item.id === "profile" && notifCount > 0 && (
+                <span style={{ position: "absolute", top: -3, right: -6, background: W.accent, color: "#fff", borderRadius: "50%", minWidth: 15, height: 15, fontSize: 9, fontWeight: 800, display: "flex", alignItems: "center", justifyContent: "center", padding: "0 2px" }}>{notifCount > 9 ? "9+" : notifCount}</span>
+              )}
+            </span>
             <span style={{ fontSize: 11, fontWeight: 600 }}>{item.text}</span>
             {item.id === "session" && timerRunning && <div style={{ width: 6, height: 6, borderRadius: "50%", background: W.accent }} />}
           </button>
