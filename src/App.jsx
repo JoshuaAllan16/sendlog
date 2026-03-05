@@ -269,6 +269,10 @@ export default function App() {
   const [statsChart, setStatsChart]                 = useState("time");
   const [statsBarSel, setStatsBarSel]               = useState(null);
   const [statsShowCalendar, setStatsShowCalendar]   = useState(false);
+  const [calendarSessionsOpen, setCalendarSessionsOpen] = useState(true);
+  const [pieStat, setPieStat]                       = useState("attempts");
+  const [pieScale, setPieScale]                     = useState("");
+  const [pieHiddenGrades, setPieHiddenGrades]       = useState([]);
   const [analyzeOpen, setAnalyzeOpen] = useState(false);
 
   // ── INIT: check for existing session ──────────────────────
@@ -1161,6 +1165,36 @@ export default function App() {
           const selBucket = statsBarSel !== null ? chartBuckets[statsBarSel] : null;
           const displayStats = selBucket ? getStats(selBucket.sessions) : stats;
           const selLabel = selBucket ? (selBucket.label || `Point ${statsBarSel + 1}`) : null;
+          // ── Grade pie chart data ─────────────────────────────
+          const effectivePieScale = pieScale || preferredScale;
+          const pieGrades = (GRADES[effectivePieScale] || []).filter(g => !pieHiddenGrades.includes(g));
+          const pieClimbs = tfSessions.flatMap(s => s.climbs).filter(c => c.scale === effectivePieScale);
+          const pieData = (() => {
+            const raw = pieGrades.map(g => {
+              const gc = pieClimbs.filter(c => c.grade === g);
+              const value = pieStat === "attempts" ? gc.reduce((t, c) => t + c.tries, 0)
+                          : pieStat === "sends"    ? gc.filter(c => c.completed).length
+                          : gc.filter(c => c.completed && c.tries === 1).length;
+              return { grade: g, value, color: getGradeColor(g) };
+            }).filter(d => d.value > 0);
+            const total = raw.reduce((s, d) => s + d.value, 0);
+            if (!total) return { slices: [], total: 0 };
+            let angle = -Math.PI / 2;
+            const slices = raw.map(d => {
+              const sweep = (d.value / total) * 2 * Math.PI;
+              const end = angle + sweep;
+              const r = 42, ir = 22, cx = 50, cy = 50;
+              const x1 = cx + r * Math.cos(angle),  y1 = cy + r * Math.sin(angle);
+              const x2 = cx + r * Math.cos(end),    y2 = cy + r * Math.sin(end);
+              const ix1 = cx + ir * Math.cos(angle), iy1 = cy + ir * Math.sin(angle);
+              const ix2 = cx + ir * Math.cos(end),   iy2 = cy + ir * Math.sin(end);
+              const large = sweep > Math.PI ? 1 : 0;
+              const path = `M ${ix1.toFixed(2)} ${iy1.toFixed(2)} L ${x1.toFixed(2)} ${y1.toFixed(2)} A ${r} ${r} 0 ${large} 1 ${x2.toFixed(2)} ${y2.toFixed(2)} L ${ix2.toFixed(2)} ${iy2.toFixed(2)} A ${ir} ${ir} 0 ${large} 0 ${ix1.toFixed(2)} ${iy1.toFixed(2)} Z`;
+              angle = end;
+              return { ...d, path };
+            });
+            return { slices, total };
+          })();
           return (
           <div>
             {/* Activity chart OR calendar */}
@@ -1272,11 +1306,58 @@ export default function App() {
               ))}
             </div>
             {displayStats.gradeBreakdown.length > 0 && (
-              <div style={{ background: W.surface, borderRadius: 16, padding: "16px", border: `1px solid ${W.border}` }}>
+              <div style={{ background: W.surface, borderRadius: 16, padding: "16px", border: `1px solid ${W.border}`, marginBottom: 16 }}>
                 <div style={{ fontSize: 12, fontWeight: 700, color: W.textMuted, textTransform: "uppercase", letterSpacing: 1, marginBottom: 14 }}>Grade Breakdown</div>
                 {displayStats.gradeBreakdown.map(({ grade, count }) => { const max = Math.max(...displayStats.gradeBreakdown.map(g => g.count)); return (<div key={grade} style={{ marginBottom: 10 }}><div style={{ display: "flex", justifyContent: "space-between", marginBottom: 3 }}><span style={{ fontSize: 12, fontWeight: 700, color: getGradeColor(grade) }}>{grade}</span><span style={{ fontSize: 12, color: W.textDim }}>{count} send{count !== 1 ? "s" : ""}</span></div><div style={{ background: W.surface2, borderRadius: 6, height: 8, overflow: "hidden" }}><div style={{ width: `${Math.round((count / max) * 100)}%`, height: "100%", borderRadius: 6, background: getGradeColor(grade) }} /></div></div>); })}
               </div>
             )}
+            {/* Grade Pie Chart */}
+            <div style={{ background: W.surface, borderRadius: 16, padding: "16px", border: `1px solid ${W.border}` }}>
+              <div style={{ fontSize: 12, fontWeight: 700, color: W.textMuted, textTransform: "uppercase", letterSpacing: 1, marginBottom: 12 }}>Grade Pie Chart</div>
+              <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
+                <select value={pieStat} onChange={e => setPieStat(e.target.value)} style={{ flex: 1, background: W.surface2, border: `1px solid ${W.border}`, borderRadius: 8, padding: "6px 8px", color: W.text, fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}>
+                  <option value="attempts">Total Attempts</option>
+                  <option value="sends">Total Sends</option>
+                  <option value="flashes">Total Flashes</option>
+                </select>
+                <select value={effectivePieScale} onChange={e => { setPieScale(e.target.value); setPieHiddenGrades([]); }} style={{ flex: 1, background: W.surface2, border: `1px solid ${W.border}`, borderRadius: 8, padding: "6px 8px", color: W.text, fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}>
+                  {Object.keys(GRADES).map(s => <option key={s} value={s}>{s}</option>)}
+                </select>
+              </div>
+              <div style={{ display: "flex", gap: 5, flexWrap: "wrap", marginBottom: 14 }}>
+                {(GRADES[effectivePieScale] || []).map(g => {
+                  const hidden = pieHiddenGrades.includes(g);
+                  return (
+                    <button key={g} onClick={() => setPieHiddenGrades(prev => hidden ? prev.filter(x => x !== g) : [...prev, g])} style={{ padding: "3px 10px", borderRadius: 12, border: `2px solid ${hidden ? W.border : getGradeColor(g)}`, background: hidden ? W.surface2 : getGradeColor(g) + "33", color: hidden ? W.textDim : getGradeColor(g), fontSize: 11, fontWeight: 700, cursor: "pointer", opacity: hidden ? 0.5 : 1 }}>{g}</button>
+                  );
+                })}
+              </div>
+              {pieData.total === 0 ? (
+                <div style={{ textAlign: "center", color: W.textDim, fontSize: 13, padding: "20px 0" }}>No data for selected filters</div>
+              ) : (
+                <div style={{ display: "flex", gap: 16, alignItems: "flex-start" }}>
+                  <svg width={110} height={110} viewBox="0 0 100 100" style={{ flexShrink: 0 }}>
+                    {pieData.slices.map((sl, i) => <path key={i} d={sl.path} fill={sl.color} opacity={0.9} />)}
+                    <text x="50" y="47" textAnchor="middle" fontSize="12" fontWeight="bold" fill={W.text}>{pieData.total}</text>
+                    <text x="50" y="59" textAnchor="middle" fontSize="7" fill={W.textMuted}>total</text>
+                  </svg>
+                  <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 7 }}>
+                    {pieData.slices.map(sl => (
+                      <div key={sl.grade} style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                          <div style={{ width: 10, height: 10, borderRadius: 3, background: sl.color, flexShrink: 0 }} />
+                          <span style={{ fontSize: 12, fontWeight: 700, color: sl.color }}>{sl.grade}</span>
+                        </div>
+                        <div>
+                          <span style={{ fontSize: 13, fontWeight: 800, color: W.text }}>{sl.value}</span>
+                          <span style={{ fontSize: 10, color: W.textDim, marginLeft: 4 }}>{Math.round((sl.value / pieData.total) * 100)}%</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
           );
         })()}
@@ -1448,34 +1529,72 @@ export default function App() {
     const year = calendarDate.getFullYear(), month = calendarDate.getMonth();
     const firstDay = new Date(year, month, 1).getDay();
     const daysInMonth = new Date(year, month + 1, 0).getDate();
-    const hasClimb = (day) => climbDates.some(d => { const dt = new Date(d); return dt.getFullYear() === year && dt.getMonth() === month && dt.getDate() === day; });
-    const isToday  = (day) => { const t = new Date(); return t.getFullYear() === year && t.getMonth() === month && t.getDate() === day; };
+    const isToday = (day) => { const t = new Date(); return t.getFullYear() === year && t.getMonth() === month && t.getDate() === day; };
+    const monthSessions = sessions.filter(s => { const d = new Date(s.date); return d.getFullYear() === year && d.getMonth() === month; });
+    // Build consistent gym→color map across all sessions
+    const GYM_PALETTE = ["#f09040","#4ade80","#60a5fa","#f472b6","#a78bfa","#fb923c","#34d399","#fbbf24","#f87171","#818cf8"];
+    const gymList = [...new Set(sessions.map(s => s.location).filter(Boolean))];
+    const gymColorMap = Object.fromEntries(gymList.map((g, i) => [g, GYM_PALETTE[i % GYM_PALETTE.length]]));
+    const getDayInfo = (day) => {
+      const ss = sessions.filter(s => { const dt = new Date(s.date); return dt.getFullYear() === year && dt.getMonth() === month && dt.getDate() === day; });
+      if (!ss.length) return null;
+      return { color: gymColorMap[ss[0].location] || W.gold };
+    };
+    const activeGyms = [...new Set(monthSessions.map(s => s.location))];
     return (
-      <div style={{ padding: "24px 20px" }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
-          <button onClick={() => setCalendarDate(new Date(year, month - 1, 1))} style={{ background: W.surface, border: `1px solid ${W.border}`, borderRadius: 10, padding: "8px 14px", cursor: "pointer", color: W.text, fontWeight: 700 }}>‹</button>
+      <div style={{ padding: "20px" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
+          <button onClick={() => setCalendarDate(new Date(year, month - 1, 1))} style={{ background: W.surface2, border: `1px solid ${W.border}`, borderRadius: 10, padding: "8px 14px", cursor: "pointer", color: W.text, fontWeight: 700 }}>‹</button>
           <div style={{ fontWeight: 800, fontSize: 17, color: W.text }}>{calendarDate.toLocaleDateString("en-US", { month: "long", year: "numeric" })}</div>
-          <button onClick={() => setCalendarDate(new Date(year, month + 1, 1))} style={{ background: W.surface, border: `1px solid ${W.border}`, borderRadius: 10, padding: "8px 14px", cursor: "pointer", color: W.text, fontWeight: 700 }}>›</button>
+          <button onClick={() => setCalendarDate(new Date(year, month + 1, 1))} style={{ background: W.surface2, border: `1px solid ${W.border}`, borderRadius: 10, padding: "8px 14px", cursor: "pointer", color: W.text, fontWeight: 700 }}>›</button>
         </div>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 4, marginBottom: 6 }}>
-          {["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"].map(d => <div key={d} style={{ textAlign: "center", fontSize: 11, fontWeight: 700, color: W.textMuted, padding: "4px 0" }}>{d}</div>)}
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 4, marginBottom: 4 }}>
+          {["Su","Mo","Tu","We","Th","Fr","Sa"].map(d => <div key={d} style={{ textAlign: "center", fontSize: 11, fontWeight: 700, color: W.textMuted, padding: "4px 0" }}>{d}</div>)}
         </div>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 4 }}>
           {Array.from({ length: firstDay }, (_, i) => <div key={`b${i}`} />)}
-          {Array.from({ length: daysInMonth }, (_, i) => i + 1).map(day => (
-            <div key={day} style={{ aspectRatio: "1", borderRadius: 10, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 13, fontWeight: hasClimb(day) ? 800 : 400, background: hasClimb(day) ? W.gold : isToday(day) ? W.surface2 : "transparent", color: hasClimb(day) ? "#fff" : isToday(day) ? W.accent : W.text, border: isToday(day) ? `2px solid ${W.accent}` : "2px solid transparent" }}>{day}</div>
-          ))}
+          {Array.from({ length: daysInMonth }, (_, i) => i + 1).map(day => {
+            const info = getDayInfo(day);
+            const today = isToday(day);
+            return (
+              <div key={day} style={{ aspectRatio: "1", borderRadius: 8, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 13, fontWeight: info ? 800 : 400, background: info ? info.color : today ? W.surface2 : "transparent", color: info ? "#fff" : today ? W.accent : W.text, border: today ? `2px solid ${W.accent}` : "2px solid transparent" }}>{day}</div>
+            );
+          })}
         </div>
-        <div style={{ marginTop: 20 }}>
-          <div style={{ fontSize: 12, fontWeight: 700, color: W.textMuted, textTransform: "uppercase", letterSpacing: 1, marginBottom: 10 }}>Sessions This Month</div>
-          {sessions.filter(s => { const d = new Date(s.date); return d.getFullYear() === year && d.getMonth() === month; }).length === 0
-            ? <div style={{ color: W.textDim, fontSize: 13, textAlign: "center", padding: "20px 0" }}>No sessions this month</div>
-            : sessions.filter(s => { const d = new Date(s.date); return d.getFullYear() === year && d.getMonth() === month; }).map(s => (
-              <div key={s.id} onClick={() => { setSelectedSession(s); setScreen("sessionDetail"); }} style={{ background: W.surface, borderRadius: 12, padding: "12px 14px", marginBottom: 8, border: `1px solid ${W.border}`, cursor: "pointer", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                <div><div style={{ fontWeight: 700, color: W.text, fontSize: 14 }}>{s.location}</div><div style={{ fontSize: 12, color: W.textMuted }}>{formatDate(s.date)} · {s.climbs.length} climbs</div></div>
-                <div style={{ color: W.textDim }}>›</div>
+        {activeGyms.length > 0 && (
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: 12 }}>
+            {activeGyms.map(gym => (
+              <div key={gym} style={{ display: "flex", alignItems: "center", gap: 5 }}>
+                <div style={{ width: 10, height: 10, borderRadius: 3, background: gymColorMap[gym] || W.gold, flexShrink: 0 }} />
+                <span style={{ fontSize: 11, color: W.textMuted }}>{gym}</span>
               </div>
             ))}
+          </div>
+        )}
+        <div style={{ marginTop: 14 }}>
+          <button onClick={() => setCalendarSessionsOpen(o => !o)} style={{ width: "100%", padding: "11px 14px", background: W.surface2, border: `1px solid ${W.border}`, borderRadius: calendarSessionsOpen ? "12px 12px 0 0" : "12px", cursor: "pointer", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <span style={{ fontWeight: 700, color: W.text, fontSize: 13 }}>Sessions This Month</span>
+            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <span style={{ background: monthSessions.length ? W.accent : W.border, color: monthSessions.length ? "#fff" : W.textDim, borderRadius: 20, padding: "1px 8px", fontSize: 11, fontWeight: 700 }}>{monthSessions.length}</span>
+              <span style={{ color: W.textMuted, fontSize: 14 }}>{calendarSessionsOpen ? "∧" : "⌄"}</span>
+            </div>
+          </button>
+          {calendarSessionsOpen && (
+            <div style={{ background: W.surface, border: `1px solid ${W.border}`, borderTop: "none", borderRadius: "0 0 12px 12px", overflow: "hidden" }}>
+              {monthSessions.length === 0
+                ? <div style={{ color: W.textDim, fontSize: 13, textAlign: "center", padding: "20px 0" }}>No sessions this month</div>
+                : monthSessions.map(s => (
+                  <div key={s.id} onClick={() => { setSelectedSession(s); setScreen("sessionDetail"); }} style={{ padding: "12px 14px", borderBottom: `1px solid ${W.border}`, cursor: "pointer", display: "flex", justifyContent: "space-between", alignItems: "center", borderLeft: `4px solid ${gymColorMap[s.location] || W.gold}` }}>
+                    <div>
+                      <div style={{ fontWeight: 700, color: W.text, fontSize: 14 }}>{formatDate(s.date)}</div>
+                      <div style={{ fontSize: 12, color: W.textMuted }}>{s.location} · {s.climbs.length} climbs</div>
+                    </div>
+                    <div style={{ color: W.textDim }}>›</div>
+                  </div>
+                ))
+              }
+            </div>
+          )}
         </div>
       </div>
     );
