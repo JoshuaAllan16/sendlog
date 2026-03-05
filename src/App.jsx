@@ -269,10 +269,12 @@ export default function App() {
   const [statsChart, setStatsChart]                 = useState("time");
   const [statsBarSel, setStatsBarSel]               = useState(null);
   const [statsShowCalendar, setStatsShowCalendar]   = useState(false);
+  const [statsCumulative, setStatsCumulative]       = useState(false);
   const [calendarSessionsOpen, setCalendarSessionsOpen] = useState(true);
   const [pieStat, setPieStat]                       = useState("attempts");
   const [pieScale, setPieScale]                     = useState("");
   const [pieHiddenGrades, setPieHiddenGrades]       = useState([]);
+  const [pieSelGrade, setPieSelGrade]               = useState(null);
   const [analyzeOpen, setAnalyzeOpen] = useState(false);
 
   // ── INIT: check for existing session ──────────────────────
@@ -1161,7 +1163,10 @@ export default function App() {
           };
           const { key: cKey, color: cColor, xform: cXform, unit: cUnit } = chartConfigs[statsChart];
           const cVals = chartBuckets.map(b => cXform(b[cKey]));
-          const cMax  = Math.max(...cVals, 1);
+          const displayVals = statsCumulative
+            ? cVals.reduce((acc, v) => { acc.push((acc[acc.length - 1] || 0) + v); return acc; }, [])
+            : cVals;
+          const cMax = Math.max(...displayVals, 1);
           const selBucket = statsBarSel !== null ? chartBuckets[statsBarSel] : null;
           const displayStats = selBucket ? getStats(selBucket.sessions) : stats;
           const selLabel = selBucket ? (selBucket.label || `Point ${statsBarSel + 1}`) : null;
@@ -1183,15 +1188,17 @@ export default function App() {
             const slices = raw.map(d => {
               const sweep = (d.value / total) * 2 * Math.PI;
               const end = angle + sweep;
-              const r = 42, ir = 22, cx = 50, cy = 50;
-              const x1 = cx + r * Math.cos(angle),  y1 = cy + r * Math.sin(angle);
-              const x2 = cx + r * Math.cos(end),    y2 = cy + r * Math.sin(end);
-              const ix1 = cx + ir * Math.cos(angle), iy1 = cy + ir * Math.sin(angle);
-              const ix2 = cx + ir * Math.cos(end),   iy2 = cy + ir * Math.sin(end);
-              const large = sweep > Math.PI ? 1 : 0;
-              const path = `M ${ix1.toFixed(2)} ${iy1.toFixed(2)} L ${x1.toFixed(2)} ${y1.toFixed(2)} A ${r} ${r} 0 ${large} 1 ${x2.toFixed(2)} ${y2.toFixed(2)} L ${ix2.toFixed(2)} ${iy2.toFixed(2)} A ${ir} ${ir} 0 ${large} 0 ${ix1.toFixed(2)} ${iy1.toFixed(2)} Z`;
+              const ir = 22, cx = 50, cy = 50;
+              const mkPath = (r) => {
+                const x1 = cx + r * Math.cos(angle), y1 = cy + r * Math.sin(angle);
+                const x2 = cx + r * Math.cos(end),   y2 = cy + r * Math.sin(end);
+                const ix1 = cx + ir * Math.cos(angle), iy1 = cy + ir * Math.sin(angle);
+                const ix2 = cx + ir * Math.cos(end),   iy2 = cy + ir * Math.sin(end);
+                const large = sweep > Math.PI ? 1 : 0;
+                return `M ${ix1.toFixed(2)} ${iy1.toFixed(2)} L ${x1.toFixed(2)} ${y1.toFixed(2)} A ${r} ${r} 0 ${large} 1 ${x2.toFixed(2)} ${y2.toFixed(2)} L ${ix2.toFixed(2)} ${iy2.toFixed(2)} A ${ir} ${ir} 0 ${large} 0 ${ix1.toFixed(2)} ${iy1.toFixed(2)} Z`;
+              };
               angle = end;
-              return { ...d, path };
+              return { ...d, path: mkPath(42), pathSel: mkPath(47) };
             });
             return { slices, total };
           })();
@@ -1200,24 +1207,27 @@ export default function App() {
             {/* Activity chart OR calendar */}
             {!statsShowCalendar ? (
               <div style={{ background: W.surface, borderRadius: 16, padding: "16px", border: `1px solid ${W.border}`, marginBottom: 10 }}>
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
                   <div style={{ fontSize: 12, fontWeight: 700, color: W.textMuted, textTransform: "uppercase", letterSpacing: 1 }}>Activity</div>
-                  <select value={statsChart} onChange={e => { setStatsChart(e.target.value); setStatsBarSel(null); }} style={{ background: W.surface2, border: `1px solid ${W.border}`, borderRadius: 8, padding: "5px 10px", color: W.text, fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}>
-                    <option value="time">Time on Wall</option>
-                    <option value="sends">Sends</option>
-                    <option value="attempts">Attempts</option>
-                  </select>
+                  <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+                    <button onClick={() => { setStatsCumulative(c => !c); setStatsBarSel(null); }} style={{ padding: "4px 10px", borderRadius: 10, border: `1px solid ${statsCumulative ? W.accent : W.border}`, background: statsCumulative ? W.accent + "33" : W.surface2, color: statsCumulative ? W.accent : W.textDim, fontSize: 10, fontWeight: 700, cursor: "pointer" }}>{statsCumulative ? "Cumulative" : "Per Period"}</button>
+                    <select value={statsChart} onChange={e => { setStatsChart(e.target.value); setStatsBarSel(null); }} style={{ background: W.surface2, border: `1px solid ${W.border}`, borderRadius: 8, padding: "5px 10px", color: W.text, fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}>
+                      <option value="time">Time on Wall</option>
+                      <option value="sends">Sends</option>
+                      <option value="attempts">Attempts</option>
+                    </select>
+                  </div>
                 </div>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
-                  <span style={{ fontSize: 11, color: W.textDim }}>total: {cVals.reduce((a,b)=>a+b,0)}{cUnit ? ` ${cUnit}` : ""}</span>
-                  {statsBarSel !== null && cVals[statsBarSel] !== undefined && (
-                    <span style={{ fontSize: 12, fontWeight: 800, color: cColor }}>{chartBuckets[statsBarSel]?.label}: {cVals[statsBarSel]}{cUnit ? ` ${cUnit}` : ""}</span>
+                  <span style={{ fontSize: 11, color: W.textDim }}>{statsCumulative ? "cumulative" : "total"}: {cVals.reduce((a,b)=>a+b,0)}{cUnit ? ` ${cUnit}` : ""}</span>
+                  {statsBarSel !== null && displayVals[statsBarSel] !== undefined && (
+                    <span style={{ fontSize: 12, fontWeight: 800, color: cColor }}>{chartBuckets[statsBarSel]?.label}: {displayVals[statsBarSel]}{cUnit ? ` ${cUnit}` : ""}</span>
                   )}
                 </div>
                 {statsTimeFrame === "all" ? (
                   (() => {
-                    const pts = cVals.map((v, i) => {
-                      const x = cVals.length > 1 ? (i / (cVals.length - 1)) * 300 : 150;
+                    const pts = displayVals.map((v, i) => {
+                      const x = displayVals.length > 1 ? (i / (displayVals.length - 1)) * 300 : 150;
                       const y = 56 - Math.round((v / cMax) * 52);
                       return { x, y, v };
                     });
@@ -1235,7 +1245,7 @@ export default function App() {
                   })()
                 ) : (
                   <div style={{ display: "flex", alignItems: "flex-end", gap: 2, height: 64 }}>
-                    {cVals.map((v, i) => (
+                    {displayVals.map((v, i) => (
                       <div key={i} onClick={() => setStatsBarSel(statsBarSel === i ? null : i)} style={{ flex: 1, height: "100%", display: "flex", alignItems: "flex-end", cursor: "pointer" }}>
                         <div style={{ width: "100%", borderRadius: "3px 3px 0 0", background: v > 0 ? cColor : W.border, height: `${Math.max(Math.round((v / cMax) * 100), v > 0 ? 4 : 1)}%`, opacity: statsBarSel === null || statsBarSel === i ? (v > 0 ? 1 : 0.3) : 0.25, outline: statsBarSel === i ? `2px solid ${cColor}` : "none", transition: "opacity 0.15s" }} />
                       </div>
@@ -1315,12 +1325,12 @@ export default function App() {
             <div style={{ background: W.surface, borderRadius: 16, padding: "16px", border: `1px solid ${W.border}` }}>
               <div style={{ fontSize: 12, fontWeight: 700, color: W.textMuted, textTransform: "uppercase", letterSpacing: 1, marginBottom: 12 }}>Grade Pie Chart</div>
               <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
-                <select value={pieStat} onChange={e => setPieStat(e.target.value)} style={{ flex: 1, background: W.surface2, border: `1px solid ${W.border}`, borderRadius: 8, padding: "6px 8px", color: W.text, fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}>
+                <select value={pieStat} onChange={e => { setPieStat(e.target.value); setPieSelGrade(null); }} style={{ flex: 1, background: W.surface2, border: `1px solid ${W.border}`, borderRadius: 8, padding: "6px 8px", color: W.text, fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}>
                   <option value="attempts">Total Attempts</option>
                   <option value="sends">Total Sends</option>
                   <option value="flashes">Total Flashes</option>
                 </select>
-                <select value={effectivePieScale} onChange={e => { setPieScale(e.target.value); setPieHiddenGrades([]); }} style={{ flex: 1, background: W.surface2, border: `1px solid ${W.border}`, borderRadius: 8, padding: "6px 8px", color: W.text, fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}>
+                <select value={effectivePieScale} onChange={e => { setPieScale(e.target.value); setPieHiddenGrades([]); setPieSelGrade(null); }} style={{ flex: 1, background: W.surface2, border: `1px solid ${W.border}`, borderRadius: 8, padding: "6px 8px", color: W.text, fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}>
                   {Object.keys(GRADES).map(s => <option key={s} value={s}>{s}</option>)}
                 </select>
               </div>
@@ -1328,35 +1338,54 @@ export default function App() {
                 {(GRADES[effectivePieScale] || []).map(g => {
                   const hidden = pieHiddenGrades.includes(g);
                   return (
-                    <button key={g} onClick={() => setPieHiddenGrades(prev => hidden ? prev.filter(x => x !== g) : [...prev, g])} style={{ padding: "3px 10px", borderRadius: 12, border: `2px solid ${hidden ? W.border : getGradeColor(g)}`, background: hidden ? W.surface2 : getGradeColor(g) + "33", color: hidden ? W.textDim : getGradeColor(g), fontSize: 11, fontWeight: 700, cursor: "pointer", opacity: hidden ? 0.5 : 1 }}>{g}</button>
+                    <button key={g} onClick={() => { setPieHiddenGrades(prev => hidden ? prev.filter(x => x !== g) : [...prev, g]); setPieSelGrade(null); }} style={{ padding: "3px 10px", borderRadius: 12, border: `2px solid ${hidden ? W.border : getGradeColor(g)}`, background: hidden ? W.surface2 : getGradeColor(g) + "33", color: hidden ? W.textDim : getGradeColor(g), fontSize: 11, fontWeight: 700, cursor: "pointer", opacity: hidden ? 0.5 : 1 }}>{g}</button>
                   );
                 })}
               </div>
               {pieData.total === 0 ? (
                 <div style={{ textAlign: "center", color: W.textDim, fontSize: 13, padding: "20px 0" }}>No data for selected filters</div>
-              ) : (
-                <div style={{ display: "flex", gap: 16, alignItems: "flex-start" }}>
-                  <svg width={110} height={110} viewBox="0 0 100 100" style={{ flexShrink: 0 }}>
-                    {pieData.slices.map((sl, i) => <path key={i} d={sl.path} fill={sl.color} opacity={0.9} />)}
-                    <text x="50" y="47" textAnchor="middle" fontSize="12" fontWeight="bold" fill={W.text}>{pieData.total}</text>
-                    <text x="50" y="59" textAnchor="middle" fontSize="7" fill={W.textMuted}>total</text>
-                  </svg>
-                  <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 7 }}>
-                    {pieData.slices.map(sl => (
-                      <div key={sl.grade} style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                          <div style={{ width: 10, height: 10, borderRadius: 3, background: sl.color, flexShrink: 0 }} />
-                          <span style={{ fontSize: 12, fontWeight: 700, color: sl.color }}>{sl.grade}</span>
-                        </div>
-                        <div>
-                          <span style={{ fontSize: 13, fontWeight: 800, color: W.text }}>{sl.value}</span>
-                          <span style={{ fontSize: 10, color: W.textDim, marginLeft: 4 }}>{Math.round((sl.value / pieData.total) * 100)}%</span>
-                        </div>
-                      </div>
-                    ))}
+              ) : (() => {
+                const anySelected = pieSelGrade !== null;
+                const selSlice = pieData.slices.find(s => s.grade === pieSelGrade);
+                return (
+                  <div style={{ display: "flex", gap: 16, alignItems: "flex-start" }}>
+                    <svg width={120} height={120} viewBox="0 0 100 100" style={{ flexShrink: 0 }}>
+                      {pieData.slices.map((sl, i) => (
+                        <path key={i} d={sl.grade === pieSelGrade ? sl.pathSel : sl.path} fill={sl.color} opacity={anySelected ? (sl.grade === pieSelGrade ? 1 : 0.25) : 0.9} style={{ cursor: "pointer", transition: "opacity 0.15s" }} onClick={() => setPieSelGrade(pieSelGrade === sl.grade ? null : sl.grade)} />
+                      ))}
+                      {selSlice ? (
+                        <>
+                          <text x="50" y="45" textAnchor="middle" fontSize="9" fontWeight="bold" fill={selSlice.color}>{selSlice.grade}</text>
+                          <text x="50" y="57" textAnchor="middle" fontSize="13" fontWeight="bold" fill={W.text}>{selSlice.value}</text>
+                          <text x="50" y="66" textAnchor="middle" fontSize="7" fill={W.textMuted}>{Math.round((selSlice.value / pieData.total) * 100)}%</text>
+                        </>
+                      ) : (
+                        <>
+                          <text x="50" y="47" textAnchor="middle" fontSize="12" fontWeight="bold" fill={W.text}>{pieData.total}</text>
+                          <text x="50" y="59" textAnchor="middle" fontSize="7" fill={W.textMuted}>total</text>
+                        </>
+                      )}
+                    </svg>
+                    <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 7 }}>
+                      {pieData.slices.map(sl => {
+                        const isSel = pieSelGrade === sl.grade;
+                        return (
+                          <div key={sl.grade} onClick={() => setPieSelGrade(pieSelGrade === sl.grade ? null : sl.grade)} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", cursor: "pointer", opacity: anySelected ? (isSel ? 1 : 0.4) : 1, transition: "opacity 0.15s" }}>
+                            <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                              <div style={{ width: 10, height: 10, borderRadius: 3, background: sl.color, flexShrink: 0, outline: isSel ? `2px solid ${sl.color}` : "none", outlineOffset: 1 }} />
+                              <span style={{ fontSize: 12, fontWeight: isSel ? 900 : 700, color: sl.color }}>{sl.grade}</span>
+                            </div>
+                            <div>
+                              <span style={{ fontSize: 13, fontWeight: 800, color: isSel ? sl.color : W.text }}>{sl.value}</span>
+                              <span style={{ fontSize: 10, color: W.textDim, marginLeft: 4 }}>{Math.round((sl.value / pieData.total) * 100)}%</span>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
                   </div>
-                </div>
-              )}
+                );
+              })()}
             </div>
           </div>
           );
