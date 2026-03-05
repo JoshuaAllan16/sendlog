@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from "react";
+import { createClient } from "@supabase/supabase-js";
 
 const GRADES = {
   "V-Scale": ["VB", "V0", "V1", "V2", "V3", "V4", "V5", "V6", "V7", "V8", "V9", "V10"],
@@ -26,24 +27,26 @@ const CLIMB_COLORS = [
   { id: "pink",   label: "Pink",   hex: "#ec4899" },
 ];
 
-const WALL_TYPES = ["Slab", "Overhang"];
-const HOLD_TYPES  = ["Jugs", "Slopes", "Pinches", "Dyno", "Technical"];
+const WALL_TYPES = ["Slab", "Overhang", "Corner", "Roof"];
+const HOLD_TYPES  = ["Jugs", "Crimps", "Slopes", "Pinches", "Pockets", "Sidepull", "Undercling", "Gaston", "Dyno", "Technical", "Bat Hang", "Coordination", "Knee Bar"];
 
 const getGradeColor = (g) => GRADE_COLORS[g] || GRADE_COLORS["default"];
 const formatDate    = (iso) => new Date(iso).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
 const formatDuration = (s) => `${Math.floor(s / 60)}:${(s % 60).toString().padStart(2, "0")}`;
+const formatTotalTime = (s) => { const h = Math.floor(s / 3600); const m = Math.floor((s % 3600) / 60); return h > 0 ? `${h}h ${m}m` : `${m}m`; };
 
 const W = {
-  bg: "linear-gradient(160deg, #e8d5c0 0%, #ddc4a8 40%, #d4b896 100%)",
-  surface: "rgba(255,248,242,0.92)", surface2: "rgba(255,235,210,0.78)",
-  border: "#c8a882", accent: "#e8833a", accentGlow: "rgba(232,131,58,0.25)", accentDark: "#c45e1a",
-  text: "#3d2010", textMuted: "#7a4a2e", textDim: "#a07858",
-  gold: "#f59e0b", goldLight: "#fef3c7",
-  pink: "#fce7f0", pinkDark: "#be185d",
-  yellow: "#fef9c3", yellowDark: "#92400e",
-  green: "#dcfce7", greenDark: "#15803d",
-  red: "#fee2e2", redDark: "#dc2626",
-  purple: "#f3e8ff", purpleDark: "#7c3aed",
+  bg: "linear-gradient(160deg, #2c1a0c 0%, #1f1208 50%, #160c04 100%)",
+  surface: "rgba(44, 24, 8, 0.97)", surface2: "rgba(60, 34, 10, 0.92)",
+  border: "#5c3218", accent: "#f09040", accentGlow: "rgba(240,144,64,0.28)", accentDark: "#c86818",
+  text: "#f0dcc0", textMuted: "#c89060", textDim: "#8a6040",
+  gold: "#f59e0b", goldLight: "#3a2800",
+  pink: "#3d0a1c", pinkDark: "#f472b6",
+  yellow: "#2e2200", yellowDark: "#fbbf24",
+  green: "#0a2c12", greenDark: "#4ade80",
+  red: "#2e0a0a", redDark: "#f87171",
+  purple: "#1e0a3e", purpleDark: "#c084fc",
+  navBg: "#110702",
 };
 
 const SAMPLE_PROJECTS = [
@@ -71,7 +74,46 @@ const SAMPLE_SESSIONS = [
 const KNOWN_GYMS = ["Boulder Barn", "The Crux Gym", "Movement", "Earth Treks"];
 
 // ── STORAGE HELPERS ────────────────────────────────────────
-const storage = window.storage;
+const supabase = createClient(
+  import.meta.env.VITE_SUPABASE_URL,
+  import.meta.env.VITE_SUPABASE_ANON_KEY
+);
+
+// active:session stays in localStorage (it's device-specific — who is logged in on this browser)
+// everything else (accounts, user data) goes to Supabase
+const storage = {
+  get: async (key) => {
+    if (key === "active:session") {
+      const val = localStorage.getItem(key);
+      return val ? { value: val } : null;
+    }
+    const { data, error } = await supabase
+      .from("kv_store")
+      .select("value")
+      .eq("key", key)
+      .maybeSingle();
+    if (error) throw error;
+    return data || null;
+  },
+  set: async (key, value) => {
+    if (key === "active:session") {
+      localStorage.setItem(key, value);
+      return;
+    }
+    const { error } = await supabase
+      .from("kv_store")
+      .upsert({ key, value, updated_at: new Date().toISOString() });
+    if (error) throw error;
+  },
+  delete: async (key) => {
+    if (key === "active:session") {
+      localStorage.removeItem(key);
+      return;
+    }
+    const { error } = await supabase.from("kv_store").delete().eq("key", key);
+    if (error) throw error;
+  },
+};
 
 const saveUserData = async (username, data) => {
   try {
@@ -149,6 +191,27 @@ const TagChips = ({ wallTypes = [], holdTypes = [] }) => {
   );
 };
 
+const LocationDropdown = ({ value, onChange, open, setOpen, knownLocations, onRemove }) => (
+  <div style={{ position: "relative" }}>
+    <div style={{ display: "flex", alignItems: "center", background: W.surface, border: `2px solid ${open ? W.accent : W.border}`, borderRadius: open && knownLocations.length ? "12px 12px 0 0" : "12px", overflow: "hidden" }}>
+      <input value={value} onChange={e => { onChange(e.target.value); setOpen(true); }} onFocus={() => setOpen(true)} placeholder="e.g. Boulder Barn" style={{ flex: 1, padding: "11px 14px", background: "transparent", border: "none", outline: "none", color: W.text, fontSize: 14, fontFamily: "inherit" }} />
+      <button onClick={() => setOpen(o => !o)} style={{ background: "none", border: "none", padding: "0 12px", cursor: "pointer", color: W.textMuted, fontSize: 14 }}>{open ? "▲" : "▼"}</button>
+    </div>
+    {open && (
+      <div style={{ position: "absolute", top: "100%", left: 0, right: 0, background: W.surface, border: `2px solid ${W.accent}`, borderTop: "none", borderRadius: "0 0 12px 12px", zIndex: 100, maxHeight: 200, overflowY: "auto", boxShadow: "0 8px 20px rgba(0,0,0,0.12)" }}>
+        {knownLocations.length > 0 && <div style={{ padding: "8px 14px 4px", fontSize: 10, fontWeight: 700, color: W.textDim, textTransform: "uppercase", letterSpacing: 1 }}>Previous Locations</div>}
+        {knownLocations.map(loc => (
+          <div key={loc} style={{ display: "flex", alignItems: "center", borderBottom: `1px solid ${W.border}`, background: loc === value ? W.surface2 : "transparent" }}>
+            <div onClick={() => { onChange(loc); setOpen(false); }} style={{ flex: 1, padding: "10px 14px", cursor: "pointer", color: W.text, fontSize: 14, fontWeight: loc === value ? 700 : 400 }}>📍 {loc}</div>
+            {onRemove && <button onClick={e => { e.stopPropagation(); onRemove(loc); }} style={{ background: "none", border: "none", padding: "0 12px", cursor: "pointer", color: W.textDim, fontSize: 16, lineHeight: 1 }} title="Remove location">×</button>}
+          </div>
+        ))}
+        {value && !knownLocations.includes(value) && <div onClick={() => { onChange(value); setOpen(false); }} style={{ padding: "10px 14px", cursor: "pointer", color: W.accent, fontSize: 14, fontWeight: 700 }}>✚ Save "{value}" as new location</div>}
+      </div>
+    )}
+  </div>
+);
+
 export default function App() {
   // ── AUTH STATE ─────────────────────────────────────────────
   const [authScreen, setAuthScreen] = useState("loading"); // loading | login | signup | app
@@ -180,8 +243,14 @@ export default function App() {
   const [showProjectPicker, setShowProjectPicker] = useState(false);
   const [editingClimbId, setEditingClimbId]     = useState(null);
   const [editingSessionId, setEditingSessionId] = useState(null);
+  const [preferredScale, setPreferredScale]     = useState("V-Scale");
+  const [hiddenLocations, setHiddenLocations]   = useState([]);
+  const [showAccountPanel, setShowAccountPanel] = useState(false);
+  const [confirmLogout, setConfirmLogout]       = useState(false);
+  const [showEndConfirm, setShowEndConfirm]     = useState(false);
+  const [sessionSummary, setSessionSummary]     = useState(null);
 
-  const blankForm = { name: "", grade: "V3", scale: "V-Scale", isProject: false, comments: "", photo: null, color: null, wallTypes: [], holdTypes: [] };
+  const blankForm = { name: "", grade: GRADES[preferredScale]?.[2] || "V3", scale: preferredScale, isProject: false, comments: "", photo: null, color: null, wallTypes: [], holdTypes: [] };
   const [climbForm, setClimbForm]   = useState(blankForm);
   const [photoPreview, setPhotoPreview] = useState(null);
   const [calendarDate, setCalendarDate] = useState(new Date());
@@ -193,8 +262,11 @@ export default function App() {
   const [logbookView, setLogbookView]       = useState("climbs");
   const [logbookFiltersOpen, setLogbookFiltersOpen] = useState(false);
   const [logbookGymFilter, setLogbookGymFilter]     = useState("All Gyms");
+  const [sessionSort, setSessionSort]               = useState("date");
   const [statsGradeFilter, setStatsGradeFilter]     = useState("All");
-  const [statsScaleFilter, setStatsScaleFilter]     = useState("V-Scale");
+  const [statsScaleFilter, setStatsScaleFilter]     = useState("All Scales");
+  const [statsTimeFrame, setStatsTimeFrame]         = useState("2w");
+  const [statsChart, setStatsChart]                 = useState("time");
   const [analyzeOpen, setAnalyzeOpen] = useState(false);
 
   // ── INIT: check for existing session ──────────────────────
@@ -207,6 +279,8 @@ export default function App() {
           setCurrentUser({ username, ...userData.profile });
           setSessions(userData.sessions || []);
           setProjects(userData.projects || []);
+          setPreferredScale(userData.profile?.preferredScale || "V-Scale");
+          setHiddenLocations(userData.profile?.hiddenLocations || []);
           setAuthScreen("app");
         } else {
           setAuthScreen("login");
@@ -226,7 +300,7 @@ export default function App() {
     setSaveStatus("saving");
     saveTimeoutRef.current = setTimeout(async () => {
       const userData = {
-        profile: { displayName: currentUser.displayName },
+        profile: { displayName: currentUser.displayName, preferredScale, hiddenLocations },
         sessions,
         projects,
       };
@@ -235,7 +309,7 @@ export default function App() {
       setTimeout(() => setSaveStatus(""), 2000);
     }, 1000);
     return () => clearTimeout(saveTimeoutRef.current);
-  }, [sessions, projects]);
+  }, [sessions, projects, preferredScale, hiddenLocations]);
 
   useEffect(() => {
     if (timerRunning) { timerRef.current = setInterval(() => setSessionTimer(t => t + 1), 1000); }
@@ -309,6 +383,8 @@ export default function App() {
       setCurrentUser({ username: username.toLowerCase(), displayName: safeData.profile?.displayName || username });
       setSessions(safeData.sessions || []);
       setProjects(safeData.projects || []);
+      setPreferredScale(safeData.profile?.preferredScale || "V-Scale");
+      setHiddenLocations(safeData.profile?.hiddenLocations || []);
       setAuthScreen("app");
     } catch (e) {
       setAuthError("Something went wrong. Please try again.");
@@ -324,19 +400,25 @@ export default function App() {
     setScreen("home");
     setAuthForm({ username: "", password: "", confirmPassword: "", displayName: "" });
     setAuthError("");
+    setPreferredScale("V-Scale");
+    setHiddenLocations([]);
+    setShowAccountPanel(false);
+    setConfirmLogout(false);
     setAuthScreen("login");
   };
 
   // ── APP LOGIC ──────────────────────────────────────────────
-  const knownLocations = [...new Set([...KNOWN_GYMS, ...sessions.map(s => s.location).filter(Boolean)])];
+  const knownLocations = [...new Set([...KNOWN_GYMS, ...sessions.map(s => s.location).filter(Boolean)])].filter(l => !hiddenLocations.includes(l));
   const allGyms = ["All Gyms", ...new Set(sessions.map(s => s.location).filter(Boolean))];
 
   const goToSessionSetup = () => { setPendingLocation(""); setSessionStarted(false); setActiveSession({ location: "", climbs: [] }); setSessionTimer(0); setScreen("session"); };
   const beginTimer = () => { setActiveSession(s => ({ ...s, location: pendingLocation })); setSessionStarted(true); setTimerRunning(true); };
   const endSession = () => {
     if (!activeSession) return;
-    setSessions(prev => [{ id: Date.now(), date: new Date().toISOString(), duration: sessionTimer, location: activeSession.location || pendingLocation || "Unknown Gym", climbs: activeSession.climbs }, ...prev]);
-    setTimerRunning(false); setActiveSession(null); setSessionTimer(0); setSessionStarted(false); setPendingLocation(""); setScreen("home");
+    const completed = { id: Date.now(), date: new Date().toISOString(), duration: sessionTimer, location: activeSession.location || pendingLocation || "Unknown Gym", climbs: activeSession.climbs };
+    setSessions(prev => [completed, ...prev]);
+    setSessionSummary(completed);
+    setTimerRunning(false); setActiveSession(null); setSessionTimer(0); setSessionStarted(false); setPendingLocation(""); setShowEndConfirm(false); setScreen("sessionSummary");
   };
   const deleteSession = (id) => { setSessions(prev => prev.filter(s => s.id !== id)); setScreen("profile"); setProfileTab("logbook"); };
 
@@ -398,16 +480,30 @@ export default function App() {
 
   const getGradeIndex = (grade, scale) => (GRADES[scale] || GRADES["V-Scale"]).indexOf(grade);
 
+  const getTimeframeSessions = () => {
+    const cutoffs = { "2w": 14, "1m": 30, "6m": 182, "1y": 365 };
+    const days = cutoffs[statsTimeFrame];
+    if (!days) return sessions;
+    const cutoff = Date.now() - days * 86400000;
+    return sessions.filter(s => new Date(s.date).getTime() >= cutoff);
+  };
+
   const getStats = () => {
-    const base = allClimbs.filter(c => (statsScaleFilter === "All Scales" || c.scale === statsScaleFilter) && (statsGradeFilter === "All" || c.grade === statsGradeFilter));
+    const tfSessions = getTimeframeSessions();
+    const tfClimbs = tfSessions.flatMap(s => s.climbs);
+    const base = tfClimbs.filter(c => (statsScaleFilter === "All Scales" || c.scale === statsScaleFilter) && (statsGradeFilter === "All" || c.grade === statsGradeFilter));
     const completed = base.filter(c => c.completed);
     const flashes   = completed.filter(c => c.tries === 1);
     const flashRate = base.length ? Math.round((flashes.length / base.length) * 100) : 0;
     const avgTries  = base.length ? (base.reduce((a, c) => a + c.tries, 0) / base.length).toFixed(1) : "—";
-    const vBase     = allClimbs.filter(c => c.completed && c.scale === "V-Scale");
-    const bestGrade = vBase.length ? [...vBase].sort((a, b) => GRADES["V-Scale"].indexOf(b.grade) - GRADES["V-Scale"].indexOf(a.grade))[0]?.grade : "—";
+    const vBase     = tfClimbs.filter(c => c.completed && c.scale === preferredScale);
+    const bestGrade = vBase.length ? [...vBase].sort((a, b) => (GRADES[preferredScale] || []).indexOf(b.grade) - (GRADES[preferredScale] || []).indexOf(a.grade))[0]?.grade : "—";
     const gradeBreakdown = (GRADES[statsScaleFilter] || []).map(g => ({ grade: g, count: completed.filter(c => c.grade === g).length })).filter(g => g.count > 0);
-    return { base, completed, flashes, flashRate, avgTries, bestGrade, gradeBreakdown };
+    const climbsByDay = {};
+    tfSessions.forEach(s => { const day = s.date.slice(0, 10); climbsByDay[day] = (climbsByDay[day] || 0) + s.climbs.length; });
+    const mostInDay = Object.values(climbsByDay).length ? Math.max(...Object.values(climbsByDay)) : 0;
+    const totalTimeClimbed = tfSessions.reduce((sum, s) => sum + (s.duration || 0), 0);
+    return { base, completed, flashes, flashRate, avgTries, bestGrade, gradeBreakdown, mostInDay, totalTimeClimbed };
   };
 
   const getProjectHistory    = (pid) => sessions.flatMap(s => s.climbs.filter(c => c.projectId === pid).map(c => ({ ...c, sessionDate: s.date, sessionLocation: s.location }))).sort((a, b) => new Date(b.sessionDate) - new Date(a.sessionDate));
@@ -428,7 +524,16 @@ export default function App() {
     return climbs;
   };
 
-  const getFilteredSessions = () => logbookGymFilter === "All Gyms" ? sessions : sessions.filter(s => s.location === logbookGymFilter);
+  const getFilteredSessions = () => {
+    const base = logbookGymFilter === "All Gyms" ? [...sessions] : sessions.filter(s => s.location === logbookGymFilter);
+    if (sessionSort === "climbs-desc") return base.sort((a, b) => b.climbs.length - a.climbs.length);
+    if (sessionSort === "climbs-asc")  return base.sort((a, b) => a.climbs.length - b.climbs.length);
+    if (sessionSort === "attempts-desc") return base.sort((a, b) => b.climbs.reduce((s, c) => s + c.tries, 0) - a.climbs.reduce((s, c) => s + c.tries, 0));
+    if (sessionSort === "attempts-asc")  return base.sort((a, b) => a.climbs.reduce((s, c) => s + c.tries, 0) - b.climbs.reduce((s, c) => s + c.tries, 0));
+    if (sessionSort === "flashes-desc") return base.sort((a, b) => b.climbs.filter(c => c.completed && c.tries === 1).length - a.climbs.filter(c => c.completed && c.tries === 1).length);
+    if (sessionSort === "flashes-asc")  return base.sort((a, b) => a.climbs.filter(c => c.completed && c.tries === 1).length - b.climbs.filter(c => c.completed && c.tries === 1).length);
+    return base;
+  };
 
   const getSessionStats = (session) => {
     const sends = session.climbs.filter(c => c.completed).length;
@@ -438,14 +543,17 @@ export default function App() {
     const flashRate  = total ? Math.round((flashes / total) * 100) : 0;
     const avgTries   = total ? (totalTries / total).toFixed(1) : "0";
     const gradeBreakdown = {};
-    session.climbs.forEach(c => { if (!gradeBreakdown[c.grade]) gradeBreakdown[c.grade] = { completed: 0, attempted: 0 }; gradeBreakdown[c.grade].attempted++; if (c.completed) gradeBreakdown[c.grade].completed++; });
-    return { sends, total, totalTries, flashes, flashRate, avgTries, gradeBreakdown };
+    session.climbs.forEach(c => { if (!gradeBreakdown[c.grade]) gradeBreakdown[c.grade] = { completed: 0, attempted: 0, tries: 0, scale: c.scale }; gradeBreakdown[c.grade].attempted++; gradeBreakdown[c.grade].tries += (c.tries || 0); if (c.completed) gradeBreakdown[c.grade].completed++; });
+    const sortedByGrade = (arr) => [...arr].sort((a, b) => getGradeIndex(b.grade, b.scale) - getGradeIndex(a.grade, a.scale));
+    const hardestAttempted = session.climbs.length ? sortedByGrade(session.climbs)[0]?.grade : "—";
+    const hardestSent = session.climbs.filter(c => c.completed).length ? sortedByGrade(session.climbs.filter(c => c.completed))[0]?.grade : "—";
+    return { sends, total, totalTries, flashes, flashRate, avgTries, gradeBreakdown, hardestAttempted, hardestSent };
   };
 
   // ── AUTH SCREENS ───────────────────────────────────────────
   if (authScreen === "loading") {
     return (
-      <div style={{ maxWidth: 420, margin: "0 auto", minHeight: "100vh", background: W.bg, display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" }}>
+      <div style={{ width: "100%", minHeight: "100vh", background: W.bg, display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" }}>
         <div style={{ textAlign: "center" }}>
           <div style={{ fontSize: 52, marginBottom: 16 }}>🧗</div>
           <div style={{ fontSize: 22, fontWeight: 800, color: W.text }}>SendLog</div>
@@ -458,7 +566,8 @@ export default function App() {
   if (authScreen === "login" || authScreen === "signup") {
     const isSignup = authScreen === "signup";
     return (
-      <div style={{ maxWidth: 420, margin: "0 auto", minHeight: "100vh", background: W.bg, fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif", display: "flex", flexDirection: "column" }}>
+      <div style={{ width: "100%", minHeight: "100vh", background: W.bg, fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif", display: "flex", justifyContent: "center" }}>
+      <div style={{ width: "100%", maxWidth: 420, display: "flex", flexDirection: "column" }}>
         {/* Header */}
         <div style={{ padding: "48px 28px 24px", textAlign: "center" }}>
           <div style={{ fontSize: 56, marginBottom: 12 }}>🧗</div>
@@ -520,25 +629,11 @@ export default function App() {
           Your data is saved securely to your account.
         </div>
       </div>
+      </div>
     );
   }
 
   // ── LOCATION DROPDOWN ──────────────────────────────────────
-  const LocationDropdown = ({ value, onChange, open, setOpen }) => (
-    <div style={{ position: "relative" }}>
-      <div style={{ display: "flex", alignItems: "center", background: W.surface, border: `2px solid ${open ? W.accent : W.border}`, borderRadius: open && knownLocations.length ? "12px 12px 0 0" : "12px", overflow: "hidden" }}>
-        <input value={value} onChange={e => { onChange(e.target.value); setOpen(true); }} onFocus={() => setOpen(true)} placeholder="e.g. Boulder Barn" style={{ flex: 1, padding: "11px 14px", background: "transparent", border: "none", outline: "none", color: W.text, fontSize: 14, fontFamily: "inherit" }} />
-        <button onClick={() => setOpen(o => !o)} style={{ background: "none", border: "none", padding: "0 12px", cursor: "pointer", color: W.textMuted, fontSize: 14 }}>{open ? "▲" : "▼"}</button>
-      </div>
-      {open && (
-        <div style={{ position: "absolute", top: "100%", left: 0, right: 0, background: W.surface, border: `2px solid ${W.accent}`, borderTop: "none", borderRadius: "0 0 12px 12px", zIndex: 100, maxHeight: 200, overflowY: "auto", boxShadow: "0 8px 20px rgba(0,0,0,0.12)" }}>
-          {knownLocations.length > 0 && <div style={{ padding: "8px 14px 4px", fontSize: 10, fontWeight: 700, color: W.textDim, textTransform: "uppercase", letterSpacing: 1 }}>Previous Locations</div>}
-          {knownLocations.map(loc => <div key={loc} onClick={() => { onChange(loc); setOpen(false); }} style={{ padding: "10px 14px", cursor: "pointer", color: W.text, fontSize: 14, fontWeight: loc === value ? 700 : 400, background: loc === value ? W.surface2 : "transparent", borderBottom: `1px solid ${W.border}` }}>📍 {loc}</div>)}
-          {value && !knownLocations.includes(value) && <div onClick={() => setOpen(false)} style={{ padding: "10px 14px", cursor: "pointer", color: W.accent, fontSize: 14, fontWeight: 700 }}>✚ Add "{value}"</div>}
-        </div>
-      )}
-    </div>
-  );
 
   const Label = ({ children }) => <div style={{ color: W.textMuted, fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: 1.2, marginBottom: 7 }}>{children}</div>;
 
@@ -562,9 +657,9 @@ export default function App() {
         </div>
       )}
       <Label>Scale</Label>
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6, marginBottom: 12 }}>
-        {Object.keys(GRADES).map(scale => <button key={scale} onClick={() => setClimbForm(f => ({ ...f, scale, grade: GRADES[scale][0] }))} style={{ padding: "7px", borderRadius: 8, border: "2px solid", borderColor: climbForm.scale === scale ? W.accent : W.border, background: climbForm.scale === scale ? W.accent + "22" : W.surface, color: climbForm.scale === scale ? W.accent : W.textDim, cursor: "pointer", fontSize: 11, fontWeight: 600 }}>{scale}</button>)}
-      </div>
+      <select value={climbForm.scale} onChange={e => setClimbForm(f => ({ ...f, scale: e.target.value, grade: GRADES[e.target.value][0] }))} style={{ width: "100%", padding: "10px 12px", background: W.surface, border: `2px solid ${W.border}`, borderRadius: 10, color: W.text, fontSize: 14, boxSizing: "border-box", marginBottom: 12, fontFamily: "inherit", cursor: "pointer" }}>
+        {Object.keys(GRADES).map(scale => <option key={scale} value={scale}>{scale}</option>)}
+      </select>
       <Label>Grade</Label>
       <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 12 }}>
         {GRADES[climbForm.scale].map(g => <button key={g} onClick={() => setClimbForm(f => ({ ...f, grade: g }))} style={{ padding: "5px 11px", borderRadius: 14, border: "2px solid", borderColor: climbForm.grade === g ? getGradeColor(g) : W.border, background: climbForm.grade === g ? getGradeColor(g) + "33" : W.surface, color: climbForm.grade === g ? getGradeColor(g) : W.textDim, cursor: "pointer", fontWeight: 700, fontSize: 12 }}>{g}</button>)}
@@ -573,7 +668,7 @@ export default function App() {
       <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
         {WALL_TYPES.map(t => { const sel = climbForm.wallTypes.includes(t); return (<button key={t} onClick={() => setClimbForm(f => ({ ...f, wallTypes: toggleArr(f.wallTypes, t) }))} style={{ flex: 1, padding: "9px", borderRadius: 10, border: "2px solid", borderColor: sel ? W.purpleDark : W.border, background: sel ? W.purple : W.surface, color: sel ? W.purpleDark : W.textDim, cursor: "pointer", fontWeight: 700, fontSize: 13 }}>{t}</button>); })}
       </div>
-      <Label>Hold Types (select all that apply)</Label>
+      <Label>Climb Identifier</Label>
       <div style={{ display: "flex", flexWrap: "wrap", gap: 7, marginBottom: 12 }}>
         {HOLD_TYPES.map(t => { const sel = climbForm.holdTypes.includes(t); return (<button key={t} onClick={() => setClimbForm(f => ({ ...f, holdTypes: toggleArr(f.holdTypes, t) }))} style={{ padding: "6px 14px", borderRadius: 20, border: "2px solid", borderColor: sel ? W.accentDark : W.border, background: sel ? W.accent + "22" : W.surface, color: sel ? W.accentDark : W.textDim, cursor: "pointer", fontWeight: 700, fontSize: 12 }}>{t}</button>); })}
       </div>
@@ -699,59 +794,67 @@ export default function App() {
     );
   };
 
-  const SessionCard = ({ session, onClick }) => {
-    const sends = session.climbs.filter(c => c.completed).length;
-    const total  = session.climbs.length;
-    const totalTries = session.climbs.reduce((s, c) => s + c.tries, 0);
-    return (
-      <div onClick={onClick} style={{ background: W.surface, borderRadius: 16, padding: "16px", cursor: "pointer", border: `1px solid ${W.border}`, marginBottom: 12 }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 10 }}>
-          <div><div style={{ fontWeight: 800, fontSize: 16, color: W.text }}>{session.location || "Session"}</div><div style={{ fontSize: 12, color: W.textMuted, marginTop: 2 }}>{formatDate(session.date)}</div></div>
-          <div style={{ background: W.yellow, borderRadius: 10, padding: "4px 10px", fontSize: 12, fontWeight: 700, color: W.yellowDark }}>⏱ {formatDuration(session.duration)}</div>
-        </div>
-        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-          <span style={{ background: W.green, color: W.greenDark, borderRadius: 8, padding: "4px 11px", fontSize: 12, fontWeight: 700 }}>✓ {sends}/{total} climbs</span>
-          <span style={{ background: W.surface2, color: W.textMuted, borderRadius: 8, padding: "4px 11px", fontSize: 12, fontWeight: 700 }}>🔁 {totalTries} tries</span>
-          {session.climbs.filter(c => c.isProject).length > 0 && <span style={{ background: W.pink, color: W.pinkDark, borderRadius: 8, padding: "4px 11px", fontSize: 12, fontWeight: 700 }}>🎯 {session.climbs.filter(c => c.isProject).length} projects</span>}
-        </div>
-      </div>
-    );
-  };
 
   const LogbookSessionCard = ({ session }) => {
     const stats = getSessionStats(session);
-    const gradeEntries = Object.entries(stats.gradeBreakdown).sort((a, b) => GRADES["V-Scale"].indexOf(b[0]) - GRADES["V-Scale"].indexOf(a[0]));
-    const maxCount = Math.max(...gradeEntries.map(([, v]) => v.attempted), 1);
+    const gradeEntries = Object.entries(stats.gradeBreakdown).sort((a, b) => getGradeIndex(b[0], b[1].scale || "V-Scale") - getGradeIndex(a[0], a[1].scale || "V-Scale"));
+    const pieTotal = gradeEntries.reduce((s, [, v]) => s + v.tries, 0);
+    let pieAngle = -Math.PI / 2;
+    const pieSlices = gradeEntries.map(([grade, data]) => {
+      const angle = (data.tries / pieTotal) * 2 * Math.PI;
+      const end = pieAngle + angle;
+      const r = 42, ir = 22, cx = 50, cy = 50;
+      const x1 = cx + r * Math.cos(pieAngle), y1 = cy + r * Math.sin(pieAngle);
+      const x2 = cx + r * Math.cos(end), y2 = cy + r * Math.sin(end);
+      const ix1 = cx + ir * Math.cos(pieAngle), iy1 = cy + ir * Math.sin(pieAngle);
+      const ix2 = cx + ir * Math.cos(end), iy2 = cy + ir * Math.sin(end);
+      const large = angle > Math.PI ? 1 : 0;
+      const path = `M ${ix1.toFixed(2)} ${iy1.toFixed(2)} L ${x1.toFixed(2)} ${y1.toFixed(2)} A ${r} ${r} 0 ${large} 1 ${x2.toFixed(2)} ${y2.toFixed(2)} L ${ix2.toFixed(2)} ${iy2.toFixed(2)} A ${ir} ${ir} 0 ${large} 0 ${ix1.toFixed(2)} ${iy1.toFixed(2)} Z`;
+      pieAngle = end;
+      return { grade, path, color: getGradeColor(grade), data };
+    });
     return (
       <div style={{ background: W.surface, borderRadius: 18, border: `1px solid ${W.border}`, marginBottom: 16, overflow: "hidden" }}>
-        <div onClick={() => { setSelectedSession(session); setScreen("sessionDetail"); }} style={{ padding: "16px", cursor: "pointer", borderBottom: `1px solid ${W.border}`, display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+        {/* Header */}
+        <div onClick={() => { setSelectedSession(session); setScreen("sessionDetail"); }} style={{ padding: "14px 16px", cursor: "pointer", borderBottom: `1px solid ${W.border}`, display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
           <div><div style={{ fontWeight: 800, fontSize: 16, color: W.text }}>{session.location}</div><div style={{ fontSize: 12, color: W.textMuted, marginTop: 2 }}>{formatDate(session.date)} · ⏱ {formatDuration(session.duration)}</div></div>
           <div style={{ color: W.accent, fontSize: 13, fontWeight: 700 }}>Details ›</div>
         </div>
+        {/* Pie chart at top, side-by-side with compact legend */}
+        {gradeEntries.length > 0 && (
+          <div style={{ padding: "12px 16px", borderBottom: `1px solid ${W.border}`, display: "flex", alignItems: "center", gap: 14 }}>
+            <svg width={80} height={80} viewBox="0 0 100 100" style={{ flexShrink: 0 }}>
+              {pieSlices.map((s, i) => <path key={i} d={s.path} fill={s.color} />)}
+            </svg>
+            <div style={{ flex: 1, display: "grid", gridTemplateColumns: "1fr 1fr", gap: "2px 8px" }}>
+              {pieSlices.map(s => (
+                <div key={s.grade} style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                  <div style={{ width: 7, height: 7, borderRadius: 2, background: s.color, flexShrink: 0 }} />
+                  <span style={{ fontSize: 11, fontWeight: 800, color: s.color }}>{s.grade}</span>
+                  <span style={{ fontSize: 13, fontWeight: 900, color: W.text, marginLeft: "auto" }}>{s.data.tries}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+        {/* Stats row */}
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", borderBottom: `1px solid ${W.border}` }}>
-          {[{ icon: "🧗", label: "Climbs", value: `${stats.sends}/${stats.total}` }, { icon: "🔁", label: "Tries", value: stats.totalTries }, { icon: "⚡", label: "Flashes", value: stats.flashes }, { icon: "📊", label: "Avg", value: stats.avgTries }].map((s, i) => (
-            <div key={s.label} style={{ padding: "12px 8px", textAlign: "center", borderRight: i < 3 ? `1px solid ${W.border}` : "none" }}>
-              <div style={{ fontSize: 14 }}>{s.icon}</div>
-              <div style={{ fontSize: 15, fontWeight: 800, color: W.text, marginTop: 2 }}>{s.value}</div>
-              <div style={{ fontSize: 10, color: W.textDim }}>{s.label}</div>
+          {[{ icon: "🧗", label: "Sends", value: `${stats.sends}/${stats.total}` }, { icon: "🔁", label: "Tries", value: stats.totalTries }, { icon: "⚡", label: "Flashes", value: stats.flashes }, { icon: "📊", label: "Avg", value: stats.avgTries }].map((s, i) => (
+            <div key={s.label} style={{ padding: "10px 6px", textAlign: "center", borderRight: i < 3 ? `1px solid ${W.border}` : "none" }}>
+              <div style={{ fontSize: 18, fontWeight: 900, color: W.text }}>{s.value}</div>
+              <div style={{ fontSize: 10, color: W.textDim, marginTop: 1 }}>{s.label}</div>
             </div>
           ))}
         </div>
-        {gradeEntries.length > 0 && (
-          <div style={{ padding: "14px 16px" }}>
-            <div style={{ fontSize: 11, fontWeight: 700, color: W.textMuted, textTransform: "uppercase", letterSpacing: 1, marginBottom: 10 }}>Grade Breakdown</div>
-            {gradeEntries.map(([grade, data]) => (
-              <div key={grade} style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
-                <div style={{ width: 32, fontSize: 11, fontWeight: 700, color: getGradeColor(grade), textAlign: "right", flexShrink: 0 }}>{grade}</div>
-                <div style={{ flex: 1, height: 16, background: W.surface2, borderRadius: 8, overflow: "hidden", position: "relative" }}>
-                  <div style={{ position: "absolute", left: 0, top: 0, height: "100%", width: `${Math.round((data.attempted / maxCount) * 100)}%`, background: getGradeColor(grade) + "44", borderRadius: 8 }} />
-                  <div style={{ position: "absolute", left: 0, top: 0, height: "100%", width: `${Math.round((data.completed / maxCount) * 100)}%`, background: getGradeColor(grade), borderRadius: 8 }} />
-                </div>
-                <div style={{ fontSize: 11, color: W.textMuted, flexShrink: 0, minWidth: 36 }}>{data.completed}/{data.attempted}</div>
-              </div>
-            ))}
-          </div>
-        )}
+        {/* Hardest row */}
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr" }}>
+          {[{ icon: "🔺", label: "Hardest Tried", value: stats.hardestAttempted }, { icon: "✅", label: "Hardest Sent", value: stats.hardestSent }].map((s, i) => (
+            <div key={s.label} style={{ padding: "10px 8px", textAlign: "center", borderRight: i === 0 ? `1px solid ${W.border}` : "none" }}>
+              <div style={{ fontSize: 15, fontWeight: 900, color: W.accent }}>{s.value}</div>
+              <div style={{ fontSize: 10, color: W.textDim, marginTop: 1 }}>{s.icon} {s.label}</div>
+            </div>
+          ))}
+        </div>
       </div>
     );
   };
@@ -764,7 +867,7 @@ export default function App() {
       <button onClick={goToSessionSetup} style={{ width: "100%", padding: "16px", background: `linear-gradient(135deg, ${W.accent}, ${W.accentDark})`, border: "none", borderRadius: 16, color: "#fff", fontSize: 16, fontWeight: 700, cursor: "pointer", marginBottom: 28, boxShadow: `0 4px 20px ${W.accentGlow}` }}>▶ Start a Session</button>
       <div style={{ fontSize: 13, fontWeight: 700, color: W.textMuted, marginBottom: 12, textTransform: "uppercase", letterSpacing: 1 }}>Previous Sessions</div>
       {sessions.length === 0 ? <div style={{ textAlign: "center", color: W.textDim, padding: "40px 0" }}>No sessions yet!</div>
-        : sessions.map(s => <SessionCard key={s.id} session={s} onClick={() => { setSelectedSession(s); setScreen("sessionDetail"); }} />)}
+        : sessions.map(s => <LogbookSessionCard key={s.id} session={s} />)}
     </div>
   );
 
@@ -777,7 +880,7 @@ export default function App() {
       </div>
       <div style={{ background: W.surface, borderRadius: 18, padding: "20px", border: `1px solid ${W.border}`, marginBottom: 24 }}>
         <Label>Gym / Location</Label>
-        <LocationDropdown value={pendingLocation} onChange={setPendingLocation} open={locationDropdownOpen} setOpen={setLocationDropdownOpen} />
+        <LocationDropdown value={pendingLocation} onChange={setPendingLocation} open={locationDropdownOpen} setOpen={setLocationDropdownOpen} knownLocations={knownLocations} onRemove={loc => setHiddenLocations(h => [...h, loc])} />
       </div>
       <button onClick={beginTimer} style={{ width: "100%", padding: "18px", background: `linear-gradient(135deg, ${W.accent}, ${W.accentDark})`, border: "none", borderRadius: 16, color: "#fff", fontSize: 17, fontWeight: 800, cursor: "pointer", boxShadow: `0 6px 24px ${W.accentGlow}`, marginBottom: 12 }}>▶ Start Climbing</button>
       <button onClick={() => setScreen("home")} style={{ width: "100%", padding: "13px", background: "transparent", border: `1px solid ${W.border}`, borderRadius: 14, color: W.textMuted, fontSize: 14, fontWeight: 600, cursor: "pointer" }}>Cancel</button>
@@ -802,9 +905,9 @@ export default function App() {
         </div>
         <Label>Gym / Location</Label>
         <div style={{ marginBottom: 18 }}>
-          <LocationDropdown value={activeSession?.location || ""} onChange={v => setActiveSession(s => ({ ...s, location: v }))} open={activeLocationDropdownOpen} setOpen={setActiveLocationDropdownOpen} />
+          <LocationDropdown value={activeSession?.location || ""} onChange={v => setActiveSession(s => ({ ...s, location: v }))} open={activeLocationDropdownOpen} setOpen={setActiveLocationDropdownOpen} knownLocations={knownLocations} onRemove={loc => setHiddenLocations(h => [...h, loc])} />
         </div>
-        {showClimbForm && <ClimbFormPanel isActiveSession onSave={saveClimbToActiveSession} onCancel={() => { setShowClimbForm(false); setPhotoPreview(null); setEditingClimbId(null); }} />}
+        {showClimbForm && ClimbFormPanel({ isActiveSession: true, onSave: saveClimbToActiveSession, onCancel: () => { setShowClimbForm(false); setPhotoPreview(null); setEditingClimbId(null); } })}
         {!showClimbForm && !showProjectPicker && attempted.length > 0 && (
           <><Label>Climbs This Session</Label>{attempted.map(c => <ActiveClimbCard key={c.id} climb={c} />)}</>
         )}
@@ -837,7 +940,27 @@ export default function App() {
           </div>
         )}
         {!showClimbForm && !showProjectPicker && (
-          <button onClick={endSession} style={{ width: "100%", padding: "14px", background: W.surface, border: `2px solid ${W.border}`, borderRadius: 14, color: W.redDark, fontWeight: 700, fontSize: 15, cursor: "pointer", marginTop: 4 }}>⏹ End Session</button>
+          <button onClick={() => setShowEndConfirm(true)} style={{ width: "100%", padding: "14px", background: W.surface, border: `2px solid ${W.border}`, borderRadius: 14, color: W.redDark, fontWeight: 700, fontSize: 15, cursor: "pointer", marginTop: 4 }}>⏹ End Session</button>
+        )}
+        {showEndConfirm && (
+          <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", zIndex: 200, display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
+            <div style={{ background: W.surface, borderRadius: 20, padding: "28px 24px", width: "100%", maxWidth: 340, boxShadow: "0 20px 60px rgba(0,0,0,0.3)" }}>
+              <div style={{ textAlign: "center", marginBottom: 20 }}>
+                <div style={{ fontSize: 20, fontWeight: 900, color: W.text, marginBottom: 12 }}>End Session?</div>
+                <div style={{ background: `linear-gradient(135deg, ${W.accent}, ${W.accentDark})`, borderRadius: 16, padding: "16px 20px", marginBottom: 12 }}>
+                  <div style={{ color: "rgba(255,255,255,0.75)", fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: 1, marginBottom: 4 }}>Time on Wall</div>
+                  <div style={{ color: "#fff", fontSize: 42, fontWeight: 900, letterSpacing: 3, lineHeight: 1 }}>{formatDuration(sessionTimer)}</div>
+                </div>
+                <div style={{ fontSize: 13, color: W.textMuted }}>
+                  {activeSession?.climbs?.filter(c => c.completed).length || 0} sends · {activeSession?.climbs?.length || 0} climbs logged
+                </div>
+              </div>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+                <button onClick={() => setShowEndConfirm(false)} style={{ padding: "13px", background: "transparent", border: `2px solid ${W.border}`, borderRadius: 12, color: W.textMuted, fontWeight: 700, fontSize: 14, cursor: "pointer" }}>Keep Going</button>
+                <button onClick={endSession} style={{ padding: "13px", background: `linear-gradient(135deg, ${W.redDark}, #b91c1c)`, border: "none", borderRadius: 12, color: "#fff", fontWeight: 800, fontSize: 14, cursor: "pointer" }}>End It</button>
+              </div>
+            </div>
+          </div>
         )}
       </div>
     );
@@ -855,7 +978,7 @@ export default function App() {
         <div style={{ background: W.surface2, borderRadius: 16, padding: "16px", marginBottom: 16, border: `1px solid ${W.border}` }}>
           {editingLocation ? (
             <div>
-              <LocationDropdown value={locationVal} onChange={setLocationVal} open={locDropOpen} setOpen={setLocDropOpen} />
+              <LocationDropdown value={locationVal} onChange={setLocationVal} open={locDropOpen} setOpen={setLocDropOpen} knownLocations={knownLocations} onRemove={loc => setHiddenLocations(h => [...h, loc])} />
               <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
                 <button onClick={() => setEditingLocation(false)} style={{ flex: 1, padding: "8px", background: "transparent", border: `1px solid ${W.border}`, borderRadius: 8, color: W.textMuted, cursor: "pointer" }}>Cancel</button>
                 <button onClick={saveLocation} style={{ flex: 1, padding: "8px", background: W.accent, border: "none", borderRadius: 8, color: "#fff", fontWeight: 700, cursor: "pointer" }}>Save</button>
@@ -917,9 +1040,7 @@ export default function App() {
     const availableGrades = statsScaleFilter !== "All Scales" ? ["All", ...GRADES[statsScaleFilter]] : ["All"];
     const logbookGrades   = logbookScale !== "All Scales" ? ["All", ...GRADES[logbookScale]] : ["All"];
     const hasClimbFilters   = logbookFilter !== "all" || logbookScale !== "All Scales" || logbookGrade !== "All" || logbookSort !== "date";
-    const hasSessionFilters = logbookGymFilter !== "All Gyms";
-    const [showAccountPanel, setShowAccountPanel] = useState(false);
-    const [confirmLogout, setConfirmLogout] = useState(false);
+    const hasSessionFilters = logbookGymFilter !== "All Gyms" || sessionSort !== "date";
 
     return (
       <div style={{ padding: "24px 20px" }}>
@@ -941,6 +1062,14 @@ export default function App() {
                 <div style={{ fontSize: 12, color: W.textMuted }}>@{currentUser?.username}</div>
               </div>
               <div style={{ background: W.green, borderRadius: 8, padding: "3px 10px", fontSize: 11, fontWeight: 700, color: W.greenDark }}>● Signed In</div>
+            </div>
+            <div style={{ marginBottom: 14 }}>
+              <div style={{ fontSize: 11, fontWeight: 700, color: W.textMuted, textTransform: "uppercase", letterSpacing: 1.2, marginBottom: 8 }}>Preferred Grading System</div>
+              <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                {Object.keys(GRADES).map(s => (
+                  <button key={s} onClick={() => setPreferredScale(s)} style={{ padding: "6px 12px", borderRadius: 16, border: "2px solid", borderColor: preferredScale === s ? W.accent : W.border, background: preferredScale === s ? W.accent + "22" : W.surface2, color: preferredScale === s ? W.accent : W.textDim, cursor: "pointer", fontSize: 12, fontWeight: preferredScale === s ? 700 : 500 }}>{s}</button>
+                ))}
+              </div>
             </div>
             {saveStatus && (
               <div style={{ background: saveStatus === "saved" ? W.green : saveStatus === "error" ? W.red : W.yellow, borderRadius: 10, padding: "8px 12px", marginBottom: 12, fontSize: 12, fontWeight: 700, color: saveStatus === "saved" ? W.greenDark : saveStatus === "error" ? W.redDark : W.yellowDark }}>
@@ -965,11 +1094,81 @@ export default function App() {
           ))}
         </div>
 
-        {profileTab === "stats" && (
+        {profileTab === "stats" && (() => {
+          // ── time frame buckets for charts ──────────────────────
+          const tfLabels = { "2w": "Past 2 Weeks", "1m": "Past Month", "6m": "Past 6 Months", "1y": "Past Year", "all": "All Time" };
+          const tfSessions = getTimeframeSessions();
+          const chartBuckets = (() => {
+            const now = new Date();
+            if (statsTimeFrame === "2w") {
+              return Array.from({ length: 14 }, (_, i) => {
+                const d = new Date(now); d.setDate(d.getDate() - 13 + i);
+                const key = d.toISOString().slice(0, 10);
+                const ss = tfSessions.filter(s => s.date.slice(0, 10) === key);
+                return { label: ["Su","Mo","Tu","We","Th","Fr","Sa"][d.getDay()], sends: ss.flatMap(s => s.climbs).filter(c => c.completed).length, attempts: ss.flatMap(s => s.climbs).reduce((t,c)=>t+c.tries,0), time: ss.reduce((t,s)=>t+(s.duration||0),0) };
+              });
+            }
+            if (statsTimeFrame === "1m") {
+              return Array.from({ length: 5 }, (_, i) => {
+                const ws = new Date(now); ws.setDate(ws.getDate() - (4-i)*7); ws.setHours(0,0,0,0);
+                const we = new Date(ws); we.setDate(ws.getDate() + 6); we.setHours(23,59,59,999);
+                const ss = tfSessions.filter(s => { const d = new Date(s.date); return d >= ws && d <= we; });
+                return { label: `W${i+1}`, sends: ss.flatMap(s => s.climbs).filter(c => c.completed).length, attempts: ss.flatMap(s => s.climbs).reduce((t,c)=>t+c.tries,0), time: ss.reduce((t,s)=>t+(s.duration||0),0) };
+              });
+            }
+            const months = statsTimeFrame === "6m" ? 6 : 12;
+            return Array.from({ length: months }, (_, i) => {
+              const d = new Date(now.getFullYear(), now.getMonth() - (months-1) + i, 1);
+              const ss = (statsTimeFrame === "all" ? sessions : tfSessions).filter(s => { const sd = new Date(s.date); return sd.getFullYear() === d.getFullYear() && sd.getMonth() === d.getMonth(); });
+              return { label: d.toLocaleDateString("en-US", { month: "short" }), sends: ss.flatMap(s => s.climbs).filter(c => c.completed).length, attempts: ss.flatMap(s => s.climbs).reduce((t,c)=>t+c.tries,0), time: ss.reduce((t,s)=>t+(s.duration||0),0) };
+            });
+          })();
+          const chartConfigs = {
+            time:     { key: "time",     color: W.purpleDark, xform: v => Math.round(v / 60), unit: "min",  label: "Time on Wall" },
+            sends:    { key: "sends",    color: W.greenDark,  xform: v => v,                   unit: "",     label: "Sends" },
+            attempts: { key: "attempts", color: W.accent,     xform: v => v,                   unit: "",     label: "Attempts" },
+          };
+          const { key: cKey, color: cColor, xform: cXform, unit: cUnit } = chartConfigs[statsChart];
+          const cVals = chartBuckets.map(b => cXform(b[cKey]));
+          const cMax  = Math.max(...cVals, 1);
+          return (
           <div>
+            {/* Activity chart — top */}
+            <div style={{ background: W.surface, borderRadius: 16, padding: "16px", border: `1px solid ${W.border}`, marginBottom: 16 }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+                <div style={{ fontSize: 12, fontWeight: 700, color: W.textMuted, textTransform: "uppercase", letterSpacing: 1 }}>Activity</div>
+                <select value={statsChart} onChange={e => setStatsChart(e.target.value)} style={{ background: W.surface2, border: `1px solid ${W.border}`, borderRadius: 8, padding: "5px 10px", color: W.text, fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}>
+                  <option value="time">Time on Wall</option>
+                  <option value="sends">Sends</option>
+                  <option value="attempts">Attempts</option>
+                </select>
+              </div>
+              <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 6 }}>
+                <span style={{ fontSize: 11, color: W.textDim }}>total: {cVals.reduce((a,b)=>a+b,0)}{cUnit ? ` ${cUnit}` : ""}</span>
+              </div>
+              <div style={{ display: "flex", alignItems: "flex-end", gap: 2, height: 64 }}>
+                {cVals.map((v, i) => (
+                  <div key={i} style={{ flex: 1, height: "100%", display: "flex", alignItems: "flex-end" }}>
+                    <div style={{ width: "100%", borderRadius: "3px 3px 0 0", background: v > 0 ? cColor : W.border, height: `${Math.max(Math.round((v / cMax) * 100), v > 0 ? 4 : 1)}%`, opacity: v > 0 ? 1 : 0.3 }} />
+                  </div>
+                ))}
+              </div>
+              <div style={{ display: "flex", gap: 2, marginTop: 3, marginBottom: 12 }}>
+                {chartBuckets.map((b, i) => (
+                  <div key={i} style={{ flex: 1, textAlign: "center", fontSize: 7, color: W.textDim, overflow: "hidden" }}>{b.label}</div>
+                ))}
+              </div>
+              {/* Time frame pills inside chart card */}
+              <div style={{ display: "flex", gap: 4, overflowX: "auto", paddingBottom: 1 }}>
+                {[["2w","2W"],["1m","1M"],["6m","6M"],["1y","1Y"],["all","All"]].map(([id, lbl]) => (
+                  <button key={id} onClick={() => setStatsTimeFrame(id)} style={{ flexShrink: 0, padding: "4px 10px", borderRadius: 14, border: "2px solid", borderColor: statsTimeFrame === id ? W.accent : W.border, background: statsTimeFrame === id ? `linear-gradient(135deg, ${W.accent}, ${W.accentDark})` : W.surface, color: statsTimeFrame === id ? "#fff" : W.textDim, cursor: "pointer", fontSize: 10, fontWeight: 700 }}>{lbl}</button>
+                ))}
+              </div>
+            </div>
+
             <div style={{ marginBottom: 16 }}>
               <button onClick={() => setAnalyzeOpen(o => !o)} style={{ width: "100%", padding: "13px 16px", background: W.surface2, border: `1px solid ${W.border}`, borderRadius: analyzeOpen ? "14px 14px 0 0" : "14px", cursor: "pointer", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                <div style={{ display: "flex", alignItems: "center", gap: 10 }}><span>🔍</span><span style={{ fontWeight: 700, color: W.text, fontSize: 14 }}>Analyze By</span></div>
+                <div style={{ display: "flex", alignItems: "center", gap: 10 }}><span>🔍</span><span style={{ fontWeight: 700, color: W.text, fontSize: 14 }}>Filter by Scale / Grade</span></div>
                 <span style={{ color: W.textMuted, fontSize: 18 }}>⌄</span>
               </button>
               {analyzeOpen && (
@@ -986,7 +1185,16 @@ export default function App() {
               )}
             </div>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 16 }}>
-              {[{ icon: "🏆", label: "Best Grade", value: stats.bestGrade, sub: "V-Scale overall", bg: W.goldLight, tc: W.yellowDark }, { icon: "⚡", label: "Flash Rate", value: `${stats.flashRate}%`, sub: `${stats.flashes.length} flashes`, bg: W.yellow, tc: W.yellowDark }, { icon: "🔁", label: "Avg Tries", value: stats.avgTries, sub: "per climb", bg: W.green, tc: W.greenDark }, { icon: "🧗", label: "Total Sends", value: stats.completed.length, sub: "completed", bg: W.surface2, tc: W.accent }, { icon: "📅", label: "Sessions", value: sessions.length, sub: "total", bg: W.purple, tc: W.purpleDark }, { icon: "🎯", label: "Projects", value: activeProjects.length, sub: "active", bg: W.pink, tc: W.pinkDark }].map(s => (
+              {[
+                { icon: "🏆", label: "Best Grade", value: stats.bestGrade, sub: `${preferredScale} · ${tfLabels[statsTimeFrame]}`, bg: W.goldLight, tc: W.yellowDark },
+                { icon: "⏱", label: "Time Climbed", value: formatTotalTime(stats.totalTimeClimbed), sub: tfLabels[statsTimeFrame], bg: W.purple, tc: W.purpleDark },
+                { icon: "⚡", label: "Flash Rate", value: `${stats.flashRate}%`, sub: `${stats.flashes.length} flashes`, bg: W.yellow, tc: W.yellowDark },
+                { icon: "🔁", label: "Avg Tries", value: stats.avgTries, sub: "per climb", bg: W.green, tc: W.greenDark },
+                { icon: "🧗", label: "Total Sends", value: stats.completed.length, sub: "completed", bg: W.surface2, tc: W.accent },
+                { icon: "📅", label: "Sessions", value: tfSessions.length, sub: tfLabels[statsTimeFrame], bg: W.surface2, tc: W.accentDark },
+                { icon: "🎯", label: "Projects", value: activeProjects.length, sub: "active", bg: W.pink, tc: W.pinkDark },
+                { icon: "📈", label: "Best Day", value: stats.mostInDay, sub: "climbs in one day", bg: W.surface2, tc: W.accentDark },
+              ].map(s => (
                 <div key={s.label} style={{ background: s.bg, borderRadius: 14, padding: "14px", border: `1px solid ${W.border}` }}>
                   <div style={{ fontSize: 20, marginBottom: 4 }}>{s.icon}</div>
                   <div style={{ fontSize: 20, fontWeight: 800, color: s.tc }}>{s.value}</div>
@@ -1003,7 +1211,8 @@ export default function App() {
               </div>
             )}
           </div>
-        )}
+          );
+        })()}
 
         {profileTab === "logbook" && (
           <div>
@@ -1022,8 +1231,22 @@ export default function App() {
                   {logbookView === "sessions" && (
                     <>
                       <Label>Gym</Label>
-                      <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                      <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 12 }}>
                         {allGyms.map(g => <button key={g} onClick={() => setLogbookGymFilter(g)} style={{ padding: "6px 12px", borderRadius: 16, border: "2px solid", borderColor: logbookGymFilter === g ? W.accent : W.border, background: logbookGymFilter === g ? W.accent + "22" : W.surface, color: logbookGymFilter === g ? W.accent : W.textDim, cursor: "pointer", fontSize: 12, fontWeight: 600 }}>📍 {g}</button>)}
+                      </div>
+                      <Label>Sort By</Label>
+                      <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                        <button onClick={() => setSessionSort("date")} style={{ padding: "6px 12px", borderRadius: 16, border: "2px solid", borderColor: sessionSort === "date" ? W.accent : W.border, background: sessionSort === "date" ? W.accent + "22" : W.surface, color: sessionSort === "date" ? W.accent : W.textDim, cursor: "pointer", fontSize: 12, fontWeight: 600 }}>📅 Date</button>
+                        {[["climbs", "🧗 Climbs"], ["attempts", "🔁 Attempts"], ["flashes", "⚡ Flashes"]].map(([cat, label]) => {
+                          const isDesc = sessionSort === `${cat}-desc`;
+                          const isAsc  = sessionSort === `${cat}-asc`;
+                          const active = isDesc || isAsc;
+                          return (
+                            <button key={cat} onClick={() => setSessionSort(isDesc ? `${cat}-asc` : `${cat}-desc`)} style={{ padding: "6px 12px", borderRadius: 16, border: "2px solid", borderColor: active ? W.accent : W.border, background: active ? W.accent + "22" : W.surface, color: active ? W.accent : W.textDim, cursor: "pointer", fontSize: 12, fontWeight: 600 }}>
+                              {label}{active ? (isDesc ? " ↓" : " ↑") : ""}
+                            </button>
+                          );
+                        })}
                       </div>
                     </>
                   )}
@@ -1191,6 +1414,94 @@ export default function App() {
     );
   };
 
+  const SessionSummaryScreen = ({ session }) => {
+    const stats = getSessionStats(session);
+    const gradeEntries = Object.entries(stats.gradeBreakdown).sort((a, b) => getGradeIndex(b[0], b[1].scale || "V-Scale") - getGradeIndex(a[0], a[1].scale || "V-Scale"));
+    let pieAngle = -Math.PI / 2;
+    const pieTotal = gradeEntries.reduce((s, [, v]) => s + v.tries, 0);
+    const pieSlices = gradeEntries.map(([grade, data]) => {
+      const angle = (data.tries / pieTotal) * 2 * Math.PI;
+      const end = pieAngle + angle;
+      const r = 42, ir = 22, cx = 50, cy = 50;
+      const x1 = cx + r * Math.cos(pieAngle), y1 = cy + r * Math.sin(pieAngle);
+      const x2 = cx + r * Math.cos(end), y2 = cy + r * Math.sin(end);
+      const ix1 = cx + ir * Math.cos(pieAngle), iy1 = cy + ir * Math.sin(pieAngle);
+      const ix2 = cx + ir * Math.cos(end), iy2 = cy + ir * Math.sin(end);
+      const large = angle > Math.PI ? 1 : 0;
+      const path = `M ${ix1.toFixed(2)} ${iy1.toFixed(2)} L ${x1.toFixed(2)} ${y1.toFixed(2)} A ${r} ${r} 0 ${large} 1 ${x2.toFixed(2)} ${y2.toFixed(2)} L ${ix2.toFixed(2)} ${iy2.toFixed(2)} A ${ir} ${ir} 0 ${large} 0 ${ix1.toFixed(2)} ${iy1.toFixed(2)} Z`;
+      pieAngle = end;
+      return { grade, path, color: getGradeColor(grade), data };
+    });
+    return (
+      <div style={{ padding: "28px 20px" }}>
+        <div style={{ textAlign: "center", marginBottom: 24 }}>
+          <div style={{ fontSize: 52, marginBottom: 8 }}>🎉</div>
+          <div style={{ fontSize: 24, fontWeight: 900, color: W.text, marginBottom: 4 }}>Session Complete!</div>
+          <div style={{ fontSize: 13, color: W.textMuted }}>📍 {session.location} · {formatDate(session.date)}</div>
+        </div>
+        <div style={{ background: `linear-gradient(135deg, ${W.accent}, ${W.accentDark})`, borderRadius: 18, padding: "18px", marginBottom: 20, textAlign: "center", boxShadow: `0 4px 20px ${W.accentGlow}` }}>
+          <div style={{ color: "rgba(255,255,255,0.75)", fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: 1.5, marginBottom: 6 }}>Time on Wall</div>
+          <div style={{ color: "#fff", fontSize: 48, fontWeight: 900, letterSpacing: 3, lineHeight: 1 }}>{formatDuration(session.duration)}</div>
+          <div style={{ color: "rgba(255,255,255,0.7)", fontSize: 12, marginTop: 8 }}>{formatTotalTime(session.duration)} total</div>
+        </div>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 16 }}>
+          {[
+            { icon: "🧗", label: "Climbs Sent", value: `${stats.sends}/${stats.total}`, bg: W.green, tc: W.greenDark },
+            { icon: "⚡", label: "Flashes", value: stats.flashes, bg: W.yellow, tc: W.yellowDark },
+            { icon: "🔁", label: "Total Tries", value: stats.totalTries, bg: W.surface2, tc: W.accent },
+            { icon: "📊", label: "Avg Tries", value: stats.avgTries, bg: W.surface2, tc: W.accentDark },
+            { icon: "🔺", label: "Hardest Tried", value: stats.hardestAttempted, bg: W.purple, tc: W.purpleDark },
+            { icon: "✅", label: "Hardest Sent", value: stats.hardestSent, bg: W.green, tc: W.greenDark },
+          ].map(s => (
+            <div key={s.label} style={{ background: s.bg, borderRadius: 14, padding: "14px", border: `1px solid ${W.border}` }}>
+              <div style={{ fontSize: 20, marginBottom: 4 }}>{s.icon}</div>
+              <div style={{ fontSize: 20, fontWeight: 800, color: s.tc }}>{s.value}</div>
+              <div style={{ fontSize: 11, color: W.textMuted, marginTop: 2 }}>{s.label}</div>
+            </div>
+          ))}
+        </div>
+        {gradeEntries.length > 0 && (
+          <div style={{ background: W.surface, borderRadius: 16, padding: "16px", border: `1px solid ${W.border}`, marginBottom: 20 }}>
+            <div style={{ fontSize: 11, fontWeight: 700, color: W.textMuted, textTransform: "uppercase", letterSpacing: 1, marginBottom: 12 }}>Grade Distribution</div>
+            <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
+              <svg width={90} height={90} viewBox="0 0 100 100" style={{ flexShrink: 0 }}>
+                {pieSlices.map((s, i) => <path key={i} d={s.path} fill={s.color} />)}
+              </svg>
+              <div style={{ flex: 1 }}>
+                {pieSlices.map(s => (
+                  <div key={s.grade} style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 4 }}>
+                    <div style={{ width: 9, height: 9, borderRadius: 2, background: s.color, flexShrink: 0 }} />
+                    <span style={{ fontSize: 11, fontWeight: 700, color: s.color }}>{s.grade}</span>
+                    <span style={{ fontSize: 11, color: W.textDim, marginLeft: "auto" }}>{s.data.tries} tries</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
+        {session.climbs.length > 0 && (
+          <div style={{ background: W.surface, borderRadius: 16, padding: "16px", border: `1px solid ${W.border}`, marginBottom: 20 }}>
+            <div style={{ fontSize: 11, fontWeight: 700, color: W.textMuted, textTransform: "uppercase", letterSpacing: 1, marginBottom: 10 }}>Climbs This Session</div>
+            {session.climbs.map(c => (
+              <div key={c.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 0", borderBottom: `1px solid ${W.border}` }}>
+                <div style={{ width: 36, height: 36, borderRadius: 8, display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 900, fontSize: 11, flexShrink: 0, background: getGradeColor(c.grade) + "30", color: getGradeColor(c.grade), border: `1.5px solid ${getGradeColor(c.grade)}60` }}>{c.grade}</div>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
+                    {c.color && <ColorDot colorId={c.color} size={10} />}
+                    <span style={{ fontWeight: 700, color: W.text, fontSize: 13 }}>{c.name || c.grade}</span>
+                    {c.completed && c.tries === 1 && <span style={{ background: W.yellow, color: W.yellowDark, borderRadius: 5, padding: "1px 5px", fontSize: 9, fontWeight: 700 }}>FLASH</span>}
+                  </div>
+                  <div style={{ fontSize: 11, color: W.textMuted, marginTop: 1 }}>{c.tries} {c.tries === 1 ? "try" : "tries"} · {c.completed ? "✓ Sent" : "✗ Not sent"}</div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+        <button onClick={() => { setSessionSummary(null); setScreen("home"); }} style={{ width: "100%", padding: "16px", background: `linear-gradient(135deg, ${W.accent}, ${W.accentDark})`, border: "none", borderRadius: 16, color: "#fff", fontSize: 16, fontWeight: 800, cursor: "pointer", boxShadow: `0 4px 20px ${W.accentGlow}` }}>Done</button>
+      </div>
+    );
+  };
+
   const backMap  = { sessionDetail: "home", calendar: "profile", projectDetail: "profile" };
   const navItems = [
     { id: "home",    label: "🏠", text: "Home" },
@@ -1199,8 +1510,9 @@ export default function App() {
   ];
 
   return (
-    <div style={{ maxWidth: 420, margin: "0 auto", minHeight: "100vh", background: W.bg, fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif", display: "flex", flexDirection: "column" }}>
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "14px 20px", borderBottom: `1px solid ${W.border}`, background: W.surface }}>
+    <div style={{ width: "100%", minHeight: "100vh", background: W.bg, fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif", display: "flex", justifyContent: "center" }}>
+    <div style={{ width: "100%", maxWidth: 420, display: "flex", flexDirection: "column" }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "14px 20px", borderBottom: `1px solid ${W.border}`, background: W.navBg }}>
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
           {(backMap[screen] || screen === "session") && (
             <button onClick={() => { if (screen === "session" && !sessionStarted) setScreen("home"); else if (backMap[screen]) { setScreen(backMap[screen]); setShowClimbForm(false); if (screen === "calendar" || screen === "projectDetail") setProfileTab("stats"); } }} style={{ background: "none", border: "none", color: W.accent, fontSize: 16, cursor: "pointer", padding: 0, marginRight: 4 }}>←</button>
@@ -1217,14 +1529,15 @@ export default function App() {
 
       <div style={{ flex: 1, overflowY: "auto", paddingBottom: 80 }} onClick={() => { setLocationDropdownOpen(false); setActiveLocationDropdownOpen(false); }}>
         {screen === "home"          && <HomeScreen />}
-        {screen === "session"       && (sessionStarted ? <SessionActiveScreen /> : <SessionSetupScreen />)}
-        {screen === "profile"       && <ProfileScreen />}
+        {screen === "session"       && (sessionStarted ? SessionActiveScreen() : SessionSetupScreen())}
+        {screen === "profile"       && ProfileScreen()}
         {screen === "sessionDetail" && selectedSession && <SessionDetailScreen session={selectedSession} />}
         {screen === "calendar"      && <CalendarScreen />}
         {screen === "projectDetail" && selectedProject && <ProjectDetailScreen project={projects.find(p => p.id === selectedProject.id) || selectedProject} />}
+        {screen === "sessionSummary" && sessionSummary && <SessionSummaryScreen session={sessionSummary} />}
       </div>
 
-      <div style={{ position: "fixed", bottom: 0, left: "50%", transform: "translateX(-50%)", width: "100%", maxWidth: 420, background: W.surface, borderTop: `1px solid ${W.border}`, display: "flex", justifyContent: "space-around", padding: "10px 0 18px", zIndex: 10 }}>
+      <div style={{ position: "fixed", bottom: 0, left: "50%", transform: "translateX(-50%)", width: "100%", maxWidth: 420, background: W.navBg, borderTop: `1px solid ${W.border}`, display: "flex", justifyContent: "space-around", padding: "10px 0 18px", zIndex: 10 }}>
         {navItems.map(item => (
           <button key={item.id} onClick={item.action || (() => setScreen(item.id))} style={{ background: "none", border: "none", display: "flex", flexDirection: "column", alignItems: "center", gap: 3, cursor: "pointer", color: (screen === item.id || (item.id === "session" && screen === "session")) ? W.accent : W.textDim }}>
             <span style={{ fontSize: 22 }}>{item.label}</span>
@@ -1233,6 +1546,7 @@ export default function App() {
           </button>
         ))}
       </div>
+    </div>
     </div>
   );
 }
