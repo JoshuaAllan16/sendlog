@@ -330,6 +330,11 @@ export default function App() {
   const [confirmUnfollowUser, setConfirmUnfollowUser] = useState(null); // username pending unfollow confirm
   const [notifications, setNotifications]         = useState([]);
   const [notifCount, setNotifCount]               = useState(0);
+  const [showNotifPanel, setShowNotifPanel]       = useState(false);
+  const [mutedUsers, setMutedUsers]               = useState([]);
+  const [myReactions, setMyReactions]             = useState({}); // { sessionId: emoji }
+  const [notifPrefs, setNotifPrefs]               = useState({ follows: true, sessions: true });
+  const [isPrivate, setIsPrivate]                 = useState(false);
 
   // ── INIT: check for existing session ──────────────────────
   useEffect(() => {
@@ -348,8 +353,12 @@ export default function App() {
           setHiddenLocations(userData.profile?.hiddenLocations || []);
           setSocialFollowing(userData.profile?.following || []);
           setColorTheme(userData.profile?.colorTheme || "espresso");
+          setMutedUsers(userData.profile?.mutedUsers || []);
+          setNotifPrefs(userData.profile?.notifPrefs || { follows: true, sessions: true });
+          setIsPrivate(userData.profile?.isPrivate || false);
           storage.get(`followers:${username}`).then(r => setSocialFollowers(r ? JSON.parse(r.value) : [])).catch(() => {});
           loadNotifications(username).then(n => { setNotifications(n); setNotifCount(n.filter(x => !x.read).length); }).catch(() => {});
+          loadMyReactions(username).then(setMyReactions).catch(() => {});
           setAuthScreen("app");
         } else {
           setAuthScreen("login");
@@ -369,7 +378,7 @@ export default function App() {
     setSaveStatus("saving");
     saveTimeoutRef.current = setTimeout(async () => {
       const userData = {
-        profile: { displayName: currentUser.displayName, preferredScale, hiddenLocations, following: socialFollowing, colorTheme },
+        profile: { displayName: currentUser.displayName, preferredScale, hiddenLocations, following: socialFollowing, colorTheme, mutedUsers, notifPrefs, isPrivate },
         sessions,
         projects,
       };
@@ -378,7 +387,7 @@ export default function App() {
       setTimeout(() => setSaveStatus(""), 2000);
     }, 1000);
     return () => clearTimeout(saveTimeoutRef.current);
-  }, [sessions, projects, preferredScale, hiddenLocations, socialFollowing, colorTheme]);
+  }, [sessions, projects, preferredScale, hiddenLocations, socialFollowing, colorTheme, mutedUsers, notifPrefs, isPrivate]);
 
   useEffect(() => {
     if (timerRunning) { timerRef.current = setInterval(() => setSessionTimer(t => t + 1), 1000); }
@@ -456,8 +465,12 @@ export default function App() {
       setHiddenLocations(safeData.profile?.hiddenLocations || []);
       setSocialFollowing(safeData.profile?.following || []);
       setColorTheme(safeData.profile?.colorTheme || "espresso");
+      setMutedUsers(safeData.profile?.mutedUsers || []);
+      setNotifPrefs(safeData.profile?.notifPrefs || { follows: true, sessions: true });
+      setIsPrivate(safeData.profile?.isPrivate || false);
       storage.get(`followers:${username.toLowerCase()}`).then(r => setSocialFollowers(r ? JSON.parse(r.value) : [])).catch(() => {});
       loadNotifications(username.toLowerCase()).then(n => { setNotifications(n); setNotifCount(n.filter(x => !x.read).length); }).catch(() => {});
+      loadMyReactions(username.toLowerCase()).then(setMyReactions).catch(() => {});
       setAuthScreen("app");
     } catch (e) {
       setAuthError("Something went wrong. Please try again.");
@@ -478,7 +491,12 @@ export default function App() {
     setColorTheme("espresso");
     setNotifications([]);
     setNotifCount(0);
+    setShowNotifPanel(false);
     setConfirmUnfollowUser(null);
+    setMutedUsers([]);
+    setMyReactions({});
+    setNotifPrefs({ follows: true, sessions: true });
+    setIsPrivate(false);
     setSocialFollowing([]);
     setSocialFollowers([]);
     setSocialResults(null);
@@ -673,7 +691,8 @@ export default function App() {
     setSocialFeedLoading(true);
     try {
       const feedItems = [];
-      for (const username of socialFollowing) {
+      const activeFeed = socialFollowing.filter(u => !mutedUsers.includes(u));
+      for (const username of activeFeed) {
         const data = await loadUserData(username);
         if (data?.sessions) {
           data.sessions.slice(0, 20).forEach(s =>
@@ -683,6 +702,21 @@ export default function App() {
       }
       feedItems.sort((a, b) => new Date(b.date) - new Date(a.date));
       setSocialFeed(feedItems);
+      // Session activity notifications (last 24h, no duplicates)
+      if (notifPrefs.sessions) {
+        const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
+        setNotifications(prev => {
+          const newNotifs = feedItems
+            .filter(s => new Date(s.date) > oneDayAgo && !prev.some(n => n.type === "session" && n.sessionId === s.id))
+            .slice(0, 5)
+            .map(s => ({ type: "session", from: s.feedUsername, fromDisplay: s.feedDisplayName, sessionId: s.id, location: s.location, at: s.date, read: false }));
+          if (!newNotifs.length) return prev;
+          setNotifCount(c => c + newNotifs.length);
+          const updated = [...newNotifs, ...prev].slice(0, 50);
+          storage.set(`notifications:${currentUser.username}`, JSON.stringify(updated)).catch(() => {});
+          return updated;
+        });
+      }
     } catch (e) { console.error(e); }
     setSocialFeedLoading(false);
   };
@@ -739,6 +773,26 @@ export default function App() {
     } catch {}
   };
 
+  const loadMyReactions = async (username) => {
+    try {
+      const r = await storage.get(`myReactions:${username}`);
+      return r ? JSON.parse(r.value) : {};
+    } catch { return {}; }
+  };
+
+  const toggleReaction = async (sessionId, emoji) => {
+    const current = myReactions[sessionId];
+    const updated = current === emoji
+      ? Object.fromEntries(Object.entries(myReactions).filter(([k]) => k !== sessionId))
+      : { ...myReactions, [sessionId]: emoji };
+    setMyReactions(updated);
+    try { await storage.set(`myReactions:${currentUser.username}`, JSON.stringify(updated)); } catch {}
+  };
+
+  const toggleMute = (username) => {
+    setMutedUsers(prev => prev.includes(username) ? prev.filter(u => u !== username) : [...prev, username]);
+  };
+
   const removeFollower = async (followerUsername) => {
     const fresh = await loadFollowersStore(currentUser.username);
     const updated = fresh.filter(u => u !== followerUsername);
@@ -763,7 +817,7 @@ export default function App() {
       ? [...new Set([...theirFollowers, currentUser.username])]
       : theirFollowers.filter(u => u !== currentUser.username);
     await updateFollowersStore(username, updated);
-    if (isNowFollowing) {
+    if (isNowFollowing && notifPrefs.follows) {
       await addNotification(username, { type: "follow", from: currentUser.username, fromDisplay: currentUser.displayName || currentUser.username, at: new Date().toISOString(), read: false });
     }
   };
@@ -802,9 +856,10 @@ export default function App() {
         followersList: followers,
         followersCount: followers.length,
         followingCount: theirFollowing.length,
+        isPrivate: data?.profile?.isPrivate || false,
       });
     } catch {
-      setViewedUser({ username, displayName, sessions: [], projects: [], following: [], followersList: [], followersCount: 0, followingCount: 0 });
+      setViewedUser({ username, displayName, sessions: [], projects: [], following: [], followersList: [], followersCount: 0, followingCount: 0, isPrivate: false });
     }
     setViewedUserLoading(false);
   };
@@ -1156,6 +1211,19 @@ export default function App() {
             </div>
           ))}
         </div>
+        {/* Reactions — only on social feed cards */}
+        {poster && (
+          <div style={{ display: "flex", gap: 8, padding: "10px 16px", borderTop: `1px solid ${W.border}` }}>
+            {["🔥", "💪", "✨"].map(emoji => {
+              const active = myReactions[session.id] === emoji;
+              return (
+                <button key={emoji} onClick={e => { e.stopPropagation(); toggleReaction(session.id, emoji); }} style={{ padding: "5px 14px", borderRadius: 20, border: `1.5px solid ${active ? W.accent : W.border}`, background: active ? W.accent + "22" : "transparent", fontSize: 15, cursor: "pointer", fontWeight: active ? 700 : 400, color: active ? W.accent : W.textMuted }}>
+                  {emoji}
+                </button>
+              );
+            })}
+          </div>
+        )}
       </div>
     );
   };
@@ -1356,6 +1424,24 @@ export default function App() {
             />
           ))
         )}
+        {(() => {
+          const climbsWithPhotos = session.climbs.filter(c => c.photo);
+          if (!climbsWithPhotos.length) return null;
+          return (
+            <div style={{ marginTop: 24 }}>
+              <div style={{ fontSize: 13, fontWeight: 700, color: W.textMuted, textTransform: "uppercase", letterSpacing: 1, marginBottom: 12 }}>Photos</div>
+              <div style={{ display: "flex", gap: 10, overflowX: "auto", paddingBottom: 8 }}>
+                {climbsWithPhotos.map(c => (
+                  <div key={c.id} style={{ position: "relative", flexShrink: 0 }}>
+                    <img src={c.photo} alt={c.name || c.grade} style={{ width: 150, height: 150, objectFit: "cover", borderRadius: 14, display: "block" }} />
+                    <div style={{ position: "absolute", bottom: 8, left: 8, background: getGradeColor(c.grade) + "ee", borderRadius: 7, padding: "3px 9px", fontSize: 12, fontWeight: 800, color: "#fff", textShadow: "0 1px 3px rgba(0,0,0,0.4)" }}>{c.grade}</div>
+                    {c.name && <div style={{ position: "absolute", bottom: 8, right: 8, background: "rgba(0,0,0,0.55)", borderRadius: 7, padding: "3px 8px", fontSize: 10, color: "#fff", maxWidth: 80, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{c.name}</div>}
+                  </div>
+                ))}
+              </div>
+            </div>
+          );
+        })()}
         {!readOnly && !showClimbForm && (
           <div style={{ marginTop: 24 }}>
             {!confirmDelete
@@ -1439,6 +1525,32 @@ export default function App() {
                     <div>{t.label}</div>
                   </button>
                 ))}
+              </div>
+            </div>
+            <div style={{ marginBottom: 14 }}>
+              <div style={{ fontSize: 11, fontWeight: 700, color: W.textMuted, textTransform: "uppercase", letterSpacing: 1.2, marginBottom: 8 }}>Notifications</div>
+              {[
+                { key: "follows", label: "New followers" },
+                { key: "sessions", label: "New sessions from people you follow" },
+              ].map(({ key, label }) => (
+                <div key={key} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
+                  <span style={{ fontSize: 13, color: W.text }}>{label}</span>
+                  <button onClick={() => setNotifPrefs(p => ({ ...p, [key]: !p[key] }))} style={{ width: 42, height: 24, borderRadius: 12, border: "none", background: notifPrefs[key] ? W.accent : W.border, cursor: "pointer", position: "relative", transition: "background 0.2s" }}>
+                    <div style={{ position: "absolute", top: 3, left: notifPrefs[key] ? 21 : 3, width: 18, height: 18, borderRadius: "50%", background: "#fff", transition: "left 0.2s" }} />
+                  </button>
+                </div>
+              ))}
+            </div>
+            <div style={{ marginBottom: 14 }}>
+              <div style={{ fontSize: 11, fontWeight: 700, color: W.textMuted, textTransform: "uppercase", letterSpacing: 1.2, marginBottom: 8 }}>Privacy</div>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                <div>
+                  <div style={{ fontSize: 13, color: W.text, fontWeight: 600 }}>Private account</div>
+                  <div style={{ fontSize: 11, color: W.textDim, marginTop: 2 }}>Non-followers can't see your sessions or stats</div>
+                </div>
+                <button onClick={() => setIsPrivate(p => !p)} style={{ width: 42, height: 24, borderRadius: 12, border: "none", background: isPrivate ? W.accent : W.border, cursor: "pointer", position: "relative", flexShrink: 0, marginLeft: 12, transition: "background 0.2s" }}>
+                  <div style={{ position: "absolute", top: 3, left: isPrivate ? 21 : 3, width: 18, height: 18, borderRadius: "50%", background: "#fff", transition: "left 0.2s" }} />
+                </button>
               </div>
             </div>
             {saveStatus && (
@@ -2115,8 +2227,10 @@ export default function App() {
 
   const UserProfileScreen = () => {
     if (!viewedUser) return null;
-    const { username, displayName, sessions: uSessions, projects: uProjects, followersCount, followingCount } = viewedUser;
+    const { username, displayName, sessions: uSessions, projects: uProjects, followersCount, followingCount, isPrivate: profileIsPrivate } = viewedUser;
     const isFollowing = socialFollowing.includes(username);
+    const isMuted = mutedUsers.includes(username);
+    const isLockedOut = profileIsPrivate && !isFollowing && username !== currentUser.username;
 
     // Stats computed from their data
     const uClimbs    = (uSessions || []).flatMap(s => s.climbs);
@@ -2158,7 +2272,7 @@ export default function App() {
             }
           </div>
           {/* Follower / Following counts */}
-          <div style={{ display: "flex", gap: 10 }}>
+          <div style={{ display: "flex", gap: 10, marginBottom: username !== currentUser.username ? 12 : 0 }}>
             {[{ label: "Following", count: followingCount ?? "—", type: "following" }, { label: "Followers", count: followersCount ?? "—", type: "followers" }].map(item => (
               <button key={item.label} onClick={() => !viewedUserLoading && showViewedUserList(item.type)} style={{ flex: 1, background: W.surface2, borderRadius: 12, padding: "10px 8px", textAlign: "center", border: `1px solid ${W.border}`, cursor: viewedUserLoading ? "default" : "pointer" }}>
                 <div style={{ fontSize: 20, fontWeight: 900, color: W.text }}>{item.count}</div>
@@ -2166,13 +2280,26 @@ export default function App() {
               </button>
             ))}
           </div>
+          {username !== currentUser.username && (
+            <button onClick={() => toggleMute(username)} style={{ width: "100%", padding: "7px", background: isMuted ? W.yellow : "transparent", border: `1px solid ${isMuted ? W.yellowDark : W.border}`, borderRadius: 10, color: isMuted ? W.yellowDark : W.textDim, fontWeight: 700, fontSize: 12, cursor: "pointer" }}>
+              {isMuted ? "🔕 Muted — tap to unmute" : "🔕 Mute (hide from feed)"}
+            </button>
+          )}
         </div>
 
         {viewedUserLoading && (
           <div style={{ textAlign: "center", padding: "32px", color: W.textMuted }}>Loading profile…</div>
         )}
 
-        {!viewedUserLoading && uSessions !== null && (
+        {!viewedUserLoading && isLockedOut && (
+          <div style={{ textAlign: "center", padding: "40px 20px", background: W.surface, borderRadius: 18, border: `1px solid ${W.border}` }}>
+            <div style={{ fontSize: 40, marginBottom: 12 }}>🔒</div>
+            <div style={{ fontWeight: 700, color: W.text, fontSize: 16, marginBottom: 6 }}>This account is private</div>
+            <div style={{ color: W.textMuted, fontSize: 13 }}>Follow {displayName} to see their sessions and stats.</div>
+          </div>
+        )}
+
+        {!viewedUserLoading && uSessions !== null && !isLockedOut && (
           <>
             {/* Stats grid */}
             <div style={{ fontSize: 11, fontWeight: 700, color: W.textMuted, textTransform: "uppercase", letterSpacing: 1, marginBottom: 10 }}>Stats</div>
@@ -2369,6 +2496,12 @@ export default function App() {
           {timerRunning && <div style={{ background: W.accent, borderRadius: 20, padding: "4px 12px", color: "#fff", fontSize: 12, fontWeight: 700 }}>⏱ {formatDuration(sessionTimer)}</div>}
           {saveStatus === "saving" && <div style={{ fontSize: 11, color: W.textDim, fontWeight: 600 }}>💾</div>}
           {saveStatus === "saved" && <div style={{ fontSize: 11, color: W.greenDark, fontWeight: 600 }}>✓</div>}
+          {screen === "home" && (
+            <button onClick={() => setShowNotifPanel(true)} style={{ position: "relative", background: "none", border: "none", cursor: "pointer", fontSize: 20, padding: "2px 4px", color: notifCount > 0 ? W.accent : W.textDim }}>
+              🔔
+              {notifCount > 0 && <span style={{ position: "absolute", top: -2, right: -2, background: W.accent, color: "#fff", borderRadius: "50%", minWidth: 15, height: 15, fontSize: 9, fontWeight: 800, display: "flex", alignItems: "center", justifyContent: "center", padding: "0 2px" }}>{notifCount > 9 ? "9+" : notifCount}</span>}
+            </button>
+          )}
         </div>
       </div>
 
@@ -2383,6 +2516,33 @@ export default function App() {
         {screen === "projectDetail" && selectedProject && <ProjectDetailScreen project={projects.find(p => p.id === selectedProject.id) || selectedProject} />}
         {screen === "sessionSummary" && sessionSummary && <SessionSummaryScreen session={sessionSummary} />}
       </div>
+
+      {/* Notification panel */}
+      {showNotifPanel && (
+        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.55)", zIndex: 200, display: "flex", alignItems: "flex-end", justifyContent: "center" }} onClick={() => setShowNotifPanel(false)}>
+          <div style={{ width: "100%", maxWidth: 420, background: W.surface, borderRadius: "20px 20px 0 0", padding: "20px 20px 40px", maxHeight: "70vh", overflowY: "auto" }} onClick={e => e.stopPropagation()}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
+              <div style={{ fontWeight: 800, color: W.text, fontSize: 17 }}>Notifications</div>
+              <button onClick={() => setShowNotifPanel(false)} style={{ background: "none", border: "none", color: W.textMuted, fontSize: 20, cursor: "pointer", padding: 0 }}>×</button>
+            </div>
+            {notifications.length === 0
+              ? <div style={{ textAlign: "center", color: W.textMuted, padding: "32px 0", fontSize: 14 }}>No notifications yet.</div>
+              : notifications.map((n, i) => (
+                  <div key={i} style={{ display: "flex", alignItems: "flex-start", gap: 10, padding: "10px 0", borderBottom: `1px solid ${W.border}` }}>
+                    <div style={{ width: 8, height: 8, borderRadius: "50%", background: n.read ? W.border : W.accent, flexShrink: 0, marginTop: 5 }} />
+                    <div style={{ flex: 1 }}>
+                      {n.type === "follow"
+                        ? <div style={{ fontSize: 13, color: W.text }}><span style={{ fontWeight: 700 }}>{n.fromDisplay}</span> started following you</div>
+                        : <div style={{ fontSize: 13, color: W.text }}><span style={{ fontWeight: 700 }}>{n.fromDisplay}</span> logged a session{n.location ? ` at ${n.location}` : ""}</div>
+                      }
+                      <div style={{ fontSize: 11, color: W.textDim, marginTop: 2 }}>{new Date(n.at).toLocaleDateString()}</div>
+                    </div>
+                  </div>
+                ))
+            }
+          </div>
+        </div>
+      )}
 
       {/* Follower / Following list modal */}
       {socialUserList && (
