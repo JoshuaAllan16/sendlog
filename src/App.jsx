@@ -70,6 +70,55 @@ const SAMPLE_SESSIONS = [
 
 const KNOWN_GYMS = ["Boulder Barn", "The Crux Gym", "Movement", "Earth Treks"];
 
+// ── STORAGE HELPERS ────────────────────────────────────────
+const storage = window.storage;
+
+const saveUserData = async (username, data) => {
+  try {
+    await storage.set(`user:${username}`, JSON.stringify(data));
+    return true;
+  } catch (e) {
+    console.error("Save failed:", e);
+    return false;
+  }
+};
+
+const loadUserData = async (username) => {
+  try {
+    const result = await storage.get(`user:${username}`);
+    return result ? JSON.parse(result.value) : null;
+  } catch (e) {
+    return null;
+  }
+};
+
+const saveAccountIndex = async (accounts) => {
+  try {
+    await storage.set("accounts:index", JSON.stringify(accounts));
+  } catch (e) {
+    console.error("Account index save failed:", e);
+  }
+};
+
+const loadAccountIndex = async () => {
+  try {
+    const result = await storage.get("accounts:index");
+    return result ? JSON.parse(result.value) : {};
+  } catch (e) {
+    return {};
+  }
+};
+
+const hashPassword = (pw) => {
+  let hash = 0;
+  for (let i = 0; i < pw.length; i++) {
+    const char = pw.charCodeAt(i);
+    hash = ((hash << 5) - hash) + char;
+    hash = hash & hash;
+  }
+  return hash.toString(36);
+};
+
 // Small color dot shown next to climb name
 const ColorDot = ({ colorId, size = 12 }) => {
   if (!colorId) return null;
@@ -101,10 +150,19 @@ const TagChips = ({ wallTypes = [], holdTypes = [] }) => {
 };
 
 export default function App() {
+  // ── AUTH STATE ─────────────────────────────────────────────
+  const [authScreen, setAuthScreen] = useState("loading"); // loading | login | signup | app
+  const [currentUser, setCurrentUser] = useState(null);
+  const [authForm, setAuthForm] = useState({ username: "", password: "", confirmPassword: "", displayName: "" });
+  const [authError, setAuthError] = useState("");
+  const [authLoading, setAuthLoading] = useState(false);
+  const [saveStatus, setSaveStatus] = useState(""); // "", "saving", "saved", "error"
+
+  // ── APP STATE ──────────────────────────────────────────────
   const [screen, setScreen]           = useState("home");
   const [profileTab, setProfileTab]   = useState("stats");
-  const [sessions, setSessions]       = useState(SAMPLE_SESSIONS);
-  const [projects, setProjects]       = useState(SAMPLE_PROJECTS);
+  const [sessions, setSessions]       = useState([]);
+  const [projects, setProjects]       = useState([]);
   const [selectedProject, setSelectedProject] = useState(null);
   const [selectedSession, setSelectedSession] = useState(null);
 
@@ -139,12 +197,137 @@ export default function App() {
   const [statsScaleFilter, setStatsScaleFilter]     = useState("V-Scale");
   const [analyzeOpen, setAnalyzeOpen] = useState(false);
 
+  // ── INIT: check for existing session ──────────────────────
+  useEffect(() => {
+    const checkSession = async () => {
+      try {
+        const sessionResult = await storage.get("active:session");
+        if (sessionResult) {
+          const { username, userData } = JSON.parse(sessionResult.value);
+          setCurrentUser({ username, ...userData.profile });
+          setSessions(userData.sessions || []);
+          setProjects(userData.projects || []);
+          setAuthScreen("app");
+        } else {
+          setAuthScreen("login");
+        }
+      } catch (e) {
+        setAuthScreen("login");
+      }
+    };
+    checkSession();
+  }, []);
+
+  // ── AUTO-SAVE when sessions/projects change ────────────────
+  const saveTimeoutRef = useRef(null);
+  useEffect(() => {
+    if (authScreen !== "app" || !currentUser) return;
+    clearTimeout(saveTimeoutRef.current);
+    setSaveStatus("saving");
+    saveTimeoutRef.current = setTimeout(async () => {
+      const userData = {
+        profile: { displayName: currentUser.displayName },
+        sessions,
+        projects,
+      };
+      const ok = await saveUserData(currentUser.username, userData);
+      setSaveStatus(ok ? "saved" : "error");
+      setTimeout(() => setSaveStatus(""), 2000);
+    }, 1000);
+    return () => clearTimeout(saveTimeoutRef.current);
+  }, [sessions, projects]);
+
   useEffect(() => {
     if (timerRunning) { timerRef.current = setInterval(() => setSessionTimer(t => t + 1), 1000); }
     else clearInterval(timerRef.current);
     return () => clearInterval(timerRef.current);
   }, [timerRunning]);
 
+  // ── AUTH HANDLERS ──────────────────────────────────────────
+  const handleSignup = async () => {
+    setAuthError("");
+    const { username, password, confirmPassword, displayName } = authForm;
+    if (!username.trim()) return setAuthError("Username is required.");
+    if (username.length < 3) return setAuthError("Username must be at least 3 characters.");
+    if (!/^[a-zA-Z0-9_]+$/.test(username)) return setAuthError("Username can only contain letters, numbers, and underscores.");
+    if (!password) return setAuthError("Password is required.");
+    if (password.length < 6) return setAuthError("Password must be at least 6 characters.");
+    if (password !== confirmPassword) return setAuthError("Passwords do not match.");
+
+    setAuthLoading(true);
+    try {
+      const accounts = await loadAccountIndex();
+      if (accounts[username.toLowerCase()]) {
+        setAuthLoading(false);
+        return setAuthError("Username already taken. Please choose another.");
+      }
+
+      const userData = {
+        profile: { displayName: displayName.trim() || username },
+        sessions: SAMPLE_SESSIONS,
+        projects: SAMPLE_PROJECTS,
+      };
+      await saveUserData(username.toLowerCase(), userData);
+      accounts[username.toLowerCase()] = { hash: hashPassword(password), displayName: displayName.trim() || username };
+      await saveAccountIndex(accounts);
+
+      const user = { username: username.toLowerCase(), displayName: displayName.trim() || username };
+      await storage.set("active:session", JSON.stringify({ username: username.toLowerCase(), userData }));
+      setCurrentUser(user);
+      setSessions(userData.sessions);
+      setProjects(userData.projects);
+      setAuthScreen("app");
+    } catch (e) {
+      setAuthError("Something went wrong. Please try again.");
+    }
+    setAuthLoading(false);
+  };
+
+  const handleLogin = async () => {
+    setAuthError("");
+    const { username, password } = authForm;
+    if (!username.trim()) return setAuthError("Username is required.");
+    if (!password) return setAuthError("Password is required.");
+
+    setAuthLoading(true);
+    try {
+      const accounts = await loadAccountIndex();
+      const account = accounts[username.toLowerCase()];
+      if (!account) {
+        setAuthLoading(false);
+        return setAuthError("No account found with that username.");
+      }
+      if (account.hash !== hashPassword(password)) {
+        setAuthLoading(false);
+        return setAuthError("Incorrect password.");
+      }
+
+      const userData = await loadUserData(username.toLowerCase());
+      const safeData = userData || { profile: { displayName: account.displayName }, sessions: [], projects: [] };
+      await storage.set("active:session", JSON.stringify({ username: username.toLowerCase(), userData: safeData }));
+
+      setCurrentUser({ username: username.toLowerCase(), displayName: safeData.profile?.displayName || username });
+      setSessions(safeData.sessions || []);
+      setProjects(safeData.projects || []);
+      setAuthScreen("app");
+    } catch (e) {
+      setAuthError("Something went wrong. Please try again.");
+    }
+    setAuthLoading(false);
+  };
+
+  const handleLogout = async () => {
+    try { await storage.delete("active:session"); } catch (e) {}
+    setCurrentUser(null);
+    setSessions([]);
+    setProjects([]);
+    setScreen("home");
+    setAuthForm({ username: "", password: "", confirmPassword: "", displayName: "" });
+    setAuthError("");
+    setAuthScreen("login");
+  };
+
+  // ── APP LOGIC ──────────────────────────────────────────────
   const knownLocations = [...new Set([...KNOWN_GYMS, ...sessions.map(s => s.location).filter(Boolean)])];
   const allGyms = ["All Gyms", ...new Set(sessions.map(s => s.location).filter(Boolean))];
 
@@ -259,6 +442,87 @@ export default function App() {
     return { sends, total, totalTries, flashes, flashRate, avgTries, gradeBreakdown };
   };
 
+  // ── AUTH SCREENS ───────────────────────────────────────────
+  if (authScreen === "loading") {
+    return (
+      <div style={{ maxWidth: 420, margin: "0 auto", minHeight: "100vh", background: W.bg, display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" }}>
+        <div style={{ textAlign: "center" }}>
+          <div style={{ fontSize: 52, marginBottom: 16 }}>🧗</div>
+          <div style={{ fontSize: 22, fontWeight: 800, color: W.text }}>SendLog</div>
+          <div style={{ marginTop: 20, color: W.textMuted, fontSize: 14 }}>Loading…</div>
+        </div>
+      </div>
+    );
+  }
+
+  if (authScreen === "login" || authScreen === "signup") {
+    const isSignup = authScreen === "signup";
+    return (
+      <div style={{ maxWidth: 420, margin: "0 auto", minHeight: "100vh", background: W.bg, fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif", display: "flex", flexDirection: "column" }}>
+        {/* Header */}
+        <div style={{ padding: "48px 28px 24px", textAlign: "center" }}>
+          <div style={{ fontSize: 56, marginBottom: 12 }}>🧗</div>
+          <div style={{ fontSize: 28, fontWeight: 900, color: W.text, letterSpacing: -0.5 }}>SendLog</div>
+          <div style={{ fontSize: 14, color: W.textMuted, marginTop: 6 }}>Track your climbing journey</div>
+        </div>
+
+        {/* Card */}
+        <div style={{ margin: "0 20px", background: W.surface, borderRadius: 24, padding: "28px 24px", border: `1px solid ${W.border}`, boxShadow: "0 8px 32px rgba(61,32,16,0.1)" }}>
+          {/* Tab Toggle */}
+          <div style={{ display: "flex", background: W.surface2, borderRadius: 12, padding: 4, marginBottom: 24, border: `1px solid ${W.border}` }}>
+            {[["login", "Sign In"], ["signup", "Create Account"]].map(([id, label]) => (
+              <button key={id} onClick={() => { setAuthScreen(id); setAuthError(""); }} style={{ flex: 1, padding: "9px", borderRadius: 9, border: "none", background: authScreen === id ? `linear-gradient(135deg, ${W.accent}, ${W.accentDark})` : "transparent", color: authScreen === id ? "#fff" : W.textDim, fontWeight: 700, fontSize: 13, cursor: "pointer" }}>{label}</button>
+            ))}
+          </div>
+
+          {isSignup && (
+            <div style={{ marginBottom: 14 }}>
+              <div style={{ color: W.textMuted, fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: 1.2, marginBottom: 7 }}>Display Name</div>
+              <input value={authForm.displayName} onChange={e => setAuthForm(f => ({ ...f, displayName: e.target.value }))} placeholder="e.g. Alex H." style={{ width: "100%", padding: "12px 14px", background: W.surface2, border: `2px solid ${W.border}`, borderRadius: 12, color: W.text, fontSize: 14, boxSizing: "border-box", fontFamily: "inherit" }} />
+            </div>
+          )}
+
+          <div style={{ marginBottom: 14 }}>
+            <div style={{ color: W.textMuted, fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: 1.2, marginBottom: 7 }}>Username</div>
+            <input value={authForm.username} onChange={e => setAuthForm(f => ({ ...f, username: e.target.value }))} onKeyDown={e => e.key === "Enter" && (isSignup ? handleSignup() : handleLogin())} placeholder="e.g. alexclimbs" autoCapitalize="none" style={{ width: "100%", padding: "12px 14px", background: W.surface2, border: `2px solid ${W.border}`, borderRadius: 12, color: W.text, fontSize: 14, boxSizing: "border-box", fontFamily: "inherit" }} />
+          </div>
+
+          <div style={{ marginBottom: isSignup ? 14 : 20 }}>
+            <div style={{ color: W.textMuted, fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: 1.2, marginBottom: 7 }}>Password</div>
+            <input type="password" value={authForm.password} onChange={e => setAuthForm(f => ({ ...f, password: e.target.value }))} onKeyDown={e => e.key === "Enter" && (isSignup ? handleSignup() : handleLogin())} placeholder={isSignup ? "At least 6 characters" : "Enter password"} style={{ width: "100%", padding: "12px 14px", background: W.surface2, border: `2px solid ${W.border}`, borderRadius: 12, color: W.text, fontSize: 14, boxSizing: "border-box", fontFamily: "inherit" }} />
+          </div>
+
+          {isSignup && (
+            <div style={{ marginBottom: 20 }}>
+              <div style={{ color: W.textMuted, fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: 1.2, marginBottom: 7 }}>Confirm Password</div>
+              <input type="password" value={authForm.confirmPassword} onChange={e => setAuthForm(f => ({ ...f, confirmPassword: e.target.value }))} onKeyDown={e => e.key === "Enter" && handleSignup()} placeholder="Re-enter password" style={{ width: "100%", padding: "12px 14px", background: W.surface2, border: `2px solid ${W.border}`, borderRadius: 12, color: W.text, fontSize: 14, boxSizing: "border-box", fontFamily: "inherit" }} />
+            </div>
+          )}
+
+          {authError && (
+            <div style={{ background: W.red, borderRadius: 10, padding: "10px 14px", marginBottom: 16, border: `1px solid ${W.redDark}30` }}>
+              <div style={{ fontSize: 13, color: W.redDark, fontWeight: 600 }}>⚠️ {authError}</div>
+            </div>
+          )}
+
+          <button onClick={isSignup ? handleSignup : handleLogin} disabled={authLoading} style={{ width: "100%", padding: "15px", background: authLoading ? W.border : `linear-gradient(135deg, ${W.accent}, ${W.accentDark})`, border: "none", borderRadius: 14, color: "#fff", fontSize: 16, fontWeight: 800, cursor: authLoading ? "default" : "pointer", boxShadow: authLoading ? "none" : `0 4px 18px ${W.accentGlow}` }}>
+            {authLoading ? "Please wait…" : isSignup ? "Create Account" : "Sign In"}
+          </button>
+
+          {isSignup && (
+            <div style={{ marginTop: 14, padding: "10px 12px", background: W.yellow, borderRadius: 10, border: `1px solid ${W.yellowDark}20` }}>
+              <div style={{ fontSize: 11, color: W.yellowDark, fontWeight: 600 }}>🎉 New accounts start with sample data so you can explore the app right away!</div>
+            </div>
+          )}
+        </div>
+
+        <div style={{ textAlign: "center", padding: "20px", fontSize: 12, color: W.textDim }}>
+          Your data is saved securely to your account.
+        </div>
+      </div>
+    );
+  }
+
   // ── LOCATION DROPDOWN ──────────────────────────────────────
   const LocationDropdown = ({ value, onChange, open, setOpen }) => (
     <div style={{ position: "relative" }}>
@@ -276,37 +540,18 @@ export default function App() {
     </div>
   );
 
-  // ── SHARED UI ──────────────────────────────────────────────
   const Label = ({ children }) => <div style={{ color: W.textMuted, fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: 1.2, marginBottom: 7 }}>{children}</div>;
 
   // ── CLIMB FORM ─────────────────────────────────────────────
   const ClimbFormPanel = ({ onSave, onCancel, isActiveSession = false }) => (
     <div style={{ background: W.surface2, borderRadius: 16, padding: "16px", marginBottom: 16, border: `1px solid ${W.border}` }}>
       <div style={{ fontWeight: 700, color: W.text, marginBottom: 14, fontSize: 15 }}>{editingClimbId ? "✏️ Edit Climb" : "Add a Climb"}</div>
-
-      {/* Name */}
       <Label>Climb Name</Label>
       <input value={climbForm.name} onChange={e => setClimbForm(f => ({ ...f, name: e.target.value }))} placeholder="e.g. The Sloper Problem" style={{ width: "100%", padding: "10px 12px", background: W.surface, border: `2px solid ${W.border}`, borderRadius: 10, color: W.text, fontSize: 14, boxSizing: "border-box", marginBottom: 12, fontFamily: "inherit" }} />
-
-      {/* Color */}
       <Label>Hold Color</Label>
       <div style={{ display: "flex", gap: 8, marginBottom: 12, flexWrap: "wrap" }}>
         {CLIMB_COLORS.map(c => (
-          <button
-            key={c.id}
-            onClick={() => setClimbForm(f => ({ ...f, color: f.color === c.id ? null : c.id }))}
-            title={c.label}
-            style={{
-              width: 36, height: 36, borderRadius: 6, flexShrink: 0,
-              background: c.hex,
-              border: climbForm.color === c.id ? `3px solid ${W.accent}` : c.id === "white" ? "2px solid #c8a882" : "2px solid rgba(0,0,0,0.15)",
-              cursor: "pointer",
-              boxShadow: climbForm.color === c.id ? `0 0 0 2px ${W.accent}55` : "none",
-              outline: "none",
-              transform: climbForm.color === c.id ? "scale(1.15)" : "scale(1)",
-              transition: "transform 0.12s, box-shadow 0.12s",
-            }}
-          />
+          <button key={c.id} onClick={() => setClimbForm(f => ({ ...f, color: f.color === c.id ? null : c.id }))} title={c.label} style={{ width: 36, height: 36, borderRadius: 6, flexShrink: 0, background: c.hex, border: climbForm.color === c.id ? `3px solid ${W.accent}` : c.id === "white" ? "2px solid #c8a882" : "2px solid rgba(0,0,0,0.15)", cursor: "pointer", boxShadow: climbForm.color === c.id ? `0 0 0 2px ${W.accent}55` : "none", outline: "none", transform: climbForm.color === c.id ? "scale(1.15)" : "scale(1)", transition: "transform 0.12s, box-shadow 0.12s" }} />
         ))}
       </div>
       {climbForm.color && (
@@ -316,42 +561,22 @@ export default function App() {
           <button onClick={() => setClimbForm(f => ({ ...f, color: null }))} style={{ marginLeft: "auto", fontSize: 11, color: W.textDim, background: "none", border: "none", cursor: "pointer" }}>✕ Clear</button>
         </div>
       )}
-
-      {/* Scale */}
       <Label>Scale</Label>
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6, marginBottom: 12 }}>
         {Object.keys(GRADES).map(scale => <button key={scale} onClick={() => setClimbForm(f => ({ ...f, scale, grade: GRADES[scale][0] }))} style={{ padding: "7px", borderRadius: 8, border: "2px solid", borderColor: climbForm.scale === scale ? W.accent : W.border, background: climbForm.scale === scale ? W.accent + "22" : W.surface, color: climbForm.scale === scale ? W.accent : W.textDim, cursor: "pointer", fontSize: 11, fontWeight: 600 }}>{scale}</button>)}
       </div>
-
-      {/* Grade */}
       <Label>Grade</Label>
       <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 12 }}>
         {GRADES[climbForm.scale].map(g => <button key={g} onClick={() => setClimbForm(f => ({ ...f, grade: g }))} style={{ padding: "5px 11px", borderRadius: 14, border: "2px solid", borderColor: climbForm.grade === g ? getGradeColor(g) : W.border, background: climbForm.grade === g ? getGradeColor(g) + "33" : W.surface, color: climbForm.grade === g ? getGradeColor(g) : W.textDim, cursor: "pointer", fontWeight: 700, fontSize: 12 }}>{g}</button>)}
       </div>
-
-      {/* Wall Type */}
       <Label>Wall Type</Label>
       <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
-        {WALL_TYPES.map(t => {
-          const sel = climbForm.wallTypes.includes(t);
-          return (
-            <button key={t} onClick={() => setClimbForm(f => ({ ...f, wallTypes: toggleArr(f.wallTypes, t) }))} style={{ flex: 1, padding: "9px", borderRadius: 10, border: "2px solid", borderColor: sel ? W.purpleDark : W.border, background: sel ? W.purple : W.surface, color: sel ? W.purpleDark : W.textDim, cursor: "pointer", fontWeight: 700, fontSize: 13 }}>{t}</button>
-          );
-        })}
+        {WALL_TYPES.map(t => { const sel = climbForm.wallTypes.includes(t); return (<button key={t} onClick={() => setClimbForm(f => ({ ...f, wallTypes: toggleArr(f.wallTypes, t) }))} style={{ flex: 1, padding: "9px", borderRadius: 10, border: "2px solid", borderColor: sel ? W.purpleDark : W.border, background: sel ? W.purple : W.surface, color: sel ? W.purpleDark : W.textDim, cursor: "pointer", fontWeight: 700, fontSize: 13 }}>{t}</button>); })}
       </div>
-
-      {/* Hold Types */}
       <Label>Hold Types (select all that apply)</Label>
       <div style={{ display: "flex", flexWrap: "wrap", gap: 7, marginBottom: 12 }}>
-        {HOLD_TYPES.map(t => {
-          const sel = climbForm.holdTypes.includes(t);
-          return (
-            <button key={t} onClick={() => setClimbForm(f => ({ ...f, holdTypes: toggleArr(f.holdTypes, t) }))} style={{ padding: "6px 14px", borderRadius: 20, border: "2px solid", borderColor: sel ? W.accentDark : W.border, background: sel ? W.accent + "22" : W.surface, color: sel ? W.accentDark : W.textDim, cursor: "pointer", fontWeight: 700, fontSize: 12 }}>{t}</button>
-          );
-        })}
+        {HOLD_TYPES.map(t => { const sel = climbForm.holdTypes.includes(t); return (<button key={t} onClick={() => setClimbForm(f => ({ ...f, holdTypes: toggleArr(f.holdTypes, t) }))} style={{ padding: "6px 14px", borderRadius: 20, border: "2px solid", borderColor: sel ? W.accentDark : W.border, background: sel ? W.accent + "22" : W.surface, color: sel ? W.accentDark : W.textDim, cursor: "pointer", fontWeight: 700, fontSize: 12 }}>{t}</button>); })}
       </div>
-
-      {/* Tries / completed only when editing a finished session */}
       {!isActiveSession && editingClimbId && (
         <>
           <Label>Tries</Label>
@@ -367,28 +592,20 @@ export default function App() {
           </div>
         </>
       )}
-
       {isActiveSession && !editingClimbId && (
         <div style={{ background: W.yellow, borderRadius: 10, padding: "10px 12px", marginBottom: 12, border: `1px solid ${W.yellowDark}30` }}>
           <div style={{ fontSize: 12, color: W.yellowDark, fontWeight: 600 }}>💡 Tries and completion are tracked live on the session screen once added.</div>
         </div>
       )}
-
-      {/* Project */}
       <Label>Mark as Project?</Label>
       <button onClick={() => setClimbForm(f => ({ ...f, isProject: !f.isProject }))} style={{ width: "100%", padding: "9px", borderRadius: 10, border: "2px solid", borderColor: climbForm.isProject ? W.pinkDark : W.border, background: climbForm.isProject ? W.pink : W.surface, color: climbForm.isProject ? W.pinkDark : W.textDim, cursor: "pointer", fontWeight: 700, fontSize: 13, marginBottom: 12 }}>🎯 {climbForm.isProject ? "Yes — Project" : "No — Not a Project"}</button>
-
-      {/* Comments */}
       <Label>Comments</Label>
       <textarea value={climbForm.comments} onChange={e => setClimbForm(f => ({ ...f, comments: e.target.value }))} placeholder="Beta, hold types, notes..." style={{ width: "100%", padding: "10px 12px", background: W.surface, border: `2px solid ${W.border}`, borderRadius: 10, color: W.text, fontSize: 13, resize: "none", height: 70, boxSizing: "border-box", marginBottom: 12, fontFamily: "inherit" }} />
-
-      {/* Photo */}
       <Label>Photo</Label>
       <div onClick={() => fileRef.current.click()} style={{ border: `2px dashed ${W.border}`, borderRadius: 10, padding: "12px", textAlign: "center", cursor: "pointer", marginBottom: 12, background: W.surface }}>
         {photoPreview ? <img src={photoPreview} alt="climb" style={{ width: "100%", borderRadius: 8, maxHeight: 140, objectFit: "cover" }} /> : <div style={{ color: W.textDim, fontSize: 13 }}>📷 Tap to upload</div>}
       </div>
       <input ref={fileRef} type="file" accept="image/*" style={{ display: "none" }} onChange={e => { const f = e.target.files[0]; if (!f) return; const r = new FileReader(); r.onload = ev => setPhotoPreview(ev.target.result); r.readAsDataURL(f); }} />
-
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
         <button onClick={onCancel} style={{ padding: "11px", background: "transparent", border: `1px solid ${W.border}`, borderRadius: 12, color: W.textMuted, cursor: "pointer", fontWeight: 600 }}>Cancel</button>
         <button onClick={onSave} style={{ padding: "11px", background: `linear-gradient(135deg, ${W.accent}, ${W.accentDark})`, border: "none", borderRadius: 12, color: "#fff", cursor: "pointer", fontWeight: 700 }}>Save</button>
@@ -416,10 +633,7 @@ export default function App() {
           </div>
           <button onClick={() => openClimbForm(climb)} style={{ background: W.surface2, border: `1px solid ${W.border}`, borderRadius: 7, padding: "4px 9px", fontSize: 11, color: W.accent, fontWeight: 700, cursor: "pointer", flexShrink: 0 }}>Edit</button>
         </div>
-
-        {/* Controls */}
         <div style={{ display: "flex", alignItems: "center", borderTop: `1px solid ${W.border}`, background: climb.completed ? W.green + "55" : W.surface2 }}>
-          {/* Tries */}
           <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 0, padding: "8px 0", borderRight: `1px solid ${W.border}` }}>
             <button onClick={() => updateActiveClimbTries(climb.id, -1)} disabled={climb.tries <= 0} style={{ width: 34, height: 34, borderRadius: 8, border: `1px solid ${W.border}`, background: climb.tries <= 0 ? "transparent" : W.surface, color: climb.tries <= 0 ? W.textDim : W.text, fontSize: 18, cursor: climb.tries <= 0 ? "default" : "pointer", fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center" }}>−</button>
             <div style={{ minWidth: 52, textAlign: "center" }}>
@@ -428,17 +642,14 @@ export default function App() {
             </div>
             <button onClick={() => updateActiveClimbTries(climb.id, 1)} style={{ width: 34, height: 34, borderRadius: 8, border: `1px solid ${W.border}`, background: W.surface, color: W.text, fontSize: 18, cursor: "pointer", fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center" }}>+</button>
           </div>
-          {/* Completion */}
           <button onClick={() => toggleActiveClimbCompleted(climb.id)} style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 8, padding: "8px 12px", border: "none", background: "transparent", cursor: "pointer" }}>
             <div style={{ width: 22, height: 22, borderRadius: 6, border: `2px solid ${climb.completed ? W.greenDark : W.border}`, background: climb.completed ? W.greenDark : "transparent", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, transition: "all 0.15s" }}>
               {climb.completed && <span style={{ color: "#fff", fontSize: 13, lineHeight: 1 }}>✓</span>}
             </div>
             <span style={{ fontSize: 13, fontWeight: 700, color: climb.completed ? W.greenDark : W.textMuted }}>{climb.completed ? "Sent!" : "Mark Sent"}</span>
           </button>
-          {/* Remove */}
           <button onClick={() => setConfirmRemove(true)} style={{ padding: "8px 12px", border: "none", borderLeft: `1px solid ${W.border}`, background: "transparent", color: W.redDark, cursor: "pointer", fontSize: 16 }}>🗑</button>
         </div>
-
         {confirmRemove && (
           <div style={{ background: W.red, padding: "10px 14px", borderTop: `1px solid ${W.redDark}30`, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
             <span style={{ fontSize: 12, color: W.redDark, fontWeight: 700 }}>Remove this climb?</span>
@@ -452,7 +663,7 @@ export default function App() {
     );
   };
 
-  // ── REGULAR CLIMB ROW (logbook / session detail) ───────────
+  // ── REGULAR CLIMB ROW ──────────────────────────────────────
   const ClimbRow = ({ climb, onEdit, onRemove }) => {
     const [confirmRemove, setConfirmRemove] = useState(false);
     return (
@@ -539,10 +750,6 @@ export default function App() {
                 <div style={{ fontSize: 11, color: W.textMuted, flexShrink: 0, minWidth: 36 }}>{data.completed}/{data.attempted}</div>
               </div>
             ))}
-            <div style={{ display: "flex", gap: 16, marginTop: 8 }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 5 }}><div style={{ width: 10, height: 10, borderRadius: 3, background: W.accent }} /><span style={{ fontSize: 10, color: W.textDim }}>Sent</span></div>
-              <div style={{ display: "flex", alignItems: "center", gap: 5 }}><div style={{ width: 10, height: 10, borderRadius: 3, background: W.accent + "44" }} /><span style={{ fontSize: 10, color: W.textDim }}>Attempted</span></div>
-            </div>
           </div>
         )}
       </div>
@@ -552,7 +759,7 @@ export default function App() {
   // ── SCREENS ────────────────────────────────────────────────
   const HomeScreen = () => (
     <div style={{ padding: "24px 20px" }}>
-      <h1 style={{ fontSize: 26, fontWeight: 800, color: W.text, margin: "0 0 4px" }}>Hey, Climber 👋</h1>
+      <h1 style={{ fontSize: 26, fontWeight: 800, color: W.text, margin: "0 0 4px" }}>Hey, {currentUser?.displayName || "Climber"} 👋</h1>
       <p style={{ color: W.textMuted, margin: "0 0 22px", fontSize: 14 }}>Ready to send something today?</p>
       <button onClick={goToSessionSetup} style={{ width: "100%", padding: "16px", background: `linear-gradient(135deg, ${W.accent}, ${W.accentDark})`, border: "none", borderRadius: 16, color: "#fff", fontSize: 16, fontWeight: 700, cursor: "pointer", marginBottom: 28, boxShadow: `0 4px 20px ${W.accentGlow}` }}>▶ Start a Session</button>
       <div style={{ fontSize: 13, fontWeight: 700, color: W.textMuted, marginBottom: 12, textTransform: "uppercase", letterSpacing: 1 }}>Previous Sessions</div>
@@ -571,7 +778,6 @@ export default function App() {
       <div style={{ background: W.surface, borderRadius: 18, padding: "20px", border: `1px solid ${W.border}`, marginBottom: 24 }}>
         <Label>Gym / Location</Label>
         <LocationDropdown value={pendingLocation} onChange={setPendingLocation} open={locationDropdownOpen} setOpen={setLocationDropdownOpen} />
-        <div style={{ fontSize: 12, color: W.textDim, marginTop: 8 }}>You can also edit this during your session.</div>
       </div>
       <button onClick={beginTimer} style={{ width: "100%", padding: "18px", background: `linear-gradient(135deg, ${W.accent}, ${W.accentDark})`, border: "none", borderRadius: 16, color: "#fff", fontSize: 17, fontWeight: 800, cursor: "pointer", boxShadow: `0 6px 24px ${W.accentGlow}`, marginBottom: 12 }}>▶ Start Climbing</button>
       <button onClick={() => setScreen("home")} style={{ width: "100%", padding: "13px", background: "transparent", border: `1px solid ${W.border}`, borderRadius: 14, color: W.textMuted, fontSize: 14, fontWeight: 600, cursor: "pointer" }}>Cancel</button>
@@ -594,14 +800,11 @@ export default function App() {
             <button onClick={() => setTimerRunning(r => !r)} style={{ background: "rgba(255,255,255,0.2)", border: "none", borderRadius: 8, color: "#fff", padding: "6px 12px", cursor: "pointer", fontWeight: 700, fontSize: 12 }}>{timerRunning ? "⏸ Pause" : "▶ Resume"}</button>
           </div>
         </div>
-
         <Label>Gym / Location</Label>
         <div style={{ marginBottom: 18 }}>
           <LocationDropdown value={activeSession?.location || ""} onChange={v => setActiveSession(s => ({ ...s, location: v }))} open={activeLocationDropdownOpen} setOpen={setActiveLocationDropdownOpen} />
         </div>
-
         {showClimbForm && <ClimbFormPanel isActiveSession onSave={saveClimbToActiveSession} onCancel={() => { setShowClimbForm(false); setPhotoPreview(null); setEditingClimbId(null); }} />}
-
         {!showClimbForm && !showProjectPicker && attempted.length > 0 && (
           <><Label>Climbs This Session</Label>{attempted.map(c => <ActiveClimbCard key={c.id} climb={c} />)}</>
         )}
@@ -611,18 +814,15 @@ export default function App() {
             {unclimbed.map(c => <ActiveClimbCard key={c.id} climb={c} />)}
           </>
         )}
-
         {showProjectPicker && (
           <div style={{ background: W.surface2, borderRadius: 16, padding: "16px", marginBottom: 16, border: `1px solid ${W.border}` }}>
             <div style={{ fontWeight: 700, color: W.text, marginBottom: 4 }}>🎯 Which project?</div>
-            <div style={{ fontSize: 12, color: W.textMuted, marginBottom: 12 }}>Adds it to your session to log tries against.</div>
             {activeProjects.length === 0 ? <div style={{ color: W.textDim, fontSize: 13 }}>No active projects yet.</div>
               : activeProjects.map(p => (
                 <div key={p.id} style={{ background: W.surface, borderRadius: 12, padding: "12px 14px", marginBottom: 8, border: `1px solid ${W.border}`, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
                   <div>
                     <span style={{ fontWeight: 700, color: getGradeColor(p.grade), fontSize: 15 }}>{p.grade}</span>
                     <span style={{ color: W.text, fontSize: 14, fontWeight: 600, marginLeft: 8 }}>{p.name}</span>
-                    <div style={{ fontSize: 11, color: W.textDim, marginTop: 2 }}>{getProjectTotalTries(p.id)} tries · {getProjectHistory(p.id).length} sessions</div>
                   </div>
                   <button onClick={() => { const nc = { id: Date.now(), name: p.name, grade: p.grade, scale: p.scale, isProject: true, comments: p.comments || "", photo: null, projectId: p.id, tries: 0, completed: false, color: null, wallTypes: [], holdTypes: [] }; setActiveSession(s => ({ ...s, climbs: [...s.climbs, nc] })); setShowProjectPicker(false); }} style={{ background: W.pink, border: "none", borderRadius: 8, color: W.pinkDark, padding: "6px 12px", fontWeight: 700, fontSize: 12, cursor: "pointer" }}>Add</button>
                 </div>
@@ -630,7 +830,6 @@ export default function App() {
             <button onClick={() => setShowProjectPicker(false)} style={{ width: "100%", marginTop: 8, padding: "10px", background: "transparent", border: `1px solid ${W.border}`, borderRadius: 10, color: W.textMuted, cursor: "pointer" }}>Cancel</button>
           </div>
         )}
-
         {!showClimbForm && !showProjectPicker && (
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 12, marginTop: 8 }}>
             <button onClick={() => openClimbForm()} style={{ padding: "13px", background: W.green, border: `2px solid ${W.greenDark}`, borderRadius: 14, color: W.greenDark, fontWeight: 700, fontSize: 14, cursor: "pointer" }}>+ New Climb</button>
@@ -719,26 +918,59 @@ export default function App() {
     const logbookGrades   = logbookScale !== "All Scales" ? ["All", ...GRADES[logbookScale]] : ["All"];
     const hasClimbFilters   = logbookFilter !== "all" || logbookScale !== "All Scales" || logbookGrade !== "All" || logbookSort !== "date";
     const hasSessionFilters = logbookGymFilter !== "All Gyms";
+    const [showAccountPanel, setShowAccountPanel] = useState(false);
+    const [confirmLogout, setConfirmLogout] = useState(false);
 
     return (
       <div style={{ padding: "24px 20px" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 14, marginBottom: 22 }}>
           <div style={{ width: 58, height: 58, borderRadius: 18, background: `linear-gradient(135deg, ${W.accent}, ${W.accentDark})`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 26, boxShadow: `0 4px 14px ${W.accentGlow}` }}>🧗</div>
-          <div><div style={{ fontSize: 20, fontWeight: 800, color: W.text }}>My Profile</div><div style={{ fontSize: 13, color: W.textMuted }}>{sessions.length} sessions · {allClimbs.length} climbs</div></div>
+          <div style={{ flex: 1 }}>
+            <div style={{ fontSize: 20, fontWeight: 800, color: W.text }}>{currentUser?.displayName || "Climber"}</div>
+            <div style={{ fontSize: 12, color: W.textMuted }}>@{currentUser?.username} · {sessions.length} sessions · {allClimbs.length} climbs</div>
+          </div>
+          <button onClick={() => setShowAccountPanel(o => !o)} style={{ background: W.surface2, border: `1px solid ${W.border}`, borderRadius: 10, padding: "8px 12px", fontSize: 12, color: W.textMuted, fontWeight: 700, cursor: "pointer" }}>⚙️</button>
         </div>
+
+        {showAccountPanel && (
+          <div style={{ background: W.surface, borderRadius: 16, padding: "16px", marginBottom: 20, border: `1px solid ${W.border}` }}>
+            <div style={{ fontWeight: 700, color: W.text, fontSize: 14, marginBottom: 12 }}>Account</div>
+            <div style={{ display: "flex", gap: 10, alignItems: "center", marginBottom: 14 }}>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontSize: 13, fontWeight: 700, color: W.text }}>{currentUser?.displayName}</div>
+                <div style={{ fontSize: 12, color: W.textMuted }}>@{currentUser?.username}</div>
+              </div>
+              <div style={{ background: W.green, borderRadius: 8, padding: "3px 10px", fontSize: 11, fontWeight: 700, color: W.greenDark }}>● Signed In</div>
+            </div>
+            {saveStatus && (
+              <div style={{ background: saveStatus === "saved" ? W.green : saveStatus === "error" ? W.red : W.yellow, borderRadius: 10, padding: "8px 12px", marginBottom: 12, fontSize: 12, fontWeight: 700, color: saveStatus === "saved" ? W.greenDark : saveStatus === "error" ? W.redDark : W.yellowDark }}>
+                {saveStatus === "saving" ? "💾 Saving…" : saveStatus === "saved" ? "✓ All changes saved" : "⚠️ Save failed — check connection"}
+              </div>
+            )}
+            {!confirmLogout
+              ? <button onClick={() => setConfirmLogout(true)} style={{ width: "100%", padding: "11px", background: W.red, border: `1px solid ${W.redDark}`, borderRadius: 12, color: W.redDark, fontWeight: 700, fontSize: 13, cursor: "pointer" }}>Sign Out</button>
+              : <div style={{ background: W.red, borderRadius: 12, padding: "14px", border: `1px solid ${W.redDark}` }}>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: W.redDark, marginBottom: 10 }}>Sign out of @{currentUser?.username}?</div>
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+                    <button onClick={() => setConfirmLogout(false)} style={{ padding: "9px", background: "transparent", border: `1px solid ${W.border}`, borderRadius: 10, color: W.textMuted, cursor: "pointer", fontWeight: 600 }}>Cancel</button>
+                    <button onClick={handleLogout} style={{ padding: "9px", background: W.redDark, border: "none", borderRadius: 10, color: "#fff", cursor: "pointer", fontWeight: 700 }}>Sign Out</button>
+                  </div>
+                </div>}
+          </div>
+        )}
+
         <div style={{ display: "flex", background: W.surface2, borderRadius: 12, padding: 4, marginBottom: 22, border: `1px solid ${W.border}` }}>
           {[{ id: "stats", label: "📊 Stats" }, { id: "logbook", label: "📖 Logbook" }, { id: "projects", label: "🎯 Projects" }].map(tab => (
             <button key={tab.id} onClick={() => setProfileTab(tab.id)} style={{ flex: 1, padding: "9px 4px", borderRadius: 9, border: "none", background: profileTab === tab.id ? `linear-gradient(135deg, ${W.accent}, ${W.accentDark})` : "transparent", color: profileTab === tab.id ? "#fff" : W.textDim, fontWeight: 700, fontSize: 11, cursor: "pointer" }}>{tab.label}</button>
           ))}
         </div>
 
-        {/* STATS */}
         {profileTab === "stats" && (
           <div>
             <div style={{ marginBottom: 16 }}>
               <button onClick={() => setAnalyzeOpen(o => !o)} style={{ width: "100%", padding: "13px 16px", background: W.surface2, border: `1px solid ${W.border}`, borderRadius: analyzeOpen ? "14px 14px 0 0" : "14px", cursor: "pointer", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                <div style={{ display: "flex", alignItems: "center", gap: 10 }}><span>🔍</span><span style={{ fontWeight: 700, color: W.text, fontSize: 14 }}>Analyze By</span>{(statsGradeFilter !== "All" || statsScaleFilter !== "All Scales") && <span style={{ background: W.accent, color: "#fff", borderRadius: 20, padding: "2px 9px", fontSize: 11, fontWeight: 700 }}>{statsScaleFilter !== "All Scales" ? statsScaleFilter : ""}{statsGradeFilter !== "All" ? ` · ${statsGradeFilter}` : ""}</span>}</div>
-                <span style={{ color: W.textMuted, fontSize: 18, display: "inline-block", transform: analyzeOpen ? "rotate(180deg)" : "none", transition: "transform 0.2s" }}>⌄</span>
+                <div style={{ display: "flex", alignItems: "center", gap: 10 }}><span>🔍</span><span style={{ fontWeight: 700, color: W.text, fontSize: 14 }}>Analyze By</span></div>
+                <span style={{ color: W.textMuted, fontSize: 18 }}>⌄</span>
               </button>
               {analyzeOpen && (
                 <div style={{ background: W.surface, border: `1px solid ${W.border}`, borderTop: "none", borderRadius: "0 0 14px 14px", padding: "14px" }}>
@@ -747,16 +979,14 @@ export default function App() {
                     {["All Scales", ...Object.keys(GRADES)].map(s => <button key={s} onClick={() => { setStatsScaleFilter(s); setStatsGradeFilter("All"); }} style={{ padding: "5px 12px", borderRadius: 16, border: "2px solid", borderColor: statsScaleFilter === s ? W.accent : W.border, background: statsScaleFilter === s ? W.accent + "22" : W.surface, color: statsScaleFilter === s ? W.accent : W.textDim, cursor: "pointer", fontSize: 11, fontWeight: 600 }}>{s}</button>)}
                   </div>
                   <Label>Grade</Label>
-                  <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 8 }}>
-                    {availableGrades.map(g => <button key={g} onClick={() => setStatsGradeFilter(g)} style={{ padding: "5px 12px", borderRadius: 16, border: "2px solid", borderColor: statsGradeFilter === g ? (g === "All" ? W.accent : getGradeColor(g)) : W.border, background: statsGradeFilter === g ? (g === "All" ? W.accent + "22" : getGradeColor(g) + "33") : W.surface, color: statsGradeFilter === g ? (g === "All" ? W.accent : getGradeColor(g)) : W.textDim, cursor: "pointer", fontSize: 11, fontWeight: 700 }}>{g}</button>)}
+                  <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                    {availableGrades.map(g => <button key={g} onClick={() => setStatsGradeFilter(g)} style={{ padding: "5px 12px", borderRadius: 16, border: "2px solid", borderColor: statsGradeFilter === g ? W.accent : W.border, background: statsGradeFilter === g ? W.accent + "22" : W.surface, color: statsGradeFilter === g ? W.accent : W.textDim, cursor: "pointer", fontSize: 11, fontWeight: 700 }}>{g}</button>)}
                   </div>
-                  <button onClick={() => { setStatsScaleFilter("V-Scale"); setStatsGradeFilter("All"); setAnalyzeOpen(false); }} style={{ marginTop: 4, padding: "6px 14px", background: "transparent", border: `1px solid ${W.border}`, borderRadius: 8, color: W.textDim, fontSize: 12, cursor: "pointer" }}>Reset Filters</button>
                 </div>
               )}
             </div>
-            {statsGradeFilter !== "All" && <div style={{ background: W.pink, borderRadius: 12, padding: "10px 14px", marginBottom: 14, fontSize: 13, color: W.pinkDark, fontWeight: 600 }}>Showing stats for <strong>{statsGradeFilter}</strong> on <strong>{statsScaleFilter}</strong> · {stats.base.length} attempts</div>}
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 16 }}>
-              {[{ icon: "🏆", label: "Best Grade", value: stats.bestGrade, sub: "V-Scale overall", bg: W.goldLight, tc: W.yellowDark }, { icon: "⚡", label: "Flash Rate", value: `${stats.flashRate}%`, sub: `${stats.flashes.length} flashes`, bg: W.yellow, tc: W.yellowDark }, { icon: "🔁", label: "Avg Tries", value: stats.avgTries, sub: "per climb", bg: W.green, tc: W.greenDark }, { icon: "🧗", label: statsGradeFilter === "All" ? "Total Climbs" : `${statsGradeFilter} Sends`, value: stats.completed.length, sub: "completed", bg: W.surface2, tc: W.accent }, { icon: "📅", label: "Sessions", value: sessions.length, sub: "total", bg: W.purple, tc: W.purpleDark }, { icon: "🎯", label: "Projects", value: activeProjects.length, sub: "active", bg: W.pink, tc: W.pinkDark }].map(s => (
+              {[{ icon: "🏆", label: "Best Grade", value: stats.bestGrade, sub: "V-Scale overall", bg: W.goldLight, tc: W.yellowDark }, { icon: "⚡", label: "Flash Rate", value: `${stats.flashRate}%`, sub: `${stats.flashes.length} flashes`, bg: W.yellow, tc: W.yellowDark }, { icon: "🔁", label: "Avg Tries", value: stats.avgTries, sub: "per climb", bg: W.green, tc: W.greenDark }, { icon: "🧗", label: "Total Sends", value: stats.completed.length, sub: "completed", bg: W.surface2, tc: W.accent }, { icon: "📅", label: "Sessions", value: sessions.length, sub: "total", bg: W.purple, tc: W.purpleDark }, { icon: "🎯", label: "Projects", value: activeProjects.length, sub: "active", bg: W.pink, tc: W.pinkDark }].map(s => (
                 <div key={s.label} style={{ background: s.bg, borderRadius: 14, padding: "14px", border: `1px solid ${W.border}` }}>
                   <div style={{ fontSize: 20, marginBottom: 4 }}>{s.icon}</div>
                   <div style={{ fontSize: 20, fontWeight: 800, color: s.tc }}>{s.value}</div>
@@ -765,17 +995,16 @@ export default function App() {
                 </div>
               ))}
             </div>
-            <button onClick={() => setScreen("calendar")} style={{ width: "100%", padding: "14px", background: `linear-gradient(135deg, ${W.gold}, #d97706)`, border: "none", borderRadius: 14, color: "#fff", fontSize: 15, fontWeight: 700, cursor: "pointer", marginBottom: 16, boxShadow: "0 4px 14px rgba(245,158,11,0.35)" }}>📅 View Climbing Calendar</button>
+            <button onClick={() => setScreen("calendar")} style={{ width: "100%", padding: "14px", background: `linear-gradient(135deg, ${W.gold}, #d97706)`, border: "none", borderRadius: 14, color: "#fff", fontSize: 15, fontWeight: 700, cursor: "pointer", marginBottom: 16 }}>📅 View Climbing Calendar</button>
             {stats.gradeBreakdown.length > 0 && (
               <div style={{ background: W.surface, borderRadius: 16, padding: "16px", border: `1px solid ${W.border}` }}>
-                <div style={{ fontSize: 12, fontWeight: 700, color: W.textMuted, textTransform: "uppercase", letterSpacing: 1, marginBottom: 14 }}>Grade Breakdown{statsScaleFilter !== "All Scales" ? ` (${statsScaleFilter})` : ""}</div>
+                <div style={{ fontSize: 12, fontWeight: 700, color: W.textMuted, textTransform: "uppercase", letterSpacing: 1, marginBottom: 14 }}>Grade Breakdown</div>
                 {stats.gradeBreakdown.map(({ grade, count }) => { const max = Math.max(...stats.gradeBreakdown.map(g => g.count)); return (<div key={grade} style={{ marginBottom: 10 }}><div style={{ display: "flex", justifyContent: "space-between", marginBottom: 3 }}><span style={{ fontSize: 12, fontWeight: 700, color: getGradeColor(grade) }}>{grade}</span><span style={{ fontSize: 12, color: W.textDim }}>{count} send{count !== 1 ? "s" : ""}</span></div><div style={{ background: W.surface2, borderRadius: 6, height: 8, overflow: "hidden" }}><div style={{ width: `${Math.round((count / max) * 100)}%`, height: "100%", borderRadius: 6, background: getGradeColor(grade) }} /></div></div>); })}
               </div>
             )}
           </div>
         )}
 
-        {/* LOGBOOK */}
         {profileTab === "logbook" && (
           <div>
             <div style={{ display: "flex", background: W.surface2, borderRadius: 10, padding: 3, marginBottom: 14, border: `1px solid ${W.border}` }}>
@@ -786,17 +1015,16 @@ export default function App() {
             <div style={{ marginBottom: 14 }}>
               <button onClick={() => setLogbookFiltersOpen(o => !o)} style={{ width: "100%", padding: "11px 14px", background: W.surface2, border: `1px solid ${W.border}`, borderRadius: logbookFiltersOpen ? "12px 12px 0 0" : "12px", cursor: "pointer", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 8 }}><span>🔽</span><span style={{ fontWeight: 700, color: W.text, fontSize: 13 }}>Filters</span>{(logbookView === "climbs" ? hasClimbFilters : hasSessionFilters) && <span style={{ background: W.accent, color: "#fff", borderRadius: 20, padding: "2px 8px", fontSize: 10, fontWeight: 700 }}>Active</span>}</div>
-                <span style={{ color: W.textMuted, fontSize: 16, display: "inline-block", transform: logbookFiltersOpen ? "rotate(180deg)" : "none", transition: "transform 0.2s" }}>⌄</span>
+                <span style={{ color: W.textMuted, fontSize: 16 }}>⌄</span>
               </button>
               {logbookFiltersOpen && (
                 <div style={{ background: W.surface, border: `1px solid ${W.border}`, borderTop: "none", borderRadius: "0 0 12px 12px", padding: "14px" }}>
                   {logbookView === "sessions" && (
                     <>
                       <Label>Gym</Label>
-                      <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 8 }}>
+                      <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
                         {allGyms.map(g => <button key={g} onClick={() => setLogbookGymFilter(g)} style={{ padding: "6px 12px", borderRadius: 16, border: "2px solid", borderColor: logbookGymFilter === g ? W.accent : W.border, background: logbookGymFilter === g ? W.accent + "22" : W.surface, color: logbookGymFilter === g ? W.accent : W.textDim, cursor: "pointer", fontSize: 12, fontWeight: 600 }}>📍 {g}</button>)}
                       </div>
-                      {hasSessionFilters && <button onClick={() => setLogbookGymFilter("All Gyms")} style={{ marginTop: 4, padding: "6px 14px", background: "transparent", border: `1px solid ${W.border}`, borderRadius: 8, color: W.textDim, fontSize: 12, cursor: "pointer" }}>Reset</button>}
                     </>
                   )}
                   {logbookView === "climbs" && (
@@ -811,13 +1039,12 @@ export default function App() {
                       </div>
                       <Label>Grade</Label>
                       <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 12 }}>
-                        {logbookGrades.map(g => <button key={g} onClick={() => setLogbookGrade(g)} style={{ padding: "5px 10px", borderRadius: 14, border: "2px solid", borderColor: logbookGrade === g ? (g === "All" ? W.accent : getGradeColor(g)) : W.border, background: logbookGrade === g ? (g === "All" ? W.accent + "22" : getGradeColor(g) + "33") : W.surface, color: logbookGrade === g ? (g === "All" ? W.accent : getGradeColor(g)) : W.textDim, cursor: "pointer", fontSize: 11, fontWeight: 700 }}>{g}</button>)}
+                        {logbookGrades.map(g => <button key={g} onClick={() => setLogbookGrade(g)} style={{ padding: "5px 10px", borderRadius: 14, border: "2px solid", borderColor: logbookGrade === g ? W.accent : W.border, background: logbookGrade === g ? W.accent + "22" : W.surface, color: logbookGrade === g ? W.accent : W.textDim, cursor: "pointer", fontSize: 11, fontWeight: 700 }}>{g}</button>)}
                       </div>
                       <Label>Sort</Label>
-                      <div style={{ display: "flex", gap: 8, marginBottom: 8 }}>
+                      <div style={{ display: "flex", gap: 8 }}>
                         {[["date", "📅 Newest"], ["hardest", "🔺 Hardest"], ["easiest", "🔻 Easiest"]].map(([val, label]) => <button key={val} onClick={() => setLogbookSort(val)} style={{ padding: "6px 12px", borderRadius: 16, border: "2px solid", borderColor: logbookSort === val ? W.accent : W.border, background: logbookSort === val ? W.accent + "22" : W.surface, color: logbookSort === val ? W.accent : W.textDim, cursor: "pointer", fontSize: 12, fontWeight: 600 }}>{label}</button>)}
                       </div>
-                      {hasClimbFilters && <button onClick={() => { setLogbookFilter("all"); setLogbookScale("All Scales"); setLogbookGrade("All"); setLogbookSort("date"); }} style={{ marginTop: 4, padding: "6px 14px", background: "transparent", border: `1px solid ${W.border}`, borderRadius: 8, color: W.textDim, fontSize: 12, cursor: "pointer" }}>Reset Filters</button>}
                     </>
                   )}
                 </div>
@@ -825,10 +1052,7 @@ export default function App() {
             </div>
             {logbookView === "climbs" && (
               <>
-                <div style={{ fontSize: 12, color: W.textMuted, marginBottom: 12, fontWeight: 600, display: "flex", justifyContent: "space-between" }}>
-                  <span>{logbookClimbs.length} climb{logbookClimbs.length !== 1 ? "s" : ""} found</span>
-                  {logbookSort !== "date" && <span style={{ color: W.accent, fontWeight: 700 }}>{logbookSort === "hardest" ? "🔺 Hardest first" : "🔻 Easiest first"}</span>}
-                </div>
+                <div style={{ fontSize: 12, color: W.textMuted, marginBottom: 12, fontWeight: 600 }}>{logbookClimbs.length} climb{logbookClimbs.length !== 1 ? "s" : ""} found</div>
                 {logbookClimbs.length === 0 ? <div style={{ textAlign: "center", color: W.textDim, padding: "30px 0" }}>No climbs match your filters.</div>
                   : logbookClimbs.map((c, i) => {
                     const showHeader = logbookSort === "date" && (i === 0 || logbookClimbs[i - 1].sessionDate !== c.sessionDate);
@@ -838,19 +1062,18 @@ export default function App() {
             )}
             {logbookView === "sessions" && (
               <>
-                <div style={{ fontSize: 12, color: W.textMuted, marginBottom: 12, fontWeight: 600 }}>{filteredSessions.length} session{filteredSessions.length !== 1 ? "s" : ""}{logbookGymFilter !== "All Gyms" ? ` at ${logbookGymFilter}` : ""}</div>
-                {filteredSessions.length === 0 ? <div style={{ textAlign: "center", color: W.textDim, padding: "30px 0" }}>No sessions at this gym yet.</div>
+                <div style={{ fontSize: 12, color: W.textMuted, marginBottom: 12, fontWeight: 600 }}>{filteredSessions.length} session{filteredSessions.length !== 1 ? "s" : ""}</div>
+                {filteredSessions.length === 0 ? <div style={{ textAlign: "center", color: W.textDim, padding: "30px 0" }}>No sessions yet.</div>
                   : filteredSessions.map(s => <LogbookSessionCard key={s.id} session={s} />)}
               </>
             )}
           </div>
         )}
 
-        {/* PROJECTS */}
         {profileTab === "projects" && (
           <div>
             <div style={{ fontSize: 12, fontWeight: 700, color: W.textMuted, textTransform: "uppercase", letterSpacing: 1, marginBottom: 10 }}>Active Projects <span style={{ background: W.pink, color: W.pinkDark, borderRadius: 10, padding: "1px 8px", fontSize: 11 }}>{activeProjects.length}</span></div>
-            {activeProjects.length === 0 ? <div style={{ color: W.textDim, fontSize: 13, marginBottom: 20, padding: "12px", background: W.surface, borderRadius: 12, border: `1px solid ${W.border}` }}>No active projects. Mark a climb as a project during a session!</div>
+            {activeProjects.length === 0 ? <div style={{ color: W.textDim, fontSize: 13, marginBottom: 20, padding: "12px", background: W.surface, borderRadius: 12, border: `1px solid ${W.border}` }}>No active projects.</div>
               : activeProjects.map(p => (
                 <div key={p.id} onClick={() => { setSelectedProject(p); setScreen("projectDetail"); }} style={{ background: W.pink, borderRadius: 16, padding: "14px 16px", marginBottom: 10, border: `1px solid ${W.pinkDark}30`, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
                   <div>
@@ -858,7 +1081,6 @@ export default function App() {
                     <div style={{ display: "flex", gap: 6, alignItems: "center", marginTop: 3 }}><span style={{ fontWeight: 700, fontSize: 13, color: getGradeColor(p.grade) }}>{p.grade}</span><span style={{ color: W.textMuted, fontSize: 12 }}>{p.scale}</span></div>
                     <div style={{ display: "flex", gap: 6, marginTop: 6 }}>
                       <span style={{ background: "rgba(255,255,255,0.6)", borderRadius: 7, padding: "2px 9px", fontSize: 11, fontWeight: 700, color: W.pinkDark }}>🔁 {getProjectTotalTries(p.id)} tries</span>
-                      <span style={{ background: "rgba(255,255,255,0.6)", borderRadius: 7, padding: "2px 9px", fontSize: 11, fontWeight: 700, color: W.pinkDark }}>📅 {getProjectHistory(p.id).length} sessions</span>
                     </div>
                   </div>
                   <div style={{ color: W.pinkDark, fontSize: 20 }}>›</div>
@@ -871,11 +1093,7 @@ export default function App() {
                   <div key={p.id} onClick={() => { setSelectedProject(p); setScreen("projectDetail"); }} style={{ background: W.green, borderRadius: 16, padding: "14px 16px", marginBottom: 10, border: `1px solid ${W.greenDark}30`, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
                     <div>
                       <div style={{ display: "flex", alignItems: "center", gap: 8 }}><div style={{ fontWeight: 800, fontSize: 15, color: W.text }}>{p.name || p.grade}</div><span style={{ background: W.greenDark, color: "#fff", borderRadius: 6, padding: "1px 8px", fontSize: 10, fontWeight: 700 }}>SENT</span></div>
-                      <div style={{ display: "flex", gap: 6, alignItems: "center", marginTop: 3 }}><span style={{ fontWeight: 700, fontSize: 13, color: getGradeColor(p.grade) }}>{p.grade}</span><span style={{ color: W.textMuted, fontSize: 12 }}>{p.scale}</span></div>
-                      <div style={{ display: "flex", gap: 6, marginTop: 6 }}>
-                        <span style={{ background: "rgba(255,255,255,0.6)", borderRadius: 7, padding: "2px 9px", fontSize: 11, fontWeight: 700, color: W.greenDark }}>🔁 {getProjectTotalTries(p.id)} total tries</span>
-                        {p.dateSent && <span style={{ background: "rgba(255,255,255,0.6)", borderRadius: 7, padding: "2px 9px", fontSize: 11, fontWeight: 700, color: W.greenDark }}>🗓 {formatDate(p.dateSent)}</span>}
-                      </div>
+                      <div style={{ display: "flex", gap: 6, alignItems: "center", marginTop: 3 }}><span style={{ fontWeight: 700, fontSize: 13, color: getGradeColor(p.grade) }}>{p.grade}</span></div>
                     </div>
                     <div style={{ color: W.greenDark, fontSize: 20 }}>›</div>
                   </div>
@@ -887,7 +1105,7 @@ export default function App() {
                 <div style={{ fontSize: 12, fontWeight: 700, color: W.textMuted, textTransform: "uppercase", letterSpacing: 1, marginBottom: 10, marginTop: 22 }}>🪨 Off The Wall <span style={{ background: W.surface2, color: W.textMuted, borderRadius: 10, padding: "1px 8px", fontSize: 11 }}>{retiredProjects.length}</span></div>
                 {retiredProjects.map(p => (
                   <div key={p.id} onClick={() => { setSelectedProject(p); setScreen("projectDetail"); }} style={{ background: W.surface2, borderRadius: 16, padding: "14px 16px", marginBottom: 10, border: `1px solid ${W.border}`, cursor: "pointer", opacity: 0.8, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                    <div><div style={{ fontWeight: 700, fontSize: 15, color: W.textMuted }}>{p.name || p.grade}</div><div style={{ fontSize: 12, color: W.textDim, marginTop: 2 }}>{p.grade} · {p.scale} · {getProjectTotalTries(p.id)} total tries</div></div>
+                    <div><div style={{ fontWeight: 700, fontSize: 15, color: W.textMuted }}>{p.name || p.grade}</div><div style={{ fontSize: 12, color: W.textDim, marginTop: 2 }}>{p.grade} · {p.scale}</div></div>
                     <div style={{ color: W.textDim, fontSize: 20 }}>›</div>
                   </div>
                 ))}
@@ -904,18 +1122,12 @@ export default function App() {
     const totalTries = getProjectTotalTries(project.id);
     const avgTriesPerSession = history.length ? (history.reduce((a, h) => a + h.tries, 0) / history.length).toFixed(1) : "—";
     const bestSession = history.length ? [...history].sort((a, b) => a.tries - b.tries)[0] : null;
-    const trend = history.length >= 2 ? (() => { const r = history.slice(0, 3).reduce((a, h) => a + h.tries, 0) / Math.min(3, history.length); const o = history.slice(3).reduce((a, h) => a + h.tries, 0) / Math.max(1, history.length - 3); return r < o ? "improving" : r > o ? "struggling" : "steady"; })() : null;
     return (
       <div style={{ padding: "24px 20px" }}>
         <div style={{ background: project.completed ? W.green : W.pink, borderRadius: 20, padding: "20px", marginBottom: 20, border: `1px solid ${project.completed ? W.greenDark : W.pinkDark}30` }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 8 }}>
-            <div>
-              <div style={{ fontSize: 22, fontWeight: 900, color: W.text }}>{project.name || project.grade}</div>
-              <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 4 }}><span style={{ fontWeight: 800, fontSize: 16, color: getGradeColor(project.grade) }}>{project.grade}</span><span style={{ color: W.textMuted, fontSize: 13 }}>{project.scale}</span>{!project.active && !project.completed && <span style={{ background: W.surface2, color: W.textDim, borderRadius: 8, padding: "2px 8px", fontSize: 11, fontWeight: 700 }}>OFF THE WALL</span>}</div>
-            </div>
-            {project.completed && <span style={{ background: W.greenDark, color: "#fff", borderRadius: 10, padding: "5px 12px", fontSize: 13, fontWeight: 800 }}>✓ SENT!</span>}
-          </div>
-          {project.comments && <div style={{ fontSize: 13, color: W.textMuted, marginTop: 4 }}>{project.comments}</div>}
+          <div style={{ fontSize: 22, fontWeight: 900, color: W.text }}>{project.name || project.grade}</div>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 4 }}><span style={{ fontWeight: 800, fontSize: 16, color: getGradeColor(project.grade) }}>{project.grade}</span><span style={{ color: W.textMuted, fontSize: 13 }}>{project.scale}</span>{project.completed && <span style={{ background: W.greenDark, color: "#fff", borderRadius: 8, padding: "2px 10px", fontSize: 11, fontWeight: 700 }}>✓ SENT!</span>}</div>
+          {project.comments && <div style={{ fontSize: 13, color: W.textMuted, marginTop: 6 }}>{project.comments}</div>}
           <div style={{ fontSize: 11, color: W.textDim, marginTop: 6 }}>Added {formatDate(project.dateAdded)}{project.dateSent && ` · Sent ${formatDate(project.dateSent)}`}</div>
         </div>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10, marginBottom: 16 }}>
@@ -927,19 +1139,10 @@ export default function App() {
             </div>
           ))}
         </div>
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 16 }}>
-          {bestSession && <div style={{ background: W.green, borderRadius: 14, padding: "12px" }}><div style={{ fontSize: 11, fontWeight: 700, color: W.greenDark, textTransform: "uppercase" }}>Best Session</div><div style={{ fontSize: 16, fontWeight: 800, color: W.greenDark, marginTop: 2 }}>{bestSession.tries} {bestSession.tries === 1 ? "try" : "tries"}</div><div style={{ fontSize: 11, color: W.greenDark, marginTop: 1 }}>{formatDate(bestSession.sessionDate)}</div></div>}
-          {trend && <div style={{ background: trend === "improving" ? W.green : trend === "struggling" ? W.red : W.yellow, borderRadius: 14, padding: "12px" }}><div style={{ fontSize: 11, fontWeight: 700, color: W.textMuted, textTransform: "uppercase" }}>Trend</div><div style={{ fontSize: 15, fontWeight: 800, color: trend === "improving" ? W.greenDark : trend === "struggling" ? W.redDark : W.yellowDark, marginTop: 2 }}>{trend === "improving" ? "📈 Improving" : trend === "struggling" ? "📉 Struggling" : "➡️ Steady"}</div></div>}
-        </div>
-        {history.length > 0 && (
-          <div style={{ background: W.surface, borderRadius: 16, padding: "16px", border: `1px solid ${W.border}`, marginBottom: 16 }}>
-            <div style={{ fontSize: 12, fontWeight: 700, color: W.textMuted, textTransform: "uppercase", letterSpacing: 1, marginBottom: 12 }}>Tries Per Session</div>
-            {[...history].reverse().map((h, i) => { const max = Math.max(...history.map(x => x.tries)); return (<div key={i} style={{ marginBottom: 10 }}><div style={{ display: "flex", justifyContent: "space-between", marginBottom: 3 }}><span style={{ fontSize: 11, color: W.textMuted }}>{formatDate(h.sessionDate)} · {h.sessionLocation}</span><span style={{ fontSize: 11, fontWeight: 700, color: h.completed ? W.greenDark : W.accent }}>{h.tries}{h.completed ? " ✓" : ""}</span></div><div style={{ background: W.surface2, borderRadius: 6, height: 8, overflow: "hidden" }}><div style={{ width: `${Math.round((h.tries / max) * 100)}%`, height: "100%", borderRadius: 6, background: h.completed ? W.greenDark : W.accent }} /></div></div>); })}
-          </div>
-        )}
+        {bestSession && <div style={{ background: W.green, borderRadius: 14, padding: "12px 14px", marginBottom: 14 }}><div style={{ fontSize: 11, fontWeight: 700, color: W.greenDark, textTransform: "uppercase" }}>Best Session</div><div style={{ fontSize: 16, fontWeight: 800, color: W.greenDark }}>{bestSession.tries} {bestSession.tries === 1 ? "try" : "tries"} · {formatDate(bestSession.sessionDate)}</div></div>}
         <div style={{ fontSize: 12, fontWeight: 700, color: W.textMuted, textTransform: "uppercase", letterSpacing: 1, marginBottom: 10 }}>Session History</div>
         {history.length === 0 ? <div style={{ color: W.textDim, fontSize: 13, marginBottom: 16 }}>No attempts yet.</div>
-          : history.map((h, i) => (<div key={i} style={{ background: W.surface, borderRadius: 12, padding: "12px 14px", marginBottom: 8, border: `1px solid ${W.border}`, borderLeft: `4px solid ${h.completed ? W.greenDark : W.accent}` }}><div style={{ display: "flex", justifyContent: "space-between" }}><div style={{ fontWeight: 700, color: W.text, fontSize: 13 }}>{h.sessionLocation}</div><div style={{ fontSize: 11, color: W.textMuted }}>{formatDate(h.sessionDate)}</div></div><div style={{ fontSize: 12, color: W.textMuted, marginTop: 3 }}>{h.tries} {h.tries === 1 ? "try" : "tries"} · {h.completed ? <span style={{ color: W.greenDark, fontWeight: 700 }}>✓ Sent!</span> : <span style={{ color: W.pinkDark }}>✗ Not completed</span>}</div>{h.comments && <div style={{ fontSize: 11, color: W.textDim, marginTop: 3 }}>{h.comments}</div>}</div>))}
+          : history.map((h, i) => (<div key={i} style={{ background: W.surface, borderRadius: 12, padding: "12px 14px", marginBottom: 8, border: `1px solid ${W.border}`, borderLeft: `4px solid ${h.completed ? W.greenDark : W.accent}` }}><div style={{ display: "flex", justifyContent: "space-between" }}><div style={{ fontWeight: 700, color: W.text, fontSize: 13 }}>{h.sessionLocation}</div><div style={{ fontSize: 11, color: W.textMuted }}>{formatDate(h.sessionDate)}</div></div><div style={{ fontSize: 12, color: W.textMuted, marginTop: 3 }}>{h.tries} {h.tries === 1 ? "try" : "tries"} · {h.completed ? <span style={{ color: W.greenDark, fontWeight: 700 }}>✓ Sent!</span> : <span style={{ color: W.pinkDark }}>✗ Not sent</span>}</div></div>))}
         <div style={{ marginTop: 20, display: "flex", flexDirection: "column", gap: 10 }}>
           {project.active && !project.completed && <>
             <button onClick={() => { markProjectSent(project.id); setScreen("profile"); setProfileTab("projects"); }} style={{ width: "100%", padding: "13px", background: W.green, border: `2px solid ${W.greenDark}`, borderRadius: 14, color: W.greenDark, fontWeight: 700, fontSize: 14, cursor: "pointer" }}>🎉 Mark as Sent!</button>
@@ -970,12 +1173,8 @@ export default function App() {
         <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 4 }}>
           {Array.from({ length: firstDay }, (_, i) => <div key={`b${i}`} />)}
           {Array.from({ length: daysInMonth }, (_, i) => i + 1).map(day => (
-            <div key={day} style={{ aspectRatio: "1", borderRadius: 10, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 13, fontWeight: hasClimb(day) ? 800 : 400, background: hasClimb(day) ? W.gold : isToday(day) ? W.surface2 : "transparent", color: hasClimb(day) ? "#fff" : isToday(day) ? W.accent : W.text, border: isToday(day) ? `2px solid ${W.accent}` : "2px solid transparent", boxShadow: hasClimb(day) ? "0 2px 8px rgba(245,158,11,0.4)" : "none" }}>{day}</div>
+            <div key={day} style={{ aspectRatio: "1", borderRadius: 10, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 13, fontWeight: hasClimb(day) ? 800 : 400, background: hasClimb(day) ? W.gold : isToday(day) ? W.surface2 : "transparent", color: hasClimb(day) ? "#fff" : isToday(day) ? W.accent : W.text, border: isToday(day) ? `2px solid ${W.accent}` : "2px solid transparent" }}>{day}</div>
           ))}
-        </div>
-        <div style={{ marginTop: 16, display: "flex", gap: 16, justifyContent: "center" }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 6 }}><div style={{ width: 14, height: 14, borderRadius: 4, background: W.gold }} /><span style={{ fontSize: 12, color: W.textMuted }}>Climbed</span></div>
-          <div style={{ display: "flex", alignItems: "center", gap: 6 }}><div style={{ width: 14, height: 14, borderRadius: 4, border: `2px solid ${W.accent}`, background: W.surface2 }} /><span style={{ fontSize: 12, color: W.textMuted }}>Today</span></div>
         </div>
         <div style={{ marginTop: 20 }}>
           <div style={{ fontSize: 12, fontWeight: 700, color: W.textMuted, textTransform: "uppercase", letterSpacing: 1, marginBottom: 10 }}>Sessions This Month</div>
@@ -1009,7 +1208,11 @@ export default function App() {
           <span style={{ fontSize: 20 }}>🧗</span>
           <span style={{ fontWeight: 800, fontSize: 18, color: W.text }}>SendLog</span>
         </div>
-        {timerRunning && <div style={{ background: W.accent, borderRadius: 20, padding: "4px 12px", color: "#fff", fontSize: 12, fontWeight: 700 }}>⏱ {formatDuration(sessionTimer)}</div>}
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          {timerRunning && <div style={{ background: W.accent, borderRadius: 20, padding: "4px 12px", color: "#fff", fontSize: 12, fontWeight: 700 }}>⏱ {formatDuration(sessionTimer)}</div>}
+          {saveStatus === "saving" && <div style={{ fontSize: 11, color: W.textDim, fontWeight: 600 }}>💾</div>}
+          {saveStatus === "saved" && <div style={{ fontSize: 11, color: W.greenDark, fontWeight: 600 }}>✓</div>}
+        </div>
       </div>
 
       <div style={{ flex: 1, overflowY: "auto", paddingBottom: 80 }} onClick={() => { setLocationDropdownOpen(false); setActiveLocationDropdownOpen(false); }}>
