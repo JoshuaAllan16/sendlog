@@ -267,6 +267,7 @@ export default function App() {
   const [statsScaleFilter, setStatsScaleFilter]     = useState("All Scales");
   const [statsTimeFrame, setStatsTimeFrame]         = useState("2w");
   const [statsChart, setStatsChart]                 = useState("time");
+  const [statsBarSel, setStatsBarSel]               = useState(null);
   const [analyzeOpen, setAnalyzeOpen] = useState(false);
 
   // ── INIT: check for existing session ──────────────────────
@@ -417,6 +418,10 @@ export default function App() {
     if (!activeSession) return;
     const completed = { id: Date.now(), date: new Date().toISOString(), duration: sessionTimer, location: activeSession.location || pendingLocation || "Unknown Gym", climbs: activeSession.climbs };
     setSessions(prev => [completed, ...prev]);
+    const sentProjectIds = activeSession.climbs.filter(c => c.isProject && c.completed && c.projectId).map(c => c.projectId);
+    if (sentProjectIds.length > 0) {
+      setProjects(prev => prev.map(p => sentProjectIds.includes(p.id) ? { ...p, completed: true, active: false, dateSent: new Date().toISOString() } : p));
+    }
     setSessionSummary(completed);
     setTimerRunning(false); setActiveSession(null); setSessionTimer(0); setSessionStarted(false); setPendingLocation(""); setShowEndConfirm(false); setScreen("sessionSummary");
   };
@@ -520,6 +525,7 @@ export default function App() {
       });
     if (logbookSort === "hardest") climbs.sort((a, b) => getGradeIndex(b.grade, b.scale) - getGradeIndex(a.grade, a.scale));
     else if (logbookSort === "easiest") climbs.sort((a, b) => getGradeIndex(a.grade, a.scale) - getGradeIndex(b.grade, b.scale));
+    else if (logbookSort === "name") climbs.sort((a, b) => (a.name || a.grade).localeCompare(b.name || b.grade));
     else climbs.sort((a, b) => new Date(b.sessionDate) - new Date(a.sessionDate));
     return climbs;
   };
@@ -817,7 +823,11 @@ export default function App() {
       <div style={{ background: W.surface, borderRadius: 18, border: `1px solid ${W.border}`, marginBottom: 16, overflow: "hidden" }}>
         {/* Header */}
         <div onClick={() => { setSelectedSession(session); setScreen("sessionDetail"); }} style={{ padding: "14px 16px", cursor: "pointer", borderBottom: `1px solid ${W.border}`, display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
-          <div><div style={{ fontWeight: 800, fontSize: 16, color: W.text }}>{session.location}</div><div style={{ fontSize: 12, color: W.textMuted, marginTop: 2 }}>{formatDate(session.date)} · ⏱ {formatDuration(session.duration)}</div></div>
+          <div>
+            <div style={{ fontWeight: 900, fontSize: 17, color: W.text }}>{formatDate(session.date)}</div>
+            <div style={{ fontSize: 14, fontWeight: 700, color: W.textMuted, marginTop: 2 }}>📍 {session.location}</div>
+            <div style={{ fontSize: 11, color: W.textDim, marginTop: 1 }}>⏱ {formatDuration(session.duration)}</div>
+          </div>
           <div style={{ color: W.accent, fontSize: 13, fontWeight: 700 }}>Details ›</div>
         </div>
         {/* Pie chart at top, side-by-side with compact legend */}
@@ -1137,31 +1147,57 @@ export default function App() {
             <div style={{ background: W.surface, borderRadius: 16, padding: "16px", border: `1px solid ${W.border}`, marginBottom: 16 }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
                 <div style={{ fontSize: 12, fontWeight: 700, color: W.textMuted, textTransform: "uppercase", letterSpacing: 1 }}>Activity</div>
-                <select value={statsChart} onChange={e => setStatsChart(e.target.value)} style={{ background: W.surface2, border: `1px solid ${W.border}`, borderRadius: 8, padding: "5px 10px", color: W.text, fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}>
+                <select value={statsChart} onChange={e => { setStatsChart(e.target.value); setStatsBarSel(null); }} style={{ background: W.surface2, border: `1px solid ${W.border}`, borderRadius: 8, padding: "5px 10px", color: W.text, fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}>
                   <option value="time">Time on Wall</option>
                   <option value="sends">Sends</option>
                   <option value="attempts">Attempts</option>
                 </select>
               </div>
-              <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 6 }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
                 <span style={{ fontSize: 11, color: W.textDim }}>total: {cVals.reduce((a,b)=>a+b,0)}{cUnit ? ` ${cUnit}` : ""}</span>
+                {statsBarSel !== null && cVals[statsBarSel] !== undefined && (
+                  <span style={{ fontSize: 12, fontWeight: 800, color: cColor }}>{chartBuckets[statsBarSel]?.label}: {cVals[statsBarSel]}{cUnit ? ` ${cUnit}` : ""}</span>
+                )}
               </div>
-              <div style={{ display: "flex", alignItems: "flex-end", gap: 2, height: 64 }}>
-                {cVals.map((v, i) => (
-                  <div key={i} style={{ flex: 1, height: "100%", display: "flex", alignItems: "flex-end" }}>
-                    <div style={{ width: "100%", borderRadius: "3px 3px 0 0", background: v > 0 ? cColor : W.border, height: `${Math.max(Math.round((v / cMax) * 100), v > 0 ? 4 : 1)}%`, opacity: v > 0 ? 1 : 0.3 }} />
-                  </div>
-                ))}
-              </div>
+              {statsTimeFrame === "all" ? (
+                /* Line chart for all-time */
+                (() => {
+                  const pts = cVals.map((v, i) => {
+                    const x = cVals.length > 1 ? (i / (cVals.length - 1)) * 300 : 150;
+                    const y = 56 - Math.round((v / cMax) * 52);
+                    return { x, y, v };
+                  });
+                  const polyline = pts.map(p => `${p.x},${p.y}`).join(" ");
+                  return (
+                    <div style={{ position: "relative" }}>
+                      <svg width="100%" height={64} viewBox="0 0 300 64" preserveAspectRatio="none" style={{ display: "block" }}>
+                        <polyline points={polyline} fill="none" stroke={cColor} strokeWidth={2.5} strokeLinejoin="round" strokeLinecap="round" />
+                        {pts.map((p, i) => (
+                          <circle key={i} cx={p.x} cy={p.y} r={statsBarSel === i ? 5 : 3} fill={statsBarSel === i ? cColor : W.surface2} stroke={cColor} strokeWidth={2} style={{ cursor: "pointer" }} onClick={() => setStatsBarSel(statsBarSel === i ? null : i)} />
+                        ))}
+                      </svg>
+                    </div>
+                  );
+                })()
+              ) : (
+                /* Bar chart */
+                <div style={{ display: "flex", alignItems: "flex-end", gap: 2, height: 64 }}>
+                  {cVals.map((v, i) => (
+                    <div key={i} onClick={() => setStatsBarSel(statsBarSel === i ? null : i)} style={{ flex: 1, height: "100%", display: "flex", alignItems: "flex-end", cursor: "pointer" }}>
+                      <div style={{ width: "100%", borderRadius: "3px 3px 0 0", background: v > 0 ? cColor : W.border, height: `${Math.max(Math.round((v / cMax) * 100), v > 0 ? 4 : 1)}%`, opacity: statsBarSel === null || statsBarSel === i ? (v > 0 ? 1 : 0.3) : 0.25, outline: statsBarSel === i ? `2px solid ${cColor}` : "none", transition: "opacity 0.15s" }} />
+                    </div>
+                  ))}
+                </div>
+              )}
               <div style={{ display: "flex", gap: 2, marginTop: 3, marginBottom: 12 }}>
                 {chartBuckets.map((b, i) => (
-                  <div key={i} style={{ flex: 1, textAlign: "center", fontSize: 7, color: W.textDim, overflow: "hidden" }}>{b.label}</div>
+                  <div key={i} style={{ flex: 1, textAlign: "center", fontSize: 7, color: statsBarSel === i ? cColor : W.textDim, fontWeight: statsBarSel === i ? 800 : 400, overflow: "hidden" }}>{b.label}</div>
                 ))}
               </div>
               {/* Time frame pills inside chart card */}
               <div style={{ display: "flex", gap: 4, overflowX: "auto", paddingBottom: 1 }}>
                 {[["2w","2W"],["1m","1M"],["6m","6M"],["1y","1Y"],["all","All"]].map(([id, lbl]) => (
-                  <button key={id} onClick={() => setStatsTimeFrame(id)} style={{ flexShrink: 0, padding: "4px 10px", borderRadius: 14, border: "2px solid", borderColor: statsTimeFrame === id ? W.accent : W.border, background: statsTimeFrame === id ? `linear-gradient(135deg, ${W.accent}, ${W.accentDark})` : W.surface, color: statsTimeFrame === id ? "#fff" : W.textDim, cursor: "pointer", fontSize: 10, fontWeight: 700 }}>{lbl}</button>
+                  <button key={id} onClick={() => { setStatsTimeFrame(id); setStatsBarSel(null); }} style={{ flexShrink: 0, padding: "4px 10px", borderRadius: 14, border: "2px solid", borderColor: statsTimeFrame === id ? W.accent : W.border, background: statsTimeFrame === id ? `linear-gradient(135deg, ${W.accent}, ${W.accentDark})` : W.surface, color: statsTimeFrame === id ? "#fff" : W.textDim, cursor: "pointer", fontSize: 10, fontWeight: 700 }}>{lbl}</button>
                 ))}
               </div>
             </div>
@@ -1266,7 +1302,7 @@ export default function App() {
                       </div>
                       <Label>Sort</Label>
                       <div style={{ display: "flex", gap: 8 }}>
-                        {[["date", "📅 Newest"], ["hardest", "🔺 Hardest"], ["easiest", "🔻 Easiest"]].map(([val, label]) => <button key={val} onClick={() => setLogbookSort(val)} style={{ padding: "6px 12px", borderRadius: 16, border: "2px solid", borderColor: logbookSort === val ? W.accent : W.border, background: logbookSort === val ? W.accent + "22" : W.surface, color: logbookSort === val ? W.accent : W.textDim, cursor: "pointer", fontSize: 12, fontWeight: 600 }}>{label}</button>)}
+                        {[["date", "📅 Newest"], ["hardest", "🔺 Hardest"], ["easiest", "🔻 Easiest"], ["name", "🔤 A–Z"]].map(([val, label]) => <button key={val} onClick={() => setLogbookSort(val)} style={{ padding: "6px 12px", borderRadius: 16, border: "2px solid", borderColor: logbookSort === val ? W.accent : W.border, background: logbookSort === val ? W.accent + "22" : W.surface, color: logbookSort === val ? W.accent : W.textDim, cursor: "pointer", fontSize: 12, fontWeight: 600 }}>{label}</button>)}
                       </div>
                     </>
                   )}
@@ -1439,6 +1475,19 @@ export default function App() {
           <div style={{ fontSize: 24, fontWeight: 900, color: W.text, marginBottom: 4 }}>Session Complete!</div>
           <div style={{ fontSize: 13, color: W.textMuted }}>📍 {session.location} · {formatDate(session.date)}</div>
         </div>
+        {(() => {
+          const sentProjects = session.climbs.filter(c => c.isProject && c.completed);
+          if (!sentProjects.length) return null;
+          return (
+            <div style={{ background: `linear-gradient(135deg, ${W.green}, #166534)`, borderRadius: 16, padding: "16px", marginBottom: 16, border: `1px solid ${W.greenDark}40` }}>
+              <div style={{ fontSize: 24, marginBottom: 6 }}>🏆</div>
+              <div style={{ fontSize: 16, fontWeight: 900, color: W.greenDark, marginBottom: 4 }}>Project{sentProjects.length > 1 ? "s" : ""} Sent!</div>
+              {sentProjects.map(c => (
+                <div key={c.id} style={{ fontSize: 13, fontWeight: 700, color: W.greenDark, marginTop: 4 }}>✓ {c.name || c.grade} — {c.grade}</div>
+              ))}
+            </div>
+          );
+        })()}
         <div style={{ background: `linear-gradient(135deg, ${W.accent}, ${W.accentDark})`, borderRadius: 18, padding: "18px", marginBottom: 20, textAlign: "center", boxShadow: `0 4px 20px ${W.accentGlow}` }}>
           <div style={{ color: "rgba(255,255,255,0.75)", fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: 1.5, marginBottom: 6 }}>Time on Wall</div>
           <div style={{ color: "#fff", fontSize: 48, fontWeight: 900, letterSpacing: 3, lineHeight: 1 }}>{formatDuration(session.duration)}</div>
