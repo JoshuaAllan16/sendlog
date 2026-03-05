@@ -289,7 +289,8 @@ export default function App() {
   const [hiddenLocations, setHiddenLocations]   = useState([]);
   const [showAccountPanel, setShowAccountPanel] = useState(false);
   const [confirmLogout, setConfirmLogout]       = useState(false);
-  const [notifPrefsOpen, setNotifPrefsOpen]     = useState(false);
+  const [notifPrefsOpen, setNotifPrefsOpen]       = useState(false);
+  const [followRequestsOpen, setFollowRequestsOpen] = useState(false);
   const [colorTheme, setColorTheme]             = useState("espresso");
   const [showEndConfirm, setShowEndConfirm]     = useState(false);
   const [sessionSummary, setSessionSummary]     = useState(null);
@@ -1666,22 +1667,32 @@ export default function App() {
           ))}
         </div>
 
-        {/* Pending follow requests from others */}
+        {/* Pending follow requests — collapsible */}
         {myFollowRequests.length > 0 && (
-          <div style={{ background: W.surface, borderRadius: 16, padding: "14px 16px", marginBottom: 14, border: `1px solid ${W.border}` }}>
-            <div style={{ fontWeight: 700, color: W.text, fontSize: 13, marginBottom: 10 }}>Follow Requests ({myFollowRequests.length})</div>
-            {myFollowRequests.map(req => (
-              <div key={req.from} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", paddingBottom: 8, marginBottom: 8, borderBottom: `1px solid ${W.border}` }}>
-                <div onClick={() => openUserProfile(req.from, req.fromDisplay, "profile")} style={{ flex: 1, cursor: "pointer" }}>
-                  <div style={{ fontWeight: 700, color: W.text, fontSize: 13 }}>{req.fromDisplay}</div>
-                  <div style={{ fontSize: 11, color: W.accent }}>@{req.from} ›</div>
-                </div>
-                <div style={{ display: "flex", gap: 6 }}>
-                  <button onClick={() => acceptFollowRequest(req.from, req.fromDisplay)} style={{ padding: "5px 12px", background: `linear-gradient(135deg, ${W.accent}, ${W.accentDark})`, border: "none", borderRadius: 8, color: "#fff", fontWeight: 700, fontSize: 12, cursor: "pointer" }}>Accept</button>
-                  <button onClick={() => denyFollowRequest(req.from)} style={{ padding: "5px 10px", background: W.surface2, border: `1px solid ${W.border}`, borderRadius: 8, color: W.textMuted, fontWeight: 700, fontSize: 12, cursor: "pointer" }}>Deny</button>
-                </div>
+          <div style={{ border: `1px solid ${W.border}`, borderRadius: 14, marginBottom: 14, overflow: "hidden" }}>
+            <button onClick={() => setFollowRequestsOpen(o => !o)} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", width: "100%", background: W.surface, border: "none", padding: "12px 16px", cursor: "pointer" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <span style={{ fontWeight: 700, color: W.text, fontSize: 14 }}>Follow Requests</span>
+                <span style={{ background: W.accent, color: "#fff", borderRadius: 20, minWidth: 20, height: 20, fontSize: 11, fontWeight: 800, display: "inline-flex", alignItems: "center", justifyContent: "center", padding: "0 5px" }}>{myFollowRequests.length}</span>
               </div>
-            ))}
+              <span style={{ fontSize: 12, color: W.textDim }}>{followRequestsOpen ? "▲" : "▼"}</span>
+            </button>
+            {followRequestsOpen && (
+              <div style={{ background: W.surface2, borderTop: `1px solid ${W.border}`, padding: "8px 16px" }}>
+                {myFollowRequests.map(req => (
+                  <div key={req.from} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "8px 0", borderBottom: `1px solid ${W.border}` }}>
+                    <div onClick={() => openUserProfile(req.from, req.fromDisplay, "profile")} style={{ flex: 1, cursor: "pointer" }}>
+                      <div style={{ fontWeight: 700, color: W.text, fontSize: 13 }}>{req.fromDisplay}</div>
+                      <div style={{ fontSize: 11, color: W.accent }}>@{req.from} ›</div>
+                    </div>
+                    <div style={{ display: "flex", gap: 6 }}>
+                      <button onClick={() => acceptFollowRequest(req.from, req.fromDisplay)} style={{ padding: "5px 12px", background: `linear-gradient(135deg, ${W.accent}, ${W.accentDark})`, border: "none", borderRadius: 8, color: "#fff", fontWeight: 700, fontSize: 12, cursor: "pointer" }}>Accept</button>
+                      <button onClick={() => denyFollowRequest(req.from)} style={{ padding: "5px 10px", background: W.surface2, border: `1px solid ${W.border}`, borderRadius: 8, color: W.textMuted, fontWeight: 700, fontSize: 12, cursor: "pointer" }}>Deny</button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         )}
 
