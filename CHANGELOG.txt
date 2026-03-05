@@ -159,3 +159,15 @@ PUSH 17  |  b4811f1  |  Mutual follow, notifications, remove follower, unfollow 
 - Follow notifications: when someone follows you, a notification is stored; a badge appears on the Profile nav button showing unread count; notifications are listed in your profile screen with an unread dot indicator; all marked as read when you open the profile
 - Remove follower: your own Followers list now has a Remove button per user — removes them from your followers and removes you from their following list
 - Home feed empty state: brand new users with no sessions see a friendly prompt with a "Find Climbers" CTA instead of a blank screen
+
+
+──────────────────────────────────────────────────────────────
+PUSH 18  |  e96f39d  |  Reactions, photos, notif bell, mute, private accounts, notif prefs
+──────────────────────────────────────────────────────────────
+- Notification bell (🔔) fixed in the home screen header with an unread count badge; tapping opens a full notification panel showing both follow notifications and session activity notifications
+- Photos section in session detail: any climbs with photos are shown in a horizontal scrollable strip with a colored grade badge overlaid at the bottom and climb name in the corner
+- Reactions on social feed cards: tap 🔥, 💪, or ✨ to react to someone's session; your reaction is highlighted and persisted in your own kv store
+- Mute user button on other users' profiles: hides their sessions from your home feed and social feed without unfollowing them; tap again to unmute
+- Private account toggle in Settings: when enabled, users who don't follow you see a 🔒 lock screen instead of your sessions and stats
+- Notification preferences in Settings: two toggle switches to independently enable/disable follow notifications and session activity notifications
+- Session activity notifications: automatically generated when followed users post new sessions within the last 24 hours; de-duplicated so you never see the same session twice
