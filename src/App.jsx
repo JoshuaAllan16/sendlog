@@ -27,6 +27,11 @@ const CLIMB_COLORS = [
   { id: "pink",   label: "Pink",   hex: "#ec4899" },
 ];
 
+const ROPE_GRADES = {
+  "French": ["4", "5a", "5b", "5c", "6a", "6a+", "6b", "6b+", "6c", "6c+", "7a", "7a+", "7b", "7b+", "7c", "7c+", "8a"],
+  "YDS":    ["5.6", "5.7", "5.8", "5.9", "5.10a", "5.10b", "5.10c", "5.10d", "5.11a", "5.11b", "5.11c", "5.11d", "5.12a", "5.12b", "5.12c", "5.12d"],
+};
+
 const WALL_TYPES = ["Slab", "Overhang", "Corner", "Roof"];
 const HOLD_TYPES  = ["Jugs", "Crimps", "Slopes", "Pinches", "Pockets", "Sidepull", "Undercling", "Gaston", "Dyno", "Technical", "Bat Hang", "Coordination", "Knee Bar"];
 
@@ -292,13 +297,14 @@ export default function App() {
   const [notifPrefsOpen, setNotifPrefsOpen]       = useState(false);
   const [followRequestsOpen, setFollowRequestsOpen] = useState(false);
   const [profileNotifsOpen, setProfileNotifsOpen]   = useState(false);
-  const [lightboxPhoto, setLightboxPhoto]           = useState(null);
+  const [lightboxPhoto, setLightboxPhoto]           = useState(null); // { photos:[{src,grade,name,colorId}], idx }
   const [feedPage, setFeedPage]                     = useState(1);
+  const [logbookPage, setLogbookPage]               = useState(1);
   const [colorTheme, setColorTheme]             = useState("espresso");
   const [showEndConfirm, setShowEndConfirm]     = useState(false);
   const [sessionSummary, setSessionSummary]     = useState(null);
 
-  const blankForm = { name: "", grade: GRADES[preferredScale]?.[2] || "V3", scale: preferredScale, isProject: false, comments: "", photo: null, color: null, wallTypes: [], holdTypes: [] };
+  const blankForm = { name: "", grade: GRADES[preferredScale]?.[2] || "V3", scale: preferredScale, isProject: false, comments: "", photo: null, color: null, wallTypes: [], holdTypes: [], climbType: "boulder", ropeStyle: "lead", speedTime: "" };
   const [climbForm, setClimbForm]   = useState(blankForm);
   const [photoPreview, setPhotoPreview] = useState(null);
   const [calendarDate, setCalendarDate] = useState(new Date());
@@ -567,10 +573,10 @@ export default function App() {
     setSelectedSession(prev => ({ ...prev, climbs: prev.climbs.filter(c => c.id !== climbId) }));
   };
 
-  const openClimbForm = (existing = null, fromProject = null) => {
+  const openClimbForm = (existing = null, fromProject = null, climbType = "boulder") => {
     if (existing) {
       setEditingClimbId(existing.id);
-      setClimbForm({ name: existing.name || "", grade: existing.grade, scale: existing.scale, isProject: existing.isProject, comments: existing.comments, photo: existing.photo, projectId: existing.projectId, tries: existing.tries, completed: existing.completed, color: existing.color || null, wallTypes: existing.wallTypes || [], holdTypes: existing.holdTypes || [] });
+      setClimbForm({ name: existing.name || "", grade: existing.grade, scale: existing.scale, isProject: existing.isProject, comments: existing.comments, photo: existing.photo, projectId: existing.projectId, tries: existing.tries, completed: existing.completed, color: existing.color || null, wallTypes: existing.wallTypes || [], holdTypes: existing.holdTypes || [], climbType: existing.climbType || "boulder", ropeStyle: existing.ropeStyle || "lead", speedTime: existing.speedTime || "" });
       setPhotoPreview(existing.photo);
     } else if (fromProject) {
       setEditingClimbId(null);
@@ -578,7 +584,9 @@ export default function App() {
       setPhotoPreview(null);
     } else {
       setEditingClimbId(null);
-      setClimbForm(blankForm);
+      const ropeInitScale = "French";
+      const ropeInitGrade = ROPE_GRADES[ropeInitScale][Math.floor(ROPE_GRADES[ropeInitScale].length / 2)];
+      setClimbForm({ ...blankForm, climbType, scale: climbType === "rope" ? ropeInitScale : preferredScale, grade: climbType === "rope" ? ropeInitGrade : (GRADES[preferredScale]?.[2] || "V3") });
       setPhotoPreview(null);
     }
     setShowClimbForm(true);
@@ -591,7 +599,8 @@ export default function App() {
       setActiveSession(s => ({ ...s, climbs: s.climbs.map(c => c.id === editingClimbId ? { ...c, ...climbForm, photo: photoPreview } : c) }));
     } else {
       const pid = climbForm.isProject ? (climbForm.projectId || Date.now() + 1) : null;
-      const newClimb = { ...climbForm, photo: photoPreview, projectId: pid, id: Date.now(), loggedAt: Date.now(), tries: 0, completed: false };
+      const speedGrade = climbForm.climbType === "speed" ? (climbForm.speedTime ? climbForm.speedTime + "s" : "—") : undefined;
+      const newClimb = { ...climbForm, photo: photoPreview, projectId: pid, id: Date.now(), loggedAt: Date.now(), tries: climbForm.climbType === "speed" ? 1 : 0, completed: climbForm.climbType === "speed" ? climbForm.completed : false, ...(speedGrade ? { grade: speedGrade, scale: "Speed" } : {}) };
       if (newClimb.isProject && !climbForm.projectId) setProjects(prev => [...prev, { id: pid, name: newClimb.name, grade: newClimb.grade, scale: newClimb.scale, comments: newClimb.comments, active: true, completed: false, dateAdded: new Date().toISOString(), dateSent: null }]);
       setActiveSession(s => ({ ...s, climbs: [...s.climbs, newClimb] }));
     }
@@ -1133,75 +1142,139 @@ export default function App() {
   const Label = ({ children }) => <div style={{ color: W.textMuted, fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: 1.2, marginBottom: 7 }}>{children}</div>;
 
   // ── CLIMB FORM ─────────────────────────────────────────────
-  const ClimbFormPanel = ({ onSave, onCancel, isActiveSession = false }) => (
-    <div style={{ background: W.surface2, borderRadius: 16, padding: "16px", marginBottom: 16, border: `1px solid ${W.border}` }}>
-      <div style={{ fontWeight: 700, color: W.text, marginBottom: 14, fontSize: 15 }}>{editingClimbId ? "✏️ Edit Climb" : "Add a Climb"}</div>
-      <Label>Climb Name</Label>
-      <input value={climbForm.name} onChange={e => setClimbForm(f => ({ ...f, name: e.target.value }))} placeholder="e.g. The Sloper Problem" style={{ width: "100%", padding: "10px 12px", background: W.surface, border: `2px solid ${W.border}`, borderRadius: 10, color: W.text, fontSize: 14, boxSizing: "border-box", marginBottom: 12, fontFamily: "inherit" }} />
-      <Label>Hold Color</Label>
-      <div style={{ display: "flex", gap: 8, marginBottom: 12, flexWrap: "wrap" }}>
-        {CLIMB_COLORS.map(c => (
-          <button key={c.id} onClick={() => setClimbForm(f => ({ ...f, color: f.color === c.id ? null : c.id }))} title={c.label} style={{ width: 36, height: 36, borderRadius: 6, flexShrink: 0, background: c.hex, border: climbForm.color === c.id ? `3px solid ${W.accent}` : c.id === "white" ? "2px solid #c8a882" : "2px solid rgba(0,0,0,0.15)", cursor: "pointer", boxShadow: climbForm.color === c.id ? `0 0 0 2px ${W.accent}55` : "none", outline: "none", transform: climbForm.color === c.id ? "scale(1.15)" : "scale(1)", transition: "transform 0.12s, box-shadow 0.12s" }} />
-        ))}
-      </div>
-      {climbForm.color && (
-        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
-          <ColorDot colorId={climbForm.color} size={14} />
-          <span style={{ fontSize: 12, color: W.textMuted, fontWeight: 600 }}>{CLIMB_COLORS.find(c => c.id === climbForm.color)?.label} selected</span>
-          <button onClick={() => setClimbForm(f => ({ ...f, color: null }))} style={{ marginLeft: "auto", fontSize: 11, color: W.textDim, background: "none", border: "none", cursor: "pointer" }}>✕ Clear</button>
-        </div>
-      )}
-      <Label>Scale</Label>
-      <select value={climbForm.scale} onChange={e => setClimbForm(f => ({ ...f, scale: e.target.value, grade: GRADES[e.target.value][0] }))} style={{ width: "100%", padding: "10px 12px", background: W.surface, border: `2px solid ${W.border}`, borderRadius: 10, color: W.text, fontSize: 14, boxSizing: "border-box", marginBottom: 12, fontFamily: "inherit", cursor: "pointer" }}>
-        {Object.keys(GRADES).map(scale => <option key={scale} value={scale}>{scale}</option>)}
-      </select>
-      <Label>Grade</Label>
-      <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 12 }}>
-        {GRADES[climbForm.scale].map(g => <button key={g} onClick={() => setClimbForm(f => ({ ...f, grade: g }))} style={{ padding: "5px 11px", borderRadius: 14, border: "2px solid", borderColor: climbForm.grade === g ? getGradeColor(g) : W.border, background: climbForm.grade === g ? getGradeColor(g) + "33" : W.surface, color: climbForm.grade === g ? getGradeColor(g) : W.textDim, cursor: "pointer", fontWeight: 700, fontSize: 12 }}>{g}</button>)}
-      </div>
-      <Label>Wall Type</Label>
-      <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
-        {WALL_TYPES.map(t => { const sel = climbForm.wallTypes.includes(t); return (<button key={t} onClick={() => setClimbForm(f => ({ ...f, wallTypes: toggleArr(f.wallTypes, t) }))} style={{ flex: 1, padding: "9px", borderRadius: 10, border: "2px solid", borderColor: sel ? W.purpleDark : W.border, background: sel ? W.purple : W.surface, color: sel ? W.purpleDark : W.textDim, cursor: "pointer", fontWeight: 700, fontSize: 13 }}>{t}</button>); })}
-      </div>
-      <Label>Climb Identifier</Label>
-      <div style={{ display: "flex", flexWrap: "wrap", gap: 7, marginBottom: 12 }}>
-        {HOLD_TYPES.map(t => { const sel = climbForm.holdTypes.includes(t); return (<button key={t} onClick={() => setClimbForm(f => ({ ...f, holdTypes: toggleArr(f.holdTypes, t) }))} style={{ padding: "6px 14px", borderRadius: 20, border: "2px solid", borderColor: sel ? W.accentDark : W.border, background: sel ? W.accent + "22" : W.surface, color: sel ? W.accentDark : W.textDim, cursor: "pointer", fontWeight: 700, fontSize: 12 }}>{t}</button>); })}
-      </div>
-      {!isActiveSession && editingClimbId && (
-        <>
-          <Label>Tries</Label>
-          <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 12 }}>
-            <button onClick={() => setClimbForm(f => ({ ...f, tries: Math.max(0, (f.tries || 0) - 1) }))} style={{ width: 36, height: 36, borderRadius: 10, border: `2px solid ${W.border}`, background: W.surface, color: W.text, fontSize: 20, cursor: "pointer" }}>−</button>
-            <span style={{ fontSize: 22, fontWeight: 800, color: W.text, minWidth: 30, textAlign: "center" }}>{climbForm.tries || 0}</span>
-            <button onClick={() => setClimbForm(f => ({ ...f, tries: (f.tries || 0) + 1 }))} style={{ width: 36, height: 36, borderRadius: 10, border: `2px solid ${W.border}`, background: W.surface, color: W.text, fontSize: 20, cursor: "pointer" }}>+</button>
+  const ClimbFormPanel = ({ onSave, onCancel, isActiveSession = false }) => {
+    const type = climbForm.climbType || "boulder";
+    const ropeGrades = ROPE_GRADES[climbForm.scale] || ROPE_GRADES["French"];
+    const title = editingClimbId ? "✏️ Edit Climb" : type === "boulder" ? "🪨 Add a Boulder" : type === "rope" ? "🪢 Add a Rope Climb" : "⏱ Add a Speed Climb";
+    return (
+      <div style={{ background: W.surface2, borderRadius: 16, padding: "16px", marginBottom: 16, border: `1px solid ${W.border}` }}>
+        <div style={{ fontWeight: 700, color: W.text, marginBottom: 14, fontSize: 15 }}>{title}</div>
+
+        {/* Name */}
+        <Label>{type === "speed" ? "Climb Name (optional)" : "Climb Name"}</Label>
+        <input value={climbForm.name} onChange={e => setClimbForm(f => ({ ...f, name: e.target.value }))} placeholder={type === "boulder" ? "e.g. The Sloper Problem" : type === "rope" ? "e.g. Red Route 6b+" : "e.g. Speed Route"} style={{ width: "100%", padding: "10px 12px", background: W.surface, border: `2px solid ${W.border}`, borderRadius: 10, color: W.text, fontSize: 14, boxSizing: "border-box", marginBottom: 12, fontFamily: "inherit" }} />
+
+        {/* Hold Color (boulder + rope) */}
+        {type !== "speed" && (
+          <>
+            <Label>Hold Color</Label>
+            <div style={{ display: "flex", gap: 8, marginBottom: 12, flexWrap: "wrap" }}>
+              {CLIMB_COLORS.map(c => (
+                <button key={c.id} onClick={() => setClimbForm(f => ({ ...f, color: f.color === c.id ? null : c.id }))} title={c.label} style={{ width: 36, height: 36, borderRadius: 6, flexShrink: 0, background: c.hex, border: climbForm.color === c.id ? `3px solid ${W.accent}` : c.id === "white" ? "2px solid #c8a882" : "2px solid rgba(0,0,0,0.15)", cursor: "pointer", boxShadow: climbForm.color === c.id ? `0 0 0 2px ${W.accent}55` : "none", outline: "none", transform: climbForm.color === c.id ? "scale(1.15)" : "scale(1)", transition: "transform 0.12s, box-shadow 0.12s" }} />
+              ))}
+            </div>
+            {climbForm.color && (
+              <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
+                <ColorDot colorId={climbForm.color} size={14} />
+                <span style={{ fontSize: 12, color: W.textMuted, fontWeight: 600 }}>{CLIMB_COLORS.find(c => c.id === climbForm.color)?.label} selected</span>
+                <button onClick={() => setClimbForm(f => ({ ...f, color: null }))} style={{ marginLeft: "auto", fontSize: 11, color: W.textDim, background: "none", border: "none", cursor: "pointer" }}>✕ Clear</button>
+              </div>
+            )}
+          </>
+        )}
+
+        {/* Boulder: scale, grade, wall type, hold types */}
+        {type === "boulder" && (
+          <>
+            <Label>Scale</Label>
+            <select value={climbForm.scale} onChange={e => setClimbForm(f => ({ ...f, scale: e.target.value, grade: GRADES[e.target.value][0] }))} style={{ width: "100%", padding: "10px 12px", background: W.surface, border: `2px solid ${W.border}`, borderRadius: 10, color: W.text, fontSize: 14, boxSizing: "border-box", marginBottom: 12, fontFamily: "inherit", cursor: "pointer" }}>
+              {Object.keys(GRADES).map(scale => <option key={scale} value={scale}>{scale}</option>)}
+            </select>
+            <Label>Grade</Label>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 12 }}>
+              {GRADES[climbForm.scale].map(g => <button key={g} onClick={() => setClimbForm(f => ({ ...f, grade: g }))} style={{ padding: "5px 11px", borderRadius: 14, border: "2px solid", borderColor: climbForm.grade === g ? getGradeColor(g) : W.border, background: climbForm.grade === g ? getGradeColor(g) + "33" : W.surface, color: climbForm.grade === g ? getGradeColor(g) : W.textDim, cursor: "pointer", fontWeight: 700, fontSize: 12 }}>{g}</button>)}
+            </div>
+            <Label>Wall Type</Label>
+            <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
+              {WALL_TYPES.map(t => { const sel = climbForm.wallTypes.includes(t); return (<button key={t} onClick={() => setClimbForm(f => ({ ...f, wallTypes: toggleArr(f.wallTypes, t) }))} style={{ flex: 1, padding: "9px", borderRadius: 10, border: "2px solid", borderColor: sel ? W.purpleDark : W.border, background: sel ? W.purple : W.surface, color: sel ? W.purpleDark : W.textDim, cursor: "pointer", fontWeight: 700, fontSize: 13 }}>{t}</button>); })}
+            </div>
+            <Label>Climb Identifier</Label>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 7, marginBottom: 12 }}>
+              {HOLD_TYPES.map(t => { const sel = climbForm.holdTypes.includes(t); return (<button key={t} onClick={() => setClimbForm(f => ({ ...f, holdTypes: toggleArr(f.holdTypes, t) }))} style={{ padding: "6px 14px", borderRadius: 20, border: "2px solid", borderColor: sel ? W.accentDark : W.border, background: sel ? W.accent + "22" : W.surface, color: sel ? W.accentDark : W.textDim, cursor: "pointer", fontWeight: 700, fontSize: 12 }}>{t}</button>); })}
+            </div>
+          </>
+        )}
+
+        {/* Rope: scale, grade, style (top rope/lead) */}
+        {type === "rope" && (
+          <>
+            <Label>Scale</Label>
+            <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
+              {Object.keys(ROPE_GRADES).map(s => (
+                <button key={s} onClick={() => setClimbForm(f => ({ ...f, scale: s, grade: ROPE_GRADES[s][Math.floor(ROPE_GRADES[s].length / 2)] }))} style={{ flex: 1, padding: "9px", borderRadius: 10, border: "2px solid", borderColor: climbForm.scale === s ? W.accent : W.border, background: climbForm.scale === s ? W.accent + "22" : W.surface, color: climbForm.scale === s ? W.accent : W.textDim, cursor: "pointer", fontWeight: 700, fontSize: 13 }}>{s}</button>
+              ))}
+            </div>
+            <Label>Grade</Label>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 12 }}>
+              {ropeGrades.map(g => <button key={g} onClick={() => setClimbForm(f => ({ ...f, grade: g }))} style={{ padding: "5px 11px", borderRadius: 14, border: "2px solid", borderColor: climbForm.grade === g ? W.accent : W.border, background: climbForm.grade === g ? W.accent + "22" : W.surface, color: climbForm.grade === g ? W.accent : W.textDim, cursor: "pointer", fontWeight: 700, fontSize: 12 }}>{g}</button>)}
+            </div>
+            <Label>Style</Label>
+            <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
+              {[["top-rope", "🔝 Top Rope"], ["lead", "🧗 Lead"]].map(([val, label]) => (
+                <button key={val} onClick={() => setClimbForm(f => ({ ...f, ropeStyle: val }))} style={{ flex: 1, padding: "9px", borderRadius: 10, border: "2px solid", borderColor: climbForm.ropeStyle === val ? W.purpleDark : W.border, background: climbForm.ropeStyle === val ? W.purple : W.surface, color: climbForm.ropeStyle === val ? W.purpleDark : W.textDim, cursor: "pointer", fontWeight: 700, fontSize: 13 }}>{label}</button>
+              ))}
+            </div>
+          </>
+        )}
+
+        {/* Speed: time input */}
+        {type === "speed" && (
+          <>
+            <Label>Time (seconds)</Label>
+            <input type="number" min="0" step="0.01" value={climbForm.speedTime} onChange={e => setClimbForm(f => ({ ...f, speedTime: e.target.value }))} placeholder="e.g. 14.83" style={{ width: "100%", padding: "10px 12px", background: W.surface, border: `2px solid ${W.border}`, borderRadius: 10, color: W.text, fontSize: 20, fontWeight: 800, boxSizing: "border-box", marginBottom: 12, fontFamily: "inherit" }} />
+            <Label>Completed?</Label>
+            <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
+              <button onClick={() => setClimbForm(f => ({ ...f, completed: true }))} style={{ flex: 1, padding: "9px", borderRadius: 10, border: "2px solid", borderColor: climbForm.completed ? W.greenDark : W.border, background: climbForm.completed ? W.green : W.surface, color: climbForm.completed ? W.greenDark : W.textDim, cursor: "pointer", fontWeight: 700, fontSize: 13 }}>✓ Yes</button>
+              <button onClick={() => setClimbForm(f => ({ ...f, completed: false }))} style={{ flex: 1, padding: "9px", borderRadius: 10, border: "2px solid", borderColor: !climbForm.completed ? W.redDark : W.border, background: !climbForm.completed ? W.red : W.surface, color: !climbForm.completed ? W.redDark : W.textDim, cursor: "pointer", fontWeight: 700, fontSize: 13 }}>✗ No</button>
+            </div>
+          </>
+        )}
+
+        {/* Tries/Completed when editing a finished session climb (boulder/rope) */}
+        {!isActiveSession && editingClimbId && type !== "speed" && (
+          <>
+            <Label>Tries</Label>
+            <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 12 }}>
+              <button onClick={() => setClimbForm(f => ({ ...f, tries: Math.max(0, (f.tries || 0) - 1) }))} style={{ width: 36, height: 36, borderRadius: 10, border: `2px solid ${W.border}`, background: W.surface, color: W.text, fontSize: 20, cursor: "pointer" }}>−</button>
+              <span style={{ fontSize: 22, fontWeight: 800, color: W.text, minWidth: 30, textAlign: "center" }}>{climbForm.tries || 0}</span>
+              <button onClick={() => setClimbForm(f => ({ ...f, tries: (f.tries || 0) + 1 }))} style={{ width: 36, height: 36, borderRadius: 10, border: `2px solid ${W.border}`, background: W.surface, color: W.text, fontSize: 20, cursor: "pointer" }}>+</button>
+            </div>
+            <Label>Completed?</Label>
+            <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
+              <button onClick={() => setClimbForm(f => ({ ...f, completed: true }))} style={{ flex: 1, padding: "9px", borderRadius: 10, border: "2px solid", borderColor: climbForm.completed ? W.greenDark : W.border, background: climbForm.completed ? W.green : W.surface, color: climbForm.completed ? W.greenDark : W.textDim, cursor: "pointer", fontWeight: 700, fontSize: 13 }}>✓ Yes</button>
+              <button onClick={() => setClimbForm(f => ({ ...f, completed: false }))} style={{ flex: 1, padding: "9px", borderRadius: 10, border: "2px solid", borderColor: !climbForm.completed ? W.redDark : W.border, background: !climbForm.completed ? W.red : W.surface, color: !climbForm.completed ? W.redDark : W.textDim, cursor: "pointer", fontWeight: 700, fontSize: 13 }}>✗ No</button>
+            </div>
+          </>
+        )}
+
+        {isActiveSession && !editingClimbId && type !== "speed" && (
+          <div style={{ background: W.yellow, borderRadius: 10, padding: "10px 12px", marginBottom: 12, border: `1px solid ${W.yellowDark}30` }}>
+            <div style={{ fontSize: 12, color: W.yellowDark, fontWeight: 600 }}>💡 Tries and completion are tracked live on the session screen once added.</div>
           </div>
-          <Label>Completed?</Label>
-          <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
-            <button onClick={() => setClimbForm(f => ({ ...f, completed: true }))} style={{ flex: 1, padding: "9px", borderRadius: 10, border: "2px solid", borderColor: climbForm.completed ? W.greenDark : W.border, background: climbForm.completed ? W.green : W.surface, color: climbForm.completed ? W.greenDark : W.textDim, cursor: "pointer", fontWeight: 700, fontSize: 13 }}>✓ Yes</button>
-            <button onClick={() => setClimbForm(f => ({ ...f, completed: false }))} style={{ flex: 1, padding: "9px", borderRadius: 10, border: "2px solid", borderColor: !climbForm.completed ? W.redDark : W.border, background: !climbForm.completed ? W.red : W.surface, color: !climbForm.completed ? W.redDark : W.textDim, cursor: "pointer", fontWeight: 700, fontSize: 13 }}>✗ No</button>
-          </div>
-        </>
-      )}
-      {isActiveSession && !editingClimbId && (
-        <div style={{ background: W.yellow, borderRadius: 10, padding: "10px 12px", marginBottom: 12, border: `1px solid ${W.yellowDark}30` }}>
-          <div style={{ fontSize: 12, color: W.yellowDark, fontWeight: 600 }}>💡 Tries and completion are tracked live on the session screen once added.</div>
+        )}
+
+        {/* Project toggle (boulder + rope only) */}
+        {type !== "speed" && (
+          <>
+            <Label>Mark as Project?</Label>
+            <button onClick={() => setClimbForm(f => ({ ...f, isProject: !f.isProject }))} style={{ width: "100%", padding: "9px", borderRadius: 10, border: "2px solid", borderColor: climbForm.isProject ? W.pinkDark : W.border, background: climbForm.isProject ? W.pink : W.surface, color: climbForm.isProject ? W.pinkDark : W.textDim, cursor: "pointer", fontWeight: 700, fontSize: 13, marginBottom: 12 }}>🎯 {climbForm.isProject ? "Yes — Project" : "No — Not a Project"}</button>
+          </>
+        )}
+
+        <Label>Comments</Label>
+        <textarea value={climbForm.comments} onChange={e => setClimbForm(f => ({ ...f, comments: e.target.value }))} placeholder="Beta, notes..." style={{ width: "100%", padding: "10px 12px", background: W.surface, border: `2px solid ${W.border}`, borderRadius: 10, color: W.text, fontSize: 13, resize: "none", height: 70, boxSizing: "border-box", marginBottom: 12, fontFamily: "inherit" }} />
+        <Label>Photo</Label>
+        <div onClick={() => fileRef.current.click()} style={{ border: `2px dashed ${W.border}`, borderRadius: 10, padding: "12px", textAlign: "center", cursor: "pointer", marginBottom: 12, background: W.surface }}>
+          {photoPreview ? <img src={photoPreview} alt="climb" style={{ width: "100%", borderRadius: 8, maxHeight: 140, objectFit: "cover" }} /> : <div style={{ color: W.textDim, fontSize: 13 }}>📷 Tap to upload</div>}
         </div>
-      )}
-      <Label>Mark as Project?</Label>
-      <button onClick={() => setClimbForm(f => ({ ...f, isProject: !f.isProject }))} style={{ width: "100%", padding: "9px", borderRadius: 10, border: "2px solid", borderColor: climbForm.isProject ? W.pinkDark : W.border, background: climbForm.isProject ? W.pink : W.surface, color: climbForm.isProject ? W.pinkDark : W.textDim, cursor: "pointer", fontWeight: 700, fontSize: 13, marginBottom: 12 }}>🎯 {climbForm.isProject ? "Yes — Project" : "No — Not a Project"}</button>
-      <Label>Comments</Label>
-      <textarea value={climbForm.comments} onChange={e => setClimbForm(f => ({ ...f, comments: e.target.value }))} placeholder="Beta, hold types, notes..." style={{ width: "100%", padding: "10px 12px", background: W.surface, border: `2px solid ${W.border}`, borderRadius: 10, color: W.text, fontSize: 13, resize: "none", height: 70, boxSizing: "border-box", marginBottom: 12, fontFamily: "inherit" }} />
-      <Label>Photo</Label>
-      <div onClick={() => fileRef.current.click()} style={{ border: `2px dashed ${W.border}`, borderRadius: 10, padding: "12px", textAlign: "center", cursor: "pointer", marginBottom: 12, background: W.surface }}>
-        {photoPreview ? <img src={photoPreview} alt="climb" style={{ width: "100%", borderRadius: 8, maxHeight: 140, objectFit: "cover" }} /> : <div style={{ color: W.textDim, fontSize: 13 }}>📷 Tap to upload</div>}
+        <input ref={fileRef} type="file" accept="image/*" style={{ display: "none" }} onChange={e => { const f = e.target.files[0]; if (!f) return; const r = new FileReader(); r.onload = ev => setPhotoPreview(ev.target.result); r.readAsDataURL(f); }} />
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+          <button onClick={onCancel} style={{ padding: "11px", background: "transparent", border: `1px solid ${W.border}`, borderRadius: 12, color: W.textMuted, cursor: "pointer", fontWeight: 600 }}>Cancel</button>
+          <button onClick={onSave} style={{ padding: "11px", background: `linear-gradient(135deg, ${W.accent}, ${W.accentDark})`, border: "none", borderRadius: 12, color: "#fff", cursor: "pointer", fontWeight: 700 }}>Save</button>
+        </div>
       </div>
-      <input ref={fileRef} type="file" accept="image/*" style={{ display: "none" }} onChange={e => { const f = e.target.files[0]; if (!f) return; const r = new FileReader(); r.onload = ev => setPhotoPreview(ev.target.result); r.readAsDataURL(f); }} />
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
-        <button onClick={onCancel} style={{ padding: "11px", background: "transparent", border: `1px solid ${W.border}`, borderRadius: 12, color: W.textMuted, cursor: "pointer", fontWeight: 600 }}>Cancel</button>
-        <button onClick={onSave} style={{ padding: "11px", background: `linear-gradient(135deg, ${W.accent}, ${W.accentDark})`, border: "none", borderRadius: 12, color: "#fff", cursor: "pointer", fontWeight: 700 }}>Save</button>
-      </div>
-    </div>
-  );
+    );
+  };
 
   // ── ACTIVE SESSION CLIMB CARD ──────────────────────────────
   const ActiveClimbCard = ({ climb }) => {
@@ -1317,12 +1390,16 @@ export default function App() {
         {/* Photos strip */}
         {climbPhotos.length > 0 && (
           <div style={{ display: "flex", gap: 6, padding: "10px 16px", overflowX: "auto", borderBottom: `1px solid ${W.border}` }}>
-            {climbPhotos.map(c => (
-              <div key={c.id} onClick={e => { e.stopPropagation(); setLightboxPhoto({ src: c.photo, grade: c.grade, name: c.name }); }} style={{ position: "relative", flexShrink: 0, cursor: "pointer" }}>
-                <img src={c.photo} alt={c.name || c.grade} style={{ width: 72, height: 72, objectFit: "cover", borderRadius: 10, display: "block" }} />
-                <div style={{ position: "absolute", bottom: 4, left: 4, background: getGradeColor(c.grade) + "ee", borderRadius: 5, padding: "1px 6px", fontSize: 10, fontWeight: 800, color: "#fff" }}>{c.grade}</div>
-              </div>
-            ))}
+            {climbPhotos.map((c, ci) => {
+              const colorHex = CLIMB_COLORS.find(cc => cc.id === c.color)?.hex;
+              return (
+                <div key={c.id} onClick={e => { e.stopPropagation(); setLightboxPhoto({ photos: climbPhotos.map(p => ({ src: p.photo, grade: p.grade, name: p.name, colorId: p.color })), idx: ci }); }} style={{ position: "relative", flexShrink: 0, cursor: "pointer" }}>
+                  <img src={c.photo} alt={c.name || c.grade} style={{ width: 72, height: 72, objectFit: "cover", borderRadius: 10, display: "block" }} />
+                  <div style={{ position: "absolute", bottom: 4, left: 4, background: getGradeColor(c.grade) + "ee", borderRadius: 5, padding: "1px 6px", fontSize: 10, fontWeight: 800, color: "#fff" }}>{c.grade}</div>
+                  {colorHex && <div style={{ position: "absolute", bottom: 4, right: 4, width: 13, height: 13, borderRadius: "50%", background: colorHex, border: "2px solid rgba(255,255,255,0.85)", boxShadow: "0 1px 3px rgba(0,0,0,0.5)" }} />}
+                </div>
+              );
+            })}
           </div>
         )}
         {/* Bar chart — attempts per grade */}
@@ -1340,6 +1417,16 @@ export default function App() {
                 <div style={{ width: 32, fontSize: 11, fontWeight: 700, color: W.text, flexShrink: 0 }}>{data.completed}/{data.attempted}</div>
               </div>
             ))}
+            <div style={{ display: "flex", gap: 12, marginTop: 6, justifyContent: "flex-end" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                <div style={{ width: 10, height: 10, borderRadius: 2, background: W.accent }} />
+                <span style={{ fontSize: 10, color: W.textDim }}>Sends</span>
+              </div>
+              <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                <div style={{ width: 10, height: 10, borderRadius: 2, background: W.textDim + "55" }} />
+                <span style={{ fontSize: 10, color: W.textDim }}>Attempts</span>
+              </div>
+            </div>
           </div>
         )}
         {/* Stats row */}
@@ -1502,8 +1589,10 @@ export default function App() {
         )}
         {!showClimbForm && !showProjectPicker && (
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 12, marginTop: 8 }}>
-            <button onClick={() => openClimbForm()} style={{ padding: "13px", background: W.green, border: `2px solid ${W.greenDark}`, borderRadius: 14, color: W.greenDark, fontWeight: 700, fontSize: 14, cursor: "pointer" }}>+ New Climb</button>
+            <button onClick={() => openClimbForm(null, null, "boulder")} style={{ padding: "13px", background: W.green, border: `2px solid ${W.greenDark}`, borderRadius: 14, color: W.greenDark, fontWeight: 700, fontSize: 14, cursor: "pointer" }}>🪨 New Boulder</button>
             <button onClick={() => setShowProjectPicker(true)} style={{ padding: "13px", background: W.pink, border: `2px solid ${W.pinkDark}`, borderRadius: 14, color: W.pinkDark, fontWeight: 700, fontSize: 14, cursor: "pointer" }}>🎯 Log Project</button>
+            <button onClick={() => openClimbForm(null, null, "rope")} style={{ padding: "13px", background: W.purple, border: `2px solid ${W.purpleDark}`, borderRadius: 14, color: W.purpleDark, fontWeight: 700, fontSize: 14, cursor: "pointer" }}>🪢 New Rope Climb</button>
+            <button onClick={() => openClimbForm(null, null, "speed")} style={{ padding: "13px", background: W.yellow, border: `2px solid ${W.yellowDark}`, borderRadius: 14, color: W.yellowDark, fontWeight: 700, fontSize: 14, cursor: "pointer" }}>⏱ New Speed Climb</button>
           </div>
         )}
         {!showClimbForm && !showProjectPicker && (
@@ -1596,13 +1685,17 @@ export default function App() {
             <div style={{ marginTop: 24 }}>
               <div style={{ fontSize: 13, fontWeight: 700, color: W.textMuted, textTransform: "uppercase", letterSpacing: 1, marginBottom: 12 }}>Photos</div>
               <div style={{ display: "flex", gap: 10, overflowX: "auto", paddingBottom: 8 }}>
-                {climbsWithPhotos.map(c => (
-                  <div key={c.id} style={{ position: "relative", flexShrink: 0 }}>
-                    <img src={c.photo} alt={c.name || c.grade} style={{ width: 150, height: 150, objectFit: "cover", borderRadius: 14, display: "block" }} />
-                    <div style={{ position: "absolute", bottom: 8, left: 8, background: getGradeColor(c.grade) + "ee", borderRadius: 7, padding: "3px 9px", fontSize: 12, fontWeight: 800, color: "#fff", textShadow: "0 1px 3px rgba(0,0,0,0.4)" }}>{c.grade}</div>
-                    {c.name && <div style={{ position: "absolute", bottom: 8, right: 8, background: "rgba(0,0,0,0.55)", borderRadius: 7, padding: "3px 8px", fontSize: 10, color: "#fff", maxWidth: 80, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{c.name}</div>}
-                  </div>
-                ))}
+                {climbsWithPhotos.map((c, ci) => {
+                  const colorHex = CLIMB_COLORS.find(cc => cc.id === c.color)?.hex;
+                  return (
+                    <div key={c.id} onClick={() => setLightboxPhoto({ photos: climbsWithPhotos.map(p => ({ src: p.photo, grade: p.grade, name: p.name, colorId: p.color })), idx: ci })} style={{ position: "relative", flexShrink: 0, cursor: "pointer" }}>
+                      <img src={c.photo} alt={c.name || c.grade} style={{ width: 150, height: 150, objectFit: "cover", borderRadius: 14, display: "block" }} />
+                      <div style={{ position: "absolute", bottom: 8, left: 8, background: getGradeColor(c.grade) + "ee", borderRadius: 7, padding: "3px 9px", fontSize: 12, fontWeight: 800, color: "#fff", textShadow: "0 1px 3px rgba(0,0,0,0.4)" }}>{c.grade}</div>
+                      {colorHex && <div style={{ position: "absolute", bottom: 8, right: c.name ? 90 : 8, width: 16, height: 16, borderRadius: "50%", background: colorHex, border: "2px solid rgba(255,255,255,0.85)", boxShadow: "0 1px 3px rgba(0,0,0,0.5)" }} />}
+                      {c.name && <div style={{ position: "absolute", bottom: 8, right: 8, background: "rgba(0,0,0,0.55)", borderRadius: 7, padding: "3px 8px", fontSize: 10, color: "#fff", maxWidth: 80, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{c.name}</div>}
+                    </div>
+                  );
+                })}
               </div>
             </div>
           );
@@ -2180,7 +2273,20 @@ export default function App() {
               <>
                 <div style={{ fontSize: 12, color: W.textMuted, marginBottom: 12, fontWeight: 600 }}>{filteredSessions.length} session{filteredSessions.length !== 1 ? "s" : ""}</div>
                 {filteredSessions.length === 0 ? <div style={{ textAlign: "center", color: W.textDim, padding: "30px 0" }}>No sessions yet.</div>
-                  : filteredSessions.map(s => <LogbookSessionCard key={s.id} session={s} />)}
+                  : (() => {
+                      const visible = filteredSessions.slice(0, logbookPage * 8);
+                      const hasMore = filteredSessions.length > visible.length;
+                      return (
+                        <>
+                          {visible.map(s => <LogbookSessionCard key={s.id} session={s} />)}
+                          {hasMore && (
+                            <button onClick={() => setLogbookPage(p => p + 1)} style={{ width: "100%", padding: "13px", background: "transparent", border: `1px solid ${W.border}`, borderRadius: 14, color: W.textMuted, fontSize: 14, fontWeight: 600, cursor: "pointer", marginBottom: 8 }}>
+                              Load more ({filteredSessions.length - visible.length} remaining)
+                            </button>
+                          )}
+                        </>
+                      );
+                    })()}
               </>
             )}
           </div>
@@ -2892,16 +2998,29 @@ export default function App() {
       )}
 
       {/* Photo lightbox */}
-      {lightboxPhoto && (
-        <div onClick={() => setLightboxPhoto(null)} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.92)", zIndex: 300, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: 20 }}>
-          <button onClick={() => setLightboxPhoto(null)} style={{ position: "absolute", top: 16, right: 20, background: "rgba(255,255,255,0.15)", border: "none", borderRadius: "50%", width: 36, height: 36, color: "#fff", fontSize: 20, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>×</button>
-          <img src={lightboxPhoto.src} alt={lightboxPhoto.name || lightboxPhoto.grade} style={{ maxWidth: "100%", maxHeight: "75vh", objectFit: "contain", borderRadius: 16 }} onClick={e => e.stopPropagation()} />
-          <div style={{ marginTop: 14, display: "flex", alignItems: "center", gap: 10 }}>
-            <div style={{ background: getGradeColor(lightboxPhoto.grade) + "ee", borderRadius: 8, padding: "4px 12px", fontSize: 14, fontWeight: 800, color: "#fff" }}>{lightboxPhoto.grade}</div>
-            {lightboxPhoto.name && <div style={{ color: "rgba(255,255,255,0.8)", fontSize: 14, fontWeight: 600 }}>{lightboxPhoto.name}</div>}
+      {lightboxPhoto && (() => {
+        const photo = lightboxPhoto.photos[lightboxPhoto.idx];
+        const total = lightboxPhoto.photos.length;
+        const colorHex = CLIMB_COLORS.find(cc => cc.id === photo.colorId)?.hex;
+        return (
+          <div onClick={() => setLightboxPhoto(null)} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.92)", zIndex: 300, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "20px 56px" }}>
+            <button onClick={() => setLightboxPhoto(null)} style={{ position: "absolute", top: 16, right: 20, background: "rgba(255,255,255,0.15)", border: "none", borderRadius: "50%", width: 36, height: 36, color: "#fff", fontSize: 20, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>×</button>
+            {total > 1 && lightboxPhoto.idx > 0 && (
+              <button onClick={e => { e.stopPropagation(); setLightboxPhoto(p => ({ ...p, idx: p.idx - 1 })); }} style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", background: "rgba(255,255,255,0.15)", border: "none", borderRadius: "50%", width: 40, height: 40, color: "#fff", fontSize: 20, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>‹</button>
+            )}
+            <img src={photo.src} alt={photo.name || photo.grade} style={{ maxWidth: "100%", maxHeight: "72vh", objectFit: "contain", borderRadius: 16 }} onClick={e => e.stopPropagation()} />
+            {total > 1 && lightboxPhoto.idx < total - 1 && (
+              <button onClick={e => { e.stopPropagation(); setLightboxPhoto(p => ({ ...p, idx: p.idx + 1 })); }} style={{ position: "absolute", right: 12, top: "50%", transform: "translateY(-50%)", background: "rgba(255,255,255,0.15)", border: "none", borderRadius: "50%", width: 40, height: 40, color: "#fff", fontSize: 20, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>›</button>
+            )}
+            <div style={{ marginTop: 14, display: "flex", alignItems: "center", gap: 10 }} onClick={e => e.stopPropagation()}>
+              <div style={{ background: getGradeColor(photo.grade) + "ee", borderRadius: 8, padding: "4px 12px", fontSize: 14, fontWeight: 800, color: "#fff" }}>{photo.grade}</div>
+              {colorHex && <div style={{ width: 18, height: 18, borderRadius: "50%", background: colorHex, border: "2px solid rgba(255,255,255,0.7)", flexShrink: 0 }} />}
+              {photo.name && <div style={{ color: "rgba(255,255,255,0.8)", fontSize: 14, fontWeight: 600 }}>{photo.name}</div>}
+              {total > 1 && <div style={{ color: "rgba(255,255,255,0.4)", fontSize: 12 }}>{lightboxPhoto.idx + 1}/{total}</div>}
+            </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
 
       <div style={{ position: "fixed", bottom: 0, left: "50%", transform: "translateX(-50%)", width: "100%", maxWidth: 420, background: W.navBg, borderTop: `1px solid ${W.border}`, display: "flex", justifyContent: "space-around", padding: "10px 0 18px", zIndex: 10 }}>
         {navItems.map(item => (
