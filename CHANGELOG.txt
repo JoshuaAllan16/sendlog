@@ -4,6 +4,20 @@ A log of all features, fixes, and improvements grouped by push.
 
 
 ──────────────────────────────────────────────────────────────
+PUSH 33  |  Custom grade support, display name editor, feed profile pics
+──────────────────────────────────────────────────────────────
+- Climb form now uses custom grades when Boulder or Rope scale is set to Custom
+  → Boulder form scale dropdown includes Custom option; grade buttons show custom list
+  → Rope form scale buttons include Custom option; grade buttons show custom list
+  → Shows "No custom grades set — add them in Settings" hint when list is empty
+- Settings: added Display Name editor above profile picture
+  → Inline text field; saved automatically on blur; reflected immediately in the header
+- Social feed: profile picture now shown next to poster name on session cards
+  → Own sessions show your profile pic when following someone (so the poster row appears)
+  → Other users' pics loaded from their profile and cached with feed items
+
+
+──────────────────────────────────────────────────────────────
 PUSH 32  |  Settings: themes, grading, profile picture, custom grades
 ──────────────────────────────────────────────────────────────
 - Added 3 new app themes: Abyss (black + neon blue), Forest (dark green), Dusk (dark purple)

@@ -686,6 +686,7 @@ export default function App() {
   const [preferredScale, setPreferredScale]     = useState("V-Scale");
   const [preferredRopeScale, setPreferredRopeScale] = useState("French");
   const [profilePic, setProfilePic]             = useState(null);
+  const [editDisplayName, setEditDisplayName]   = useState("");
   const [customBoulderGrades, setCustomBoulderGrades] = useState([]);
   const [customRopeGrades, setCustomRopeGrades] = useState([]);
   const [hiddenLocations, setHiddenLocations]   = useState([]);
@@ -937,6 +938,7 @@ export default function App() {
           setPreferredScale(userData.profile?.preferredScale || "V-Scale");
           setPreferredRopeScale(userData.profile?.preferredRopeScale || "French");
           setProfilePic(userData.profile?.profilePic || null);
+          setEditDisplayName(userData.profile?.displayName || username);
           setCustomBoulderGrades(userData.profile?.customBoulderGrades || []);
           setCustomRopeGrades(userData.profile?.customRopeGrades || []);
           setHiddenLocations(userData.profile?.hiddenLocations || []);
@@ -969,7 +971,7 @@ export default function App() {
     setSaveStatus("saving");
     saveTimeoutRef.current = setTimeout(async () => {
       const userData = {
-        profile: { displayName: currentUser.displayName, preferredScale, preferredRopeScale, profilePic, customBoulderGrades, customRopeGrades, hiddenLocations, following: socialFollowing, colorTheme, mutedUsers, notifPrefs, isPrivate, pendingFollowRequests },
+        profile: { displayName: editDisplayName || currentUser.displayName, preferredScale, preferredRopeScale, profilePic, customBoulderGrades, customRopeGrades, hiddenLocations, following: socialFollowing, colorTheme, mutedUsers, notifPrefs, isPrivate, pendingFollowRequests },
         sessions,
         projects,
       };
@@ -978,7 +980,7 @@ export default function App() {
       setTimeout(() => setSaveStatus(""), 2000);
     }, 1000);
     return () => clearTimeout(saveTimeoutRef.current);
-  }, [sessions, projects, preferredScale, preferredRopeScale, profilePic, customBoulderGrades, customRopeGrades, hiddenLocations, socialFollowing, colorTheme, mutedUsers, notifPrefs, isPrivate, pendingFollowRequests]);
+  }, [sessions, projects, editDisplayName, preferredScale, preferredRopeScale, profilePic, customBoulderGrades, customRopeGrades, hiddenLocations, socialFollowing, colorTheme, mutedUsers, notifPrefs, isPrivate, pendingFollowRequests]);
 
   useEffect(() => {
     if (timerRunning) { timerRef.current = setInterval(() => setSessionTimer(t => t + 1), 1000); }
@@ -1057,6 +1059,7 @@ export default function App() {
       setProfilePic(safeData.profile?.profilePic || null);
       setCustomBoulderGrades(safeData.profile?.customBoulderGrades || []);
       setCustomRopeGrades(safeData.profile?.customRopeGrades || []);
+      setEditDisplayName(safeData.profile?.displayName || username.toLowerCase());
       setHiddenLocations(safeData.profile?.hiddenLocations || []);
       setSocialFollowing(safeData.profile?.following || []);
       setColorTheme(safeData.profile?.colorTheme || "espresso");
@@ -1503,7 +1506,7 @@ export default function App() {
         const data = await loadUserData(username);
         if (data?.sessions) {
           data.sessions.slice(0, 20).forEach(s =>
-            feedItems.push({ ...s, feedUsername: username, feedDisplayName: data.profile?.displayName || username })
+            feedItems.push({ ...s, feedUsername: username, feedDisplayName: data.profile?.displayName || username, feedProfilePic: data.profile?.profilePic || null })
           );
         }
       }
@@ -1912,7 +1915,8 @@ export default function App() {
   // ── CLIMB FORM ─────────────────────────────────────────────
   const ClimbFormPanel = ({ onSave, onCancel, isActiveSession = false }) => {
     const type = climbForm.climbType || "boulder";
-    const ropeGrades = ROPE_GRADES[climbForm.scale] || ROPE_GRADES["French"];
+    const ropeGrades = climbForm.scale === "Custom" ? customRopeGrades : (ROPE_GRADES[climbForm.scale] || ROPE_GRADES["French"]);
+    const boulderGrades = climbForm.scale === "Custom" ? customBoulderGrades : (GRADES[climbForm.scale] || GRADES["V-Scale"]);
     const title = editingClimbId ? "✏️ Edit Climb" : type === "boulder" ? "🪨 Add a Boulder" : type === "rope" ? "🪢 Add a Rope Climb" : "⏱ Add a Speed Climb";
     return (
       <div style={{ background: W.surface2, borderRadius: 16, padding: "16px", marginBottom: 16, border: `1px solid ${W.border}` }}>
@@ -1945,12 +1949,16 @@ export default function App() {
         {type === "boulder" && (
           <>
             <Label>Scale</Label>
-            <select value={climbForm.scale} onChange={e => setClimbForm(f => ({ ...f, scale: e.target.value, grade: GRADES[e.target.value][0] }))} style={{ width: "100%", padding: "10px 12px", background: W.surface, border: `2px solid ${W.border}`, borderRadius: 10, color: W.text, fontSize: 14, boxSizing: "border-box", marginBottom: 12, fontFamily: "inherit", cursor: "pointer" }}>
+            <select value={climbForm.scale} onChange={e => { const s = e.target.value; const gl = s === "Custom" ? customBoulderGrades : (GRADES[s] || []); setClimbForm(f => ({ ...f, scale: s, grade: gl[0] || f.grade })); }} style={{ width: "100%", padding: "10px 12px", background: W.surface, border: `2px solid ${W.border}`, borderRadius: 10, color: W.text, fontSize: 14, boxSizing: "border-box", marginBottom: 12, fontFamily: "inherit", cursor: "pointer" }}>
               {Object.keys(GRADES).map(scale => <option key={scale} value={scale}>{scale}</option>)}
+              <option value="Custom">Custom</option>
             </select>
             <Label>Grade</Label>
             <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 12 }}>
-              {GRADES[climbForm.scale].map(g => <button key={g} onClick={() => setClimbForm(f => ({ ...f, grade: g }))} style={{ padding: "5px 11px", borderRadius: 14, border: "2px solid", borderColor: climbForm.grade === g ? getGradeColor(g) : W.border, background: climbForm.grade === g ? getGradeColor(g) + "33" : W.surface, color: climbForm.grade === g ? getGradeColor(g) : W.textDim, cursor: "pointer", fontWeight: 700, fontSize: 12 }}>{g}</button>)}
+              {boulderGrades.length > 0
+                ? boulderGrades.map(g => <button key={g} onClick={() => setClimbForm(f => ({ ...f, grade: g }))} style={{ padding: "5px 11px", borderRadius: 14, border: "2px solid", borderColor: climbForm.grade === g ? getGradeColor(g) : W.border, background: climbForm.grade === g ? getGradeColor(g) + "33" : W.surface, color: climbForm.grade === g ? getGradeColor(g) : W.textDim, cursor: "pointer", fontWeight: 700, fontSize: 12 }}>{g}</button>)
+                : <div style={{ fontSize: 12, color: W.textDim, padding: "6px 0" }}>No custom grades set — add them in Settings</div>
+              }
             </div>
             <Label>Wall Type</Label>
             <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
@@ -1967,14 +1975,17 @@ export default function App() {
         {type === "rope" && (
           <>
             <Label>Scale</Label>
-            <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
-              {Object.keys(ROPE_GRADES).map(s => (
-                <button key={s} onClick={() => setClimbForm(f => ({ ...f, scale: s, grade: ROPE_GRADES[s][Math.floor(ROPE_GRADES[s].length / 2)] }))} style={{ flex: 1, padding: "9px", borderRadius: 10, border: "2px solid", borderColor: climbForm.scale === s ? W.accent : W.border, background: climbForm.scale === s ? W.accent + "22" : W.surface, color: climbForm.scale === s ? W.accent : W.textDim, cursor: "pointer", fontWeight: 700, fontSize: 13 }}>{s}</button>
+            <div style={{ display: "flex", gap: 8, marginBottom: 12, flexWrap: "wrap" }}>
+              {[...Object.keys(ROPE_GRADES), "Custom"].map(s => (
+                <button key={s} onClick={() => { const gl = s === "Custom" ? customRopeGrades : (ROPE_GRADES[s] || []); setClimbForm(f => ({ ...f, scale: s, grade: gl[Math.floor(gl.length / 2)] || gl[0] || f.grade })); }} style={{ flex: 1, padding: "9px", borderRadius: 10, border: "2px solid", borderColor: climbForm.scale === s ? W.accent : W.border, background: climbForm.scale === s ? W.accent + "22" : W.surface, color: climbForm.scale === s ? W.accent : W.textDim, cursor: "pointer", fontWeight: 700, fontSize: 13 }}>{s}</button>
               ))}
             </div>
             <Label>Grade</Label>
             <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 12 }}>
-              {ropeGrades.map(g => <button key={g} onClick={() => setClimbForm(f => ({ ...f, grade: g }))} style={{ padding: "5px 11px", borderRadius: 14, border: "2px solid", borderColor: climbForm.grade === g ? W.accent : W.border, background: climbForm.grade === g ? W.accent + "22" : W.surface, color: climbForm.grade === g ? W.accent : W.textDim, cursor: "pointer", fontWeight: 700, fontSize: 12 }}>{g}</button>)}
+              {ropeGrades.length > 0
+                ? ropeGrades.map(g => <button key={g} onClick={() => setClimbForm(f => ({ ...f, grade: g }))} style={{ padding: "5px 11px", borderRadius: 14, border: "2px solid", borderColor: climbForm.grade === g ? W.accent : W.border, background: climbForm.grade === g ? W.accent + "22" : W.surface, color: climbForm.grade === g ? W.accent : W.textDim, cursor: "pointer", fontWeight: 700, fontSize: 12 }}>{g}</button>)
+                : <div style={{ fontSize: 12, color: W.textDim, padding: "6px 0" }}>No custom grades set — add them in Settings</div>
+              }
             </div>
             <Label>Style</Label>
             <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
@@ -2102,7 +2113,10 @@ export default function App() {
         {/* Posted-by row (only in feed) */}
         {poster && (
           <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 16px", borderBottom: `1px solid ${W.border}`, background: W.surface2 }}>
-            <div style={{ width: 24, height: 24, borderRadius: 8, background: `linear-gradient(135deg, ${W.accent}, ${W.accentDark})`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12 }}>🧗</div>
+            {poster.profilePic
+              ? <img src={poster.profilePic} style={{ width: 24, height: 24, borderRadius: 7, objectFit: "cover", flexShrink: 0 }} />
+              : <div style={{ width: 24, height: 24, borderRadius: 7, background: `linear-gradient(135deg, ${W.accent}, ${W.accentDark})`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, flexShrink: 0 }}>🧗</div>
+            }
             <span style={{ fontWeight: 700, color: W.accent, fontSize: 13 }}>{poster.displayName}</span>
             <span style={{ color: W.textDim, fontSize: 12 }}>@{poster.username}</span>
           </div>
@@ -2203,7 +2217,8 @@ export default function App() {
     const ownFeedItems = sessions.map(s => ({
       ...s,
       feedUsername: currentUser.username,
-      feedDisplayName: currentUser.displayName,
+      feedDisplayName: editDisplayName || currentUser.displayName,
+      feedProfilePic: profilePic,
       isOwn: true,
     }));
     const combined = [...ownFeedItems, ...socialFeed]
@@ -2233,11 +2248,11 @@ export default function App() {
                 <>
                   {visible.map((s, i) => (
                     s.isOwn
-                      ? <LogbookSessionCard key={`own-${s.id}`} session={s} poster={socialFollowing.length > 0 ? { username: s.feedUsername, displayName: s.feedDisplayName } : null} />
+                      ? <LogbookSessionCard key={`own-${s.id}`} session={s} poster={socialFollowing.length > 0 ? { username: s.feedUsername, displayName: s.feedDisplayName, profilePic: s.feedProfilePic } : null} />
                       : <LogbookSessionCard
                           key={`feed-${s.id}-${i}`}
                           session={s}
-                          poster={{ username: s.feedUsername, displayName: s.feedDisplayName }}
+                          poster={{ username: s.feedUsername, displayName: s.feedDisplayName, profilePic: s.feedProfilePic }}
                           onNavigate={() => { setSessionReadOnly(true); setSelectedSession(s); setScreen("sessionDetail"); }}
                         />
                   ))}
@@ -2627,10 +2642,22 @@ export default function App() {
             {/* Account info row */}
             <div style={{ display: "flex", gap: 10, alignItems: "center", marginBottom: 14 }}>
               <div style={{ flex: 1 }}>
-                <div style={{ fontSize: 13, fontWeight: 700, color: W.text }}>{currentUser?.displayName}</div>
+                <div style={{ fontSize: 13, fontWeight: 700, color: W.text }}>{editDisplayName || currentUser?.displayName}</div>
                 <div style={{ fontSize: 12, color: W.textMuted }}>@{currentUser?.username}</div>
               </div>
               <div style={{ background: W.green, borderRadius: 8, padding: "3px 10px", fontSize: 11, fontWeight: 700, color: W.greenDark }}>● Signed In</div>
+            </div>
+
+            {/* Display name editor */}
+            <div style={{ marginBottom: 14 }}>
+              <div style={{ fontSize: 11, fontWeight: 700, color: W.textMuted, textTransform: "uppercase", letterSpacing: 1.2, marginBottom: 8 }}>Display Name</div>
+              <input
+                value={editDisplayName}
+                onChange={e => setEditDisplayName(e.target.value)}
+                onBlur={e => { const v = e.target.value.trim(); if (v) { setEditDisplayName(v); setCurrentUser(u => ({ ...u, displayName: v })); } }}
+                placeholder={currentUser?.username}
+                style={{ width: "100%", boxSizing: "border-box", padding: "10px 12px", background: W.surface2, border: `1.5px solid ${W.border}`, borderRadius: 10, color: W.text, fontSize: 14, fontFamily: "inherit" }}
+              />
             </div>
 
             {/* Profile picture */}
