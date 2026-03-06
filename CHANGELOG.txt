@@ -4,6 +4,24 @@ A log of all features, fixes, and improvements grouped by push.
 
 
 ──────────────────────────────────────────────────────────────
+PUSH 32  |  Settings: themes, grading, profile picture, custom grades
+──────────────────────────────────────────────────────────────
+- Added 3 new app themes: Abyss (black + neon blue), Forest (dark green), Dusk (dark purple)
+  → Theme picker now shows 9 options in a 3×3 grid
+- Split grading preference into separate Boulder Grading and Rope Grading selectors
+  → Boulder options: V-Scale, French, Custom
+  → Rope options: YDS, French, Custom
+  → Rope climb form now pre-selects user's preferred rope scale
+- Added Custom grading for both boulder and rope
+  → Enter comma-separated grade names; live preview chips shown below the input
+  → Custom grades saved to profile and persisted across sessions
+- Added profile picture upload in settings
+  → Picks any image from device; auto-cropped and compressed to 160×160 JPEG
+  → Avatar shown in profile header; falls back to emoji if none set
+  → Remove button clears the picture
+
+
+──────────────────────────────────────────────────────────────
 PUSH 31  |  Improved new-account seed data
 ──────────────────────────────────────────────────────────────
 - Seed data now includes all three climb types: boulder, rope, and speed sessions

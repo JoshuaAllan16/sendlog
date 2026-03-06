@@ -123,6 +123,45 @@ const THEMES = {
     purple: "#160c28", purpleDark: "#9068b8",
     navBg: "#0c0806",
   },
+  abyss: {
+    bg: "linear-gradient(160deg, #000008 0%, #000205 50%, #000103 100%)",
+    surface: "rgba(0, 2, 12, 0.99)", surface2: "rgba(0, 5, 22, 0.97)",
+    border: "#0030a0", accent: "#2266ff", accentGlow: "rgba(34,102,255,0.38)", accentDark: "#0044dd",
+    text: "#b8d0ff", textMuted: "#4060a0", textDim: "#182040",
+    gold: "#f59e0b", goldLight: "#001030",
+    pink: "#0a0020", pinkDark: "#e060f0",
+    yellow: "#080800", yellowDark: "#d0b020",
+    green: "#001810", greenDark: "#40e090",
+    red: "#100008", redDark: "#ff4060",
+    purple: "#060020", purpleDark: "#8866ff",
+    navBg: "#000003",
+  },
+  forest: {
+    bg: "linear-gradient(160deg, #081a08 0%, #051005 50%, #030a03 100%)",
+    surface: "rgba(8, 20, 8, 0.99)", surface2: "rgba(12, 28, 10, 0.97)",
+    border: "#1a4018", accent: "#40d060", accentGlow: "rgba(64,208,96,0.28)", accentDark: "#28a040",
+    text: "#c0e8b0", textMuted: "#508050", textDim: "#284028",
+    gold: "#c0a020", goldLight: "#141800",
+    pink: "#200820", pinkDark: "#e06090",
+    yellow: "#181400", yellowDark: "#b8b020",
+    green: "#0a2808", greenDark: "#60d878",
+    red: "#200808", redDark: "#e05858",
+    purple: "#100820", purpleDark: "#9060d8",
+    navBg: "#030803",
+  },
+  dusk: {
+    bg: "linear-gradient(160deg, #180828 0%, #100618 50%, #0c0412 100%)",
+    surface: "rgba(20, 8, 30, 0.99)", surface2: "rgba(30, 12, 44, 0.97)",
+    border: "#502060", accent: "#d060f0", accentGlow: "rgba(208,96,240,0.30)", accentDark: "#a030c8",
+    text: "#f0c8ff", textMuted: "#9060c0", textDim: "#401860",
+    gold: "#d09020", goldLight: "#180820",
+    pink: "#200030", pinkDark: "#ff70c0",
+    yellow: "#1a0c00", yellowDark: "#d0a030",
+    green: "#081018", greenDark: "#50d0a0",
+    red: "#200010", redDark: "#f05080",
+    purple: "#0e0028", purpleDark: "#c880ff",
+    navBg: "#08040e",
+  },
 };
 
 const SAMPLE_PROJECTS = [
@@ -638,12 +677,17 @@ export default function App() {
   const [activeLocationDropdownOpen, setActiveLocationDropdownOpen] = useState(false);
   const timerRef = useRef(null);
   const fileRef  = useRef();
+  const picRef   = useRef();
 
   const [showClimbForm, setShowClimbForm]       = useState(false);
   const [showProjectPicker, setShowProjectPicker] = useState(false);
   const [editingClimbId, setEditingClimbId]     = useState(null);
   const [editingSessionId, setEditingSessionId] = useState(null);
   const [preferredScale, setPreferredScale]     = useState("V-Scale");
+  const [preferredRopeScale, setPreferredRopeScale] = useState("French");
+  const [profilePic, setProfilePic]             = useState(null);
+  const [customBoulderGrades, setCustomBoulderGrades] = useState([]);
+  const [customRopeGrades, setCustomRopeGrades] = useState([]);
   const [hiddenLocations, setHiddenLocations]   = useState([]);
   const [showAccountPanel, setShowAccountPanel] = useState(false);
   const [confirmLogout, setConfirmLogout]       = useState(false);
@@ -891,6 +935,10 @@ export default function App() {
           setSessions(userData.sessions || []);
           setProjects(userData.projects || []);
           setPreferredScale(userData.profile?.preferredScale || "V-Scale");
+          setPreferredRopeScale(userData.profile?.preferredRopeScale || "French");
+          setProfilePic(userData.profile?.profilePic || null);
+          setCustomBoulderGrades(userData.profile?.customBoulderGrades || []);
+          setCustomRopeGrades(userData.profile?.customRopeGrades || []);
           setHiddenLocations(userData.profile?.hiddenLocations || []);
           setSocialFollowing(userData.profile?.following || []);
           setColorTheme(userData.profile?.colorTheme || "espresso");
@@ -921,7 +969,7 @@ export default function App() {
     setSaveStatus("saving");
     saveTimeoutRef.current = setTimeout(async () => {
       const userData = {
-        profile: { displayName: currentUser.displayName, preferredScale, hiddenLocations, following: socialFollowing, colorTheme, mutedUsers, notifPrefs, isPrivate, pendingFollowRequests },
+        profile: { displayName: currentUser.displayName, preferredScale, preferredRopeScale, profilePic, customBoulderGrades, customRopeGrades, hiddenLocations, following: socialFollowing, colorTheme, mutedUsers, notifPrefs, isPrivate, pendingFollowRequests },
         sessions,
         projects,
       };
@@ -930,7 +978,7 @@ export default function App() {
       setTimeout(() => setSaveStatus(""), 2000);
     }, 1000);
     return () => clearTimeout(saveTimeoutRef.current);
-  }, [sessions, projects, preferredScale, hiddenLocations, socialFollowing, colorTheme, mutedUsers, notifPrefs, isPrivate, pendingFollowRequests]);
+  }, [sessions, projects, preferredScale, preferredRopeScale, profilePic, customBoulderGrades, customRopeGrades, hiddenLocations, socialFollowing, colorTheme, mutedUsers, notifPrefs, isPrivate, pendingFollowRequests]);
 
   useEffect(() => {
     if (timerRunning) { timerRef.current = setInterval(() => setSessionTimer(t => t + 1), 1000); }
@@ -1005,6 +1053,10 @@ export default function App() {
       setSessions(safeData.sessions || []);
       setProjects(safeData.projects || []);
       setPreferredScale(safeData.profile?.preferredScale || "V-Scale");
+      setPreferredRopeScale(safeData.profile?.preferredRopeScale || "French");
+      setProfilePic(safeData.profile?.profilePic || null);
+      setCustomBoulderGrades(safeData.profile?.customBoulderGrades || []);
+      setCustomRopeGrades(safeData.profile?.customRopeGrades || []);
       setHiddenLocations(safeData.profile?.hiddenLocations || []);
       setSocialFollowing(safeData.profile?.following || []);
       setColorTheme(safeData.profile?.colorTheme || "espresso");
@@ -1057,7 +1109,33 @@ export default function App() {
     setCommentText("");
     setShowAccountPanel(false);
     setConfirmLogout(false);
+    setProfilePic(null);
+    setPreferredRopeScale("French");
+    setCustomBoulderGrades([]);
+    setCustomRopeGrades([]);
     setAuthScreen("login");
+  };
+
+  const handleProfilePicUpload = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      const img = new Image();
+      img.onload = () => {
+        const size = 160;
+        const canvas = document.createElement("canvas");
+        canvas.width = size; canvas.height = size;
+        const ctx = canvas.getContext("2d");
+        const min = Math.min(img.width, img.height);
+        const sx = (img.width - min) / 2, sy = (img.height - min) / 2;
+        ctx.drawImage(img, sx, sy, min, min, 0, 0, size, size);
+        setProfilePic(canvas.toDataURL("image/jpeg", 0.82));
+      };
+      img.src = ev.target.result;
+    };
+    reader.readAsDataURL(file);
+    e.target.value = "";
   };
 
   const W = THEMES[colorTheme] || THEMES.espresso;
@@ -1250,9 +1328,11 @@ export default function App() {
       setPhotoPreview(null);
     } else {
       setEditingClimbId(null);
-      const ropeInitScale = "French";
-      const ropeInitGrade = ROPE_GRADES[ropeInitScale][Math.floor(ROPE_GRADES[ropeInitScale].length / 2)];
-      setClimbForm({ ...blankForm, climbType, scale: climbType === "rope" ? ropeInitScale : preferredScale, grade: climbType === "rope" ? ropeInitGrade : (GRADES[preferredScale]?.[2] || "V3") });
+      const ropeInitScale = preferredRopeScale;
+      const ropeGradeList = preferredRopeScale === "Custom" ? customRopeGrades : (ROPE_GRADES[ropeInitScale] || ROPE_GRADES["French"]);
+      const ropeInitGrade = ropeGradeList[Math.floor(ropeGradeList.length / 2)] || ropeGradeList[0] || "5.9";
+      const boulderGradeList = preferredScale === "Custom" ? customBoulderGrades : (GRADES[preferredScale] || GRADES["V-Scale"]);
+      setClimbForm({ ...blankForm, climbType, scale: climbType === "rope" ? ropeInitScale : preferredScale, grade: climbType === "rope" ? ropeInitGrade : (boulderGradeList[2] || boulderGradeList[0] || "V3") });
       setPhotoPreview(null);
     }
     setShowClimbForm(true);
@@ -2487,7 +2567,10 @@ export default function App() {
       <div style={{ padding: "24px 20px" }}>
         {/* Header row: avatar + name/stats/follow pills */}
         <div style={{ display: "flex", alignItems: "center", gap: 14, marginBottom: 12 }}>
-          <div style={{ width: 58, height: 58, borderRadius: 18, background: `linear-gradient(135deg, ${W.accent}, ${W.accentDark})`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 26, boxShadow: `0 4px 14px ${W.accentGlow}`, flexShrink: 0 }}>🧗</div>
+          {profilePic
+            ? <img src={profilePic} style={{ width: 58, height: 58, borderRadius: 18, objectFit: "cover", boxShadow: `0 4px 14px ${W.accentGlow}`, flexShrink: 0, border: `2px solid ${W.accent}` }} />
+            : <div style={{ width: 58, height: 58, borderRadius: 18, background: `linear-gradient(135deg, ${W.accent}, ${W.accentDark})`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 26, boxShadow: `0 4px 14px ${W.accentGlow}`, flexShrink: 0 }}>🧗</div>
+          }
           <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{ fontSize: 20, fontWeight: 800, color: W.text }}>{currentUser?.displayName || "Climber"}</div>
             <div style={{ fontSize: 12, color: W.textMuted }}>@{currentUser?.username} · {sessions.length} sessions · {allClimbs.length} climbs</div>
@@ -2540,6 +2623,8 @@ export default function App() {
         {showAccountPanel && (
           <div style={{ background: W.surface, borderRadius: 16, padding: "16px", marginBottom: 20, border: `1px solid ${W.border}` }}>
             <div style={{ fontWeight: 700, color: W.text, fontSize: 14, marginBottom: 12 }}>Account</div>
+
+            {/* Account info row */}
             <div style={{ display: "flex", gap: 10, alignItems: "center", marginBottom: 14 }}>
               <div style={{ flex: 1 }}>
                 <div style={{ fontSize: 13, fontWeight: 700, color: W.text }}>{currentUser?.displayName}</div>
@@ -2547,14 +2632,82 @@ export default function App() {
               </div>
               <div style={{ background: W.green, borderRadius: 8, padding: "3px 10px", fontSize: 11, fontWeight: 700, color: W.greenDark }}>● Signed In</div>
             </div>
+
+            {/* Profile picture */}
             <div style={{ marginBottom: 14 }}>
-              <div style={{ fontSize: 11, fontWeight: 700, color: W.textMuted, textTransform: "uppercase", letterSpacing: 1.2, marginBottom: 8 }}>Preferred Grading System</div>
+              <div style={{ fontSize: 11, fontWeight: 700, color: W.textMuted, textTransform: "uppercase", letterSpacing: 1.2, marginBottom: 8 }}>Profile Picture</div>
+              <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
+                {profilePic
+                  ? <img src={profilePic} style={{ width: 56, height: 56, borderRadius: 14, objectFit: "cover", border: `2px solid ${W.accent}` }} />
+                  : <div style={{ width: 56, height: 56, borderRadius: 14, background: `linear-gradient(135deg, ${W.accent}, ${W.accentDark})`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 24 }}>🧗</div>
+                }
+                <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                  <button onClick={() => picRef.current?.click()} style={{ padding: "6px 14px", background: W.accent + "22", border: `1px solid ${W.accent}`, borderRadius: 10, color: W.accent, fontWeight: 700, fontSize: 12, cursor: "pointer" }}>Upload Photo</button>
+                  {profilePic && <button onClick={() => setProfilePic(null)} style={{ padding: "5px 14px", background: "transparent", border: `1px solid ${W.border}`, borderRadius: 10, color: W.textMuted, fontSize: 12, cursor: "pointer" }}>Remove</button>}
+                </div>
+              </div>
+              <input ref={picRef} type="file" accept="image/*" style={{ display: "none" }} onChange={handleProfilePicUpload} />
+            </div>
+
+            {/* Boulder grading */}
+            <div style={{ marginBottom: 14 }}>
+              <div style={{ fontSize: 11, fontWeight: 700, color: W.textMuted, textTransform: "uppercase", letterSpacing: 1.2, marginBottom: 8 }}>Boulder Grading</div>
               <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-                {Object.keys(GRADES).map(s => (
+                {["V-Scale", "French", "Custom"].map(s => (
                   <button key={s} onClick={() => setPreferredScale(s)} style={{ padding: "6px 12px", borderRadius: 16, border: "2px solid", borderColor: preferredScale === s ? W.accent : W.border, background: preferredScale === s ? W.accent + "22" : W.surface2, color: preferredScale === s ? W.accent : W.textDim, cursor: "pointer", fontSize: 12, fontWeight: preferredScale === s ? 700 : 500 }}>{s}</button>
                 ))}
               </div>
+              {preferredScale === "Custom" && (
+                <div style={{ marginTop: 8 }}>
+                  <div style={{ fontSize: 11, color: W.textMuted, marginBottom: 4 }}>Enter grades from easiest to hardest, comma-separated</div>
+                  <textarea
+                    value={customBoulderGrades.join(", ")}
+                    onChange={e => setCustomBoulderGrades(e.target.value.split(",").map(x => x.trim()).filter(Boolean))}
+                    placeholder="e.g. Easy, Medium, Hard, Very Hard"
+                    rows={2}
+                    style={{ width: "100%", boxSizing: "border-box", background: W.surface2, border: `1px solid ${W.border}`, borderRadius: 10, padding: "8px 10px", color: W.text, fontSize: 12, resize: "vertical" }}
+                  />
+                  {customBoulderGrades.length > 0 && (
+                    <div style={{ display: "flex", gap: 4, flexWrap: "wrap", marginTop: 6 }}>
+                      {customBoulderGrades.map((g, i) => (
+                        <span key={i} style={{ background: W.accent + "22", color: W.accent, borderRadius: 8, padding: "2px 8px", fontSize: 11, fontWeight: 600 }}>{g}</span>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
+
+            {/* Rope grading */}
+            <div style={{ marginBottom: 14 }}>
+              <div style={{ fontSize: 11, fontWeight: 700, color: W.textMuted, textTransform: "uppercase", letterSpacing: 1.2, marginBottom: 8 }}>Rope Grading</div>
+              <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                {["YDS", "French", "Custom"].map(s => (
+                  <button key={s} onClick={() => setPreferredRopeScale(s)} style={{ padding: "6px 12px", borderRadius: 16, border: "2px solid", borderColor: preferredRopeScale === s ? W.accent : W.border, background: preferredRopeScale === s ? W.accent + "22" : W.surface2, color: preferredRopeScale === s ? W.accent : W.textDim, cursor: "pointer", fontSize: 12, fontWeight: preferredRopeScale === s ? 700 : 500 }}>{s}</button>
+                ))}
+              </div>
+              {preferredRopeScale === "Custom" && (
+                <div style={{ marginTop: 8 }}>
+                  <div style={{ fontSize: 11, color: W.textMuted, marginBottom: 4 }}>Enter grades from easiest to hardest, comma-separated</div>
+                  <textarea
+                    value={customRopeGrades.join(", ")}
+                    onChange={e => setCustomRopeGrades(e.target.value.split(",").map(x => x.trim()).filter(Boolean))}
+                    placeholder="e.g. 5.8, 5.9, 5.10, 5.11"
+                    rows={2}
+                    style={{ width: "100%", boxSizing: "border-box", background: W.surface2, border: `1px solid ${W.border}`, borderRadius: 10, padding: "8px 10px", color: W.text, fontSize: 12, resize: "vertical" }}
+                  />
+                  {customRopeGrades.length > 0 && (
+                    <div style={{ display: "flex", gap: 4, flexWrap: "wrap", marginTop: 6 }}>
+                      {customRopeGrades.map((g, i) => (
+                        <span key={i} style={{ background: W.accent + "22", color: W.accent, borderRadius: 8, padding: "2px 8px", fontSize: 11, fontWeight: 600 }}>{g}</span>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {/* App Theme */}
             <div style={{ marginBottom: 14 }}>
               <div style={{ fontSize: 11, fontWeight: 700, color: W.textMuted, textTransform: "uppercase", letterSpacing: 1.2, marginBottom: 8 }}>App Theme</div>
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 6 }}>
@@ -2565,6 +2718,9 @@ export default function App() {
                   { id: "neon",     label: "Neon",     icon: "⚡",  desc: "Black + cyan" },
                   { id: "midnight", label: "Midnight", icon: "🌙",  desc: "Dark navy" },
                   { id: "ember",    label: "Ember",    icon: "🔥",  desc: "Dark amber" },
+                  { id: "abyss",    label: "Abyss",    icon: "🔵",  desc: "Black + blue" },
+                  { id: "forest",   label: "Forest",   icon: "🌲",  desc: "Dark green" },
+                  { id: "dusk",     label: "Dusk",     icon: "🌆",  desc: "Dark purple" },
                 ].map(t => (
                   <button key={t.id} onClick={() => setColorTheme(t.id)} style={{ padding: "8px 4px", borderRadius: 12, border: `2px solid`, borderColor: colorTheme === t.id ? W.accent : W.border, background: colorTheme === t.id ? W.accent + "22" : W.surface2, color: colorTheme === t.id ? W.accent : W.textDim, cursor: "pointer", fontSize: 10, fontWeight: colorTheme === t.id ? 700 : 500, textAlign: "center" }}>
                     <div style={{ fontSize: 18, marginBottom: 2 }}>{t.icon}</div>
@@ -2574,6 +2730,8 @@ export default function App() {
                 ))}
               </div>
             </div>
+
+            {/* Notification preferences */}
             <div style={{ marginBottom: 14, border: `1px solid ${W.border}`, borderRadius: 10, overflow: "hidden" }}>
               <button onClick={() => setNotifPrefsOpen(o => !o)} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", width: "100%", background: W.surface2, border: "none", padding: "10px 12px", cursor: "pointer" }}>
                 <span style={{ fontSize: 13, fontWeight: 700, color: W.text }}>Notification Preferences</span>
@@ -2595,6 +2753,8 @@ export default function App() {
                 </div>
               )}
             </div>
+
+            {/* Privacy */}
             <div style={{ marginBottom: 14 }}>
               <div style={{ fontSize: 11, fontWeight: 700, color: W.textMuted, textTransform: "uppercase", letterSpacing: 1.2, marginBottom: 8 }}>Privacy</div>
               <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
@@ -2607,6 +2767,7 @@ export default function App() {
                 </button>
               </div>
             </div>
+
             {saveStatus && (
               <div style={{ background: saveStatus === "saved" ? W.green : saveStatus === "error" ? W.red : W.yellow, borderRadius: 10, padding: "8px 12px", marginBottom: 12, fontSize: 12, fontWeight: 700, color: saveStatus === "saved" ? W.greenDark : saveStatus === "error" ? W.redDark : W.yellowDark }}>
                 {saveStatus === "saving" ? "💾 Saving…" : saveStatus === "saved" ? "✓ All changes saved" : "⚠️ Save failed — check connection"}
