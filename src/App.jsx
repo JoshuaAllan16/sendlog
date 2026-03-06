@@ -794,7 +794,6 @@ export default function App() {
   const [showEndConfirm, setShowEndConfirm]     = useState(false);
   const [sessionSummary, setSessionSummary]     = useState(null);
   const [projectTypeFilter, setProjectTypeFilter] = useState("all");
-  const [collapsedSections, setCollapsedSections] = useState({ boulder: false, rope: false });
 
   const blankForm = { name: "", grade: GRADES[preferredScale]?.[2] || "V3", scale: preferredScale, isProject: false, comments: "", photo: null, color: null, wallTypes: [], holdTypes: [], climbType: "boulder", ropeStyle: "lead", speedTime: "" };
 
@@ -1262,7 +1261,7 @@ export default function App() {
   const knownLocations = [...new Set([...KNOWN_GYMS, ...sessions.map(s => s.location).filter(Boolean)])].filter(l => !hiddenLocations.includes(l));
   const allGyms = ["All Gyms", ...new Set(sessions.map(s => s.location).filter(Boolean))];
 
-  const goToSessionSetup = () => { setPendingLocation(""); setSessionStarted(false); setActiveSession({ location: "", climbs: [] }); setSessionTimer(0); setSessionActiveStart(null); setSessionPausedSec(0); setShowMoreClimbTypes(false); setScreen("session"); };
+  const goToSessionSetup = () => { setPendingLocation(""); setSessionStarted(false); setActiveSession({ location: "", climbs: [], collapsedSections: { boulder: false, rope: false } }); setSessionTimer(0); setSessionActiveStart(null); setSessionPausedSec(0); setShowMoreClimbTypes(false); setScreen("session"); };
   const beginTimer = () => { setActiveSession(s => ({ ...s, location: pendingLocation, sessionTypes })); setSessionStarted(true); setSessionActiveStart(Date.now()); setTimerRunning(true); setShowMoreClimbTypes(false); };
   const toggleSessionTimer = () => {
     if (timerRunning) {
@@ -2596,8 +2595,8 @@ export default function App() {
         {/* ── Boulder Section ─────────────────────────────────── */}
         {!showClimbForm && !showProjectPicker && activeSession?.boulderStartedAt && (
           <div style={{ marginBottom: 16 }}>
-            <BoulderRopeSessionCard type="boulder" totalSec={activeSession.boulderTotalSec || 0} activeStart={activeSession.boulderActiveStart || null} isEnded={!!activeSession.boulderEndedAt} tick={sessionTimer} onPause={pauseBoulderSession} onResume={resumeBoulderSession} pausedAt={activeSession.boulderPausedAt || null} collapsed={collapsedSections.boulder} onToggleCollapse={() => setCollapsedSections(s => ({ ...s, boulder: !s.boulder }))} />
-            {!collapsedSections.boulder && (
+            <BoulderRopeSessionCard type="boulder" totalSec={activeSession.boulderTotalSec || 0} activeStart={activeSession.boulderActiveStart || null} isEnded={!!activeSession.boulderEndedAt} tick={sessionTimer} onPause={pauseBoulderSession} onResume={resumeBoulderSession} pausedAt={activeSession.boulderPausedAt || null} collapsed={!!activeSession.collapsedSections?.boulder} onToggleCollapse={() => setActiveSession(s => ({ ...s, collapsedSections: { ...(s.collapsedSections || {}), boulder: !s.collapsedSections?.boulder } }))} />
+            {!activeSession.collapsedSections?.boulder && (
               <div style={{ borderLeft: `3px solid ${W.greenDark}44`, paddingLeft: 10, marginLeft: 2 }}>
                 {boulderClimbs.map(c => <ActiveClimbCard key={c.id} climb={c} {...cardProps} />)}
                 {selectedTypes.includes("boulder") && !activeSession.boulderEndedAt && (
@@ -2611,8 +2610,8 @@ export default function App() {
         {/* ── Rope Section ─────────────────────────────────────── */}
         {!showClimbForm && !showProjectPicker && activeSession?.ropeStartedAt && (
           <div style={{ marginBottom: 16 }}>
-            <BoulderRopeSessionCard type="rope" totalSec={activeSession.ropeTotalSec || 0} activeStart={activeSession.ropeActiveStart || null} isEnded={!!activeSession.ropeEndedAt} tick={sessionTimer} onPause={pauseRopeSession} onResume={resumeRopeSession} pausedAt={activeSession.ropePausedAt || null} collapsed={collapsedSections.rope} onToggleCollapse={() => setCollapsedSections(s => ({ ...s, rope: !s.rope }))} />
-            {!collapsedSections.rope && (
+            <BoulderRopeSessionCard type="rope" totalSec={activeSession.ropeTotalSec || 0} activeStart={activeSession.ropeActiveStart || null} isEnded={!!activeSession.ropeEndedAt} tick={sessionTimer} onPause={pauseRopeSession} onResume={resumeRopeSession} pausedAt={activeSession.ropePausedAt || null} collapsed={!!activeSession.collapsedSections?.rope} onToggleCollapse={() => setActiveSession(s => ({ ...s, collapsedSections: { ...(s.collapsedSections || {}), rope: !s.collapsedSections?.rope } }))} />
+            {!activeSession.collapsedSections?.rope && (
               <div style={{ borderLeft: `3px solid ${W.purpleDark}44`, paddingLeft: 10, marginLeft: 2 }}>
                 {ropeClimbs.map(c => <ActiveClimbCard key={c.id} climb={c} {...cardProps} />)}
                 {selectedTypes.includes("rope") && !activeSession.ropeEndedAt && (
@@ -3792,7 +3791,12 @@ export default function App() {
       <div style={{ padding: "24px 20px" }}>
         <div style={{ background: project.completed ? W.green : W.pink, borderRadius: 20, padding: "20px", marginBottom: 20, border: `1px solid ${project.completed ? W.greenDark : W.pinkDark}30` }}>
           <div style={{ fontSize: 22, fontWeight: 900, color: W.text }}>{project.name || project.grade}</div>
-          <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 4 }}><span style={{ fontWeight: 800, fontSize: 16, color: getGradeColor(project.grade) }}>{project.grade}</span><span style={{ color: W.textMuted, fontSize: 13 }}>{resolveScaleName(project.scale)}</span>{project.completed && <span style={{ background: W.greenDark, color: "#fff", borderRadius: 8, padding: "2px 10px", fontSize: 11, fontWeight: 700 }}>✓ SENT!</span>}</div>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 4, flexWrap: "wrap" }}>
+            <span style={{ fontWeight: 800, fontSize: 16, color: getGradeColor(project.grade) }}>{project.grade}</span>
+            <span style={{ color: W.textMuted, fontSize: 13 }}>{resolveScaleName(project.scale)}</span>
+            {(() => { const t = project.climbType || (Object.keys(ROPE_GRADES).includes(project.scale) ? "rope" : "boulder"); return t === "rope" ? <span style={{ background: W.purple, color: W.purpleDark, borderRadius: 7, padding: "2px 8px", fontSize: 11, fontWeight: 700 }}>🪢 Rope</span> : <span style={{ background: W.green, color: W.greenDark, borderRadius: 7, padding: "2px 8px", fontSize: 11, fontWeight: 700 }}>🪨 Boulder</span>; })()}
+            {project.completed && <span style={{ background: W.greenDark, color: "#fff", borderRadius: 8, padding: "2px 10px", fontSize: 11, fontWeight: 700 }}>✓ SENT!</span>}
+          </div>
           {project.comments && <div style={{ fontSize: 13, color: W.textMuted, marginTop: 6 }}>{project.comments}</div>}
           <div style={{ fontSize: 11, color: W.textDim, marginTop: 6 }}>Added {formatDate(project.dateAdded)}{project.dateSent && ` · Sent ${formatDate(project.dateSent)}`}</div>
         </div>
