@@ -239,6 +239,28 @@ Feed & logbook:
 
 
 ──────────────────────────────────────────────────────────────
+PUSH 26  |  pending  |  Climb type session timers + per-climb attempt tracking
+──────────────────────────────────────────────────────────────
+Session timers (boulder + rope):
+- Boulder Session and Rope Session timer cards appear when first climb of each type is added
+- Live elapsed timer and End button on each card (matches Speed Session UX)
+
+Per-climb attempt timing:
+- "Start Climbing" / "Start Attempt" button on each boulder/rope climb card
+- Live "Climbing ⏱ X:XX" timer while climbing; stops when a try is logged or sent
+- Rest timer shown between attempts ("Resting X:XX")
+- Attempt log below each card (#1 0:45 · #2 1:12)
+
+Session summary — time by type:
+- "Time by Type" card: boulder time, rope time, speed time in one breakdown
+
+Stats tab improvements (related improvements #1, #4, #5):
+- Speed chart: falls shown as red ✗ markers at the bottom
+- Speed PB History list: shows each PB with date logged
+- Stats category tab persists across sessions (localStorage)
+
+
+──────────────────────────────────────────────────────────────
 PUSH 25  |  pending  |  Stats category tabs: Overall, Boulder, Rope, Speed
 ──────────────────────────────────────────────────────────────
 - Four category tabs at top of stats: Overall, Bouldering, Rope, Speed
