@@ -2829,30 +2829,30 @@ export default function App() {
 
     return (
       <div style={{ padding: "24px 20px" }}>
-        {/* Header row: avatar + name/stats/follow pills */}
-        <div style={{ display: "flex", alignItems: "center", gap: 14, marginBottom: 12 }}>
+        {/* Header row: avatar + name/stats/follow pills + action buttons */}
+        <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 16 }}>
           {profilePic
             ? <img src={profilePic} style={{ width: 58, height: 58, borderRadius: 18, objectFit: "cover", boxShadow: `0 4px 14px ${W.accentGlow}`, flexShrink: 0, border: `2px solid ${W.accent}` }} />
             : <div style={{ width: 58, height: 58, borderRadius: 18, background: `linear-gradient(135deg, ${W.accent}, ${W.accentDark})`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 26, boxShadow: `0 4px 14px ${W.accentGlow}`, flexShrink: 0 }}>🧗</div>
           }
           <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ fontSize: 20, fontWeight: 800, color: W.text }}>{currentUser?.displayName || "Climber"}</div>
-            <div style={{ fontSize: 12, color: W.textMuted }}>@{currentUser?.username} · {sessions.length} sessions · {allClimbs.length} climbs</div>
-            <div style={{ display: "flex", gap: 6, marginTop: 5 }}>
-              <button onClick={() => showUserList("following")} style={{ background: W.surface2, border: `1px solid ${W.border}`, borderRadius: 8, padding: "2px 9px", cursor: "pointer", fontSize: 11, color: W.textMuted, fontWeight: 500 }}>
+            <div style={{ fontSize: 18, fontWeight: 800, color: W.text, lineHeight: 1.2 }}>{currentUser?.displayName || "Climber"}</div>
+            <div style={{ fontSize: 11, color: W.textMuted, marginTop: 1 }}>@{currentUser?.username} · {sessions.length} sessions · {allClimbs.length} climbs</div>
+            <div style={{ display: "flex", gap: 5, marginTop: 5 }}>
+              <button onClick={() => showUserList("following")} style={{ background: W.surface2, border: `1px solid ${W.border}`, borderRadius: 7, padding: "2px 7px", cursor: "pointer", fontSize: 10, color: W.textMuted, fontWeight: 500 }}>
                 <span style={{ fontWeight: 700, color: W.text }}>{socialFollowing.length}</span> following
               </button>
-              <button onClick={() => showUserList("followers")} style={{ background: W.surface2, border: `1px solid ${W.border}`, borderRadius: 8, padding: "2px 9px", cursor: "pointer", fontSize: 11, color: W.textMuted, fontWeight: 500 }}>
+              <button onClick={() => showUserList("followers")} style={{ background: W.surface2, border: `1px solid ${W.border}`, borderRadius: 7, padding: "2px 7px", cursor: "pointer", fontSize: 10, color: W.textMuted, fontWeight: 500 }}>
                 <span style={{ fontWeight: 700, color: W.text }}>{socialFollowers.length}</span> followers
               </button>
             </div>
           </div>
-        </div>
-        {/* 3-button action row */}
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8, marginBottom: 14 }}>
-          <button onClick={() => setShowAccountPanel(true)} style={{ padding: "9px 4px", background: W.surface2, border: `1px solid ${W.border}`, borderRadius: 12, fontSize: 12, color: W.textMuted, fontWeight: 700, cursor: "pointer" }}>⚙️ Settings</button>
-          <button onClick={() => setScreen("social")} style={{ padding: "9px 4px", background: W.surface2, border: `1px solid ${W.border}`, borderRadius: 12, fontSize: 12, color: W.textMuted, fontWeight: 700, cursor: "pointer" }}>👥 Social</button>
-          <button onClick={goToLeaderboard} style={{ padding: "9px 4px", background: W.surface2, border: `1px solid ${W.border}`, borderRadius: 12, fontSize: 12, color: W.textMuted, fontWeight: 700, cursor: "pointer" }}>🏆 Board</button>
+          {/* Compact action buttons stacked vertically */}
+          <div style={{ display: "flex", flexDirection: "column", gap: 5, flexShrink: 0 }}>
+            <button onClick={() => setShowAccountPanel(true)} style={{ padding: "5px 8px", background: W.surface2, border: `1px solid ${W.border}`, borderRadius: 9, fontSize: 11, color: W.textMuted, fontWeight: 700, cursor: "pointer", whiteSpace: "nowrap" }}>⚙️ Settings</button>
+            <button onClick={() => setScreen("social")} style={{ padding: "5px 8px", background: W.surface2, border: `1px solid ${W.border}`, borderRadius: 9, fontSize: 11, color: W.textMuted, fontWeight: 700, cursor: "pointer", whiteSpace: "nowrap" }}>👥 Social</button>
+            <button onClick={goToLeaderboard} style={{ padding: "5px 8px", background: W.surface2, border: `1px solid ${W.border}`, borderRadius: 9, fontSize: 11, color: W.textMuted, fontWeight: 700, cursor: "pointer", whiteSpace: "nowrap" }}>🏆 Board</button>
+          </div>
         </div>
 
         {/* Pending follow requests — collapsible */}
@@ -3087,9 +3087,9 @@ export default function App() {
           </div>
         )}
 
-        <div style={{ display: "flex", background: W.surface2, borderRadius: 12, padding: 4, marginBottom: 22, border: `1px solid ${W.border}` }}>
+        <div style={{ display: "flex", background: W.surface2, borderRadius: 14, padding: 5, marginBottom: 22, border: `1px solid ${W.border}` }}>
           {[{ id: "stats", label: "📊 Stats" }, { id: "logbook", label: "📖 Logbook" }, { id: "projects", label: "🎯 Projects" }].map(tab => (
-            <button key={tab.id} onClick={() => setProfileTab(tab.id)} style={{ flex: 1, padding: "9px 4px", borderRadius: 9, border: "none", background: profileTab === tab.id ? `linear-gradient(135deg, ${W.accent}, ${W.accentDark})` : "transparent", color: profileTab === tab.id ? "#fff" : W.textDim, fontWeight: 700, fontSize: 11, cursor: "pointer" }}>{tab.label}</button>
+            <button key={tab.id} onClick={() => setProfileTab(tab.id)} style={{ flex: 1, padding: "12px 4px", borderRadius: 10, border: "none", background: profileTab === tab.id ? `linear-gradient(135deg, ${W.accent}, ${W.accentDark})` : "transparent", color: profileTab === tab.id ? "#fff" : W.textDim, fontWeight: 700, fontSize: 13, cursor: "pointer" }}>{tab.label}</button>
           ))}
         </div>
 
@@ -3310,15 +3310,15 @@ export default function App() {
           return (
           <div>
             {/* ── Category tabs ── */}
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 4, marginBottom: 16, background: W.surface2, borderRadius: 14, padding: 4, border: `1px solid ${W.border}` }}>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 3, marginBottom: 16, background: W.surface2, borderRadius: 10, padding: 3, border: `1px solid ${W.border}` }}>
               {[
                 { id: "overall", label: "Overall", icon: "📊" },
                 { id: "boulder", label: "Boulder", icon: "🪨" },
                 { id: "rope",    label: "Rope",    icon: "🪢" },
                 { id: "speed",   label: "Speed",   icon: "⚡" },
               ].map(tab => (
-                <button key={tab.id} onClick={() => { setStatsCategory(tab.id); localStorage.setItem("statsCategory", tab.id); setStatsBarSel(null); }} style={{ padding: "8px 2px", borderRadius: 10, border: "none", background: statsCategory === tab.id ? `linear-gradient(135deg, ${W.accent}, ${W.accentDark})` : "transparent", color: statsCategory === tab.id ? "#fff" : W.textDim, fontWeight: 700, fontSize: 11, cursor: "pointer", lineHeight: 1.5 }}>
-                  <div style={{ fontSize: 16 }}>{tab.icon}</div>
+                <button key={tab.id} onClick={() => { setStatsCategory(tab.id); localStorage.setItem("statsCategory", tab.id); setStatsBarSel(null); }} style={{ padding: "5px 2px", borderRadius: 7, border: "none", background: statsCategory === tab.id ? `linear-gradient(135deg, ${W.accent}, ${W.accentDark})` : "transparent", color: statsCategory === tab.id ? "#fff" : W.textDim, fontWeight: 700, fontSize: 10, cursor: "pointer", lineHeight: 1.4 }}>
+                  <div style={{ fontSize: 13 }}>{tab.icon}</div>
                   <div>{tab.label}</div>
                 </button>
               ))}
