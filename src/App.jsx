@@ -442,6 +442,7 @@ const ActiveClimbCard = ({ climb, onEdit, onStartClimbing, onEndAttempt, onUpdat
   const [confirmRemove, setConfirmRemove] = useState(false);
   const [showRopeLog, setShowRopeLog] = useState(false);
   const [ropeLogFalls, setRopeLogFalls] = useState(0);
+  const [ropeLogTakes, setRopeLogTakes] = useState(0);
   const [ropeLogTopped, setRopeLogTopped] = useState(false);
   const isFlash = climb.completed && climb.tries === 0;
   const isRope = climb.climbType === "rope";
@@ -449,8 +450,8 @@ const ActiveClimbCard = ({ climb, onEdit, onStartClimbing, onEndAttempt, onUpdat
     ? Math.max(0, Math.floor((Date.now() - climb.lastAttemptEndedAt) / 1000)) : null;
   const showReady = restSec !== null && restSec >= 180;
 
-  const handleDone = () => { onEndAttempt(climb.id); setShowRopeLog(true); setRopeLogFalls(0); setRopeLogTopped(false); };
-  const handleRopeSave = () => { onLogRope(climb.id, ropeLogFalls, ropeLogTopped); setShowRopeLog(false); };
+  const handleDone = () => { onEndAttempt(climb.id); setShowRopeLog(true); setRopeLogFalls(0); setRopeLogTakes(0); setRopeLogTopped(false); };
+  const handleRopeSave = () => { onLogRope(climb.id, ropeLogFalls, ropeLogTakes, ropeLogTopped); setShowRopeLog(false); };
 
   return (
     <div style={{ background: W.surface, borderRadius: 14, border: `2px solid ${climb.completed ? W.greenDark : W.border}`, marginBottom: 10, overflow: "hidden" }}>
@@ -480,14 +481,15 @@ const ActiveClimbCard = ({ climb, onEdit, onStartClimbing, onEndAttempt, onUpdat
       {/* Boulder action bar */}
       {!isRope && (
         <div style={{ display: "flex", alignItems: "center", borderTop: `1px solid ${W.border}`, background: climb.completed ? W.green + "55" : W.surface2 }}>
-          <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 0, padding: "8px 0", borderRight: `1px solid ${W.border}` }}>
-            <button onClick={() => onUpdateTries(climb.id, -1)} disabled={climb.tries <= 0} style={{ width: 34, height: 34, borderRadius: 8, border: `1px solid ${W.border}`, background: climb.tries <= 0 ? "transparent" : W.surface, color: climb.tries <= 0 ? W.textDim : W.text, fontSize: 18, cursor: climb.tries <= 0 ? "default" : "pointer", fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center" }}>−</button>
-            <div style={{ minWidth: 52, textAlign: "center" }}>
-              <div style={{ fontSize: 20, fontWeight: 900, color: W.text, lineHeight: 1 }}>{climb.tries}</div>
-              <div style={{ fontSize: 9, color: W.textDim, textTransform: "uppercase", letterSpacing: 0.8 }}>{climb.tries === 1 ? "fall" : "falls"}</div>
+          {climb.climbingStartedAt && (
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 8, padding: "8px 14px", borderRight: `1px solid ${W.border}` }}>
+              <div style={{ textAlign: "center" }}>
+                <div style={{ fontSize: 20, fontWeight: 900, color: W.text, lineHeight: 1 }}>{climb.tries}</div>
+                <div style={{ fontSize: 9, color: W.textDim, textTransform: "uppercase", letterSpacing: 0.8 }}>{climb.tries === 1 ? "fall" : "falls"}</div>
+              </div>
+              <button onClick={() => onUpdateTries(climb.id, 1)} style={{ width: 34, height: 34, borderRadius: 8, border: `1px solid ${W.border}`, background: W.surface, color: W.text, fontSize: 18, cursor: "pointer", fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center" }}>+</button>
             </div>
-            <button onClick={() => onUpdateTries(climb.id, 1)} style={{ width: 34, height: 34, borderRadius: 8, border: `1px solid ${W.border}`, background: W.surface, color: W.text, fontSize: 18, cursor: "pointer", fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center" }}>+</button>
-          </div>
+          )}
           <button onClick={() => onToggleCompleted(climb.id)} style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 8, padding: "8px 12px", border: "none", background: "transparent", cursor: "pointer" }}>
             <div style={{ width: 22, height: 22, borderRadius: 6, border: `2px solid ${climb.completed ? W.greenDark : W.border}`, background: climb.completed ? W.greenDark : "transparent", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
               {climb.completed && <span style={{ color: "#fff", fontSize: 13, lineHeight: 1 }}>✓</span>}
@@ -509,6 +511,7 @@ const ActiveClimbCard = ({ climb, onEdit, onStartClimbing, onEndAttempt, onUpdat
             <div style={{ fontSize: 16, fontWeight: 900, color: W.text }}>{climb.falls || 0}</div>
             <div style={{ fontSize: 9, color: W.textDim, textTransform: "uppercase", letterSpacing: 0.5 }}>{(climb.falls || 0) === 1 ? "fall" : "falls"}</div>
           </div>
+          {(climb.takes || 0) > 0 && <><div style={{ width: 1, height: 28, background: W.border }} /><div style={{ textAlign: "center" }}><div style={{ fontSize: 16, fontWeight: 900, color: W.text }}>{climb.takes}</div><div style={{ fontSize: 9, color: W.textDim, textTransform: "uppercase", letterSpacing: 0.5 }}>{climb.takes === 1 ? "take" : "takes"}</div></div></>}
           {climb.completed && <><div style={{ width: 1, height: 28, background: W.border }} /><span style={{ background: W.green, color: W.greenDark, borderRadius: 6, padding: "2px 8px", fontSize: 10, fontWeight: 800 }}>✓ TOPPED</span></>}
         </div>
       )}
@@ -519,16 +522,26 @@ const ActiveClimbCard = ({ climb, onEdit, onStartClimbing, onEndAttempt, onUpdat
           {showRopeLog ? (
             <div style={{ padding: "12px 14px" }}>
               <div style={{ fontSize: 11, fontWeight: 700, color: W.textMuted, textTransform: "uppercase", letterSpacing: 0.8, marginBottom: 8 }}>Log This Attempt</div>
-              <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 10 }}>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 10 }}>
                 <div>
                   <div style={{ fontSize: 10, color: W.textDim, marginBottom: 4 }}>Falls</div>
-                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
                     <button onClick={() => setRopeLogFalls(f => Math.max(0, f - 1))} style={{ width: 30, height: 30, borderRadius: 7, border: `1px solid ${W.border}`, background: W.surface, color: W.text, fontSize: 18, cursor: "pointer", fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center" }}>−</button>
-                    <div style={{ minWidth: 28, textAlign: "center", fontSize: 20, fontWeight: 900, color: W.text }}>{ropeLogFalls}</div>
+                    <div style={{ flex: 1, textAlign: "center", fontSize: 20, fontWeight: 900, color: W.text }}>{ropeLogFalls}</div>
                     <button onClick={() => setRopeLogFalls(f => f + 1)} style={{ width: 30, height: 30, borderRadius: 7, border: `1px solid ${W.border}`, background: W.surface, color: W.text, fontSize: 18, cursor: "pointer", fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center" }}>+</button>
                   </div>
                 </div>
-                <button onClick={() => setRopeLogTopped(t => !t)} style={{ flex: 1, padding: "8px 12px", background: ropeLogTopped ? W.green : W.surface, border: `2px solid ${ropeLogTopped ? W.greenDark : W.border}`, borderRadius: 10, color: ropeLogTopped ? W.greenDark : W.textMuted, fontWeight: 700, fontSize: 13, cursor: "pointer" }}>
+                <div>
+                  <div style={{ fontSize: 10, color: W.textDim, marginBottom: 4 }}>Takes</div>
+                  <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                    <button onClick={() => setRopeLogTakes(t => Math.max(0, t - 1))} style={{ width: 30, height: 30, borderRadius: 7, border: `1px solid ${W.border}`, background: W.surface, color: W.text, fontSize: 18, cursor: "pointer", fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center" }}>−</button>
+                    <div style={{ flex: 1, textAlign: "center", fontSize: 20, fontWeight: 900, color: W.text }}>{ropeLogTakes}</div>
+                    <button onClick={() => setRopeLogTakes(t => t + 1)} style={{ width: 30, height: 30, borderRadius: 7, border: `1px solid ${W.border}`, background: W.surface, color: W.text, fontSize: 18, cursor: "pointer", fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center" }}>+</button>
+                  </div>
+                </div>
+              </div>
+              <div style={{ marginBottom: 10 }}>
+                <button onClick={() => setRopeLogTopped(t => !t)} style={{ width: "100%", padding: "8px 12px", background: ropeLogTopped ? W.green : W.surface, border: `2px solid ${ropeLogTopped ? W.greenDark : W.border}`, borderRadius: 10, color: ropeLogTopped ? W.greenDark : W.textMuted, fontWeight: 700, fontSize: 13, cursor: "pointer" }}>
                   {ropeLogTopped ? "✓ Topped!" : "Topped?"}
                 </button>
               </div>
@@ -647,6 +660,46 @@ export default function App() {
   const [sessionSummary, setSessionSummary]     = useState(null);
 
   const blankForm = { name: "", grade: GRADES[preferredScale]?.[2] || "V3", scale: preferredScale, isProject: false, comments: "", photo: null, color: null, wallTypes: [], holdTypes: [], climbType: "boulder", ropeStyle: "lead", speedTime: "" };
+
+  const generateInitialSessions = () => {
+    const VG = ["VB","V0","V1","V2","V3","V4","V5","V6","V7","V8"];
+    const SN = ["The Arete","Corner Problem","Slab Route","Overhang Crux","Crimpy Wall","Pocket Route","Sidepull Sequence","The Bulge","Roof Section","Compression Climb","Starting Move","Warm Up","The Sloper","Dynamic Move","Balance Slab"];
+    const SL = ["Local Gym","The Crux Gym","Boulder Barn","Peak Fitness","Summit Walls"];
+    const SC = ["red","yellow","green","orange","blue","pink","black","white"];
+    const ri = (a, b) => Math.floor(Math.random() * (b - a + 1)) + a;
+    const pk = arr => arr[Math.floor(Math.random() * arr.length)];
+    const sr = (mo) => {
+      if (mo < 3)  return [0, 1];
+      if (mo < 6)  return [0, 2];
+      if (mo < 10) return [1, 3];
+      if (mo < 14) return [1, 4];
+      return [2, 5];
+    };
+    const sessions = [];
+    const now = new Date(), start = new Date(now);
+    start.setFullYear(start.getFullYear() - 1);
+    let d = new Date(start), sid = 200000;
+    while (d < now) {
+      const mo = (d - start) / (1000 * 60 * 60 * 24 * 30.4);
+      const isWE = d.getDay() === 0 || d.getDay() === 6;
+      if (Math.random() < (1.5 / 7) * (isWE ? 2.0 : 0.6)) {
+        const [minG, maxG] = sr(mo);
+        const count = ri(3, 7);
+        const climbs = Array.from({ length: count }, (_, i) => {
+          const gIdx = ri(minG, maxG);
+          const grade = VG[gIdx];
+          const isHard = gIdx >= minG + Math.ceil((maxG - minG) * 0.6);
+          const tries = isHard ? ri(2, 8) : ri(1, 3);
+          const completed = tries === 1 || Math.random() > (isHard ? 0.5 : 0.2);
+          return { id: sid + i, name: pk(SN), grade, scale: "V-Scale", tries, completed, isProject: false, comments: "", photo: null, projectId: null, color: pk(SC), wallTypes: [pk(WALL_TYPES)], holdTypes: [pk(HOLD_TYPES)] };
+        });
+        sid += count + 1;
+        sessions.push({ id: sid++, date: new Date(d.getTime() + ri(8, 19) * 3600000).toISOString(), duration: ri(2700, 6600), location: pk(SL), climbs });
+      }
+      d.setDate(d.getDate() + 1);
+    }
+    return sessions.reverse();
+  };
   const [climbForm, setClimbForm]   = useState(blankForm);
   const [photoPreview, setPhotoPreview] = useState(null);
   const [calendarDate, setCalendarDate] = useState(new Date());
@@ -787,8 +840,8 @@ export default function App() {
 
       const userData = {
         profile: { displayName: displayName.trim() || username },
-        sessions: SAMPLE_SESSIONS,
-        projects: SAMPLE_PROJECTS,
+        sessions: generateInitialSessions(),
+        projects: [],
       };
       await saveUserData(username.toLowerCase(), userData);
       accounts[username.toLowerCase()] = { hash: hashPassword(password), displayName: displayName.trim() || username };
@@ -923,8 +976,8 @@ export default function App() {
       updates[`${other}TotalSec`] = (s[`${other}TotalSec`] || 0) + elapsed;
       updates[`${other}ActiveStart`] = null;
     }
-    // Start this type's active timer
-    updates[`${type}ActiveStart`] = now;
+    // Start this type's active timer only if not already running (keep it continuous between attempts)
+    if (!s[`${type}ActiveStart`]) updates[`${type}ActiveStart`] = now;
     // Clear rest timers on all other climbs so only one is "active"
     return {
       ...s, ...updates,
@@ -946,28 +999,21 @@ export default function App() {
     return { ...s, ropeTotalSec: (s.ropeTotalSec || 0) + elapsed, ropeActiveStart: null, ropeEndedAt: now };
   });
   // Stops the per-climb timer without logging tries (used for rope "Done" button)
+  // Type section timer keeps running — it only pauses when switching types or ending the section
   const endClimbAttempt = (id) => setActiveSession(s => {
     const climb = s.climbs.find(c => c.id === id);
     if (!climb || !climb.climbingStartedAt) return s;
     const now = Date.now();
     const duration = now - climb.climbingStartedAt;
-    const type = climb.climbType === "rope" ? "rope" : "boulder";
-    const typeUpdates = {};
-    const activeStart = s[`${type}ActiveStart`];
-    if (activeStart) {
-      const elapsed = Math.max(0, Math.floor((now - activeStart) / 1000));
-      typeUpdates[`${type}TotalSec`] = (s[`${type}TotalSec`] || 0) + elapsed;
-      typeUpdates[`${type}ActiveStart`] = null;
-    }
     return {
-      ...s, ...typeUpdates,
+      ...s,
       climbs: s.climbs.map(c => c.id === id ? { ...c, climbingStartedAt: null, lastAttemptEndedAt: now, attemptLog: [...(c.attemptLog || []), { startedAt: c.climbingStartedAt, duration }] } : c),
     };
   });
-  // Commits a rope attempt: +1 try, adds falls, sets topped
-  const logRopeAttempt = (id, falls, topped) => setActiveSession(s => ({
+  // Commits a rope attempt: +1 try, adds falls and takes, sets topped
+  const logRopeAttempt = (id, falls, takes, topped) => setActiveSession(s => ({
     ...s,
-    climbs: s.climbs.map(c => c.id === id ? { ...c, tries: (c.tries || 0) + 1, falls: (c.falls || 0) + falls, completed: topped } : c),
+    climbs: s.climbs.map(c => c.id === id ? { ...c, tries: (c.tries || 0) + 1, falls: (c.falls || 0) + falls, takes: (c.takes || 0) + takes, completed: topped } : c),
   }));
   // Pauses attempt tracking on a boulder climb (hides rest timer)
   const pauseClimb = (id) => setActiveSession(s => ({
@@ -2320,28 +2366,27 @@ export default function App() {
 
     return (
       <div style={{ padding: "24px 20px" }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 14, marginBottom: 14 }}>
-          <div style={{ width: 58, height: 58, borderRadius: 18, background: `linear-gradient(135deg, ${W.accent}, ${W.accentDark})`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 26, boxShadow: `0 4px 14px ${W.accentGlow}` }}>🧗</div>
-          <div style={{ flex: 1 }}>
+        {/* Header row: avatar + name/stats/follow pills */}
+        <div style={{ display: "flex", alignItems: "center", gap: 14, marginBottom: 12 }}>
+          <div style={{ width: 58, height: 58, borderRadius: 18, background: `linear-gradient(135deg, ${W.accent}, ${W.accentDark})`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 26, boxShadow: `0 4px 14px ${W.accentGlow}`, flexShrink: 0 }}>🧗</div>
+          <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{ fontSize: 20, fontWeight: 800, color: W.text }}>{currentUser?.displayName || "Climber"}</div>
             <div style={{ fontSize: 12, color: W.textMuted }}>@{currentUser?.username} · {sessions.length} sessions · {allClimbs.length} climbs</div>
-          </div>
-          <div style={{ display: "flex", gap: 6 }}>
-            <button onClick={() => setScreen("social")} style={{ background: W.surface2, border: `1px solid ${W.border}`, borderRadius: 10, padding: "8px 12px", fontSize: 12, color: W.textMuted, fontWeight: 700, cursor: "pointer" }}>👥</button>
-            <button onClick={() => setShowAccountPanel(o => !o)} style={{ background: W.surface2, border: `1px solid ${W.border}`, borderRadius: 10, padding: "8px 12px", fontSize: 12, color: W.textMuted, fontWeight: 700, cursor: "pointer" }}>⚙️</button>
+            <div style={{ display: "flex", gap: 6, marginTop: 5 }}>
+              <button onClick={() => showUserList("following")} style={{ background: W.surface2, border: `1px solid ${W.border}`, borderRadius: 8, padding: "2px 9px", cursor: "pointer", fontSize: 11, color: W.textMuted, fontWeight: 500 }}>
+                <span style={{ fontWeight: 700, color: W.text }}>{socialFollowing.length}</span> following
+              </button>
+              <button onClick={() => showUserList("followers")} style={{ background: W.surface2, border: `1px solid ${W.border}`, borderRadius: 8, padding: "2px 9px", cursor: "pointer", fontSize: 11, color: W.textMuted, fontWeight: 500 }}>
+                <span style={{ fontWeight: 700, color: W.text }}>{socialFollowers.length}</span> followers
+              </button>
+            </div>
           </div>
         </div>
-        {/* Follower / Following counts */}
-        <div style={{ display: "flex", gap: 8, marginBottom: 18 }}>
-          {[
-            { label: "Following", count: socialFollowing.length, type: "following" },
-            { label: "Followers", count: socialFollowers.length, type: "followers" },
-          ].map(item => (
-            <button key={item.type} onClick={() => showUserList(item.type)} style={{ flex: 1, background: W.surface2, border: `1px solid ${W.border}`, borderRadius: 10, padding: "4px 6px", cursor: "pointer", textAlign: "center" }}>
-              <div style={{ fontSize: 12, fontWeight: 700, color: W.text }}>{item.count}</div>
-              <div style={{ fontSize: 9, color: W.textMuted, fontWeight: 600, marginTop: 1 }}>{item.label}</div>
-            </button>
-          ))}
+        {/* 3-button action row */}
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8, marginBottom: 14 }}>
+          <button onClick={() => setShowAccountPanel(o => !o)} style={{ padding: "9px 4px", background: showAccountPanel ? W.accent + "22" : W.surface2, border: `1px solid ${showAccountPanel ? W.accent : W.border}`, borderRadius: 12, fontSize: 12, color: showAccountPanel ? W.accent : W.textMuted, fontWeight: 700, cursor: "pointer" }}>⚙️ Settings</button>
+          <button onClick={() => setScreen("social")} style={{ padding: "9px 4px", background: W.surface2, border: `1px solid ${W.border}`, borderRadius: 12, fontSize: 12, color: W.textMuted, fontWeight: 700, cursor: "pointer" }}>👥 Social</button>
+          <button disabled style={{ padding: "9px 4px", background: W.surface2, border: `1px solid ${W.border}`, borderRadius: 12, fontSize: 12, color: W.textDim, fontWeight: 700, cursor: "default", opacity: 0.5 }}>🏆 Board</button>
         </div>
 
         {/* Pending follow requests — collapsible */}
@@ -2457,34 +2502,6 @@ export default function App() {
                     <button onClick={handleLogout} style={{ padding: "9px", background: W.redDark, border: "none", borderRadius: 10, color: "#fff", cursor: "pointer", fontWeight: 700 }}>Sign Out</button>
                   </div>
                 </div>}
-          </div>
-        )}
-
-        {notifications.length > 0 && (
-          <div style={{ background: W.surface, borderRadius: 14, marginBottom: 16, border: `1px solid ${W.border}`, overflow: "hidden" }}>
-            <button onClick={() => setProfileNotifsOpen(o => !o)} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", width: "100%", background: "none", border: "none", padding: "12px 14px", cursor: "pointer" }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                <span style={{ fontSize: 11, fontWeight: 700, color: W.textMuted, textTransform: "uppercase", letterSpacing: 1.1 }}>Notifications</span>
-                {notifCount > 0 && <span style={{ background: W.accent, color: "#fff", borderRadius: 20, minWidth: 18, height: 18, fontSize: 10, fontWeight: 800, display: "inline-flex", alignItems: "center", justifyContent: "center", padding: "0 4px" }}>{notifCount}</span>}
-              </div>
-              <span style={{ fontSize: 12, color: W.textDim }}>{profileNotifsOpen ? "▲" : "▼"}</span>
-            </button>
-            {profileNotifsOpen && (
-              <div style={{ borderTop: `1px solid ${W.border}`, padding: "4px 14px 12px" }}>
-                {notifications.slice(0, 5).map((n, i) => (
-                  <div key={i} style={{ display: "flex", alignItems: "center", gap: 10, paddingTop: 8, paddingBottom: i < Math.min(notifications.length, 5) - 1 ? 8 : 0, borderBottom: i < Math.min(notifications.length, 5) - 1 ? `1px solid ${W.border}` : "none" }}>
-                    <div style={{ width: 8, height: 8, borderRadius: "50%", background: n.read ? W.border : W.accent, flexShrink: 0 }} />
-                    <div style={{ flex: 1 }}>
-                      <span style={{ fontWeight: 700, color: W.text, fontSize: 13 }}>{n.fromDisplay}</span>
-                      <span style={{ color: W.textMuted, fontSize: 13 }}>
-                        {n.type === "follow" ? " started following you" : n.type === "followRequest" ? " requested to follow you" : n.type === "comment" ? " commented on your session" : ` logged a session${n.location ? ` at ${n.location}` : ""}`}
-                      </span>
-                    </div>
-                    <div style={{ fontSize: 10, color: W.textDim, flexShrink: 0 }}>{new Date(n.at).toLocaleDateString()}</div>
-                  </div>
-                ))}
-              </div>
-            )}
           </div>
         )}
 

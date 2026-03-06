@@ -239,6 +239,36 @@ Feed & logbook:
 
 
 ──────────────────────────────────────────────────────────────
+PUSH 30  |  pending  |  Rope takes, boulder fall UX, session timers, profile redesign, signup seed
+
+Rope climbing:
+- Rope log form (after "Done") now has separate Falls and Takes counters
+- Takes are tracked independently on each route (climb.takes field)
+- Attempt summary bar shows attempts / falls / takes / TOPPED
+
+Boulder climbing:
+- Fall counter only visible when an attempt is actively in progress (climbingStartedAt set)
+- Fall counter has only a + button (no minus) — tap + to log a fall and end the attempt
+- "Mark Sent" button is always visible regardless of attempt state
+
+Session type timers:
+- Boulder/rope section timers now run continuously between attempts of that type
+- Timer only pauses when you switch to the other type or manually end the section
+- Previously, each attempt pause would stop the type timer (now fixed)
+
+New account signup:
+- New accounts are automatically seeded with ~1 year of realistic climbing data
+- Beginner progression: starts at VB/V0, builds to V2-V5 range over the year
+- Replaces the old static SAMPLE_SESSIONS/SAMPLE_PROJECTS demo data
+
+Profile screen redesign:
+- Following and follower counts moved inline below username (small tappable pill buttons)
+- Settings and Social buttons replaced by a 3-button row: Settings / Social / Leaderboard
+- Leaderboard button is placeholder (disabled) for future implementation
+- Notifications panel removed from profile screen (notifications still in nav bar)
+
+
+──────────────────────────────────────────────────────────────
 PUSH 29  |  pending  |  Session button layout, boulder pause, new themes
 
 Session active screen:
