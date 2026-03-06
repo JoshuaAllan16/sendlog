@@ -4,6 +4,24 @@ A log of all features, fixes, and improvements grouped by push.
 
 
 ──────────────────────────────────────────────────────────────
+PUSH 35  |  Leaderboard, stacked bar chart, settings modal, custom scale polish
+──────────────────────────────────────────────────────────────
+- Leaderboard screen accessible from the 🏆 Board button on your profile
+  → Ranks you and your mutual friends (people you follow who follow you back)
+  → Two boards: Total Time Climbing and Total Climbs Done
+  → Gold/silver/bronze medals for top 3, your own row highlighted
+- Stats bar chart now shows climb type breakdown as stacked color segments
+  → Green = boulder, purple = rope, yellow = speed
+  → Works across Time, Sends, and Attempts views
+  → Legend shown below chart
+- Settings panel now opens as a centered modal overlay instead of an inline dropdown
+  → Click outside or press × to close
+- Custom grade scales now display correctly in logbook rows, project cards, and pie chart
+  → Custom scale name appears instead of raw "Custom" label throughout the app
+  → Pie chart grade selector includes your custom scale as an option
+
+
+──────────────────────────────────────────────────────────────
 PUSH 34  |  Custom grade polish: scale names, comma fix, stats support
 ──────────────────────────────────────────────────────────────
 - Custom grade input no longer breaks when typing commas

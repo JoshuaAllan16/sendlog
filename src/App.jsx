@@ -901,6 +901,9 @@ export default function App() {
   const [socialFollowers, setSocialFollowers] = useState([]);
   const [socialTab, setSocialTab]             = useState("notifications");
   const [socialQuery, setSocialQuery]         = useState("");
+  const [leaderboardData, setLeaderboardData] = useState(null);
+  const [leaderboardLoading, setLeaderboardLoading] = useState(false);
+  const [lbBoard, setLbBoard]                 = useState("time");
   const [socialResults, setSocialResults]     = useState(null); // null = not searched yet
   const [socialFeed, setSocialFeed]           = useState([]);
   const [socialFeedLoading, setSocialFeedLoading] = useState(false);
@@ -1395,6 +1398,11 @@ export default function App() {
   const retiredProjects   = projects.filter(p => !p.active && !p.completed);
   const climbDates     = sessions.map(s => s.date);
 
+  const resolveScaleName = (scale, climbType) => {
+    if (scale !== "Custom") return scale;
+    return climbType === "rope" ? customRopeScaleName : customBoulderScaleName;
+  };
+
   const getGradeIndex = (grade, scale) => {
     if (scale === "Custom") {
       const i = customBoulderGrades.indexOf(grade);
@@ -1826,6 +1834,38 @@ export default function App() {
       setViewedUser({ username, displayName, sessions: [], projects: [], following: [], followersList: [], followersCount: 0, followingCount: 0, isPrivate: false });
     }
     setViewedUserLoading(false);
+  };
+
+  const goToLeaderboard = async () => {
+    setScreen("leaderboard");
+    setLeaderboardLoading(true);
+    setLeaderboardData(null);
+    try {
+      const friends = socialFollowing.filter(u => socialFollowers.includes(u));
+      const entries = await Promise.all(
+        friends.map(async (uname) => {
+          try {
+            const data = await loadUserData(uname);
+            const sess = data?.sessions || [];
+            return {
+              username: uname,
+              displayName: data?.profile?.displayName || uname,
+              totalTime: sess.reduce((t, s) => t + (s.duration || 0), 0),
+              totalClimbs: sess.flatMap(s => s.climbs || []).length,
+            };
+          } catch { return { username: uname, displayName: uname, totalTime: 0, totalClimbs: 0 }; }
+        })
+      );
+      entries.push({
+        username: currentUser.username,
+        displayName: displayName,
+        totalTime: sessions.reduce((t, s) => t + (s.duration || 0), 0),
+        totalClimbs: sessions.flatMap(s => s.climbs || []).length,
+        isMe: true,
+      });
+      setLeaderboardData(entries);
+    } catch { setLeaderboardData([]); }
+    setLeaderboardLoading(false);
   };
 
   const showViewedUserList = async (type) => {
@@ -2634,9 +2674,9 @@ export default function App() {
         </div>
         {/* 3-button action row */}
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8, marginBottom: 14 }}>
-          <button onClick={() => setShowAccountPanel(o => !o)} style={{ padding: "9px 4px", background: showAccountPanel ? W.accent + "22" : W.surface2, border: `1px solid ${showAccountPanel ? W.accent : W.border}`, borderRadius: 12, fontSize: 12, color: showAccountPanel ? W.accent : W.textMuted, fontWeight: 700, cursor: "pointer" }}>⚙️ Settings</button>
+          <button onClick={() => setShowAccountPanel(true)} style={{ padding: "9px 4px", background: W.surface2, border: `1px solid ${W.border}`, borderRadius: 12, fontSize: 12, color: W.textMuted, fontWeight: 700, cursor: "pointer" }}>⚙️ Settings</button>
           <button onClick={() => setScreen("social")} style={{ padding: "9px 4px", background: W.surface2, border: `1px solid ${W.border}`, borderRadius: 12, fontSize: 12, color: W.textMuted, fontWeight: 700, cursor: "pointer" }}>👥 Social</button>
-          <button disabled style={{ padding: "9px 4px", background: W.surface2, border: `1px solid ${W.border}`, borderRadius: 12, fontSize: 12, color: W.textDim, fontWeight: 700, cursor: "default", opacity: 0.5 }}>🏆 Board</button>
+          <button onClick={goToLeaderboard} style={{ padding: "9px 4px", background: W.surface2, border: `1px solid ${W.border}`, borderRadius: 12, fontSize: 12, color: W.textMuted, fontWeight: 700, cursor: "pointer" }}>🏆 Board</button>
         </div>
 
         {/* Pending follow requests — collapsible */}
@@ -2669,8 +2709,12 @@ export default function App() {
         )}
 
         {showAccountPanel && (
-          <div style={{ background: W.surface, borderRadius: 16, padding: "16px", marginBottom: 20, border: `1px solid ${W.border}` }}>
-            <div style={{ fontWeight: 700, color: W.text, fontSize: 14, marginBottom: 12 }}>Account</div>
+          <div style={{ position: "fixed", inset: 0, zIndex: 9000, background: "rgba(0,0,0,0.65)", overflowY: "auto", display: "flex", alignItems: "flex-start", justifyContent: "center", padding: "20px 16px 40px" }} onClick={() => setShowAccountPanel(false)}>
+          <div style={{ background: W.surface, borderRadius: 20, padding: "20px", width: "100%", maxWidth: 440, border: `1px solid ${W.border}`, position: "relative", marginTop: 20 }} onClick={e => e.stopPropagation()}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
+              <div style={{ fontWeight: 800, color: W.text, fontSize: 17 }}>Settings</div>
+              <button onClick={() => setShowAccountPanel(false)} style={{ background: W.surface2, border: `1px solid ${W.border}`, borderRadius: 10, width: 32, height: 32, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18, color: W.textMuted, cursor: "pointer" }}>×</button>
+            </div>
 
             {/* Account info row */}
             <div style={{ display: "flex", gap: 10, alignItems: "center", marginBottom: 14 }}>
@@ -2859,6 +2903,7 @@ export default function App() {
                   </div>
                 </div>}
           </div>
+          </div>
         )}
 
         <div style={{ display: "flex", background: W.surface2, borderRadius: 12, padding: 4, marginBottom: 22, border: `1px solid ${W.border}` }}>
@@ -2892,7 +2937,20 @@ export default function App() {
             const now = new Date();
             const mkB = (label, ss) => {
               const cls = ss.flatMap(s => climbFilter ? s.climbs.filter(climbFilter) : s.climbs.filter(c => c.climbType !== "speed-session"));
-              return { label, sessions: ss, sends: cls.filter(c => c.completed).length, attempts: cls.reduce((t, c) => t + c.tries, 0), time: ss.reduce((t, s) => t + (s.duration || 0), 0) };
+              const allCls = ss.flatMap(s => s.climbs);
+              const bCls = allCls.filter(c => c.climbType === "boulder" || !c.climbType);
+              const rCls = allCls.filter(c => c.climbType === "rope");
+              const sCls = allCls.filter(c => c.climbType === "speed-session");
+              const bSec = ss.reduce((t, s) => t + (s.boulderTotalSec || 0), 0);
+              const rSec = ss.reduce((t, s) => t + (s.ropeTotalSec || 0), 0);
+              const sSec = sCls.reduce((t, c) => t + Math.max(0, Math.floor(((c.endedAt || c.loggedAt) - c.startedAt) / 1000)), 0);
+              const totalSec = ss.reduce((t, s) => t + (s.duration || 0), 0);
+              const typeSplit = {
+                time: (bSec + rSec + sSec > 0) ? { boulder: bSec, rope: rSec, speed: sSec } : { boulder: totalSec, rope: 0, speed: 0 },
+                sends: { boulder: bCls.filter(c => c.completed).length, rope: rCls.filter(c => c.completed).length, speed: 0 },
+                attempts: { boulder: bCls.reduce((t,c)=>t+c.tries,0), rope: rCls.reduce((t,c)=>t+c.tries,0), speed: sCls.reduce((t,c)=>t+(c.attempts?.length||0),0) },
+              };
+              return { label, sessions: ss, sends: cls.filter(c => c.completed).length, attempts: cls.reduce((t, c) => t + c.tries, 0), time: totalSec, typeSplit };
             };
             if (statsTimeFrame === "2w") return Array.from({ length: 14 }, (_, i) => { const d = new Date(now); d.setDate(d.getDate() - 13 + i); const key = d.toISOString().slice(0, 10); return mkB(["Su","Mo","Tu","We","Th","Fr","Sa"][d.getDay()], tfSessions.filter(s => s.date.slice(0, 10) === key)); });
             if (statsTimeFrame === "1m") return Array.from({ length: 5 }, (_, i) => { const ws = new Date(now); ws.setDate(ws.getDate() - (4-i)*7); ws.setHours(0,0,0,0); const we = new Date(ws); we.setDate(ws.getDate() + 6); we.setHours(23,59,59,999); const label = `${ws.getMonth()+1}/${ws.getDate()}-${we.getMonth()+1}/${we.getDate()}`; return mkB(label, tfSessions.filter(s => { const d = new Date(s.date); return d >= ws && d <= we; })); });
@@ -2948,15 +3006,37 @@ export default function App() {
                   );
                 })() : (
                   <div style={{ display: "flex", alignItems: "flex-end", gap: 2, height: 64 }}>
-                    {displayVals.map((v, i) => (
-                      <div key={i} onClick={() => setStatsBarSel(statsBarSel === i ? null : i)} style={{ flex: 1, height: "100%", display: "flex", alignItems: "flex-end", cursor: "pointer" }}>
-                        <div style={{ width: "100%", borderRadius: "3px 3px 0 0", background: v > 0 ? cColor : W.border, height: `${Math.max(Math.round((v / cMax) * 100), v > 0 ? 4 : 1)}%`, opacity: statsBarSel === null || statsBarSel === i ? (v > 0 ? 1 : 0.3) : 0.25, outline: statsBarSel === i ? `2px solid ${cColor}` : "none", transition: "opacity 0.15s" }} />
-                      </div>
-                    ))}
+                    {displayVals.map((v, i) => {
+                      const split = buckets[i]?.typeSplit?.[statsChart];
+                      const splitTotal = split ? (split.boulder + split.rope + split.speed) : 0;
+                      const barH = Math.max(Math.round((v / cMax) * 100), v > 0 ? 4 : 1);
+                      const opacity = statsBarSel === null || statsBarSel === i ? (v > 0 ? 1 : 0.3) : 0.25;
+                      return (
+                        <div key={i} onClick={() => setStatsBarSel(statsBarSel === i ? null : i)} style={{ flex: 1, height: "100%", display: "flex", alignItems: "flex-end", cursor: "pointer" }}>
+                          <div style={{ width: "100%", borderRadius: "3px 3px 0 0", height: `${barH}%`, opacity, outline: statsBarSel === i ? `2px solid ${cColor}` : "none", transition: "opacity 0.15s", overflow: "hidden", display: "flex", flexDirection: "column", background: v > 0 ? W.greenDark : W.border }}>
+                            {split && splitTotal > 0 && v > 0 ? (
+                              <>
+                                {split.speed > 0 && <div style={{ height: `${(split.speed / splitTotal) * 100}%`, background: W.yellowDark, minHeight: 2 }} />}
+                                {split.rope > 0 && <div style={{ height: `${(split.rope / splitTotal) * 100}%`, background: W.purpleDark, minHeight: 2 }} />}
+                                <div style={{ flex: 1, background: W.greenDark, minHeight: split.boulder > 0 ? 2 : 0 }} />
+                              </>
+                            ) : null}
+                          </div>
+                        </div>
+                      );
+                    })}
                   </div>
                 )}
-                <div style={{ display: "flex", gap: 2, marginTop: 3, marginBottom: 10 }}>
+                <div style={{ display: "flex", gap: 2, marginTop: 3, marginBottom: 6 }}>
                   {buckets.map((b, i) => <div key={i} style={{ flex: 1, textAlign: "center", fontSize: 7, color: statsBarSel === i ? cColor : W.textDim, fontWeight: statsBarSel === i ? 900 : 700, overflow: "hidden" }}>{b.label}</div>)}
+                </div>
+                <div style={{ display: "flex", gap: 10, marginBottom: 10 }}>
+                  {[["boulder", W.greenDark, "Boulder"], ["rope", W.purpleDark, "Rope"], ["speed", W.yellowDark, "Speed"]].map(([type, color, label]) => (
+                    <div key={type} style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                      <div style={{ width: 10, height: 10, borderRadius: 2, background: color }} />
+                      <span style={{ fontSize: 10, color: W.textDim }}>{label}</span>
+                    </div>
+                  ))}
                 </div>
                 <div style={{ display: "flex", gap: 4, overflowX: "auto", paddingTop: 6, paddingBottom: 2 }}>
                   {[["2w","2W"],["1m","1M"],["6m","6M"],["1y","1Y"],["all","All"]].map(([id, lbl]) => (
@@ -3022,7 +3102,10 @@ export default function App() {
 
           // Grade pie data (overall only)
           const effectivePieScale = pieScale || preferredScale;
-          const pieGrades = (GRADES[effectivePieScale] || []).filter(g => !pieHiddenGrades.includes(g));
+          const pieGradeList = effectivePieScale === "Custom"
+            ? [...new Set([...customBoulderGrades, ...customRopeGrades])]
+            : (GRADES[effectivePieScale] || []);
+          const pieGrades = pieGradeList.filter(g => !pieHiddenGrades.includes(g));
           const pieClimbs = tfSessions.flatMap(s => s.climbs).filter(c => c.scale === effectivePieScale);
           const pieData = (() => {
             const raw = pieGrades.map(g => {
@@ -3118,10 +3201,11 @@ export default function App() {
                     </select>
                     <select value={effectivePieScale} onChange={e => { setPieScale(e.target.value); setPieHiddenGrades([]); setPieSelGrade(null); }} style={{ flex: 1, background: W.surface2, border: `1px solid ${W.border}`, borderRadius: 8, padding: "6px 8px", color: W.text, fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}>
                       {Object.keys(GRADES).map(s => <option key={s} value={s}>{s}</option>)}
+                      {[...new Set([...customBoulderGrades, ...customRopeGrades])].length > 0 && <option value="Custom">{customBoulderScaleName !== "Custom" ? customBoulderScaleName : "Custom"}</option>}
                     </select>
                   </div>
                   <div style={{ display: "flex", gap: 5, flexWrap: "wrap", marginBottom: 14 }}>
-                    {(GRADES[effectivePieScale] || []).map(g => { const hidden = pieHiddenGrades.includes(g); return (<button key={g} onClick={() => { setPieHiddenGrades(prev => hidden ? prev.filter(x => x !== g) : [...prev, g]); setPieSelGrade(null); }} style={{ padding: "3px 10px", borderRadius: 12, border: `2px solid ${hidden ? W.border : getGradeColor(g)}`, background: hidden ? W.surface2 : getGradeColor(g) + "33", color: hidden ? W.textDim : getGradeColor(g), fontSize: 11, fontWeight: 700, cursor: "pointer", opacity: hidden ? 0.5 : 1 }}>{g}</button>); })}
+                    {pieGradeList.map(g => { const hidden = pieHiddenGrades.includes(g); return (<button key={g} onClick={() => { setPieHiddenGrades(prev => hidden ? prev.filter(x => x !== g) : [...prev, g]); setPieSelGrade(null); }} style={{ padding: "3px 10px", borderRadius: 12, border: `2px solid ${hidden ? W.border : getGradeColor(g)}`, background: hidden ? W.surface2 : getGradeColor(g) + "33", color: hidden ? W.textDim : getGradeColor(g), fontSize: 11, fontWeight: 700, cursor: "pointer", opacity: hidden ? 0.5 : 1 }}>{g}</button>); })}
                   </div>
                   {pieData.total === 0 ? (
                     <div style={{ textAlign: "center", color: W.textDim, fontSize: 13, padding: "20px 0" }}>No data for selected filters</div>
@@ -3409,7 +3493,7 @@ export default function App() {
                 <div key={p.id} onClick={() => { setSelectedProject(p); setScreen("projectDetail"); }} style={{ background: W.pink, borderRadius: 16, padding: "14px 16px", marginBottom: 10, border: `1px solid ${W.pinkDark}30`, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
                   <div>
                     <div style={{ fontWeight: 800, fontSize: 15, color: W.text }}>{p.name || p.grade}</div>
-                    <div style={{ display: "flex", gap: 6, alignItems: "center", marginTop: 3 }}><span style={{ fontWeight: 700, fontSize: 13, color: getGradeColor(p.grade) }}>{p.grade}</span><span style={{ color: W.textMuted, fontSize: 12 }}>{p.scale}</span></div>
+                    <div style={{ display: "flex", gap: 6, alignItems: "center", marginTop: 3 }}><span style={{ fontWeight: 700, fontSize: 13, color: getGradeColor(p.grade) }}>{p.grade}</span><span style={{ color: W.textMuted, fontSize: 12 }}>{resolveScaleName(p.scale)}</span></div>
                     <div style={{ display: "flex", gap: 6, marginTop: 6 }}>
                       <span style={{ background: "rgba(255,255,255,0.6)", borderRadius: 7, padding: "2px 9px", fontSize: 11, fontWeight: 700, color: W.pinkDark }}>🔁 {getProjectTotalTries(p.id)} tries</span>
                     </div>
@@ -3436,7 +3520,7 @@ export default function App() {
                 <div style={{ fontSize: 12, fontWeight: 700, color: W.textMuted, textTransform: "uppercase", letterSpacing: 1, marginBottom: 10, marginTop: 22 }}>🪨 Off The Wall <span style={{ background: W.surface2, color: W.textMuted, borderRadius: 10, padding: "1px 8px", fontSize: 11 }}>{retiredProjects.length}</span></div>
                 {retiredProjects.map(p => (
                   <div key={p.id} onClick={() => { setSelectedProject(p); setScreen("projectDetail"); }} style={{ background: W.surface2, borderRadius: 16, padding: "14px 16px", marginBottom: 10, border: `1px solid ${W.border}`, cursor: "pointer", opacity: 0.8, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                    <div><div style={{ fontWeight: 700, fontSize: 15, color: W.textMuted }}>{p.name || p.grade}</div><div style={{ fontSize: 12, color: W.textDim, marginTop: 2 }}>{p.grade} · {p.scale}</div></div>
+                    <div><div style={{ fontWeight: 700, fontSize: 15, color: W.textMuted }}>{p.name || p.grade}</div><div style={{ fontSize: 12, color: W.textDim, marginTop: 2 }}>{p.grade} · {resolveScaleName(p.scale)}</div></div>
                     <div style={{ color: W.textDim, fontSize: 20 }}>›</div>
                   </div>
                 ))}
@@ -3457,7 +3541,7 @@ export default function App() {
       <div style={{ padding: "24px 20px" }}>
         <div style={{ background: project.completed ? W.green : W.pink, borderRadius: 20, padding: "20px", marginBottom: 20, border: `1px solid ${project.completed ? W.greenDark : W.pinkDark}30` }}>
           <div style={{ fontSize: 22, fontWeight: 900, color: W.text }}>{project.name || project.grade}</div>
-          <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 4 }}><span style={{ fontWeight: 800, fontSize: 16, color: getGradeColor(project.grade) }}>{project.grade}</span><span style={{ color: W.textMuted, fontSize: 13 }}>{project.scale}</span>{project.completed && <span style={{ background: W.greenDark, color: "#fff", borderRadius: 8, padding: "2px 10px", fontSize: 11, fontWeight: 700 }}>✓ SENT!</span>}</div>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 4 }}><span style={{ fontWeight: 800, fontSize: 16, color: getGradeColor(project.grade) }}>{project.grade}</span><span style={{ color: W.textMuted, fontSize: 13 }}>{resolveScaleName(project.scale)}</span>{project.completed && <span style={{ background: W.greenDark, color: "#fff", borderRadius: 8, padding: "2px 10px", fontSize: 11, fontWeight: 700 }}>✓ SENT!</span>}</div>
           {project.comments && <div style={{ fontSize: 13, color: W.textMuted, marginTop: 6 }}>{project.comments}</div>}
           <div style={{ fontSize: 11, color: W.textDim, marginTop: 6 }}>Added {formatDate(project.dateAdded)}{project.dateSent && ` · Sent ${formatDate(project.dateSent)}`}</div>
         </div>
@@ -3871,6 +3955,68 @@ export default function App() {
     );
   };
 
+  const LeaderboardScreen = () => {
+    const fmtTime = (secs) => {
+      const h = Math.floor(secs / 3600);
+      const m = Math.floor((secs % 3600) / 60);
+      return h > 0 ? `${h}h ${m}m` : `${m}m`;
+    };
+    const board = [...(leaderboardData || [])].sort((a, b) =>
+      lbBoard === "time" ? b.totalTime - a.totalTime : b.totalClimbs - a.totalClimbs
+    );
+    const medalColors = ["#FFD700", "#C0C0C0", "#CD7F32"];
+
+    return (
+      <div style={{ padding: "20px" }}>
+        <h2 style={{ fontSize: 22, fontWeight: 800, color: W.text, margin: "0 0 16px" }}>Leaderboard</h2>
+        <div style={{ fontSize: 12, color: W.textMuted, marginBottom: 16 }}>Friends = people you follow who follow you back</div>
+
+        {/* Board selector */}
+        <div style={{ display: "flex", background: W.surface2, borderRadius: 12, padding: 4, marginBottom: 20, border: `1px solid ${W.border}` }}>
+          {[["time", "⏱ Time"], ["climbs", "🧗 Climbs"]].map(([id, label]) => (
+            <button key={id} onClick={() => setLbBoard(id)} style={{ flex: 1, padding: "9px 4px", borderRadius: 9, border: "none", background: lbBoard === id ? `linear-gradient(135deg, ${W.accent}, ${W.accentDark})` : "transparent", color: lbBoard === id ? "#fff" : W.textDim, fontWeight: 700, fontSize: 13, cursor: "pointer" }}>{label}</button>
+          ))}
+        </div>
+
+        {leaderboardLoading && (
+          <div style={{ textAlign: "center", padding: "48px 20px", color: W.textMuted, fontSize: 14 }}>Loading...</div>
+        )}
+
+        {!leaderboardLoading && leaderboardData !== null && board.length <= 1 && (
+          <div style={{ textAlign: "center", padding: "48px 20px" }}>
+            <div style={{ fontSize: 40, marginBottom: 12 }}>🏆</div>
+            <div style={{ color: W.text, fontWeight: 700, fontSize: 16, marginBottom: 8 }}>No friends yet</div>
+            <div style={{ color: W.textMuted, fontSize: 13 }}>Follow climbers who follow you back to compete here.</div>
+          </div>
+        )}
+
+        {!leaderboardLoading && board.length > 1 && (
+          <div>
+            {board.map((entry, i) => (
+              <div key={entry.username} style={{ display: "flex", alignItems: "center", gap: 12, background: entry.isMe ? W.surface2 : W.surface, borderRadius: 14, padding: "14px 16px", marginBottom: 10, border: `1px solid ${entry.isMe ? W.accent : W.border}` }}>
+                <div style={{ fontSize: i < 3 ? 22 : 16, fontWeight: 800, color: i < 3 ? medalColors[i] : W.textDim, width: 32, textAlign: "center", flexShrink: 0 }}>
+                  {i < 3 ? ["🥇","🥈","🥉"][i] : i + 1}
+                </div>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontWeight: 700, color: entry.isMe ? W.accent : W.text, fontSize: 15 }}>
+                    {entry.displayName}{entry.isMe && " ✓"}
+                  </div>
+                  <div style={{ fontSize: 12, color: W.textMuted }}>@{entry.username}</div>
+                </div>
+                <div style={{ textAlign: "right", flexShrink: 0 }}>
+                  <div style={{ fontWeight: 800, color: W.text, fontSize: 16 }}>
+                    {lbBoard === "time" ? fmtTime(entry.totalTime) : entry.totalClimbs.toLocaleString()}
+                  </div>
+                  <div style={{ fontSize: 11, color: W.textDim }}>{lbBoard === "time" ? "total time" : "climbs"}</div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    );
+  };
+
   const SocialScreen = () => {
     const topGrade = (climbs) => {
       if (!climbs?.length) return null;
@@ -3997,7 +4143,7 @@ export default function App() {
     );
   };
 
-  const backMap  = { sessionDetail: "home", calendar: "profile", projectDetail: "profile", userProfile: userProfileBackTo, social: "profile" };
+  const backMap  = { sessionDetail: "home", calendar: "profile", projectDetail: "profile", userProfile: userProfileBackTo, social: "profile", leaderboard: "profile" };
   const navItems = [
     { id: "home",    label: "🏠", text: "Home" },
     { id: "session", label: "⏱", text: "Session", action: () => activeSession ? setScreen("session") : goToSessionSetup() },
@@ -4038,6 +4184,7 @@ export default function App() {
         {screen === "sessionDetail" && selectedSession && <SessionDetailScreen session={selectedSession} />}
         {screen === "calendar"      && <CalendarScreen />}
         {screen === "projectDetail" && selectedProject && <ProjectDetailScreen project={projects.find(p => p.id === selectedProject.id) || selectedProject} />}
+        {screen === "leaderboard"    && LeaderboardScreen()}
         {screen === "sessionSummary" && sessionSummary && <SessionSummaryScreen session={sessionSummary} />}
       </div>
 
