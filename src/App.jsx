@@ -540,6 +540,8 @@ const ActiveClimbCard = ({ climb, onEdit, onStartClimbing, onEndAttempt, onUpdat
   const restSec = !climb.climbingStartedAt && !climb.paused && climb.lastAttemptEndedAt
     ? Math.max(0, Math.floor((Date.now() - climb.lastAttemptEndedAt) / 1000)) : null;
   const showReady = restSec !== null && restSec >= 180;
+  const totalWorkedMs = !isRope ? (climb.attemptLog || []).reduce((sum, a) => sum + a.duration, 0)
+    + (climb.climbingStartedAt ? Date.now() - climb.climbingStartedAt : 0) : 0;
 
   const handleDone = () => { onEndAttempt(climb.id); setShowRopeLog(true); setRopeLogFalls(0); setRopeLogTakes(0); setRopeLogTopped(false); };
   const handleRopeSave = () => { onLogRope(climb.id, ropeLogFalls, ropeLogTakes, ropeLogTopped); setShowRopeLog(false); };
@@ -550,7 +552,12 @@ const ActiveClimbCard = ({ climb, onEdit, onStartClimbing, onEndAttempt, onUpdat
       <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "12px 14px 8px" }}>
         {climb.photo
           ? <div onClick={() => onLightbox({ photos: [{ src: climb.photo, grade: climb.grade, name: climb.name, colorId: climb.color }], idx: 0 })} style={{ width: 44, height: 44, borderRadius: 8, overflow: "hidden", flexShrink: 0, cursor: "pointer", border: `1.5px solid ${W.border}` }}><img src={climb.photo} style={{ width: "100%", height: "100%", objectFit: "cover" }} alt="" /></div>
-          : <div style={{ width: 38, height: 38, borderRadius: 10, display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 900, fontSize: 12, flexShrink: 0, background: getGradeColor(climb.grade) + "30", color: getGradeColor(climb.grade), border: `1.5px solid ${getGradeColor(climb.grade)}60` }}>{climb.grade}</div>
+          : <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 2, flexShrink: 0 }}>
+              <div style={{ width: 38, height: 38, borderRadius: 10, display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 900, fontSize: 12, background: getGradeColor(climb.grade) + "30", color: getGradeColor(climb.grade), border: `1.5px solid ${getGradeColor(climb.grade)}60` }}>{climb.grade}</div>
+              {!climb.completed && !isRope && totalWorkedMs > 5000 && (
+                <div style={{ fontSize: 9, color: W.textDim, fontWeight: 600, fontVariantNumeric: "tabular-nums" }}>{formatDuration(Math.floor(totalWorkedMs / 1000))}</div>
+              )}
+            </div>
         }
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
@@ -585,7 +592,14 @@ const ActiveClimbCard = ({ climb, onEdit, onStartClimbing, onEndAttempt, onUpdat
             <div style={{ width: 22, height: 22, borderRadius: 6, border: `2px solid ${climb.completed ? W.greenDark : W.border}`, background: climb.completed ? W.greenDark : "transparent", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
               {climb.completed && <span style={{ color: "#fff", fontSize: 13, lineHeight: 1 }}>✓</span>}
             </div>
-            <span style={{ fontSize: 13, fontWeight: 700, color: climb.completed ? W.greenDark : W.textMuted }}>{climb.completed ? "Sent!" : "Mark Sent"}</span>
+            <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-start" }}>
+              <span style={{ fontSize: 13, fontWeight: 700, color: climb.completed ? W.greenDark : W.textMuted }}>{climb.completed ? "Sent!" : "Mark Sent"}</span>
+              {climb.completed && (climb.attemptLog || []).length > 0 && (
+                <span style={{ fontSize: 10, color: W.greenDark, fontWeight: 600, opacity: 0.8 }}>
+                  {formatDuration(Math.floor(climb.attemptLog[climb.attemptLog.length - 1].duration / 1000))}
+                </span>
+              )}
+            </div>
           </button>
         </div>
       )}
@@ -645,7 +659,7 @@ const ActiveClimbCard = ({ climb, onEdit, onStartClimbing, onEndAttempt, onUpdat
             <div>
               <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "8px 14px" }}>
                 <div>
-                  <div style={{ fontSize: 9, color: isRope ? W.purpleDark : W.greenDark, textTransform: "uppercase", letterSpacing: 0.8, fontWeight: 700 }}>On Wall</div>
+                  <div style={{ fontSize: 9, color: isRope ? W.purpleDark : W.greenDark, textTransform: "uppercase", letterSpacing: 0.8, fontWeight: 700 }}>Working on for</div>
                   <div style={{ fontSize: 20, fontWeight: 900, color: isRope ? W.purpleDark : W.greenDark, fontVariantNumeric: "tabular-nums" }}>
                     {formatDuration(Math.max(0, Math.floor((Date.now() - climb.climbingStartedAt) / 1000)))}
                   </div>
@@ -734,6 +748,8 @@ export default function App() {
   const [activeSession, setActiveSession]   = useState(null);
   const [sessionTimer, setSessionTimer]     = useState(0);
   const [timerRunning, setTimerRunning]     = useState(false);
+  const [sessionActiveStart, setSessionActiveStart] = useState(null);
+  const [sessionPausedSec, setSessionPausedSec]     = useState(0);
   const [sessionStarted, setSessionStarted] = useState(false);
   const [pendingLocation, setPendingLocation] = useState("");
   const [locationDropdownOpen, setLocationDropdownOpen]       = useState(false);
@@ -1058,10 +1074,17 @@ export default function App() {
   }, [sessions, projects, editDisplayName, preferredScale, preferredRopeScale, profilePic, customBoulderGrades, customRopeGrades, customBoulderScaleName, customRopeScaleName, hiddenLocations, socialFollowing, colorTheme, mutedUsers, notifPrefs, isPrivate, pendingFollowRequests]);
 
   useEffect(() => {
-    if (timerRunning) { timerRef.current = setInterval(() => setSessionTimer(t => t + 1), 1000); }
-    else clearInterval(timerRef.current);
+    if (timerRunning) {
+      timerRef.current = setInterval(() => {
+        setSessionTimer(sessionActiveStart
+          ? Math.floor((Date.now() - sessionActiveStart) / 1000) + sessionPausedSec
+          : sessionPausedSec);
+      }, 500);
+    } else {
+      clearInterval(timerRef.current);
+    }
     return () => clearInterval(timerRef.current);
-  }, [timerRunning]);
+  }, [timerRunning, sessionActiveStart, sessionPausedSec]);
 
   // ── AUTH HANDLERS ──────────────────────────────────────────
   const handleSignup = async () => {
@@ -1230,8 +1253,18 @@ export default function App() {
   const knownLocations = [...new Set([...KNOWN_GYMS, ...sessions.map(s => s.location).filter(Boolean)])].filter(l => !hiddenLocations.includes(l));
   const allGyms = ["All Gyms", ...new Set(sessions.map(s => s.location).filter(Boolean))];
 
-  const goToSessionSetup = () => { setPendingLocation(""); setSessionStarted(false); setActiveSession({ location: "", climbs: [] }); setSessionTimer(0); setShowMoreClimbTypes(false); setScreen("session"); };
-  const beginTimer = () => { setActiveSession(s => ({ ...s, location: pendingLocation, sessionTypes })); setSessionStarted(true); setTimerRunning(true); setShowMoreClimbTypes(false); };
+  const goToSessionSetup = () => { setPendingLocation(""); setSessionStarted(false); setActiveSession({ location: "", climbs: [] }); setSessionTimer(0); setSessionActiveStart(null); setSessionPausedSec(0); setShowMoreClimbTypes(false); setScreen("session"); };
+  const beginTimer = () => { setActiveSession(s => ({ ...s, location: pendingLocation, sessionTypes })); setSessionStarted(true); setSessionActiveStart(Date.now()); setTimerRunning(true); setShowMoreClimbTypes(false); };
+  const toggleSessionTimer = () => {
+    if (timerRunning) {
+      setSessionPausedSec(s => s + (sessionActiveStart ? Math.floor((Date.now() - sessionActiveStart) / 1000) : 0));
+      setSessionActiveStart(null);
+      setTimerRunning(false);
+    } else {
+      setSessionActiveStart(Date.now());
+      setTimerRunning(true);
+    }
+  };
   const addSpeedSession = () => {
     const now = Date.now();
     setActiveSession(s => ({ ...s, climbs: [...s.climbs, { id: now, climbType: "speed-session", name: "Speed Session", attempts: [], startedAt: now, loggedAt: now, tries: 0, completed: false, grade: "⚡", scale: "Speed", wallTypes: [], holdTypes: [] }] }));
@@ -1268,10 +1301,8 @@ export default function App() {
         c.id === climbId
           ? { ...c, climbingStartedAt: now }
           : c.climbingStartedAt && !c.completed
-            ? { ...c, climbingStartedAt: null, lastAttemptEndedAt: now }
-            : c.lastAttemptEndedAt && !c.completed
-              ? { ...c, lastAttemptEndedAt: null }
-              : c
+            ? { ...c, climbingStartedAt: null }
+            : c
       ),
     };
   });
@@ -1338,14 +1369,15 @@ export default function App() {
       final.ropeTotalSec = (final.ropeTotalSec || 0) + Math.max(0, Math.floor((now - final.ropeActiveStart) / 1000));
       final.ropeActiveStart = null;
     }
-    const completed = { id: now, date: new Date().toISOString(), duration: sessionTimer, location: final.location || pendingLocation || "Unknown Gym", climbs: final.climbs, boulderTotalSec: final.boulderTotalSec || 0, ropeTotalSec: final.ropeTotalSec || 0, boulderStartedAt: final.boulderStartedAt, ropeStartedAt: final.ropeStartedAt };
+    const finalDuration = sessionActiveStart ? Math.floor((now - sessionActiveStart) / 1000) + sessionPausedSec : sessionPausedSec;
+    const completed = { id: now, date: new Date().toISOString(), duration: finalDuration, location: final.location || pendingLocation || "Unknown Gym", climbs: final.climbs, boulderTotalSec: final.boulderTotalSec || 0, ropeTotalSec: final.ropeTotalSec || 0, boulderStartedAt: final.boulderStartedAt, ropeStartedAt: final.ropeStartedAt };
     setSessions(prev => [completed, ...prev]);
     const sentProjectIds = final.climbs.filter(c => c.isProject && c.completed && c.projectId).map(c => c.projectId);
     if (sentProjectIds.length > 0) {
       setProjects(prev => prev.map(p => sentProjectIds.includes(p.id) ? { ...p, completed: true, active: false, dateSent: new Date().toISOString() } : p));
     }
     setSessionSummary(completed);
-    setTimerRunning(false); setActiveSession(null); setSessionTimer(0); setSessionStarted(false); setPendingLocation(""); setShowEndConfirm(false); setScreen("sessionSummary");
+    setTimerRunning(false); setSessionActiveStart(null); setSessionPausedSec(0); setActiveSession(null); setSessionTimer(0); setSessionStarted(false); setPendingLocation(""); setShowEndConfirm(false); setScreen("sessionSummary");
   };
   const deleteSession = (id) => { setSessions(prev => prev.filter(s => s.id !== id)); setScreen("profile"); setProfileTab("logbook"); };
   const discardSession = () => {
@@ -2489,7 +2521,7 @@ export default function App() {
           </div>
           <div style={{ textAlign: "right" }}>
             <div style={{ color: "rgba(255,255,255,0.75)", fontSize: 12, marginBottom: 4 }}>{regularSends}/{regularTotal} sent</div>
-            <button onClick={() => setTimerRunning(r => !r)} style={{ background: "rgba(255,255,255,0.2)", border: "none", borderRadius: 8, color: "#fff", padding: "6px 12px", cursor: "pointer", fontWeight: 700, fontSize: 12 }}>{timerRunning ? "⏸ Pause" : "▶ Resume"}</button>
+            <button onClick={toggleSessionTimer} style={{ background: "rgba(255,255,255,0.2)", border: "none", borderRadius: 8, color: "#fff", padding: "6px 12px", cursor: "pointer", fontWeight: 700, fontSize: 12 }}>{timerRunning ? "⏸ Pause" : "▶ Resume"}</button>
           </div>
         </div>
         <Label>Gym / Location</Label>
@@ -4586,16 +4618,17 @@ export default function App() {
         );
       })()}
 
-      <div style={{ position: "fixed", bottom: 0, left: "50%", transform: "translateX(-50%)", width: "100%", maxWidth: 420, background: W.navBg, borderTop: `1px solid ${W.border}`, display: "flex", justifyContent: "space-around", padding: "10px 0 18px", zIndex: 10 }}>
-        {navItems.map(item => (
-          <button key={item.id} onClick={item.action || (() => setScreen(item.id))} style={{ background: "none", border: "none", display: "flex", flexDirection: "column", alignItems: "center", gap: 3, cursor: "pointer", color: (screen === item.id || (item.id === "session" && screen === "session")) ? W.accent : W.textDim }}>
-            <span style={{ fontSize: 22, position: "relative", display: "inline-block" }}>
-              {item.label}
-            </span>
-            <span style={{ fontSize: 11, fontWeight: 600 }}>{item.text}</span>
-            {item.id === "session" && timerRunning && <div style={{ width: 6, height: 6, borderRadius: "50%", background: W.accent }} />}
-          </button>
-        ))}
+      <div style={{ position: "fixed", bottom: 0, left: "50%", transform: "translateX(-50%)", width: "100%", maxWidth: 420, background: W.navBg, borderTop: `1px solid ${W.border}`, display: "flex", justifyContent: "space-around", alignItems: "center", padding: "6px 12px 18px", zIndex: 10 }}>
+        {navItems.map(item => {
+          const isActive = screen === item.id || (item.id === "session" && (screen === "session" || screen === "sessionSummary"));
+          return (
+            <button key={item.id} onClick={item.action || (() => setScreen(item.id))} style={{ background: "none", border: "none", display: "flex", flexDirection: "column", alignItems: "center", gap: 1, cursor: "pointer", padding: "4px 18px", borderRadius: 12, background: isActive ? W.accent + "18" : "none", position: "relative" }}>
+              <span style={{ fontSize: 18, color: isActive ? W.accent : W.textDim, lineHeight: 1.2 }}>{item.label}</span>
+              <span style={{ fontSize: 10, fontWeight: 700, color: isActive ? W.accent : W.textDim, letterSpacing: 0.3 }}>{item.text}</span>
+              {item.id === "session" && timerRunning && <div style={{ position: "absolute", top: 3, right: 12, width: 5, height: 5, borderRadius: "50%", background: W.accent }} />}
+            </button>
+          );
+        })}
       </div>
     </div>
     </div>
