@@ -662,39 +662,158 @@ export default function App() {
   const blankForm = { name: "", grade: GRADES[preferredScale]?.[2] || "V3", scale: preferredScale, isProject: false, comments: "", photo: null, color: null, wallTypes: [], holdTypes: [], climbType: "boulder", ropeStyle: "lead", speedTime: "" };
 
   const generateInitialSessions = () => {
-    const VG = ["VB","V0","V1","V2","V3","V4","V5","V6","V7","V8"];
-    const SN = ["The Arete","Corner Problem","Slab Route","Overhang Crux","Crimpy Wall","Pocket Route","Sidepull Sequence","The Bulge","Roof Section","Compression Climb","Starting Move","Warm Up","The Sloper","Dynamic Move","Balance Slab"];
-    const SL = ["Local Gym","The Crux Gym","Boulder Barn","Peak Fitness","Summit Walls"];
-    const SC = ["red","yellow","green","orange","blue","pink","black","white"];
-    const ri = (a, b) => Math.floor(Math.random() * (b - a + 1)) + a;
-    const pk = arr => arr[Math.floor(Math.random() * arr.length)];
-    const sr = (mo) => {
-      if (mo < 3)  return [0, 1];
-      if (mo < 6)  return [0, 2];
-      if (mo < 10) return [1, 3];
-      if (mo < 14) return [1, 4];
-      return [2, 5];
+    const VG  = ["VB","V0","V1","V2","V3","V4","V5","V6","V7","V8"];
+    const YDS = ["5.6","5.7","5.8","5.9","5.10a","5.10b","5.10c","5.10d","5.11a","5.11b"];
+    const BN  = ["The Arete","Corner Problem","Slab Route","Overhang Crux","Crimpy Wall","Pocket Route","Sidepull Sequence","The Bulge","Roof Section","Compression Problem","Warm Up Wall","The Sloper","Dynamic Move","Balance Slab","The Gaston","Heel Hook","Campus Crux","The Pinch","Undercling Traverse","Mantle Shelf","Green V2","Red V3","Blue Problem","Starting Moves","Exit Sequence"];
+    const RN  = ["Red 5.10","The Slab Wall","Overhang Lead","Corner Crack","Crimpy Face","Long 5.9","Warm Up Route","Technical Face","The Chimney","Juggy Overhang","Sustained Wall","Arete Route","Pumpy Traverse","Top Rope Warm","Lead Project","Blue 5.9","5.10 Corner","Face Climbing","The Roof Route","Endurance Wall"];
+    const SL  = ["Local Gym","The Crux Gym","Boulder Barn","Peak Fitness","Summit Walls"];
+    const SC  = ["red","yellow","green","orange","blue","pink","black","white"];
+    const ri  = (a, b) => Math.floor(Math.random() * (b - a + 1)) + a;
+    const rf  = (a, b) => Math.random() * (b - a) + a;
+    const pk  = a => a[ri(0, a.length - 1)];
+
+    // Grade range by months climbed
+    const vRange = mo => mo<2?[0,1]:mo<4?[0,2]:mo<7?[1,3]:mo<10?[1,4]:[2,5];
+    const rRange = mo => mo<3?[0,2]:mo<6?[1,4]:mo<9?[2,5]:[3,7];
+    const sRange = mo => mo<3?[26,44]:mo<6?[21,37]:mo<9?[17,30]:[14,26];
+
+    // Session type probability mix: boulder / rope / speed / mixed(b+r)
+    const pickType = mo => {
+      const x = Math.random();
+      const [b,r,s] = mo<2?[.92,.05,.00]:mo<4?[.76,.10,.04]:mo<7?[.62,.16,.07]:[.55,.20,.09];
+      return x<b?"boulder":x<b+r?"rope":x<b+r+s?"speed":"mixed";
     };
+
+    let uid = 400000;
+    const nid = () => uid++;
+
+    // Build boulder climbs from timestamp t, return climbs array and end timestamp
+    const mkBoulders = (mo, t) => {
+      const climbs = [];
+      const [minG, maxG] = vRange(mo);
+      const count = ri(4, 8);
+      for (let i = 0; i < count; i++) {
+        t += ri(60, 180) * 1000;                      // walk over, chalk up, study the problem
+        const gIdx = ri(minG, maxG);
+        const grade = VG[gIdx];
+        const isHard = gIdx >= maxG - 1;
+        const tries = isHard ? ri(2, 7) : (Math.random() < 0.4 ? 1 : ri(2, 3));
+        const completed = tries === 1 ? Math.random() > 0.1 : Math.random() > (isHard ? 0.55 : 0.2);
+        const attemptLog = [];
+        for (let a = 0; a < tries; a++) {
+          const dur = ri(12, isHard ? 70 : 45) * 1000;  // 12-70s per attempt
+          attemptLog.push({ startedAt: t, duration: dur });
+          t += dur;
+          if (a < tries - 1) t += ri(90, 240) * 1000;   // 1.5-4 min rest between attempts
+        }
+        climbs.push({ id: nid(), name: pk(BN), grade, scale:"V-Scale", tries, completed,
+          isProject:false, comments:"", photo:null, projectId:null,
+          color:pk(SC), wallTypes:[pk(WALL_TYPES)], holdTypes:[pk(HOLD_TYPES)],
+          climbType:"boulder", attemptLog, loggedAt: t });
+      }
+      return { climbs, endTs: t };
+    };
+
+    // Build rope climbs from timestamp t, return climbs array and end timestamp
+    const mkRopes = (mo, t) => {
+      const climbs = [];
+      const [minG, maxG] = rRange(mo);
+      const count = ri(2, 5);
+      for (let i = 0; i < count; i++) {
+        t += ri(300, 600) * 1000;                       // 5-10 min between routes
+        const gIdx = ri(minG, maxG);
+        const grade = YDS[gIdx];
+        const isHard = gIdx >= maxG - 1;
+        const tries = isHard ? ri(2, 4) : (Math.random() < 0.5 ? 1 : 2);
+        const falls = isHard ? ri(1, tries * 2) : (tries === 1 ? 0 : ri(0, 2));
+        const takes = Math.random() > 0.55 ? ri(0, 3) : 0;
+        const completed = tries === 1 ? Math.random() > 0.3 : Math.random() > (isHard ? 0.55 : 0.3);
+        const ropeStyle = mo < 4 ? "top-rope" : (Math.random() > (mo < 7 ? 0.4 : 0.55) ? "top-rope" : "lead");
+        const attemptLog = [];
+        for (let a = 0; a < tries; a++) {
+          const dur = ri(90, isHard ? 420 : 240) * 1000; // 1.5-7 min on wall
+          attemptLog.push({ startedAt: t, duration: dur });
+          t += dur;
+          if (a < tries - 1) t += ri(300, 720) * 1000;  // 5-12 min rest between attempts
+        }
+        climbs.push({ id: nid(), name: pk(RN), grade, scale:"YDS", tries, falls, takes, completed,
+          isProject:false, comments:"", photo:null, projectId:null,
+          color:pk(SC), wallTypes:[pk(WALL_TYPES)], holdTypes:[pk(HOLD_TYPES)],
+          climbType:"rope", ropeStyle, attemptLog, loggedAt: t });
+      }
+      return { climbs, endTs: t };
+    };
+
+    // Build a speed session from timestamp t, return as array (1 speed-session climb)
+    const mkSpeed = (mo, t) => {
+      const [lo, hi] = sRange(mo);
+      const count = ri(4, 9);
+      const startedAt = t;
+      const attempts = [];
+      for (let i = 0; i < count; i++) {
+        t += (i === 0 ? ri(30, 90) : ri(120, 300)) * 1000; // 30-90s warmup or 2-5 min rest
+        const fell = Math.random() < (mo < 4 ? 0.25 : 0.15);
+        // Times improve slightly as session goes on
+        const progress = i / Math.max(count - 1, 1);
+        const time = fell ? null : parseFloat(rf(lo - progress * 2, hi - progress * 2).toFixed(2));
+        const dur = (fell ? ri(5, 18) : ri(Math.ceil(lo * 0.7), Math.ceil(hi * 0.9))) * 1000;
+        t += dur;
+        attempts.push({ id: nid(), time, fell, loggedAt: t });
+      }
+      const endedAt = t + ri(30, 120) * 1000;
+      return [{ id: nid(), climbType:"speed-session", name:"Speed Session",
+        attempts, startedAt, loggedAt: endedAt, endedAt,
+        tries:0, completed:false, grade:"⚡", scale:"Speed", wallTypes:[], holdTypes:[] }];
+    };
+
     const sessions = [];
-    const now = new Date(), start = new Date(now);
+    const now   = new Date();
+    const start = new Date(now);
     start.setFullYear(start.getFullYear() - 1);
-    let d = new Date(start), sid = 200000;
+    let d = new Date(start);
+
     while (d < now) {
-      const mo = (d - start) / (1000 * 60 * 60 * 24 * 30.4);
+      const mo   = (d - start) / (1000 * 60 * 60 * 24 * 30.4);
       const isWE = d.getDay() === 0 || d.getDay() === 6;
       if (Math.random() < (1.5 / 7) * (isWE ? 2.0 : 0.6)) {
-        const [minG, maxG] = sr(mo);
-        const count = ri(3, 7);
-        const climbs = Array.from({ length: count }, (_, i) => {
-          const gIdx = ri(minG, maxG);
-          const grade = VG[gIdx];
-          const isHard = gIdx >= minG + Math.ceil((maxG - minG) * 0.6);
-          const tries = isHard ? ri(2, 8) : ri(1, 3);
-          const completed = tries === 1 || Math.random() > (isHard ? 0.5 : 0.2);
-          return { id: sid + i, name: pk(SN), grade, scale: "V-Scale", tries, completed, isProject: false, comments: "", photo: null, projectId: null, color: pk(SC), wallTypes: [pk(WALL_TYPES)], holdTypes: [pk(HOLD_TYPES)] };
+        const sType = pickType(mo);
+        const loc   = pk(SL);
+        const sTs   = d.getTime() + ri(8, 19) * 3600000;
+        let t = sTs + ri(5, 15) * 60 * 1000; // warm-up / arrival time
+
+        let allClimbs = [], boulderStartedAt = null, ropeStartedAt = null;
+        let boulderTotalSec = 0, ropeTotalSec = 0;
+
+        if (sType === "boulder" || sType === "mixed") {
+          boulderStartedAt = t;
+          const { climbs, endTs } = mkBoulders(mo, t);
+          allClimbs.push(...climbs);
+          boulderTotalSec = Math.round((endTs - boulderStartedAt) / 1000);
+          t = endTs;
+        }
+        if (sType === "rope" || sType === "mixed") {
+          if (sType === "mixed") t += ri(1, 5) * 60 * 1000; // transition break
+          ropeStartedAt = t;
+          const { climbs, endTs } = mkRopes(mo, t);
+          allClimbs.push(...climbs);
+          ropeTotalSec = Math.round((endTs - ropeStartedAt) / 1000);
+          t = endTs;
+        }
+        if (sType === "speed") {
+          const sc = mkSpeed(mo, t);
+          allClimbs.push(...sc);
+          t = sc[0].endedAt;
+        }
+
+        sessions.push({
+          id: nid(),
+          date: new Date(sTs).toISOString(),
+          duration: Math.round((t - sTs) / 1000),
+          location: loc,
+          climbs: allClimbs,
+          ...(boulderStartedAt != null ? { boulderStartedAt, boulderTotalSec } : {}),
+          ...(ropeStartedAt    != null ? { ropeStartedAt,  ropeTotalSec  } : {}),
         });
-        sid += count + 1;
-        sessions.push({ id: sid++, date: new Date(d.getTime() + ri(8, 19) * 3600000).toISOString(), duration: ri(2700, 6600), location: pk(SL), climbs });
       }
       d.setDate(d.getDate() + 1);
     }

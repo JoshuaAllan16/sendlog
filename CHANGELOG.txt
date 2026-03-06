@@ -4,6 +4,18 @@ A log of all features, fixes, and improvements grouped by push.
 
 
 ──────────────────────────────────────────────────────────────
+PUSH 31  |  Improved new-account seed data
+──────────────────────────────────────────────────────────────
+- Seed data now includes all three climb types: boulder, rope, and speed sessions
+- Realistic grade progression tied to months of experience (V-Scale, YDS, speed times)
+- Variability in session type per day: starts ~92% boulder, transitions to ~55% boulder / 20% rope / 9% speed by month 7+
+- Realistic timing for each climb type: boulder 12–70s per attempt + 90–240s rest; rope 90–420s per attempt + 300–720s rest; speed 30–90s warmup + 120–300s between runs
+- Rope seed data includes falls, takes, ropeStyle (top-rope early → mixed lead later), and attemptLog entries
+- Speed sessions include proper attempts array with individual times, fell flag, and loggedAt timestamps
+- Session-level boulderTotalSec / ropeTotalSec fields populated correctly
+
+
+──────────────────────────────────────────────────────────────
 PUSH 1  |  6437ed9  |  Initial commit
 ──────────────────────────────────────────────────────────────
 - Initial project scaffold (React + Vite)
