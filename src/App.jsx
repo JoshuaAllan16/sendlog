@@ -389,7 +389,7 @@ const LocationDropdown = ({ value, onChange, open, setOpen, knownLocations, onRe
   );
 };
 
-const SpeedSessionCard = ({ climb, tick, index, totalCount, onAddAttempt, onRemove, onEnd }) => {
+const SpeedSessionCard = ({ climb, tick, index, totalCount, onAddAttempt, onRemove, onEnd, onPause, onResume }) => {
   const W = useTheme() || THEMES.espresso;
   const [showForm, setShowForm] = useState(false);
   const [timeInput, setTimeInput] = useState("");
@@ -398,9 +398,13 @@ const SpeedSessionCard = ({ climb, tick, index, totalCount, onAddAttempt, onRemo
   const attempts = climb.attempts || [];
   const lastTs = attempts.length > 0 ? attempts[attempts.length - 1].loggedAt : climb.startedAt;
   const restSec = isEnded ? 0 : Math.max(0, Math.floor((Date.now() - lastTs) / 1000));
+  const speedTotalSec = climb.speedTotalSec || 0;
+  const speedActiveStart = climb.speedActiveStart || null;
+  const isActive = !isEnded && !!speedActiveStart;
+  const isPausedSpeed = !isEnded && !speedActiveStart;
   const sessionDurationSec = isEnded
     ? Math.floor((climb.endedAt - climb.startedAt) / 1000)
-    : Math.max(0, Math.floor((Date.now() - climb.startedAt) / 1000));
+    : speedTotalSec + (speedActiveStart ? Math.max(0, Math.floor((Date.now() - speedActiveStart) / 1000)) : 0);
   const validTimes = attempts.filter(a => !a.fell && a.time != null).map(a => a.time);
   const bestTime = validTimes.length ? Math.min(...validTimes) : null;
   const sessionLabel = totalCount > 1 ? `Speed Session ${index + 1}` : "Speed Climb Session";
@@ -414,26 +418,38 @@ const SpeedSessionCard = ({ climb, tick, index, totalCount, onAddAttempt, onRemo
 
   return (
     <div style={{ borderRadius: 14, border: `2px solid ${W.yellowDark}55`, marginBottom: 10, overflow: "hidden", background: W.surface }}>
-      {/* Header — matches BoulderRopeSessionCard style */}
-      <div style={{ background: W.yellow, padding: "10px 14px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-        <div>
-          <div style={{ display: "flex", alignItems: "center", gap: 7, marginBottom: 2 }}>
+      {/* Header */}
+      <div style={{ background: W.yellow, padding: "14px" }}>
+        {/* Row 1: label + badges | × + collapse icon */}
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 6 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 7 }}>
             <div style={{ fontWeight: 800, color: W.yellowDark, fontSize: 14 }}>⚡ {sessionLabel}</div>
-            {isEnded  && <span style={{ background: W.yellowDark, color: W.yellow, borderRadius: 6, padding: "1px 7px", fontSize: 10, fontWeight: 800 }}>ENDED</span>}
-            {!isEnded && <span style={{ background: `${W.yellowDark}33`, color: W.yellowDark, borderRadius: 6, padding: "1px 7px", fontSize: 10, fontWeight: 800 }}>ACTIVE</span>}
+            {isEnded    && <span style={{ background: W.yellowDark, color: W.yellow, borderRadius: 6, padding: "1px 7px", fontSize: 10, fontWeight: 800 }}>ENDED</span>}
+            {isActive   && <span style={{ background: `${W.yellowDark}33`, color: W.yellowDark, borderRadius: 6, padding: "1px 7px", fontSize: 10, fontWeight: 800 }}>ACTIVE</span>}
+            {isPausedSpeed && <span style={{ background: `${W.yellowDark}22`, color: W.yellowDark, borderRadius: 6, padding: "1px 7px", fontSize: 10, fontWeight: 800 }}>PAUSED</span>}
           </div>
-          <div style={{ fontSize: 30, fontWeight: 900, color: W.yellowDark, fontVariantNumeric: "tabular-nums", letterSpacing: 1, lineHeight: 1.2 }}>⏱ {formatDuration(sessionDurationSec)}</div>
-          {bestTime != null && <div style={{ fontSize: 11, color: W.yellowDark, opacity: 0.85, marginTop: 2 }}>Best: {bestTime.toFixed(2)}s · {attempts.length} attempt{attempts.length !== 1 ? "s" : ""}</div>}
-          {!isEnded && attempts.length === 0 && <div style={{ fontSize: 10, color: W.yellowDark, opacity: 0.6, marginTop: 2 }}>Add your first attempt below</div>}
+          <div style={{ display: "flex", gap: 5, alignItems: "center" }}>
+            <button onClick={onRemove} style={{ background: "none", border: `1px solid ${W.yellowDark}44`, borderRadius: 7, color: W.yellowDark, fontSize: 14, cursor: "pointer", padding: "2px 7px", opacity: 0.7 }}>×</button>
+            <button onClick={() => setCollapsed(c => !c)} style={{ background: "none", border: `1px solid ${W.yellowDark}44`, borderRadius: 7, color: W.yellowDark, fontSize: 14, cursor: "pointer", padding: "3px 9px", lineHeight: 1 }}>
+              {collapsed ? "▼" : "▲"}
+            </button>
+          </div>
         </div>
-        <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 6 }}>
-          <div style={{ display: "flex", gap: 6 }}>
-            {!isEnded && <button onClick={onEnd} style={{ background: W.yellowDark, border: "none", color: W.yellow, fontSize: 12, fontWeight: 700, cursor: "pointer", padding: "6px 12px", borderRadius: 8 }}>End</button>}
-            <button onClick={onRemove} style={{ background: "none", border: `1px solid ${W.yellowDark}44`, borderRadius: 8, color: W.yellowDark, fontSize: 14, cursor: "pointer", padding: "4px 8px", opacity: 0.7 }}>×</button>
+        {/* Row 2: timer */}
+        <div style={{ fontSize: 30, fontWeight: 900, color: W.yellowDark, fontVariantNumeric: "tabular-nums", letterSpacing: 1, lineHeight: 1.2, marginBottom: 4 }}>⏱ {formatDuration(sessionDurationSec)}</div>
+        {bestTime != null && <div style={{ fontSize: 11, color: W.yellowDark, opacity: 0.85, marginBottom: 6 }}>Best: {bestTime.toFixed(2)}s · {attempts.length} attempt{attempts.length !== 1 ? "s" : ""}</div>}
+        {/* Row 3: subtitle | End + Pause/Resume */}
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", marginTop: bestTime == null ? 6 : 0 }}>
+          <div>
+            {!isEnded && attempts.length === 0 && isActive && <div style={{ fontSize: 10, color: W.yellowDark, opacity: 0.6 }}>Add your first attempt below</div>}
+            {!isEnded && isPausedSpeed && <div style={{ fontSize: 10, color: W.yellowDark, opacity: 0.6 }}>Session paused</div>}
           </div>
-          <button onClick={() => setCollapsed(c => !c)} style={{ background: "none", border: `1px solid ${W.yellowDark}44`, borderRadius: 7, color: W.yellowDark, fontSize: 11, fontWeight: 700, cursor: "pointer", padding: "3px 10px" }}>
-            {collapsed ? "▼ Show" : "▲ Hide"}
-          </button>
+          <div style={{ display: "flex", gap: 6 }}>
+            {!isEnded && <button onClick={onEnd} style={{ background: W.yellowDark, border: "none", color: W.yellow, fontSize: 12, fontWeight: 700, cursor: "pointer", padding: "7px 14px", borderRadius: 8 }}>End</button>}
+            {!isEnded && <button onClick={isActive ? onPause : onResume} style={{ background: "none", border: `2px solid ${W.yellowDark}`, color: W.yellowDark, fontSize: 12, fontWeight: 700, cursor: "pointer", padding: "6px 12px", borderRadius: 8 }}>
+              {isActive ? "Pause" : "Resume"}
+            </button>}
+          </div>
         </div>
       </div>
 
@@ -509,26 +525,32 @@ const BoulderRopeSessionCard = ({ type, totalSec, activeStart, isEnded, tick, on
   const isPaused  = !isEnded && !activeStart;
   return (
     <div style={{ borderRadius: 14, border: `2px solid ${darkColor}55`, marginBottom: 10, overflow: "hidden", background: W.surface }}>
-      <div style={{ background: color, padding: "10px 14px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-        <div>
-          <div style={{ display: "flex", alignItems: "center", gap: 7, marginBottom: 2 }}>
+      <div style={{ background: color, padding: "14px" }}>
+        {/* Row 1: label + badges | collapse icon */}
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 6 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 7 }}>
             <div style={{ fontWeight: 800, color: darkColor, fontSize: 14 }}>{label}</div>
             {isEnded  && <span style={{ background: darkColor, color: color, borderRadius: 6, padding: "1px 7px", fontSize: 10, fontWeight: 800 }}>ENDED</span>}
             {isActive && <span style={{ background: `${darkColor}33`, color: darkColor, borderRadius: 6, padding: "1px 7px", fontSize: 10, fontWeight: 800 }}>ACTIVE</span>}
             {isPaused && (totalSec || 0) > 0 && <span style={{ background: `${darkColor}22`, color: darkColor, borderRadius: 6, padding: "1px 7px", fontSize: 10, fontWeight: 800 }}>PAUSED</span>}
           </div>
-          <div style={{ fontSize: 30, fontWeight: 900, color: darkColor, fontVariantNumeric: "tabular-nums", letterSpacing: 1, lineHeight: 1.2 }}>⏱ {formatDuration(displaySec)}</div>
-          {isPaused && (totalSec || 0) === 0 && <div style={{ fontSize: 10, color: darkColor, opacity: 0.6, marginTop: 2 }}>Timer starts when you begin climbing</div>}
-          {isPaused && pausedForSec > 0 && <div style={{ fontSize: 10, color: darkColor, opacity: 0.65, marginTop: 2 }}>Paused {formatDuration(pausedForSec)} ago</div>}
-        </div>
-        <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 6 }}>
-          <div style={{ display: "flex", gap: 6 }}>
-            {isActive && <button onClick={onPause} style={{ background: darkColor, border: "none", color: color, fontSize: 12, fontWeight: 700, cursor: "pointer", padding: "6px 12px", borderRadius: 8 }}>⏸ Pause</button>}
-            {isPaused && (totalSec || 0) > 0 && <button onClick={onResume} style={{ background: darkColor, border: "none", color: color, fontSize: 12, fontWeight: 700, cursor: "pointer", padding: "6px 12px", borderRadius: 8 }}>▶ Resume</button>}
-          </div>
-          <button onClick={onToggleCollapse} style={{ background: "none", border: `1px solid ${darkColor}44`, borderRadius: 7, color: darkColor, fontSize: 11, fontWeight: 700, cursor: "pointer", padding: "3px 10px" }}>
-            {collapsed ? "▼ Show" : "▲ Hide"}
+          <button onClick={onToggleCollapse} style={{ background: "none", border: `1px solid ${darkColor}44`, borderRadius: 7, color: darkColor, fontSize: 14, cursor: "pointer", padding: "3px 9px", lineHeight: 1 }}>
+            {collapsed ? "▼" : "▲"}
           </button>
+        </div>
+        {/* Row 2: timer */}
+        <div style={{ fontSize: 30, fontWeight: 900, color: darkColor, fontVariantNumeric: "tabular-nums", letterSpacing: 1, lineHeight: 1.2, marginBottom: 6 }}>⏱ {formatDuration(displaySec)}</div>
+        {/* Row 3: subtitle | pause/resume */}
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end" }}>
+          <div>
+            {isPaused && (totalSec || 0) === 0 && <div style={{ fontSize: 10, color: darkColor, opacity: 0.6 }}>Timer starts when you begin climbing</div>}
+            {isPaused && pausedForSec > 0 && <div style={{ fontSize: 10, color: darkColor, opacity: 0.65 }}>Paused {formatDuration(pausedForSec)} ago</div>}
+          </div>
+          {!isEnded && (isActive || (isPaused && (totalSec || 0) > 0)) && (
+            <button onClick={isActive ? onPause : onResume} style={{ background: darkColor, border: "none", color: color, fontSize: 12, fontWeight: 700, cursor: "pointer", padding: "7px 14px", borderRadius: 8 }}>
+              {isActive ? "Pause" : "Resume"}
+            </button>
+          )}
         </div>
       </div>
     </div>
@@ -1292,13 +1314,15 @@ export default function App() {
         updates.ropeActiveStart = null;
         updates.ropePausedAt = now;
       }
-      const newSpeed = { id: now, climbType: "speed-session", name: "Speed Session", attempts: [], startedAt: now, loggedAt: now, tries: 0, completed: false, grade: "⚡", scale: "Speed", wallTypes: [], holdTypes: [] };
+      const newSpeed = { id: now, climbType: "speed-session", name: "Speed Session", attempts: [], startedAt: now, loggedAt: now, tries: 0, completed: false, grade: "⚡", scale: "Speed", wallTypes: [], holdTypes: [], speedTotalSec: 0, speedActiveStart: now };
       return {
         ...s, ...updates,
         climbs: [
-          ...s.climbs.map(c => c.climbingStartedAt
-            ? { ...c, climbingStartedAt: null, attemptLog: [...(c.attemptLog || []), { startedAt: c.climbingStartedAt, duration: now - c.climbingStartedAt }] }
-            : c),
+          ...s.climbs.map(c => {
+            if (c.climbingStartedAt) return { ...c, climbingStartedAt: null, attemptLog: [...(c.attemptLog || []), { startedAt: c.climbingStartedAt, duration: now - c.climbingStartedAt }] };
+            if (c.climbType === "speed-session" && c.speedActiveStart && !c.endedAt) return { ...c, speedTotalSec: (c.speedTotalSec || 0) + Math.max(0, Math.floor((now - c.speedActiveStart) / 1000)), speedActiveStart: null };
+            return c;
+          }),
           newSpeed,
         ],
       };
@@ -1329,16 +1353,15 @@ export default function App() {
     }
     // Start this type's active timer only if not already running (keep it continuous between attempts)
     if (!s[`${type}ActiveStart`]) updates[`${type}ActiveStart`] = now;
-    // Stop any other active climb timer; clear rest timers on others
+    // Stop any other active climb timer; pause active speed sessions
     return {
       ...s, ...updates,
-      climbs: s.climbs.map(c =>
-        c.id === climbId
-          ? { ...c, climbingStartedAt: now }
-          : c.climbingStartedAt && !c.completed
-            ? { ...c, climbingStartedAt: null }
-            : c
-      ),
+      climbs: s.climbs.map(c => {
+        if (c.id === climbId) return { ...c, climbingStartedAt: now };
+        if (c.climbingStartedAt && !c.completed) return { ...c, climbingStartedAt: null };
+        if (c.climbType === "speed-session" && c.speedActiveStart && !c.endedAt) return { ...c, speedTotalSec: (c.speedTotalSec || 0) + Math.max(0, Math.floor((now - c.speedActiveStart) / 1000)), speedActiveStart: null };
+        return c;
+      }),
     };
   });
   const endBoulderSession = () => setActiveSession(s => {
@@ -1366,7 +1389,12 @@ export default function App() {
       ),
     };
   });
-  const resumeBoulderSession = () => setActiveSession(s => ({ ...s, boulderActiveStart: Date.now(), boulderPausedAt: null }));
+  const resumeBoulderSession = () => setActiveSession(s => {
+    const now = Date.now();
+    const updates = {};
+    if (s.ropeActiveStart) { updates.ropeTotalSec = (s.ropeTotalSec || 0) + Math.max(0, Math.floor((now - s.ropeActiveStart) / 1000)); updates.ropeActiveStart = null; updates.ropePausedAt = now; }
+    return { ...s, ...updates, boulderActiveStart: now, boulderPausedAt: null, climbs: s.climbs.map(c => c.climbType === "speed-session" && c.speedActiveStart && !c.endedAt ? { ...c, speedTotalSec: (c.speedTotalSec || 0) + Math.max(0, Math.floor((now - c.speedActiveStart) / 1000)), speedActiveStart: null } : c) };
+  });
   const pauseRopeSession = () => setActiveSession(s => {
     const now = Date.now();
     const elapsed = s.ropeActiveStart ? Math.max(0, Math.floor((now - s.ropeActiveStart) / 1000)) : 0;
@@ -1382,7 +1410,27 @@ export default function App() {
       ),
     };
   });
-  const resumeRopeSession = () => setActiveSession(s => ({ ...s, ropeActiveStart: Date.now(), ropePausedAt: null }));
+  const resumeRopeSession = () => setActiveSession(s => {
+    const now = Date.now();
+    const updates = {};
+    if (s.boulderActiveStart) { updates.boulderTotalSec = (s.boulderTotalSec || 0) + Math.max(0, Math.floor((now - s.boulderActiveStart) / 1000)); updates.boulderActiveStart = null; updates.boulderPausedAt = now; }
+    return { ...s, ...updates, ropeActiveStart: now, ropePausedAt: null, climbs: s.climbs.map(c => c.climbType === "speed-session" && c.speedActiveStart && !c.endedAt ? { ...c, speedTotalSec: (c.speedTotalSec || 0) + Math.max(0, Math.floor((now - c.speedActiveStart) / 1000)), speedActiveStart: null } : c) };
+  });
+  const pauseSpeedSession = (climbId) => setActiveSession(s => {
+    const now = Date.now();
+    return { ...s, climbs: s.climbs.map(c => c.id === climbId && c.speedActiveStart && !c.endedAt ? { ...c, speedTotalSec: (c.speedTotalSec || 0) + Math.max(0, Math.floor((now - c.speedActiveStart) / 1000)), speedActiveStart: null } : c) };
+  });
+  const resumeSpeedSession = (climbId) => setActiveSession(s => {
+    const now = Date.now();
+    const updates = {};
+    if (s.boulderActiveStart) { updates.boulderTotalSec = (s.boulderTotalSec || 0) + Math.max(0, Math.floor((now - s.boulderActiveStart) / 1000)); updates.boulderActiveStart = null; updates.boulderPausedAt = now; }
+    if (s.ropeActiveStart) { updates.ropeTotalSec = (s.ropeTotalSec || 0) + Math.max(0, Math.floor((now - s.ropeActiveStart) / 1000)); updates.ropeActiveStart = null; updates.ropePausedAt = now; }
+    return { ...s, ...updates, climbs: s.climbs.map(c => {
+      if (c.id === climbId && !c.endedAt) return { ...c, speedActiveStart: now };
+      if (c.climbType === "speed-session" && c.speedActiveStart && !c.endedAt) return { ...c, speedTotalSec: (c.speedTotalSec || 0) + Math.max(0, Math.floor((now - c.speedActiveStart) / 1000)), speedActiveStart: null };
+      return c;
+    }) };
+  });
   // Stops the per-climb timer without logging tries (used for rope "Done" button)
   // Type section timer keeps running — it only pauses when switching types or ending the section
   const endClimbAttempt = (id) => setActiveSession(s => {
@@ -2629,7 +2677,7 @@ export default function App() {
 
         {/* ── Speed Sessions ────────────────────────────────────── */}
         {!showClimbForm && !showProjectPicker && speedSessions.length > 0 && (
-          <>{speedSessions.map((c, i) => <SpeedSessionCard key={c.id} climb={c} tick={sessionTimer} index={i} totalCount={speedSessions.length} onAddAttempt={a => addSpeedAttempt(c.id, a)} onRemove={() => removeSpeedSession(c.id)} onEnd={() => endSpeedSession(c.id)} />)}</>
+          <>{speedSessions.map((c, i) => <SpeedSessionCard key={c.id} climb={c} tick={sessionTimer} index={i} totalCount={speedSessions.length} onAddAttempt={a => addSpeedAttempt(c.id, a)} onRemove={() => removeSpeedSession(c.id)} onEnd={() => endSpeedSession(c.id)} onPause={() => pauseSpeedSession(c.id)} onResume={() => resumeSpeedSession(c.id)} />)}</>
         )}
 
         {showProjectPicker && (
