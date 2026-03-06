@@ -204,3 +204,12 @@ PUSH 20  |  7eade8e  |  Comment notifications, reactions on profiles, notificati
 - Notification badge removed from Profile nav button — notifications now accessed only via Social tab or bell
 - Unread badge moved to the Notifications tab label in the Social screen; tapping marks all as read
 - Profile screen no longer clears notification count on open
+
+
+──────────────────────────────────────────────────────────────
+PUSH 21  |  5be63ca  |  Session card bar chart, photo strip, border polish
+──────────────────────────────────────────────────────────────
+- Replaced pie chart on home feed session cards with a horizontal bar chart showing attempts per grade, colored by grade
+- Photo strip added to session cards: climbs with photos appear as a horizontal scrollable row of 72×72 thumbnails, each with a grade badge overlaid in the bottom-left corner
+- Session card border made more prominent: thicker border using accent color with a subtle glow box-shadow for better contrast against the background
+- Profile screen notifications list made collapsible: click the "Notifications" header to expand/collapse, collapsed by default to reduce clutter

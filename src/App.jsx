@@ -292,6 +292,8 @@ export default function App() {
   const [notifPrefsOpen, setNotifPrefsOpen]       = useState(false);
   const [followRequestsOpen, setFollowRequestsOpen] = useState(false);
   const [profileNotifsOpen, setProfileNotifsOpen]   = useState(false);
+  const [lightboxPhoto, setLightboxPhoto]           = useState(null);
+  const [feedPage, setFeedPage]                     = useState(1);
   const [colorTheme, setColorTheme]             = useState("espresso");
   const [showEndConfirm, setShowEndConfirm]     = useState(false);
   const [sessionSummary, setSessionSummary]     = useState(null);
@@ -1316,7 +1318,7 @@ export default function App() {
         {climbPhotos.length > 0 && (
           <div style={{ display: "flex", gap: 6, padding: "10px 16px", overflowX: "auto", borderBottom: `1px solid ${W.border}` }}>
             {climbPhotos.map(c => (
-              <div key={c.id} style={{ position: "relative", flexShrink: 0 }}>
+              <div key={c.id} onClick={e => { e.stopPropagation(); setLightboxPhoto({ src: c.photo, grade: c.grade, name: c.name }); }} style={{ position: "relative", flexShrink: 0, cursor: "pointer" }}>
                 <img src={c.photo} alt={c.name || c.grade} style={{ width: 72, height: 72, objectFit: "cover", borderRadius: 10, display: "block" }} />
                 <div style={{ position: "absolute", bottom: 4, left: 4, background: getGradeColor(c.grade) + "ee", borderRadius: 5, padding: "1px 6px", fontSize: 10, fontWeight: 800, color: "#fff" }}>{c.grade}</div>
               </div>
@@ -1330,9 +1332,12 @@ export default function App() {
               <div key={grade} style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 5 }}>
                 <div style={{ width: 28, fontSize: 11, fontWeight: 800, color: getGradeColor(grade), flexShrink: 0, textAlign: "right" }}>{grade}</div>
                 <div style={{ flex: 1, height: 14, background: W.surface2, borderRadius: 4, overflow: "hidden" }}>
-                  <div style={{ height: "100%", width: `${(data.tries / barMax) * 100}%`, background: getGradeColor(grade), borderRadius: 4, minWidth: 4 }} />
+                  <div style={{ height: "100%", width: `${(data.tries / barMax) * 100}%`, borderRadius: 4, display: "flex", overflow: "hidden", minWidth: 4 }}>
+                    <div style={{ height: "100%", width: `${(data.completed / Math.max(data.attempted, 1)) * 100}%`, background: getGradeColor(grade), minWidth: data.completed > 0 ? 4 : 0 }} />
+                    <div style={{ height: "100%", flex: 1, background: getGradeColor(grade) + "44" }} />
+                  </div>
                 </div>
-                <div style={{ width: 20, fontSize: 12, fontWeight: 700, color: W.text, flexShrink: 0 }}>{data.tries}</div>
+                <div style={{ width: 32, fontSize: 11, fontWeight: 700, color: W.text, flexShrink: 0 }}>{data.completed}/{data.attempted}</div>
               </div>
             ))}
           </div>
@@ -1405,17 +1410,29 @@ export default function App() {
                 <button onClick={() => { setScreen("social"); setSocialTab("search"); }} style={{ padding: "10px 20px", background: `linear-gradient(135deg, ${W.accent}, ${W.accentDark})`, border: "none", borderRadius: 12, color: "#fff", fontWeight: 700, fontSize: 13, cursor: "pointer" }}>Find Climbers</button>
               </div>
             : <div style={{ textAlign: "center", color: W.textDim, padding: "40px 0", fontSize: 13 }}>No recent sessions from people you follow.</div>
-          : combined.map((s, i) => (
-              s.isOwn
-                ? <LogbookSessionCard key={`own-${s.id}`} session={s} poster={socialFollowing.length > 0 ? { username: s.feedUsername, displayName: s.feedDisplayName } : null} />
-                : <LogbookSessionCard
-                    key={`feed-${s.id}-${i}`}
-                    session={s}
-                    poster={{ username: s.feedUsername, displayName: s.feedDisplayName }}
-                    onNavigate={() => { setSessionReadOnly(true); setSelectedSession(s); setScreen("sessionDetail"); }}
-                  />
-            )
-          )
+          : (() => {
+              const visible = combined.slice(0, feedPage * 8);
+              const hasMore = combined.length > visible.length;
+              return (
+                <>
+                  {visible.map((s, i) => (
+                    s.isOwn
+                      ? <LogbookSessionCard key={`own-${s.id}`} session={s} poster={socialFollowing.length > 0 ? { username: s.feedUsername, displayName: s.feedDisplayName } : null} />
+                      : <LogbookSessionCard
+                          key={`feed-${s.id}-${i}`}
+                          session={s}
+                          poster={{ username: s.feedUsername, displayName: s.feedDisplayName }}
+                          onNavigate={() => { setSessionReadOnly(true); setSelectedSession(s); setScreen("sessionDetail"); }}
+                        />
+                  ))}
+                  {hasMore && (
+                    <button onClick={() => setFeedPage(p => p + 1)} style={{ width: "100%", padding: "13px", background: "transparent", border: `1px solid ${W.border}`, borderRadius: 14, color: W.textMuted, fontSize: 14, fontWeight: 600, cursor: "pointer", marginBottom: 8 }}>
+                      Load more ({combined.length - visible.length} remaining)
+                    </button>
+                  )}
+                </>
+              );
+            })()
         }
       </div>
     );
@@ -2870,6 +2887,18 @@ export default function App() {
                   );
                 })
             }
+          </div>
+        </div>
+      )}
+
+      {/* Photo lightbox */}
+      {lightboxPhoto && (
+        <div onClick={() => setLightboxPhoto(null)} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.92)", zIndex: 300, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: 20 }}>
+          <button onClick={() => setLightboxPhoto(null)} style={{ position: "absolute", top: 16, right: 20, background: "rgba(255,255,255,0.15)", border: "none", borderRadius: "50%", width: 36, height: 36, color: "#fff", fontSize: 20, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>×</button>
+          <img src={lightboxPhoto.src} alt={lightboxPhoto.name || lightboxPhoto.grade} style={{ maxWidth: "100%", maxHeight: "75vh", objectFit: "contain", borderRadius: 16 }} onClick={e => e.stopPropagation()} />
+          <div style={{ marginTop: 14, display: "flex", alignItems: "center", gap: 10 }}>
+            <div style={{ background: getGradeColor(lightboxPhoto.grade) + "ee", borderRadius: 8, padding: "4px 12px", fontSize: 14, fontWeight: 800, color: "#fff" }}>{lightboxPhoto.grade}</div>
+            {lightboxPhoto.name && <div style={{ color: "rgba(255,255,255,0.8)", fontSize: 14, fontWeight: 600 }}>{lightboxPhoto.name}</div>}
           </div>
         </div>
       )}
