@@ -393,6 +393,7 @@ const SpeedSessionCard = ({ climb, tick, index, totalCount, onAddAttempt, onRemo
   const W = useTheme() || THEMES.espresso;
   const [showForm, setShowForm] = useState(false);
   const [timeInput, setTimeInput] = useState("");
+  const [collapsed, setCollapsed] = useState(false);
   const isEnded = !!climb.endedAt;
   const attempts = climb.attempts || [];
   const lastTs = attempts.length > 0 ? attempts[attempts.length - 1].loggedAt : climb.startedAt;
@@ -413,81 +414,79 @@ const SpeedSessionCard = ({ climb, tick, index, totalCount, onAddAttempt, onRemo
 
   return (
     <div style={{ borderRadius: 14, border: `2px solid ${W.yellowDark}55`, marginBottom: 10, overflow: "hidden", background: W.surface }}>
-      {/* Header */}
-      <div style={{ background: W.yellow, padding: "10px 14px", display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
-        <div style={{ flex: 1 }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 3 }}>
-            <div style={{ fontSize: 11, fontVariantNumeric: "tabular-nums", fontWeight: 900, color: W.yellowDark, background: `${W.yellowDark}22`, borderRadius: 7, padding: "2px 8px", letterSpacing: 0.5 }}>
-              ⏱ {formatDuration(sessionDurationSec)}
-            </div>
-            {isEnded && <span style={{ background: W.yellowDark, color: W.yellow, borderRadius: 6, padding: "1px 7px", fontSize: 10, fontWeight: 800 }}>ENDED</span>}
+      {/* Header — matches BoulderRopeSessionCard style */}
+      <div style={{ background: W.yellow, padding: "10px 14px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+        <div>
+          <div style={{ display: "flex", alignItems: "center", gap: 7, marginBottom: 2 }}>
+            <div style={{ fontWeight: 800, color: W.yellowDark, fontSize: 14 }}>⚡ {sessionLabel}</div>
+            {isEnded  && <span style={{ background: W.yellowDark, color: W.yellow, borderRadius: 6, padding: "1px 7px", fontSize: 10, fontWeight: 800 }}>ENDED</span>}
+            {!isEnded && <span style={{ background: `${W.yellowDark}33`, color: W.yellowDark, borderRadius: 6, padding: "1px 7px", fontSize: 10, fontWeight: 800 }}>ACTIVE</span>}
           </div>
-          <div style={{ fontWeight: 800, color: W.yellowDark, fontSize: 14 }}>⚡ {sessionLabel}</div>
-          {bestTime != null && <div style={{ fontSize: 11, color: W.yellowDark, marginTop: 1 }}>Best: {bestTime.toFixed(2)}s</div>}
+          <div style={{ fontSize: 30, fontWeight: 900, color: W.yellowDark, fontVariantNumeric: "tabular-nums", letterSpacing: 1, lineHeight: 1.2 }}>⏱ {formatDuration(sessionDurationSec)}</div>
+          {bestTime != null && <div style={{ fontSize: 11, color: W.yellowDark, opacity: 0.85, marginTop: 2 }}>Best: {bestTime.toFixed(2)}s · {attempts.length} attempt{attempts.length !== 1 ? "s" : ""}</div>}
+          {!isEnded && attempts.length === 0 && <div style={{ fontSize: 10, color: W.yellowDark, opacity: 0.6, marginTop: 2 }}>Add your first attempt below</div>}
         </div>
-        <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
-          <span style={{ fontSize: 11, color: W.yellowDark, fontWeight: 700 }}>{attempts.length} attempt{attempts.length !== 1 ? "s" : ""}</span>
-          {!isEnded && <button onClick={onEnd} style={{ background: W.yellowDark, border: "none", color: W.yellow, fontSize: 11, fontWeight: 700, cursor: "pointer", padding: "4px 8px", borderRadius: 7 }}>End</button>}
-          <button onClick={onRemove} style={{ background: "none", border: "none", color: W.yellowDark, fontSize: 16, cursor: "pointer", padding: "0 2px", opacity: 0.6 }} title="Remove">×</button>
+        <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 6 }}>
+          <div style={{ display: "flex", gap: 6 }}>
+            {!isEnded && <button onClick={onEnd} style={{ background: W.yellowDark, border: "none", color: W.yellow, fontSize: 12, fontWeight: 700, cursor: "pointer", padding: "6px 12px", borderRadius: 8 }}>End</button>}
+            <button onClick={onRemove} style={{ background: "none", border: `1px solid ${W.yellowDark}44`, borderRadius: 8, color: W.yellowDark, fontSize: 14, cursor: "pointer", padding: "4px 8px", opacity: 0.7 }}>×</button>
+          </div>
+          <button onClick={() => setCollapsed(c => !c)} style={{ background: "none", border: `1px solid ${W.yellowDark}44`, borderRadius: 7, color: W.yellowDark, fontSize: 11, fontWeight: 700, cursor: "pointer", padding: "3px 10px" }}>
+            {collapsed ? "▼ Show" : "▲ Hide"}
+          </button>
         </div>
       </div>
 
-      {/* Attempts list */}
-      {attempts.length > 0 && (
-        <div style={{ padding: "6px 14px 4px" }}>
-          {attempts.map((a, i) => {
-            const prevTs = i === 0 ? climb.startedAt : attempts[i - 1].loggedAt;
-            const restMs = a.loggedAt - prevTs;
-            const restBefore = Math.floor(restMs / 1000);
-            return (
-              <div key={a.id}>
-                {i > 0 && (
-                  <div style={{ textAlign: "center", fontSize: 10, color: W.textDim, padding: "2px 0" }}>↕ {formatRestSec(restBefore)} rest</div>
-                )}
-                <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 0", borderBottom: i < attempts.length - 1 ? `1px solid ${W.border}` : "none" }}>
-                  <div style={{ width: 22, height: 22, borderRadius: "50%", background: a.fell ? W.red : W.green, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, flexShrink: 0 }}>
-                    <span style={{ color: a.fell ? W.redDark : W.greenDark, fontWeight: 800 }}>{a.fell ? "✗" : "✓"}</span>
-                  </div>
-                  <div style={{ flex: 1, fontWeight: 700, color: a.fell ? W.textDim : W.text, fontSize: 15, fontVariantNumeric: "tabular-nums" }}>
-                    {a.fell ? "Fell" : `${a.time?.toFixed(2)}s`}
-                  </div>
-                  {!a.fell && bestTime != null && a.time === bestTime && (
-                    <div style={{ background: W.yellow, color: W.yellowDark, borderRadius: 6, padding: "1px 8px", fontSize: 10, fontWeight: 800 }}>PB</div>
-                  )}
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      )}
-
-      {!isEnded && (
+      {!collapsed && (
         <>
-          {/* Rest timer */}
-          <div style={{ textAlign: "center", padding: attempts.length > 0 ? "8px 14px" : "12px 14px", background: W.surface2, borderTop: attempts.length > 0 ? `1px solid ${W.border}` : "none" }}>
-            <div style={{ fontSize: 10, color: W.textDim, textTransform: "uppercase", letterSpacing: 0.8, marginBottom: 2 }}>
-              {attempts.length === 0 ? "Ready to start" : "Resting"}
+          {/* Attempts list */}
+          {attempts.length > 0 && (
+            <div style={{ padding: "6px 14px 4px" }}>
+              {attempts.map((a, i) => {
+                const prevTs = i === 0 ? climb.startedAt : attempts[i - 1].loggedAt;
+                const restBefore = Math.floor((a.loggedAt - prevTs) / 1000);
+                return (
+                  <div key={a.id}>
+                    {i > 0 && <div style={{ textAlign: "center", fontSize: 10, color: W.textDim, padding: "2px 0" }}>↕ {formatRestSec(restBefore)} rest</div>}
+                    <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 0", borderBottom: i < attempts.length - 1 ? `1px solid ${W.border}` : "none" }}>
+                      <div style={{ width: 22, height: 22, borderRadius: "50%", background: a.fell ? W.red : W.green, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, flexShrink: 0 }}>
+                        <span style={{ color: a.fell ? W.redDark : W.greenDark, fontWeight: 800 }}>{a.fell ? "✗" : "✓"}</span>
+                      </div>
+                      <div style={{ flex: 1, fontWeight: 700, color: a.fell ? W.textDim : W.text, fontSize: 15, fontVariantNumeric: "tabular-nums" }}>
+                        {a.fell ? "Fell" : `${a.time?.toFixed(2)}s`}
+                      </div>
+                      {!a.fell && bestTime != null && a.time === bestTime && (
+                        <div style={{ background: W.yellow, color: W.yellowDark, borderRadius: 6, padding: "1px 8px", fontSize: 10, fontWeight: 800 }}>PB</div>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
             </div>
-            <div style={{ fontSize: 22, fontWeight: 900, color: W.yellowDark, fontVariantNumeric: "tabular-nums", letterSpacing: 1 }}>
-              {formatDuration(restSec)}
-            </div>
-          </div>
+          )}
 
-          {/* Add attempt form */}
-          {showForm ? (
-            <div style={{ padding: "12px 14px", borderTop: `1px solid ${W.border}` }}>
-              <div style={{ fontSize: 12, fontWeight: 700, color: W.textMuted, marginBottom: 8 }}>Log Attempt</div>
-              <input type="number" min="0" step="0.01" value={timeInput} onChange={e => setTimeInput(e.target.value)} placeholder="Time in seconds (e.g. 14.83)" autoFocus style={{ width: "100%", padding: "10px 12px", background: W.surface, border: `2px solid ${W.accent}`, borderRadius: 10, color: W.text, fontSize: 18, fontWeight: 800, boxSizing: "border-box", marginBottom: 10, fontFamily: "inherit" }} />
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8 }}>
-                <button onClick={() => { setShowForm(false); setTimeInput(""); }} style={{ padding: "10px", background: "transparent", border: `1px solid ${W.border}`, borderRadius: 10, color: W.textMuted, fontWeight: 700, fontSize: 13, cursor: "pointer" }}>Cancel</button>
-                <button onClick={() => handleAdd(true)} style={{ padding: "10px", background: W.red, border: `2px solid ${W.redDark}`, borderRadius: 10, color: W.redDark, fontWeight: 700, fontSize: 13, cursor: "pointer" }}>✗ Fell</button>
-                <button onClick={() => handleAdd(false)} disabled={!timeInput} style={{ padding: "10px", background: timeInput ? W.green : W.surface2, border: `2px solid ${timeInput ? W.greenDark : W.border}`, borderRadius: 10, color: timeInput ? W.greenDark : W.textDim, fontWeight: 700, fontSize: 13, cursor: timeInput ? "pointer" : "default" }}>✓ Log</button>
+          {!isEnded && (
+            <>
+              <div style={{ textAlign: "center", padding: attempts.length > 0 ? "8px 14px" : "12px 14px", background: W.surface2, borderTop: attempts.length > 0 ? `1px solid ${W.border}` : "none" }}>
+                <div style={{ fontSize: 10, color: W.textDim, textTransform: "uppercase", letterSpacing: 0.8, marginBottom: 2 }}>{attempts.length === 0 ? "Ready to start" : "Resting"}</div>
+                <div style={{ fontSize: 22, fontWeight: 900, color: W.yellowDark, fontVariantNumeric: "tabular-nums", letterSpacing: 1 }}>{formatDuration(restSec)}</div>
               </div>
-            </div>
-          ) : (
-            <div style={{ padding: "10px 14px", borderTop: `1px solid ${W.border}` }}>
-              <button onClick={() => setShowForm(true)} style={{ width: "100%", padding: "10px", background: W.yellow, border: `2px solid ${W.yellowDark}`, borderRadius: 10, color: W.yellowDark, fontWeight: 700, fontSize: 14, cursor: "pointer" }}>+ Add Attempt</button>
-            </div>
+              {showForm ? (
+                <div style={{ padding: "12px 14px", borderTop: `1px solid ${W.border}` }}>
+                  <div style={{ fontSize: 12, fontWeight: 700, color: W.textMuted, marginBottom: 8 }}>Log Attempt</div>
+                  <input type="number" min="0" step="0.01" value={timeInput} onChange={e => setTimeInput(e.target.value)} placeholder="Time in seconds (e.g. 14.83)" autoFocus style={{ width: "100%", padding: "10px 12px", background: W.surface, border: `2px solid ${W.accent}`, borderRadius: 10, color: W.text, fontSize: 16, fontWeight: 800, boxSizing: "border-box", marginBottom: 10, fontFamily: "inherit" }} />
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8 }}>
+                    <button onClick={() => { setShowForm(false); setTimeInput(""); }} style={{ padding: "10px", background: "transparent", border: `1px solid ${W.border}`, borderRadius: 10, color: W.textMuted, fontWeight: 700, fontSize: 13, cursor: "pointer" }}>Cancel</button>
+                    <button onClick={() => handleAdd(true)} style={{ padding: "10px", background: W.red, border: `2px solid ${W.redDark}`, borderRadius: 10, color: W.redDark, fontWeight: 700, fontSize: 13, cursor: "pointer" }}>✗ Fell</button>
+                    <button onClick={() => handleAdd(false)} disabled={!timeInput} style={{ padding: "10px", background: timeInput ? W.green : W.surface2, border: `2px solid ${timeInput ? W.greenDark : W.border}`, borderRadius: 10, color: timeInput ? W.greenDark : W.textDim, fontWeight: 700, fontSize: 13, cursor: timeInput ? "pointer" : "default" }}>✓ Log</button>
+                  </div>
+                </div>
+              ) : (
+                <div style={{ padding: "10px 14px", borderTop: `1px solid ${W.border}` }}>
+                  <button onClick={() => setShowForm(true)} style={{ width: "100%", padding: "10px", background: W.yellow, border: `2px solid ${W.yellowDark}`, borderRadius: 10, color: W.yellowDark, fontWeight: 700, fontSize: 14, cursor: "pointer" }}>+ Add Attempt</button>
+                </div>
+              )}
+            </>
           )}
         </>
       )}
@@ -495,7 +494,7 @@ const SpeedSessionCard = ({ climb, tick, index, totalCount, onAddAttempt, onRemo
   );
 };
 
-const BoulderRopeSessionCard = ({ type, totalSec, activeStart, isEnded, tick, onPause, onResume, pausedAt }) => {
+const BoulderRopeSessionCard = ({ type, totalSec, activeStart, isEnded, tick, onPause, onResume, pausedAt, collapsed, onToggleCollapse }) => {
   const W = useTheme() || THEMES.espresso;
   const liveSec = !isEnded && activeStart
     ? Math.max(0, Math.floor((Date.now() - activeStart) / 1000))
@@ -522,9 +521,14 @@ const BoulderRopeSessionCard = ({ type, totalSec, activeStart, isEnded, tick, on
           {isPaused && (totalSec || 0) === 0 && <div style={{ fontSize: 10, color: darkColor, opacity: 0.6, marginTop: 2 }}>Timer starts when you begin climbing</div>}
           {isPaused && pausedForSec > 0 && <div style={{ fontSize: 10, color: darkColor, opacity: 0.65, marginTop: 2 }}>Paused {formatDuration(pausedForSec)} ago</div>}
         </div>
-        <div>
-          {isActive && <button onClick={onPause} style={{ background: darkColor, border: "none", color: color, fontSize: 12, fontWeight: 700, cursor: "pointer", padding: "6px 12px", borderRadius: 8 }}>⏸ Pause</button>}
-          {isPaused && (totalSec || 0) > 0 && <button onClick={onResume} style={{ background: darkColor, border: "none", color: color, fontSize: 12, fontWeight: 700, cursor: "pointer", padding: "6px 12px", borderRadius: 8 }}>▶ Resume</button>}
+        <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 6 }}>
+          <div style={{ display: "flex", gap: 6 }}>
+            {isActive && <button onClick={onPause} style={{ background: darkColor, border: "none", color: color, fontSize: 12, fontWeight: 700, cursor: "pointer", padding: "6px 12px", borderRadius: 8 }}>⏸ Pause</button>}
+            {isPaused && (totalSec || 0) > 0 && <button onClick={onResume} style={{ background: darkColor, border: "none", color: color, fontSize: 12, fontWeight: 700, cursor: "pointer", padding: "6px 12px", borderRadius: 8 }}>▶ Resume</button>}
+          </div>
+          <button onClick={onToggleCollapse} style={{ background: "none", border: `1px solid ${darkColor}44`, borderRadius: 7, color: darkColor, fontSize: 11, fontWeight: 700, cursor: "pointer", padding: "3px 10px" }}>
+            {collapsed ? "▼ Show" : "▲ Hide"}
+          </button>
         </div>
       </div>
     </div>
@@ -789,6 +793,8 @@ export default function App() {
   const [colorTheme, setColorTheme]             = useState("espresso");
   const [showEndConfirm, setShowEndConfirm]     = useState(false);
   const [sessionSummary, setSessionSummary]     = useState(null);
+  const [projectTypeFilter, setProjectTypeFilter] = useState("all");
+  const [collapsedSections, setCollapsedSections] = useState({ boulder: false, rope: false });
 
   const blankForm = { name: "", grade: GRADES[preferredScale]?.[2] || "V3", scale: preferredScale, isProject: false, comments: "", photo: null, color: null, wallTypes: [], holdTypes: [], climbType: "boulder", ropeStyle: "lead", speedTime: "" };
 
@@ -1270,7 +1276,29 @@ export default function App() {
   };
   const addSpeedSession = () => {
     const now = Date.now();
-    setActiveSession(s => ({ ...s, climbs: [...s.climbs, { id: now, climbType: "speed-session", name: "Speed Session", attempts: [], startedAt: now, loggedAt: now, tries: 0, completed: false, grade: "⚡", scale: "Speed", wallTypes: [], holdTypes: [] }] }));
+    setActiveSession(s => {
+      const updates = {};
+      if (s.boulderActiveStart) {
+        updates.boulderTotalSec = (s.boulderTotalSec || 0) + Math.max(0, Math.floor((now - s.boulderActiveStart) / 1000));
+        updates.boulderActiveStart = null;
+        updates.boulderPausedAt = now;
+      }
+      if (s.ropeActiveStart) {
+        updates.ropeTotalSec = (s.ropeTotalSec || 0) + Math.max(0, Math.floor((now - s.ropeActiveStart) / 1000));
+        updates.ropeActiveStart = null;
+        updates.ropePausedAt = now;
+      }
+      const newSpeed = { id: now, climbType: "speed-session", name: "Speed Session", attempts: [], startedAt: now, loggedAt: now, tries: 0, completed: false, grade: "⚡", scale: "Speed", wallTypes: [], holdTypes: [] };
+      return {
+        ...s, ...updates,
+        climbs: [
+          ...s.climbs.map(c => c.climbingStartedAt
+            ? { ...c, climbingStartedAt: null, attemptLog: [...(c.attemptLog || []), { startedAt: c.climbingStartedAt, duration: now - c.climbingStartedAt }] }
+            : c),
+          newSpeed,
+        ],
+      };
+    });
   };
   const addSpeedAttempt = (climbId, attempt) => {
     setActiveSession(s => ({ ...s, climbs: s.climbs.map(c => c.id === climbId ? { ...c, attempts: [...(c.attempts || []), attempt] } : c) }));
@@ -1484,7 +1512,7 @@ export default function App() {
       setPhotoPreview(existing.photo);
     } else if (fromProject) {
       setEditingClimbId(null);
-      setClimbForm({ ...blankForm, name: fromProject.name || "", grade: fromProject.grade, scale: fromProject.scale, isProject: true, comments: fromProject.comments || "", projectId: fromProject.id });
+      setClimbForm({ ...blankForm, name: fromProject.name || "", grade: fromProject.grade, scale: fromProject.scale, isProject: true, comments: fromProject.comments || "", projectId: fromProject.id, climbType: fromProject.climbType || "boulder" });
       setPhotoPreview(null);
     } else {
       setEditingClimbId(null);
@@ -1507,7 +1535,7 @@ export default function App() {
       const pid = climbForm.isProject ? (climbForm.projectId || Date.now() + 1) : null;
       const speedGrade = climbForm.climbType === "speed" ? (climbForm.speedTime ? climbForm.speedTime + "s" : "—") : undefined;
       const newClimb = { ...climbForm, photo: photoPreview, projectId: pid, id: Date.now(), loggedAt: Date.now(), tries: climbForm.climbType === "speed" ? 1 : 0, completed: climbForm.climbType === "speed" ? climbForm.completed : false, ...(speedGrade ? { grade: speedGrade, scale: "Speed" } : {}) };
-      if (newClimb.isProject && !climbForm.projectId) setProjects(prev => [...prev, { id: pid, name: newClimb.name, grade: newClimb.grade, scale: newClimb.scale, comments: newClimb.comments, active: true, completed: false, dateAdded: new Date().toISOString(), dateSent: null }]);
+      if (newClimb.isProject && !climbForm.projectId) setProjects(prev => [...prev, { id: pid, name: newClimb.name, grade: newClimb.grade, scale: newClimb.scale, climbType: newClimb.climbType || "boulder", comments: newClimb.comments, active: true, completed: false, dateAdded: new Date().toISOString(), dateSent: null }]);
       setActiveSession(s => {
         const now = Date.now();
         const typeUpdates = {};
@@ -2568,26 +2596,30 @@ export default function App() {
         {/* ── Boulder Section ─────────────────────────────────── */}
         {!showClimbForm && !showProjectPicker && activeSession?.boulderStartedAt && (
           <div style={{ marginBottom: 16 }}>
-            <BoulderRopeSessionCard type="boulder" totalSec={activeSession.boulderTotalSec || 0} activeStart={activeSession.boulderActiveStart || null} isEnded={!!activeSession.boulderEndedAt} tick={sessionTimer} onPause={pauseBoulderSession} onResume={resumeBoulderSession} pausedAt={activeSession.boulderPausedAt || null} />
-            <div style={{ borderLeft: `3px solid ${W.greenDark}44`, paddingLeft: 10, marginLeft: 2 }}>
-              {boulderClimbs.map(c => <ActiveClimbCard key={c.id} climb={c} {...cardProps} />)}
-              {selectedTypes.includes("boulder") && !activeSession.boulderEndedAt && (
-                <button onClick={() => openClimbForm(null, null, "boulder")} style={{ width: "100%", padding: "10px", background: W.green, border: `2px solid ${W.greenDark}`, borderRadius: 12, color: W.greenDark, fontWeight: 700, fontSize: 13, cursor: "pointer", marginTop: 2 }}>+ New Boulder</button>
-              )}
-            </div>
+            <BoulderRopeSessionCard type="boulder" totalSec={activeSession.boulderTotalSec || 0} activeStart={activeSession.boulderActiveStart || null} isEnded={!!activeSession.boulderEndedAt} tick={sessionTimer} onPause={pauseBoulderSession} onResume={resumeBoulderSession} pausedAt={activeSession.boulderPausedAt || null} collapsed={collapsedSections.boulder} onToggleCollapse={() => setCollapsedSections(s => ({ ...s, boulder: !s.boulder }))} />
+            {!collapsedSections.boulder && (
+              <div style={{ borderLeft: `3px solid ${W.greenDark}44`, paddingLeft: 10, marginLeft: 2 }}>
+                {boulderClimbs.map(c => <ActiveClimbCard key={c.id} climb={c} {...cardProps} />)}
+                {selectedTypes.includes("boulder") && !activeSession.boulderEndedAt && (
+                  <button onClick={() => openClimbForm(null, null, "boulder")} style={{ width: "100%", padding: "10px", background: W.green, border: `2px solid ${W.greenDark}`, borderRadius: 12, color: W.greenDark, fontWeight: 700, fontSize: 13, cursor: "pointer", marginTop: 2 }}>+ New Boulder</button>
+                )}
+              </div>
+            )}
           </div>
         )}
 
         {/* ── Rope Section ─────────────────────────────────────── */}
         {!showClimbForm && !showProjectPicker && activeSession?.ropeStartedAt && (
           <div style={{ marginBottom: 16 }}>
-            <BoulderRopeSessionCard type="rope" totalSec={activeSession.ropeTotalSec || 0} activeStart={activeSession.ropeActiveStart || null} isEnded={!!activeSession.ropeEndedAt} tick={sessionTimer} onPause={pauseRopeSession} onResume={resumeRopeSession} pausedAt={activeSession.ropePausedAt || null} />
-            <div style={{ borderLeft: `3px solid ${W.purpleDark}44`, paddingLeft: 10, marginLeft: 2 }}>
-              {ropeClimbs.map(c => <ActiveClimbCard key={c.id} climb={c} {...cardProps} />)}
-              {selectedTypes.includes("rope") && !activeSession.ropeEndedAt && (
-                <button onClick={() => openClimbForm(null, null, "rope")} style={{ width: "100%", padding: "10px", background: W.purple, border: `2px solid ${W.purpleDark}`, borderRadius: 12, color: W.purpleDark, fontWeight: 700, fontSize: 13, cursor: "pointer", marginTop: 2 }}>+ New Rope Climb</button>
-              )}
-            </div>
+            <BoulderRopeSessionCard type="rope" totalSec={activeSession.ropeTotalSec || 0} activeStart={activeSession.ropeActiveStart || null} isEnded={!!activeSession.ropeEndedAt} tick={sessionTimer} onPause={pauseRopeSession} onResume={resumeRopeSession} pausedAt={activeSession.ropePausedAt || null} collapsed={collapsedSections.rope} onToggleCollapse={() => setCollapsedSections(s => ({ ...s, rope: !s.rope }))} />
+            {!collapsedSections.rope && (
+              <div style={{ borderLeft: `3px solid ${W.purpleDark}44`, paddingLeft: 10, marginLeft: 2 }}>
+                {ropeClimbs.map(c => <ActiveClimbCard key={c.id} climb={c} {...cardProps} />)}
+                {selectedTypes.includes("rope") && !activeSession.ropeEndedAt && (
+                  <button onClick={() => openClimbForm(null, null, "rope")} style={{ width: "100%", padding: "10px", background: W.purple, border: `2px solid ${W.purpleDark}`, borderRadius: 12, color: W.purpleDark, fontWeight: 700, fontSize: 13, cursor: "pointer", marginTop: 2 }}>+ New Rope Climb</button>
+                )}
+              </div>
+            )}
           </div>
         )}
 
@@ -2606,7 +2638,7 @@ export default function App() {
                     <span style={{ fontWeight: 700, color: getGradeColor(p.grade), fontSize: 15 }}>{p.grade}</span>
                     <span style={{ color: W.text, fontSize: 14, fontWeight: 600, marginLeft: 8 }}>{p.name}</span>
                   </div>
-                  <button onClick={() => { const nc = { id: Date.now(), name: p.name, grade: p.grade, scale: p.scale, isProject: true, comments: p.comments || "", photo: null, projectId: p.id, tries: 0, completed: false, color: null, wallTypes: [], holdTypes: [] }; setActiveSession(s => ({ ...s, climbs: [...s.climbs, nc] })); setShowProjectPicker(false); }} style={{ background: W.pink, border: "none", borderRadius: 8, color: W.pinkDark, padding: "6px 12px", fontWeight: 700, fontSize: 12, cursor: "pointer" }}>Add</button>
+                  <button onClick={() => { const nc = { id: Date.now(), name: p.name, grade: p.grade, scale: p.scale, climbType: p.climbType || "boulder", isProject: true, comments: p.comments || "", photo: null, projectId: p.id, tries: 0, completed: false, color: null, wallTypes: [], holdTypes: [] }; setActiveSession(s => { const now = Date.now(); const tu = {}; if (nc.climbType === "boulder" && !s.boulderStartedAt) { tu.boulderStartedAt = now; tu.boulderTotalSec = 0; } if (nc.climbType === "rope" && !s.ropeStartedAt) { tu.ropeStartedAt = now; tu.ropeTotalSec = 0; } return { ...s, ...tu, climbs: [...s.climbs, nc] }; }); setShowProjectPicker(false); }} style={{ background: W.pink, border: "none", borderRadius: 8, color: W.pinkDark, padding: "6px 12px", fontWeight: 700, fontSize: 12, cursor: "pointer" }}>Add</button>
                 </div>
               ))}
             <button onClick={() => setShowProjectPicker(false)} style={{ width: "100%", marginTop: 8, padding: "10px", background: "transparent", border: `1px solid ${W.border}`, borderRadius: 10, color: W.textMuted, cursor: "pointer" }}>Cancel</button>
@@ -3686,49 +3718,67 @@ export default function App() {
           </div>
         )}
 
-        {profileTab === "projects" && (
-          <div>
-            <div style={{ fontSize: 12, fontWeight: 700, color: W.textMuted, textTransform: "uppercase", letterSpacing: 1, marginBottom: 10 }}>Active Projects <span style={{ background: W.pink, color: W.pinkDark, borderRadius: 10, padding: "1px 8px", fontSize: 11 }}>{activeProjects.length}</span></div>
-            {activeProjects.length === 0 ? <div style={{ color: W.textDim, fontSize: 13, marginBottom: 20, padding: "12px", background: W.surface, borderRadius: 12, border: `1px solid ${W.border}` }}>No active projects.</div>
-              : activeProjects.map(p => (
-                <div key={p.id} onClick={() => { setSelectedProject(p); setScreen("projectDetail"); }} style={{ background: W.pink, borderRadius: 16, padding: "14px 16px", marginBottom: 10, border: `1px solid ${W.pinkDark}30`, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                  <div>
-                    <div style={{ fontWeight: 800, fontSize: 15, color: W.text }}>{p.name || p.grade}</div>
-                    <div style={{ display: "flex", gap: 6, alignItems: "center", marginTop: 3 }}><span style={{ fontWeight: 700, fontSize: 13, color: getGradeColor(p.grade) }}>{p.grade}</span><span style={{ color: W.textMuted, fontSize: 12 }}>{resolveScaleName(p.scale)}</span></div>
-                    <div style={{ display: "flex", gap: 6, marginTop: 6 }}>
-                      <span style={{ background: "rgba(255,255,255,0.6)", borderRadius: 7, padding: "2px 9px", fontSize: 11, fontWeight: 700, color: W.pinkDark }}>🔁 {getProjectTotalTries(p.id)} tries</span>
-                    </div>
-                  </div>
-                  <div style={{ color: W.pinkDark, fontSize: 20 }}>›</div>
-                </div>
-              ))}
-            {completedProjects.length > 0 && (
-              <>
-                <div style={{ fontSize: 12, fontWeight: 700, color: W.textMuted, textTransform: "uppercase", letterSpacing: 1, marginBottom: 10, marginTop: 22 }}>✓ Sent! <span style={{ background: W.green, color: W.greenDark, borderRadius: 10, padding: "1px 8px", fontSize: 11 }}>{completedProjects.length}</span></div>
-                {completedProjects.map(p => (
-                  <div key={p.id} onClick={() => { setSelectedProject(p); setScreen("projectDetail"); }} style={{ background: W.green, borderRadius: 16, padding: "14px 16px", marginBottom: 10, border: `1px solid ${W.greenDark}30`, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+        {profileTab === "projects" && (() => {
+          const ropeScaleKeys = Object.keys(ROPE_GRADES);
+          const inferType = p => p.climbType || (ropeScaleKeys.includes(p.scale) ? "rope" : "boulder");
+          const filterFn = p => projectTypeFilter === "all" || inferType(p) === projectTypeFilter;
+          const filteredActive    = activeProjects.filter(filterFn);
+          const filteredCompleted = completedProjects.filter(filterFn);
+          const filteredRetired   = retiredProjects.filter(filterFn);
+          return (
+            <div>
+              <div style={{ display: "flex", gap: 6, marginBottom: 14, flexWrap: "wrap" }}>
+                {[["all","All"],["boulder","🪨 Boulder"],["rope","🪢 Rope"]].map(([val, label]) => (
+                  <button key={val} onClick={() => setProjectTypeFilter(val)} style={{ padding: "5px 12px", borderRadius: 20, border: `1px solid ${projectTypeFilter === val ? W.accent : W.border}`, background: projectTypeFilter === val ? W.accent + "22" : W.surface2, color: projectTypeFilter === val ? W.accent : W.textMuted, fontWeight: 700, fontSize: 12, cursor: "pointer" }}>{label}</button>
+                ))}
+              </div>
+              <div style={{ fontSize: 12, fontWeight: 700, color: W.textMuted, textTransform: "uppercase", letterSpacing: 1, marginBottom: 10 }}>Active Projects <span style={{ background: W.pink, color: W.pinkDark, borderRadius: 10, padding: "1px 8px", fontSize: 11 }}>{filteredActive.length}</span></div>
+              {filteredActive.length === 0
+                ? <div style={{ color: W.textDim, fontSize: 13, marginBottom: 20, padding: "12px", background: W.surface, borderRadius: 12, border: `1px solid ${W.border}` }}>No active projects.</div>
+                : filteredActive.map(p => (
+                  <div key={p.id} onClick={() => { setSelectedProject(p); setScreen("projectDetail"); }} style={{ background: W.pink, borderRadius: 16, padding: "14px 16px", marginBottom: 10, border: `1px solid ${W.pinkDark}30`, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
                     <div>
-                      <div style={{ display: "flex", alignItems: "center", gap: 8 }}><div style={{ fontWeight: 800, fontSize: 15, color: W.text }}>{p.name || p.grade}</div><span style={{ background: W.greenDark, color: "#fff", borderRadius: 6, padding: "1px 8px", fontSize: 10, fontWeight: 700 }}>SENT</span></div>
-                      <div style={{ display: "flex", gap: 6, alignItems: "center", marginTop: 3 }}><span style={{ fontWeight: 700, fontSize: 13, color: getGradeColor(p.grade) }}>{p.grade}</span></div>
+                      <div style={{ fontWeight: 800, fontSize: 15, color: W.text }}>{p.name || p.grade}</div>
+                      <div style={{ display: "flex", gap: 6, alignItems: "center", marginTop: 3 }}>
+                        <span style={{ fontWeight: 700, fontSize: 13, color: getGradeColor(p.grade) }}>{p.grade}</span>
+                        <span style={{ color: W.textMuted, fontSize: 12 }}>{resolveScaleName(p.scale)}</span>
+                        {inferType(p) === "rope" && <span style={{ background: W.purple, color: W.purpleDark, borderRadius: 6, padding: "1px 6px", fontSize: 10, fontWeight: 700 }}>🪢 Rope</span>}
+                      </div>
+                      <div style={{ display: "flex", gap: 6, marginTop: 6 }}>
+                        <span style={{ background: "rgba(255,255,255,0.6)", borderRadius: 7, padding: "2px 9px", fontSize: 11, fontWeight: 700, color: W.pinkDark }}>🔁 {getProjectTotalTries(p.id)} tries</span>
+                      </div>
                     </div>
-                    <div style={{ color: W.greenDark, fontSize: 20 }}>›</div>
+                    <div style={{ color: W.pinkDark, fontSize: 20 }}>›</div>
                   </div>
                 ))}
-              </>
-            )}
-            {retiredProjects.length > 0 && (
-              <>
-                <div style={{ fontSize: 12, fontWeight: 700, color: W.textMuted, textTransform: "uppercase", letterSpacing: 1, marginBottom: 10, marginTop: 22 }}>🪨 Off The Wall <span style={{ background: W.surface2, color: W.textMuted, borderRadius: 10, padding: "1px 8px", fontSize: 11 }}>{retiredProjects.length}</span></div>
-                {retiredProjects.map(p => (
-                  <div key={p.id} onClick={() => { setSelectedProject(p); setScreen("projectDetail"); }} style={{ background: W.surface2, borderRadius: 16, padding: "14px 16px", marginBottom: 10, border: `1px solid ${W.border}`, cursor: "pointer", opacity: 0.8, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                    <div><div style={{ fontWeight: 700, fontSize: 15, color: W.textMuted }}>{p.name || p.grade}</div><div style={{ fontSize: 12, color: W.textDim, marginTop: 2 }}>{p.grade} · {resolveScaleName(p.scale)}</div></div>
-                    <div style={{ color: W.textDim, fontSize: 20 }}>›</div>
-                  </div>
-                ))}
-              </>
-            )}
-          </div>
-        )}
+              {filteredCompleted.length > 0 && (
+                <>
+                  <div style={{ fontSize: 12, fontWeight: 700, color: W.textMuted, textTransform: "uppercase", letterSpacing: 1, marginBottom: 10, marginTop: 22 }}>✓ Sent! <span style={{ background: W.green, color: W.greenDark, borderRadius: 10, padding: "1px 8px", fontSize: 11 }}>{filteredCompleted.length}</span></div>
+                  {filteredCompleted.map(p => (
+                    <div key={p.id} onClick={() => { setSelectedProject(p); setScreen("projectDetail"); }} style={{ background: W.green, borderRadius: 16, padding: "14px 16px", marginBottom: 10, border: `1px solid ${W.greenDark}30`, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                      <div>
+                        <div style={{ display: "flex", alignItems: "center", gap: 8 }}><div style={{ fontWeight: 800, fontSize: 15, color: W.text }}>{p.name || p.grade}</div><span style={{ background: W.greenDark, color: "#fff", borderRadius: 6, padding: "1px 8px", fontSize: 10, fontWeight: 700 }}>SENT</span></div>
+                        <div style={{ display: "flex", gap: 6, alignItems: "center", marginTop: 3 }}><span style={{ fontWeight: 700, fontSize: 13, color: getGradeColor(p.grade) }}>{p.grade}</span></div>
+                      </div>
+                      <div style={{ color: W.greenDark, fontSize: 20 }}>›</div>
+                    </div>
+                  ))}
+                </>
+              )}
+              {filteredRetired.length > 0 && (
+                <>
+                  <div style={{ fontSize: 12, fontWeight: 700, color: W.textMuted, textTransform: "uppercase", letterSpacing: 1, marginBottom: 10, marginTop: 22 }}>🪨 Off The Wall <span style={{ background: W.surface2, color: W.textMuted, borderRadius: 10, padding: "1px 8px", fontSize: 11 }}>{filteredRetired.length}</span></div>
+                  {filteredRetired.map(p => (
+                    <div key={p.id} onClick={() => { setSelectedProject(p); setScreen("projectDetail"); }} style={{ background: W.surface2, borderRadius: 16, padding: "14px 16px", marginBottom: 10, border: `1px solid ${W.border}`, cursor: "pointer", opacity: 0.8, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                      <div><div style={{ fontWeight: 700, fontSize: 15, color: W.textMuted }}>{p.name || p.grade}</div><div style={{ fontSize: 12, color: W.textDim, marginTop: 2 }}>{p.grade} · {resolveScaleName(p.scale)}</div></div>
+                      <div style={{ color: W.textDim, fontSize: 20 }}>›</div>
+                    </div>
+                  ))}
+                </>
+              )}
+            </div>
+          );
+        })()}
       </div>
     );
   };
@@ -4666,7 +4716,7 @@ export default function App() {
         {navItems.map(item => {
           const isActive = screen === item.id || (item.id === "session" && (screen === "session" || screen === "sessionSummary"));
           return (
-            <button key={item.id} onClick={item.action || (() => setScreen(item.id))} style={{ background: "none", border: "none", display: "flex", flexDirection: "column", alignItems: "center", gap: 1, cursor: "pointer", padding: "4px 18px", borderRadius: 12, background: isActive ? W.accent + "18" : "none", position: "relative" }}>
+            <button key={item.id} onClick={item.action || (() => setScreen(item.id))} style={{ background: isActive ? W.accent + "18" : "none", border: "none", display: "flex", flexDirection: "column", alignItems: "center", gap: 1, cursor: "pointer", padding: "4px 18px", borderRadius: 12, position: "relative" }}>
               <span style={{ fontSize: 18, color: isActive ? W.accent : W.textDim, lineHeight: 1.2 }}>{item.label}</span>
               <span style={{ fontSize: 10, fontWeight: 700, color: isActive ? W.accent : W.textDim, letterSpacing: 0.3 }}>{item.text}</span>
               {item.id === "session" && timerRunning && <div style={{ position: "absolute", top: 3, right: 12, width: 5, height: 5, borderRadius: "50%", background: W.accent }} />}
