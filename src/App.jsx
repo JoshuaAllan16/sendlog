@@ -528,7 +528,7 @@ const BoulderRopeSessionCard = ({ type, totalSec, activeStart, isEnded, tick, on
   );
 };
 
-const ActiveClimbCard = ({ climb, onEdit, onStartClimbing, onEndAttempt, onUpdateTries, onToggleCompleted, onLogRope, onRemove, onLightbox, onPauseClimb, onResumeClimb, tick }) => {
+const ActiveClimbCard = ({ climb, onEdit, onStartClimbing, onEndAttempt, onUpdateTries, onToggleCompleted, onLogRope, onRemove, onLightbox, onPauseClimb, onResumeClimb, onStopClimb, tick }) => {
   const W = useTheme() || THEMES.espresso;
   const [confirmRemove, setConfirmRemove] = useState(false);
   const [showRopeLog, setShowRopeLog] = useState(false);
@@ -642,17 +642,28 @@ const ActiveClimbCard = ({ climb, onEdit, onStartClimbing, onEndAttempt, onUpdat
               </div>
             </div>
           ) : climb.climbingStartedAt ? (
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "8px 14px" }}>
-              <div>
-                <div style={{ fontSize: 9, color: isRope ? W.purpleDark : W.greenDark, textTransform: "uppercase", letterSpacing: 0.8, fontWeight: 700 }}>On Wall</div>
-                <div style={{ fontSize: 20, fontWeight: 900, color: isRope ? W.purpleDark : W.greenDark, fontVariantNumeric: "tabular-nums" }}>
-                  {formatDuration(Math.max(0, Math.floor((Date.now() - climb.climbingStartedAt) / 1000)))}
+            <div>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "8px 14px" }}>
+                <div>
+                  <div style={{ fontSize: 9, color: isRope ? W.purpleDark : W.greenDark, textTransform: "uppercase", letterSpacing: 0.8, fontWeight: 700 }}>On Wall</div>
+                  <div style={{ fontSize: 20, fontWeight: 900, color: isRope ? W.purpleDark : W.greenDark, fontVariantNumeric: "tabular-nums" }}>
+                    {formatDuration(Math.max(0, Math.floor((Date.now() - climb.climbingStartedAt) / 1000)))}
+                  </div>
                 </div>
+                {isRope
+                  ? <button onClick={handleDone} style={{ padding: "8px 16px", background: W.purple, border: `2px solid ${W.purpleDark}`, borderRadius: 10, color: W.purpleDark, fontWeight: 700, fontSize: 13, cursor: "pointer" }}>Done</button>
+                  : <button onClick={() => onStopClimb(climb.id)} style={{ padding: "6px 12px", background: W.surface, border: `1px solid ${W.border}`, borderRadius: 9, color: W.textMuted, fontWeight: 700, fontSize: 12, cursor: "pointer" }}>✕ Stop</button>
+                }
               </div>
-              {isRope
-                ? <button onClick={handleDone} style={{ padding: "8px 16px", background: W.purple, border: `2px solid ${W.purpleDark}`, borderRadius: 10, color: W.purpleDark, fontWeight: 700, fontSize: 13, cursor: "pointer" }}>Done</button>
-                : <div style={{ fontSize: 10, color: W.greenDark, opacity: 0.7 }}>Log a fall or mark sent to stop</div>
-              }
+              {!isRope && (climb.fallLog || []).length > 0 && (
+                <div style={{ padding: "0 14px 8px", display: "flex", gap: 5, flexWrap: "wrap" }}>
+                  {climb.fallLog.map((f, i) => (
+                    <span key={i} style={{ fontSize: 10, color: W.textDim, background: W.surface, borderRadius: 6, padding: "2px 7px", border: `1px solid ${W.border}` }}>
+                      F{i + 1} +{formatDuration(Math.floor(f.intervalMs / 1000))}
+                    </span>
+                  ))}
+                </div>
+              )}
             </div>
           ) : climb.paused ? (
             <div style={{ display: "flex", alignItems: "center", padding: "10px 14px", gap: 10 }}>
@@ -1250,13 +1261,17 @@ export default function App() {
     }
     // Start this type's active timer only if not already running (keep it continuous between attempts)
     if (!s[`${type}ActiveStart`]) updates[`${type}ActiveStart`] = now;
-    // Clear rest timers on all other climbs so only one is "active"
+    // Stop any other active climb timer; clear rest timers on others
     return {
       ...s, ...updates,
       climbs: s.climbs.map(c =>
         c.id === climbId
           ? { ...c, climbingStartedAt: now }
-          : (c.lastAttemptEndedAt && !c.completed ? { ...c, lastAttemptEndedAt: null } : c)
+          : c.climbingStartedAt && !c.completed
+            ? { ...c, climbingStartedAt: null, lastAttemptEndedAt: now }
+            : c.lastAttemptEndedAt && !c.completed
+              ? { ...c, lastAttemptEndedAt: null }
+              : c
       ),
     };
   });
@@ -1297,6 +1312,19 @@ export default function App() {
     ...s,
     climbs: s.climbs.map(c => c.id === id ? { ...c, paused: false } : c),
   }));
+  // Stops the boulder climb timer without marking as sent (gave up / moving on)
+  const stopBoulderClimb = (id) => setActiveSession(s => {
+    const climb = s.climbs.find(c => c.id === id);
+    if (!climb || !climb.climbingStartedAt) return s;
+    const now = Date.now();
+    const duration = now - climb.climbingStartedAt;
+    return {
+      ...s,
+      climbs: s.climbs.map(c => c.id === id
+        ? { ...c, climbingStartedAt: null, lastAttemptEndedAt: now, attemptLog: [...(c.attemptLog || []), { startedAt: c.climbingStartedAt, duration, falls: c.tries }] }
+        : c),
+    };
+  });
   const endSession = () => {
     if (!activeSession) return;
     const now = Date.now();
@@ -1334,41 +1362,31 @@ export default function App() {
     const climb = s.climbs.find(c => c.id === id);
     if (!climb) return s;
     const newTries = Math.max(0, climb.tries + delta);
-    const typeUpdates = {};
     let climbUpdates = { tries: newTries };
     if (delta > 0 && climb.climbingStartedAt) {
       const now = Date.now();
-      const duration = now - climb.climbingStartedAt;
-      climbUpdates = { ...climbUpdates, climbingStartedAt: null, lastAttemptEndedAt: now, attemptLog: [...(climb.attemptLog || []), { startedAt: climb.climbingStartedAt, duration }] };
-      const type = climb.climbType === "rope" ? "rope" : "boulder";
-      const activeStart = s[`${type}ActiveStart`];
-      if (activeStart) {
-        const elapsed = Math.max(0, Math.floor((now - activeStart) / 1000));
-        typeUpdates[`${type}TotalSec`] = (s[`${type}TotalSec`] || 0) + elapsed;
-        typeUpdates[`${type}ActiveStart`] = null;
-      }
+      // Boulder: record fall interval, keep timer and boulder section timer running
+      const lastFallAt = (climb.fallLog || []).length > 0
+        ? climb.fallLog[climb.fallLog.length - 1].at
+        : climb.climbingStartedAt;
+      climbUpdates = { ...climbUpdates, fallLog: [...(climb.fallLog || []), { at: now, intervalMs: now - lastFallAt }] };
+      // climbingStartedAt stays set — timer keeps running
     }
-    return { ...s, ...typeUpdates, climbs: s.climbs.map(c => c.id === id ? { ...c, ...climbUpdates } : c) };
+    return { ...s, climbs: s.climbs.map(c => c.id === id ? { ...c, ...climbUpdates } : c) };
   });
   const toggleActiveClimbCompleted = (id) => setActiveSession(s => {
     const climb = s.climbs.find(c => c.id === id);
     if (!climb) return s;
     const newCompleted = !climb.completed;
-    const typeUpdates = {};
     let climbUpdates = { completed: newCompleted };
     if (newCompleted && climb.climbingStartedAt) {
       const now = Date.now();
       const duration = now - climb.climbingStartedAt;
-      climbUpdates = { ...climbUpdates, climbingStartedAt: null, lastAttemptEndedAt: now, attemptLog: [...(climb.attemptLog || []), { startedAt: climb.climbingStartedAt, duration }] };
-      const type = climb.climbType === "rope" ? "rope" : "boulder";
-      const activeStart = s[`${type}ActiveStart`];
-      if (activeStart) {
-        const elapsed = Math.max(0, Math.floor((now - activeStart) / 1000));
-        typeUpdates[`${type}TotalSec`] = (s[`${type}TotalSec`] || 0) + elapsed;
-        typeUpdates[`${type}ActiveStart`] = null;
-      }
+      climbUpdates = { ...climbUpdates, climbingStartedAt: null, sentAt: now,
+        attemptLog: [...(climb.attemptLog || []), { startedAt: climb.climbingStartedAt, duration }] };
+      // Boulder section timer keeps running — don't flush it here
     }
-    return { ...s, ...typeUpdates, climbs: s.climbs.map(c => c.id === id ? { ...c, ...climbUpdates } : c) };
+    return { ...s, climbs: s.climbs.map(c => c.id === id ? { ...c, ...climbUpdates } : c) };
   });
   const removeClimbFromActive      = (id) => setActiveSession(s => ({ ...s, climbs: s.climbs.filter(c => c.id !== id) }));
   const removeClimbFromSession     = (sessionId, climbId) => {
@@ -2458,7 +2476,7 @@ export default function App() {
       onEdit: openClimbForm, onStartClimbing: startClimbing, onEndAttempt: endClimbAttempt,
       onUpdateTries: updateActiveClimbTries, onToggleCompleted: toggleActiveClimbCompleted,
       onLogRope: logRopeAttempt, onRemove: removeClimbFromActive, onLightbox: setLightboxPhoto,
-      onPauseClimb: pauseClimb, onResumeClimb: resumeClimb,
+      onPauseClimb: pauseClimb, onResumeClimb: resumeClimb, onStopClimb: stopBoulderClimb,
       tick: sessionTimer,
     };
     return (
@@ -3211,6 +3229,57 @@ export default function App() {
             {/* ══ OVERALL ══════════════════════════════════════════ */}
             {statsCategory === "overall" && (
               <div>
+                {/* Streak counter */}
+                {(() => {
+                  const dayKeys = new Set(sessions.map(s => s.date.slice(0, 10)));
+                  const weekKey = (d) => { const dt = new Date(d); dt.setHours(0,0,0,0); dt.setDate(dt.getDate() - dt.getDay()); return dt.toISOString().slice(0, 10); };
+                  const weekKeys = new Set([...dayKeys].map(weekKey));
+                  // Current streak: count consecutive weeks back from current week
+                  let streak = 0, best = 0, cur = 0;
+                  const nowWk = weekKey(new Date());
+                  const dt = new Date(); dt.setHours(0,0,0,0); dt.setDate(dt.getDate() - dt.getDay());
+                  for (let i = 0; i < 260; i++) {
+                    const k = dt.toISOString().slice(0, 10);
+                    if (weekKeys.has(k)) { cur++; best = Math.max(best, cur); if (i === 0 || weekKeys.has(k)) streak = cur; }
+                    else { if (i === 0) { streak = 0; } else break; }
+                    dt.setDate(dt.getDate() - 7);
+                  }
+                  // Recalculate streak properly
+                  const allWeeks = [...weekKeys].sort((a,b)=>b.localeCompare(a));
+                  streak = 0; cur = 0;
+                  let expectedWk = new Date(); expectedWk.setHours(0,0,0,0); expectedWk.setDate(expectedWk.getDate() - expectedWk.getDay());
+                  for (let i = 0; i < 260; i++) {
+                    const k = expectedWk.toISOString().slice(0, 10);
+                    if (weekKeys.has(k)) { streak++; expectedWk.setDate(expectedWk.getDate() - 7); }
+                    else if (i === 0) { expectedWk.setDate(expectedWk.getDate() - 7); continue; }
+                    else break;
+                  }
+                  // Best streak
+                  const sortedWks = [...weekKeys].sort();
+                  let bestStreak = 0, runStreak = 0, prevWk = null;
+                  for (const wk of sortedWks) {
+                    if (!prevWk) { runStreak = 1; }
+                    else { const prev = new Date(prevWk); prev.setDate(prev.getDate() + 7); runStreak = prev.toISOString().slice(0,10) === wk ? runStreak + 1 : 1; }
+                    bestStreak = Math.max(bestStreak, runStreak); prevWk = wk;
+                  }
+                  if (streak === 0 && sessions.length === 0) return null;
+                  return (
+                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 14 }}>
+                      <div style={{ background: streak > 0 ? W.accent + "18" : W.surface2, border: `1px solid ${streak > 0 ? W.accent : W.border}`, borderRadius: 14, padding: "12px 14px" }}>
+                        <div style={{ fontSize: 22 }}>🔥</div>
+                        <div style={{ fontSize: 22, fontWeight: 900, color: streak > 0 ? W.accent : W.textDim }}>{streak}w</div>
+                        <div style={{ fontSize: 12, fontWeight: 700, color: W.text }}>Current Streak</div>
+                        <div style={{ fontSize: 11, color: W.textMuted }}>{streak === 0 ? "No sessions this week" : `${streak} week${streak !== 1 ? "s" : ""} in a row`}</div>
+                      </div>
+                      <div style={{ background: W.surface2, border: `1px solid ${W.border}`, borderRadius: 14, padding: "12px 14px" }}>
+                        <div style={{ fontSize: 22 }}>🏅</div>
+                        <div style={{ fontSize: 22, fontWeight: 900, color: W.goldLight || W.accent }}>{bestStreak}w</div>
+                        <div style={{ fontSize: 12, fontWeight: 700, color: W.text }}>Best Streak</div>
+                        <div style={{ fontSize: 11, color: W.textMuted }}>{bestStreak} week{bestStreak !== 1 ? "s" : ""} personal best</div>
+                      </div>
+                    </div>
+                  );
+                })()}
                 {!statsShowCalendar ? renderChart(chartBuckets) : (
                   <div style={{ background: W.surface, borderRadius: 16, border: `1px solid ${W.border}`, marginBottom: 10, overflow: "hidden" }}>{CalendarScreen()}</div>
                 )}
@@ -3856,6 +3925,28 @@ export default function App() {
             ))}
           </div>
         )}
+        {/* Share session */}
+        {(() => {
+          const fmtDuration = (s) => { const h = Math.floor(s / 3600); const m = Math.floor((s % 3600) / 60); return h > 0 ? `${h}h ${m}m` : `${m}m`; };
+          const allClimbs = session.climbs.filter(c => c.climbType !== "speed-session");
+          const sends = allClimbs.filter(c => c.completed);
+          const text = [
+            `🧗 SendLog Session`,
+            `📍 ${session.location} · ${formatDate(session.date)}`,
+            `⏱ ${fmtDuration(session.duration || 0)}`,
+            `✓ ${sends.length}/${allClimbs.length} sends`,
+            sends.length > 0 ? `Best: ${sends.sort((a, b) => (GRADES[b.scale || "V-Scale"] || []).indexOf(b.grade) - (GRADES[a.scale || "V-Scale"] || []).indexOf(a.grade))[0]?.grade || ""}` : null,
+            ``,
+            sends.map(c => `  · ${c.grade}${c.name ? ` — ${c.name}` : ""}`).join("\n"),
+          ].filter(Boolean).join("\n");
+          const share = async () => {
+            if (navigator.share) { try { await navigator.share({ title: "SendLog Session", text }); return; } catch {} }
+            try { await navigator.clipboard.writeText(text); alert("Session summary copied to clipboard!"); } catch { alert(text); }
+          };
+          return (
+            <button onClick={share} style={{ width: "100%", padding: "13px", background: W.surface2, border: `1px solid ${W.border}`, borderRadius: 14, color: W.textMuted, fontWeight: 700, fontSize: 14, cursor: "pointer", marginBottom: 10 }}>📤 Share Session</button>
+          );
+        })()}
         {leaderboardData && leaderboardData.length > 1 && (() => {
           const ranked = [...leaderboardData].map(e => ({ ...e, totalTime: (e.sessions || []).reduce((t, s) => t + (s.duration || 0), 0) })).sort((a, b) => b.totalTime - a.totalTime);
           const myRank = ranked.findIndex(e => e.isMe) + 1;
@@ -4072,7 +4163,13 @@ export default function App() {
         weekCounts[wk] = (weekCounts[wk] || 0) + 1;
       });
       const bestWeek = Object.values(weekCounts).length > 0 ? Math.max(...Object.values(weekCounts)) : 0;
-      return { ...entry, totalTime, totalClimbs, bestSend, longestSession, bestWeek };
+      const lastSessionDate = sess.length > 0
+        ? sess.reduce((latest, s) => new Date(s.date) > new Date(latest) ? s.date : latest, sess[0].date)
+        : null;
+      const daysSinceLast = lastSessionDate
+        ? Math.floor((Date.now() - new Date(lastSessionDate).getTime()) / 86400000)
+        : null;
+      return { ...entry, totalTime, totalClimbs, bestSend, longestSession, bestWeek, daysSinceLast };
     };
 
     const boards = [
@@ -4141,6 +4238,11 @@ export default function App() {
                       <div style={{ fontSize: 12, color: W.textMuted }}>
                         @{entry.username}{entry.bestSend?.grade ? ` · Best: ${entry.bestSend.grade}` : ""}
                       </div>
+                      {entry.daysSinceLast !== null && (
+                        <div style={{ fontSize: 11, color: W.textDim, marginTop: 1 }}>
+                          {entry.daysSinceLast === 0 ? "Climbed today" : entry.daysSinceLast === 1 ? "Climbed yesterday" : `Last climbed ${entry.daysSinceLast}d ago`}
+                        </div>
+                      )}
                     </div>
                     <div style={{ textAlign: "right", flexShrink: 0 }}>
                       <div style={{ fontWeight: 800, color: W.text, fontSize: 16 }}>{activeBoardCfg.value(entry)}</div>
