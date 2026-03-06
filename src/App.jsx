@@ -259,6 +259,96 @@ const LocationDropdown = ({ value, onChange, open, setOpen, knownLocations, onRe
   );
 };
 
+const SpeedSessionCard = ({ climb, tick, onAddAttempt, onRemove }) => {
+  const W = useTheme() || THEMES.espresso;
+  const [showForm, setShowForm] = useState(false);
+  const [timeInput, setTimeInput] = useState("");
+  const attempts = climb.attempts || [];
+  const lastTs = attempts.length > 0 ? attempts[attempts.length - 1].loggedAt : climb.startedAt;
+  const restSec = Math.max(0, Math.floor((Date.now() - lastTs) / 1000));
+  const validTimes = attempts.filter(a => !a.fell && a.time != null).map(a => a.time);
+  const bestTime = validTimes.length ? Math.min(...validTimes) : null;
+
+  const handleAdd = (fell) => {
+    if (!fell && !timeInput) return;
+    onAddAttempt({ id: Date.now(), time: fell ? null : parseFloat(timeInput), fell, loggedAt: Date.now() });
+    setTimeInput("");
+    setShowForm(false);
+  };
+
+  return (
+    <div style={{ borderRadius: 14, border: `2px solid ${W.yellowDark}55`, marginBottom: 10, overflow: "hidden", background: W.surface }}>
+      {/* Header */}
+      <div style={{ background: W.yellow, padding: "10px 14px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+        <div>
+          <div style={{ fontWeight: 800, color: W.yellowDark, fontSize: 14 }}>⚡ Speed Climb Session</div>
+          {bestTime != null && <div style={{ fontSize: 11, color: W.yellowDark, marginTop: 1 }}>Best this session: {bestTime.toFixed(2)}s</div>}
+        </div>
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <span style={{ fontSize: 11, color: W.yellowDark, fontWeight: 700 }}>{attempts.length} attempt{attempts.length !== 1 ? "s" : ""}</span>
+          <button onClick={onRemove} style={{ background: "none", border: "none", color: W.yellowDark, fontSize: 16, cursor: "pointer", padding: "0 2px", opacity: 0.6 }} title="Remove">×</button>
+        </div>
+      </div>
+
+      {/* Attempts list */}
+      {attempts.length > 0 && (
+        <div style={{ padding: "6px 14px 4px" }}>
+          {attempts.map((a, i) => {
+            const prevTs = i === 0 ? climb.startedAt : attempts[i - 1].loggedAt;
+            const restMs = a.loggedAt - prevTs;
+            const restBefore = Math.floor(restMs / 1000);
+            return (
+              <div key={a.id}>
+                {i > 0 && (
+                  <div style={{ textAlign: "center", fontSize: 10, color: W.textDim, padding: "2px 0" }}>↕ {formatRestSec(restBefore)} rest</div>
+                )}
+                <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 0", borderBottom: i < attempts.length - 1 ? `1px solid ${W.border}` : "none" }}>
+                  <div style={{ width: 22, height: 22, borderRadius: "50%", background: a.fell ? W.red : W.green, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, flexShrink: 0 }}>
+                    <span style={{ color: a.fell ? W.redDark : W.greenDark, fontWeight: 800 }}>{a.fell ? "✗" : "✓"}</span>
+                  </div>
+                  <div style={{ flex: 1, fontWeight: 700, color: a.fell ? W.textDim : W.text, fontSize: 15, fontVariantNumeric: "tabular-nums" }}>
+                    {a.fell ? "Fell" : `${a.time?.toFixed(2)}s`}
+                  </div>
+                  {!a.fell && bestTime != null && a.time === bestTime && (
+                    <div style={{ background: W.yellow, color: W.yellowDark, borderRadius: 6, padding: "1px 8px", fontSize: 10, fontWeight: 800 }}>PB</div>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {/* Rest timer */}
+      <div style={{ textAlign: "center", padding: attempts.length > 0 ? "8px 14px" : "12px 14px", background: W.surface2, borderTop: attempts.length > 0 ? `1px solid ${W.border}` : "none" }}>
+        <div style={{ fontSize: 10, color: W.textDim, textTransform: "uppercase", letterSpacing: 0.8, marginBottom: 2 }}>
+          {attempts.length === 0 ? "Ready to start" : "Resting"}
+        </div>
+        <div style={{ fontSize: 22, fontWeight: 900, color: W.yellowDark, fontVariantNumeric: "tabular-nums", letterSpacing: 1 }}>
+          {formatDuration(restSec)}
+        </div>
+      </div>
+
+      {/* Add attempt form */}
+      {showForm ? (
+        <div style={{ padding: "12px 14px", borderTop: `1px solid ${W.border}` }}>
+          <div style={{ fontSize: 12, fontWeight: 700, color: W.textMuted, marginBottom: 8 }}>Log Attempt</div>
+          <input type="number" min="0" step="0.01" value={timeInput} onChange={e => setTimeInput(e.target.value)} placeholder="Time in seconds (e.g. 14.83)" autoFocus style={{ width: "100%", padding: "10px 12px", background: W.surface, border: `2px solid ${W.accent}`, borderRadius: 10, color: W.text, fontSize: 18, fontWeight: 800, boxSizing: "border-box", marginBottom: 10, fontFamily: "inherit" }} />
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8 }}>
+            <button onClick={() => { setShowForm(false); setTimeInput(""); }} style={{ padding: "10px", background: "transparent", border: `1px solid ${W.border}`, borderRadius: 10, color: W.textMuted, fontWeight: 700, fontSize: 13, cursor: "pointer" }}>Cancel</button>
+            <button onClick={() => handleAdd(true)} style={{ padding: "10px", background: W.red, border: `2px solid ${W.redDark}`, borderRadius: 10, color: W.redDark, fontWeight: 700, fontSize: 13, cursor: "pointer" }}>✗ Fell</button>
+            <button onClick={() => handleAdd(false)} disabled={!timeInput} style={{ padding: "10px", background: timeInput ? W.green : W.surface2, border: `2px solid ${timeInput ? W.greenDark : W.border}`, borderRadius: 10, color: timeInput ? W.greenDark : W.textDim, fontWeight: 700, fontSize: 13, cursor: timeInput ? "pointer" : "default" }}>✓ Log</button>
+          </div>
+        </div>
+      ) : (
+        <div style={{ padding: "10px 14px", borderTop: `1px solid ${W.border}` }}>
+          <button onClick={() => setShowForm(true)} style={{ width: "100%", padding: "10px", background: W.yellow, border: `2px solid ${W.yellowDark}`, borderRadius: 10, color: W.yellowDark, fontWeight: 700, fontSize: 14, cursor: "pointer" }}>+ Add Attempt</button>
+        </div>
+      )}
+    </div>
+  );
+};
+
 export default function App() {
   // ── AUTH STATE ─────────────────────────────────────────────
   const [authScreen, setAuthScreen] = useState("loading"); // loading | login | signup | app
@@ -300,6 +390,8 @@ export default function App() {
   const [lightboxPhoto, setLightboxPhoto]           = useState(null); // { photos:[{src,grade,name,colorId}], idx }
   const [feedPage, setFeedPage]                     = useState(1);
   const [logbookPage, setLogbookPage]               = useState(1);
+  const [sessionTypes, setSessionTypes]             = useState(["boulder"]);
+  const [showMoreClimbTypes, setShowMoreClimbTypes] = useState(false);
   const [colorTheme, setColorTheme]             = useState("espresso");
   const [showEndConfirm, setShowEndConfirm]     = useState(false);
   const [sessionSummary, setSessionSummary]     = useState(null);
@@ -550,8 +642,18 @@ export default function App() {
   const knownLocations = [...new Set([...KNOWN_GYMS, ...sessions.map(s => s.location).filter(Boolean)])].filter(l => !hiddenLocations.includes(l));
   const allGyms = ["All Gyms", ...new Set(sessions.map(s => s.location).filter(Boolean))];
 
-  const goToSessionSetup = () => { setPendingLocation(""); setSessionStarted(false); setActiveSession({ location: "", climbs: [] }); setSessionTimer(0); setScreen("session"); };
-  const beginTimer = () => { setActiveSession(s => ({ ...s, location: pendingLocation })); setSessionStarted(true); setTimerRunning(true); };
+  const goToSessionSetup = () => { setPendingLocation(""); setSessionStarted(false); setActiveSession({ location: "", climbs: [] }); setSessionTimer(0); setShowMoreClimbTypes(false); setScreen("session"); };
+  const beginTimer = () => { setActiveSession(s => ({ ...s, location: pendingLocation, sessionTypes })); setSessionStarted(true); setTimerRunning(true); setShowMoreClimbTypes(false); };
+  const addSpeedSession = () => {
+    const now = Date.now();
+    setActiveSession(s => ({ ...s, climbs: [...s.climbs, { id: now, climbType: "speed-session", name: "Speed Session", attempts: [], startedAt: now, loggedAt: now, tries: 0, completed: false, grade: "⚡", scale: "Speed", wallTypes: [], holdTypes: [] }] }));
+  };
+  const addSpeedAttempt = (climbId, attempt) => {
+    setActiveSession(s => ({ ...s, climbs: s.climbs.map(c => c.id === climbId ? { ...c, attempts: [...(c.attempts || []), attempt] } : c) }));
+  };
+  const removeSpeedSession = (climbId) => {
+    setActiveSession(s => ({ ...s, climbs: s.climbs.filter(c => c.id !== climbId) }));
+  };
   const endSession = () => {
     if (!activeSession) return;
     const completed = { id: Date.now(), date: new Date().toISOString(), duration: sessionTimer, location: activeSession.location || pendingLocation || "Unknown Gym", climbs: activeSession.climbs };
@@ -704,24 +806,27 @@ export default function App() {
   };
 
   const getSessionStats = (session) => {
-    const sends = session.climbs.filter(c => c.completed).length;
-    const total  = session.climbs.length;
-    const totalTries = session.climbs.reduce((s, c) => s + c.tries, 0);
-    const flashes    = session.climbs.filter(c => c.completed && c.tries === 1).length;
+    const climbs = session.climbs.filter(c => c.climbType !== "speed-session");
+    const sends = climbs.filter(c => c.completed).length;
+    const total  = climbs.length;
+    const totalTries = climbs.reduce((s, c) => s + c.tries, 0);
+    const flashes    = climbs.filter(c => c.completed && c.tries === 1).length;
     const flashRate  = total ? Math.round((flashes / total) * 100) : 0;
     const avgTries   = total ? (totalTries / total).toFixed(1) : "0";
     const gradeBreakdown = {};
-    session.climbs.forEach(c => { if (!gradeBreakdown[c.grade]) gradeBreakdown[c.grade] = { completed: 0, attempted: 0, tries: 0, scale: c.scale }; gradeBreakdown[c.grade].attempted++; gradeBreakdown[c.grade].tries += (c.tries || 0); if (c.completed) gradeBreakdown[c.grade].completed++; });
+    climbs.forEach(c => { if (!gradeBreakdown[c.grade]) gradeBreakdown[c.grade] = { completed: 0, attempted: 0, tries: 0, scale: c.scale }; gradeBreakdown[c.grade].attempted++; gradeBreakdown[c.grade].tries += (c.tries || 0); if (c.completed) gradeBreakdown[c.grade].completed++; });
     const sortedByGrade = (arr) => [...arr].sort((a, b) => getGradeIndex(b.grade, b.scale) - getGradeIndex(a.grade, a.scale));
-    const hardestAttempted = session.climbs.length ? sortedByGrade(session.climbs)[0]?.grade : "—";
-    const hardestSent = session.climbs.filter(c => c.completed).length ? sortedByGrade(session.climbs.filter(c => c.completed))[0]?.grade : "—";
-    // Time between attempts (uses loggedAt timestamps)
-    const loggedTimes = session.climbs.map(c => c.loggedAt).filter(t => t).sort((a, b) => a - b);
+    const hardestAttempted = climbs.length ? sortedByGrade(climbs)[0]?.grade : "—";
+    const hardestSent = climbs.filter(c => c.completed).length ? sortedByGrade(climbs.filter(c => c.completed))[0]?.grade : "—";
+    const loggedTimes = climbs.map(c => c.loggedAt).filter(t => t).sort((a, b) => a - b);
     const restGapsSec = loggedTimes.length > 1 ? loggedTimes.slice(1).map((t, i) => (t - loggedTimes[i]) / 1000) : [];
     const avgAttemptRest = restGapsSec.length ? Math.round(restGapsSec.reduce((a, b) => a + b, 0) / restGapsSec.length) : null;
     const maxAttemptRest = restGapsSec.length ? Math.round(Math.max(...restGapsSec)) : null;
     const minAttemptRest = restGapsSec.length ? Math.round(Math.min(...restGapsSec)) : null;
-    return { sends, total, totalTries, flashes, flashRate, avgTries, gradeBreakdown, hardestAttempted, hardestSent, avgAttemptRest, maxAttemptRest, minAttemptRest };
+    const speedSessions = session.climbs.filter(c => c.climbType === "speed-session");
+    const speedAttempts = speedSessions.flatMap(s => s.attempts || []).filter(a => !a.fell && a.time != null);
+    const speedBest = speedAttempts.length ? Math.min(...speedAttempts.map(a => a.time)) : null;
+    return { sends, total, totalTries, flashes, flashRate, avgTries, gradeBreakdown, hardestAttempted, hardestSent, avgAttemptRest, maxAttemptRest, minAttemptRest, speedSessions, speedBest };
   };
 
   // ── SOCIAL HELPERS ─────────────────────────────────────────
@@ -1525,25 +1630,62 @@ export default function App() {
     );
   };
 
-  const SessionSetupScreen = () => (
-    <div style={{ padding: "32px 24px" }}>
-      <div style={{ textAlign: "center", marginBottom: 32 }}>
-        <div style={{ fontSize: 48, marginBottom: 12 }}>🧗</div>
-        <h2 style={{ fontSize: 24, fontWeight: 900, color: W.text, margin: "0 0 8px" }}>Start a Session</h2>
-        <p style={{ color: W.textMuted, fontSize: 14, margin: 0 }}>Set your location, then start climbing.</p>
+  const SessionSetupScreen = () => {
+    const toggleType = (t) => setSessionTypes(prev => prev.includes(t) ? (prev.length > 1 ? prev.filter(x => x !== t) : prev) : [...prev, t]);
+    const typeOptions = [
+      { id: "boulder", label: "🪨 Bouldering", desc: "Problems, grades, send tracking" },
+      { id: "rope",    label: "🪢 Rope Climbing", desc: "Sport, trad, top-rope, lead" },
+      { id: "speed",   label: "⚡ Speed Climbing", desc: "Timed attempts, rest tracking" },
+    ];
+    return (
+      <div style={{ padding: "32px 24px" }}>
+        <div style={{ textAlign: "center", marginBottom: 32 }}>
+          <div style={{ fontSize: 48, marginBottom: 12 }}>🧗</div>
+          <h2 style={{ fontSize: 24, fontWeight: 900, color: W.text, margin: "0 0 8px" }}>Start a Session</h2>
+          <p style={{ color: W.textMuted, fontSize: 14, margin: 0 }}>Set your location, then start climbing.</p>
+        </div>
+        <div style={{ background: W.surface, borderRadius: 18, padding: "20px", border: `1px solid ${W.border}`, marginBottom: 16 }}>
+          <Label>Gym / Location</Label>
+          <LocationDropdown value={pendingLocation} onChange={setPendingLocation} open={locationDropdownOpen} setOpen={setLocationDropdownOpen} knownLocations={knownLocations} onRemove={loc => setHiddenLocations(h => [...h, loc])} />
+        </div>
+        <div style={{ background: W.surface, borderRadius: 18, padding: "20px", border: `1px solid ${W.border}`, marginBottom: 24 }}>
+          <div style={{ fontSize: 12, fontWeight: 700, color: W.textMuted, textTransform: "uppercase", letterSpacing: 1, marginBottom: 12 }}>What will this session mostly involve? (select all that apply)</div>
+          {typeOptions.map(opt => {
+            const sel = sessionTypes.includes(opt.id);
+            return (
+              <button key={opt.id} onClick={() => toggleType(opt.id)} style={{ display: "flex", alignItems: "center", width: "100%", background: sel ? W.accent + "18" : W.surface2, border: `2px solid ${sel ? W.accent : W.border}`, borderRadius: 12, padding: "12px 14px", marginBottom: 8, cursor: "pointer", textAlign: "left", gap: 12 }}>
+                <div style={{ width: 20, height: 20, borderRadius: "50%", border: `2px solid ${sel ? W.accent : W.border}`, background: sel ? W.accent : "transparent", flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                  {sel && <div style={{ width: 8, height: 8, borderRadius: "50%", background: "#fff" }} />}
+                </div>
+                <div>
+                  <div style={{ fontWeight: 700, color: sel ? W.accent : W.text, fontSize: 14 }}>{opt.label}</div>
+                  <div style={{ fontSize: 11, color: W.textDim, marginTop: 1 }}>{opt.desc}</div>
+                </div>
+              </button>
+            );
+          })}
+        </div>
+        <button onClick={beginTimer} style={{ width: "100%", padding: "18px", background: `linear-gradient(135deg, ${W.accent}, ${W.accentDark})`, border: "none", borderRadius: 16, color: "#fff", fontSize: 17, fontWeight: 800, cursor: "pointer", boxShadow: `0 6px 24px ${W.accentGlow}`, marginBottom: 12 }}>▶ Start Climbing</button>
+        <button onClick={() => setScreen("home")} style={{ width: "100%", padding: "13px", background: "transparent", border: `1px solid ${W.border}`, borderRadius: 14, color: W.textMuted, fontSize: 14, fontWeight: 600, cursor: "pointer" }}>Cancel</button>
       </div>
-      <div style={{ background: W.surface, borderRadius: 18, padding: "20px", border: `1px solid ${W.border}`, marginBottom: 24 }}>
-        <Label>Gym / Location</Label>
-        <LocationDropdown value={pendingLocation} onChange={setPendingLocation} open={locationDropdownOpen} setOpen={setLocationDropdownOpen} knownLocations={knownLocations} onRemove={loc => setHiddenLocations(h => [...h, loc])} />
-      </div>
-      <button onClick={beginTimer} style={{ width: "100%", padding: "18px", background: `linear-gradient(135deg, ${W.accent}, ${W.accentDark})`, border: "none", borderRadius: 16, color: "#fff", fontSize: 17, fontWeight: 800, cursor: "pointer", boxShadow: `0 6px 24px ${W.accentGlow}`, marginBottom: 12 }}>▶ Start Climbing</button>
-      <button onClick={() => setScreen("home")} style={{ width: "100%", padding: "13px", background: "transparent", border: `1px solid ${W.border}`, borderRadius: 14, color: W.textMuted, fontSize: 14, fontWeight: 600, cursor: "pointer" }}>Cancel</button>
-    </div>
-  );
+    );
+  };
 
   const SessionActiveScreen = () => {
-    const unclimbed = activeSession?.climbs?.filter(c => c.tries === 0 && !c.completed) || [];
-    const attempted  = activeSession?.climbs?.filter(c => c.tries > 0 || c.completed) || [];
+    const selectedTypes = activeSession?.sessionTypes || ["boulder"];
+    const allTypeButtons = [
+      { type: "boulder", label: "🪨 New Boulder",        bg: W.green,  border: W.greenDark,  color: W.greenDark,  onClick: () => openClimbForm(null, null, "boulder") },
+      { type: "rope",    label: "🪢 New Rope Climb",     bg: W.purple, border: W.purpleDark, color: W.purpleDark, onClick: () => openClimbForm(null, null, "rope") },
+      { type: "speed",   label: "⚡ Speed Climb Session", bg: W.yellow, border: W.yellowDark, color: W.yellowDark, onClick: addSpeedSession },
+    ];
+    const primaryBtns   = allTypeButtons.filter(b => selectedTypes.includes(b.type));
+    const secondaryBtns = allTypeButtons.filter(b => !selectedTypes.includes(b.type));
+    const allClimbs = activeSession?.climbs || [];
+    const speedSessions = allClimbs.filter(c => c.climbType === "speed-session");
+    const unclimbed = allClimbs.filter(c => c.climbType !== "speed-session" && c.tries === 0 && !c.completed);
+    const attempted  = allClimbs.filter(c => c.climbType !== "speed-session" && (c.tries > 0 || c.completed));
+    const regularSends = allClimbs.filter(c => c.climbType !== "speed-session" && c.completed).length;
+    const regularTotal = allClimbs.filter(c => c.climbType !== "speed-session").length;
     return (
       <div style={{ padding: "20px" }}>
         <div style={{ background: `linear-gradient(135deg, ${W.accent}, ${W.accentDark})`, borderRadius: 16, padding: "16px 20px", marginBottom: 20, display: "flex", justifyContent: "space-between", alignItems: "center", boxShadow: `0 4px 16px ${W.accentGlow}` }}>
@@ -1553,7 +1695,7 @@ export default function App() {
             {activeSession?.location && <div style={{ color: "rgba(255,255,255,0.8)", fontSize: 12, marginTop: 2 }}>📍 {activeSession.location}</div>}
           </div>
           <div style={{ textAlign: "right" }}>
-            <div style={{ color: "rgba(255,255,255,0.75)", fontSize: 12, marginBottom: 4 }}>{activeSession?.climbs?.filter(c => c.completed).length || 0}/{activeSession?.climbs?.length || 0} sent</div>
+            <div style={{ color: "rgba(255,255,255,0.75)", fontSize: 12, marginBottom: 4 }}>{regularSends}/{regularTotal} sent</div>
             <button onClick={() => setTimerRunning(r => !r)} style={{ background: "rgba(255,255,255,0.2)", border: "none", borderRadius: 8, color: "#fff", padding: "6px 12px", cursor: "pointer", fontWeight: 700, fontSize: 12 }}>{timerRunning ? "⏸ Pause" : "▶ Resume"}</button>
           </div>
         </div>
@@ -1562,6 +1704,9 @@ export default function App() {
           <LocationDropdown value={activeSession?.location || ""} onChange={v => setActiveSession(s => ({ ...s, location: v }))} open={activeLocationDropdownOpen} setOpen={setActiveLocationDropdownOpen} knownLocations={knownLocations} onRemove={loc => setHiddenLocations(h => [...h, loc])} />
         </div>
         {showClimbForm && ClimbFormPanel({ isActiveSession: true, onSave: saveClimbToActiveSession, onCancel: () => { setShowClimbForm(false); setPhotoPreview(null); setEditingClimbId(null); } })}
+        {!showClimbForm && !showProjectPicker && speedSessions.length > 0 && (
+          <>{speedSessions.map(c => <SpeedSessionCard key={c.id} climb={c} tick={sessionTimer} onAddAttempt={a => addSpeedAttempt(c.id, a)} onRemove={() => removeSpeedSession(c.id)} />)}</>
+        )}
         {!showClimbForm && !showProjectPicker && attempted.length > 0 && (
           <><Label>Climbs This Session</Label>{attempted.map(c => <ActiveClimbCard key={c.id} climb={c} />)}</>
         )}
@@ -1589,10 +1734,16 @@ export default function App() {
         )}
         {!showClimbForm && !showProjectPicker && (
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 12, marginTop: 8 }}>
-            <button onClick={() => openClimbForm(null, null, "boulder")} style={{ padding: "13px", background: W.green, border: `2px solid ${W.greenDark}`, borderRadius: 14, color: W.greenDark, fontWeight: 700, fontSize: 14, cursor: "pointer" }}>🪨 New Boulder</button>
-            <button onClick={() => setShowProjectPicker(true)} style={{ padding: "13px", background: W.pink, border: `2px solid ${W.pinkDark}`, borderRadius: 14, color: W.pinkDark, fontWeight: 700, fontSize: 14, cursor: "pointer" }}>🎯 Log Project</button>
-            <button onClick={() => openClimbForm(null, null, "rope")} style={{ padding: "13px", background: W.purple, border: `2px solid ${W.purpleDark}`, borderRadius: 14, color: W.purpleDark, fontWeight: 700, fontSize: 14, cursor: "pointer" }}>🪢 New Rope Climb</button>
-            <button onClick={() => openClimbForm(null, null, "speed")} style={{ padding: "13px", background: W.yellow, border: `2px solid ${W.yellowDark}`, borderRadius: 14, color: W.yellowDark, fontWeight: 700, fontSize: 14, cursor: "pointer" }}>⏱ New Speed Climb</button>
+            {primaryBtns.map(b => (
+              <button key={b.type} onClick={b.onClick} style={{ padding: "13px", background: b.bg, border: `2px solid ${b.border}`, borderRadius: 14, color: b.color, fontWeight: 700, fontSize: 13, cursor: "pointer" }}>{b.label}</button>
+            ))}
+            <button onClick={() => setShowProjectPicker(true)} style={{ padding: "13px", background: W.pink, border: `2px solid ${W.pinkDark}`, borderRadius: 14, color: W.pinkDark, fontWeight: 700, fontSize: 13, cursor: "pointer" }}>🎯 Log Project</button>
+            {secondaryBtns.length > 0 && (
+              <button onClick={() => setShowMoreClimbTypes(v => !v)} style={{ padding: "13px", background: W.surface2, border: `2px solid ${W.border}`, borderRadius: 14, color: W.textMuted, fontWeight: 700, fontSize: 13, cursor: "pointer" }}>{showMoreClimbTypes ? "▲ Less" : "▼ See More"}</button>
+            )}
+            {showMoreClimbTypes && secondaryBtns.map(b => (
+              <button key={b.type} onClick={b.onClick} style={{ padding: "13px", background: b.bg, border: `2px solid ${b.border}`, borderRadius: 14, color: b.color, fontWeight: 700, fontSize: 13, cursor: "pointer", opacity: 0.85 }}>{b.label}</button>
+            ))}
           </div>
         )}
         {!showClimbForm && !showProjectPicker && (
@@ -1608,7 +1759,7 @@ export default function App() {
                   <div style={{ color: "#fff", fontSize: 42, fontWeight: 900, letterSpacing: 3, lineHeight: 1 }}>{formatDuration(sessionTimer)}</div>
                 </div>
                 <div style={{ fontSize: 13, color: W.textMuted }}>
-                  {activeSession?.climbs?.filter(c => c.completed).length || 0} sends · {activeSession?.climbs?.length || 0} climbs logged
+                  {regularSends} sends · {regularTotal} climbs · {speedSessions.length > 0 ? `${speedSessions.reduce((t, s) => t + (s.attempts||[]).length, 0)} speed attempts` : ""}
                 </div>
               </div>
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
@@ -3003,7 +3154,21 @@ export default function App() {
         const total = lightboxPhoto.photos.length;
         const colorHex = CLIMB_COLORS.find(cc => cc.id === photo.colorId)?.hex;
         return (
-          <div onClick={() => setLightboxPhoto(null)} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.92)", zIndex: 300, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "20px 56px" }}>
+          <div
+            onClick={() => setLightboxPhoto(null)}
+            onTouchStart={e => { const t = e.touches[0]; e.currentTarget._swipeX = t.clientX; }}
+            onTouchEnd={e => {
+              const dx = e.changedTouches[0].clientX - (e.currentTarget._swipeX || 0);
+              if (Math.abs(dx) > 50) {
+                e.stopPropagation();
+                setLightboxPhoto(p => {
+                  if (dx < 0 && p.idx < p.photos.length - 1) return { ...p, idx: p.idx + 1 };
+                  if (dx > 0 && p.idx > 0) return { ...p, idx: p.idx - 1 };
+                  return p;
+                });
+              }
+            }}
+            style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.92)", zIndex: 300, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "20px 56px" }}>
             <button onClick={() => setLightboxPhoto(null)} style={{ position: "absolute", top: 16, right: 20, background: "rgba(255,255,255,0.15)", border: "none", borderRadius: "50%", width: 36, height: 36, color: "#fff", fontSize: 20, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>×</button>
             {total > 1 && lightboxPhoto.idx > 0 && (
               <button onClick={e => { e.stopPropagation(); setLightboxPhoto(p => ({ ...p, idx: p.idx - 1 })); }} style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", background: "rgba(255,255,255,0.15)", border: "none", borderRadius: "50%", width: 40, height: 40, color: "#fff", fontSize: 20, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>‹</button>
