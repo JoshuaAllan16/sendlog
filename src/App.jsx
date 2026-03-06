@@ -495,12 +495,13 @@ const SpeedSessionCard = ({ climb, tick, index, totalCount, onAddAttempt, onRemo
   );
 };
 
-const BoulderRopeSessionCard = ({ type, totalSec, activeStart, isEnded, tick, onPause, onResume }) => {
+const BoulderRopeSessionCard = ({ type, totalSec, activeStart, isEnded, tick, onPause, onResume, pausedAt }) => {
   const W = useTheme() || THEMES.espresso;
   const liveSec = !isEnded && activeStart
     ? Math.max(0, Math.floor((Date.now() - activeStart) / 1000))
     : 0;
   const displaySec = (totalSec || 0) + liveSec;
+  const pausedForSec = pausedAt ? Math.max(0, Math.floor((Date.now() - pausedAt) / 1000)) : 0;
   const isBoulder = type === "boulder";
   const color     = isBoulder ? W.green  : W.purple;
   const darkColor = isBoulder ? W.greenDark : W.purpleDark;
@@ -519,6 +520,7 @@ const BoulderRopeSessionCard = ({ type, totalSec, activeStart, isEnded, tick, on
           </div>
           <div style={{ fontSize: 30, fontWeight: 900, color: darkColor, fontVariantNumeric: "tabular-nums", letterSpacing: 1, lineHeight: 1.2 }}>⏱ {formatDuration(displaySec)}</div>
           {isPaused && (totalSec || 0) === 0 && <div style={{ fontSize: 10, color: darkColor, opacity: 0.6, marginTop: 2 }}>Timer starts when you begin climbing</div>}
+          {isPaused && pausedForSec > 0 && <div style={{ fontSize: 10, color: darkColor, opacity: 0.65, marginTop: 2 }}>Paused {formatDuration(pausedForSec)} ago</div>}
         </div>
         <div>
           {isActive && <button onClick={onPause} style={{ background: darkColor, border: "none", color: color, fontSize: 12, fontWeight: 700, cursor: "pointer", padding: "6px 12px", borderRadius: 8 }}>⏸ Pause</button>}
@@ -1320,15 +1322,35 @@ export default function App() {
   const pauseBoulderSession = () => setActiveSession(s => {
     const now = Date.now();
     const elapsed = s.boulderActiveStart ? Math.max(0, Math.floor((now - s.boulderActiveStart) / 1000)) : 0;
-    return { ...s, boulderTotalSec: (s.boulderTotalSec || 0) + elapsed, boulderActiveStart: null };
+    return {
+      ...s,
+      boulderTotalSec: (s.boulderTotalSec || 0) + elapsed,
+      boulderActiveStart: null,
+      boulderPausedAt: now,
+      climbs: s.climbs.map(c =>
+        c.climbType !== "rope" && c.climbingStartedAt
+          ? { ...c, climbingStartedAt: null, attemptLog: [...(c.attemptLog || []), { startedAt: c.climbingStartedAt, duration: now - c.climbingStartedAt, falls: c.tries }] }
+          : c
+      ),
+    };
   });
-  const resumeBoulderSession = () => setActiveSession(s => ({ ...s, boulderActiveStart: Date.now() }));
+  const resumeBoulderSession = () => setActiveSession(s => ({ ...s, boulderActiveStart: Date.now(), boulderPausedAt: null }));
   const pauseRopeSession = () => setActiveSession(s => {
     const now = Date.now();
     const elapsed = s.ropeActiveStart ? Math.max(0, Math.floor((now - s.ropeActiveStart) / 1000)) : 0;
-    return { ...s, ropeTotalSec: (s.ropeTotalSec || 0) + elapsed, ropeActiveStart: null };
+    return {
+      ...s,
+      ropeTotalSec: (s.ropeTotalSec || 0) + elapsed,
+      ropeActiveStart: null,
+      ropePausedAt: now,
+      climbs: s.climbs.map(c =>
+        c.climbType === "rope" && c.climbingStartedAt
+          ? { ...c, climbingStartedAt: null, lastAttemptEndedAt: null, attemptLog: [...(c.attemptLog || []), { startedAt: c.climbingStartedAt, duration: now - c.climbingStartedAt }] }
+          : c
+      ),
+    };
   });
-  const resumeRopeSession = () => setActiveSession(s => ({ ...s, ropeActiveStart: Date.now() }));
+  const resumeRopeSession = () => setActiveSession(s => ({ ...s, ropeActiveStart: Date.now(), ropePausedAt: null }));
   // Stops the per-climb timer without logging tries (used for rope "Done" button)
   // Type section timer keeps running — it only pauses when switching types or ending the section
   const endClimbAttempt = (id) => setActiveSession(s => {
@@ -2546,7 +2568,7 @@ export default function App() {
         {/* ── Boulder Section ─────────────────────────────────── */}
         {!showClimbForm && !showProjectPicker && activeSession?.boulderStartedAt && (
           <div style={{ marginBottom: 16 }}>
-            <BoulderRopeSessionCard type="boulder" totalSec={activeSession.boulderTotalSec || 0} activeStart={activeSession.boulderActiveStart || null} isEnded={!!activeSession.boulderEndedAt} tick={sessionTimer} onPause={pauseBoulderSession} onResume={resumeBoulderSession} />
+            <BoulderRopeSessionCard type="boulder" totalSec={activeSession.boulderTotalSec || 0} activeStart={activeSession.boulderActiveStart || null} isEnded={!!activeSession.boulderEndedAt} tick={sessionTimer} onPause={pauseBoulderSession} onResume={resumeBoulderSession} pausedAt={activeSession.boulderPausedAt || null} />
             <div style={{ borderLeft: `3px solid ${W.greenDark}44`, paddingLeft: 10, marginLeft: 2 }}>
               {boulderClimbs.map(c => <ActiveClimbCard key={c.id} climb={c} {...cardProps} />)}
               {selectedTypes.includes("boulder") && !activeSession.boulderEndedAt && (
@@ -2559,7 +2581,7 @@ export default function App() {
         {/* ── Rope Section ─────────────────────────────────────── */}
         {!showClimbForm && !showProjectPicker && activeSession?.ropeStartedAt && (
           <div style={{ marginBottom: 16 }}>
-            <BoulderRopeSessionCard type="rope" totalSec={activeSession.ropeTotalSec || 0} activeStart={activeSession.ropeActiveStart || null} isEnded={!!activeSession.ropeEndedAt} tick={sessionTimer} onPause={pauseRopeSession} onResume={resumeRopeSession} />
+            <BoulderRopeSessionCard type="rope" totalSec={activeSession.ropeTotalSec || 0} activeStart={activeSession.ropeActiveStart || null} isEnded={!!activeSession.ropeEndedAt} tick={sessionTimer} onPause={pauseRopeSession} onResume={resumeRopeSession} pausedAt={activeSession.ropePausedAt || null} />
             <div style={{ borderLeft: `3px solid ${W.purpleDark}44`, paddingLeft: 10, marginLeft: 2 }}>
               {ropeClimbs.map(c => <ActiveClimbCard key={c.id} climb={c} {...cardProps} />)}
               {selectedTypes.includes("rope") && !activeSession.ropeEndedAt && (
@@ -3927,15 +3949,24 @@ export default function App() {
             stats.speedSessions.length > 0 && { icon: "⚡", label: "Speed Climbing", time: totalSpeedSec, color: W.yellowDark, bg: W.yellow, extra: `${allSpeedAttempts.length} attempts · Best: ${stats.speedBest != null ? stats.speedBest.toFixed(2)+"s" : "—"}` },
           ].filter(Boolean);
           if (!rows.length) return null;
+          const totalRowTime = rows.reduce((s, r) => s + r.time, 0);
           return (
             <div style={{ background: W.surface, borderRadius: 16, padding: "16px", border: `1px solid ${W.border}`, marginBottom: 16 }}>
               <div style={{ fontSize: 11, fontWeight: 700, color: W.textMuted, textTransform: "uppercase", letterSpacing: 1, marginBottom: 10 }}>Time by Type</div>
-              {rows.map(r => (
-                <div key={r.label} style={{ display: "flex", alignItems: "center", gap: 12, padding: "8px 0", borderBottom: `1px solid ${W.border}` }}>
+              {rows.length > 1 && totalRowTime > 0 && (
+                <div style={{ display: "flex", height: 8, borderRadius: 6, overflow: "hidden", marginBottom: 12, gap: 1 }}>
+                  {rows.map(r => (
+                    <div key={r.label} style={{ flex: r.time / totalRowTime, background: r.bg, minWidth: r.time > 0 ? 4 : 0 }} />
+                  ))}
+                </div>
+              )}
+              {rows.map((r, i) => (
+                <div key={r.label} style={{ display: "flex", alignItems: "center", gap: 12, padding: "8px 0", borderBottom: i < rows.length - 1 ? `1px solid ${W.border}` : "none" }}>
                   <div style={{ width: 36, height: 36, borderRadius: 10, background: r.bg, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18, flexShrink: 0 }}>{r.icon}</div>
                   <div style={{ flex: 1 }}>
                     <div style={{ fontWeight: 700, color: W.text, fontSize: 13 }}>{r.label}</div>
                     {r.extra && <div style={{ fontSize: 10, color: W.textDim, marginTop: 1 }}>{r.extra}</div>}
+                    {totalRowTime > 0 && <div style={{ fontSize: 10, color: W.textDim, marginTop: 1 }}>{Math.round(r.time / totalRowTime * 100)}% of session</div>}
                   </div>
                   <div style={{ fontWeight: 900, color: r.color, fontSize: 16, fontVariantNumeric: "tabular-nums" }}>{formatDuration(r.time)}</div>
                 </div>
