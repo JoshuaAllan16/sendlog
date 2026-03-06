@@ -689,6 +689,10 @@ export default function App() {
   const [editDisplayName, setEditDisplayName]   = useState("");
   const [customBoulderGrades, setCustomBoulderGrades] = useState([]);
   const [customRopeGrades, setCustomRopeGrades] = useState([]);
+  const [customBoulderScaleName, setCustomBoulderScaleName] = useState("Custom");
+  const [customRopeScaleName, setCustomRopeScaleName]     = useState("Custom");
+  const [customBoulderInput, setCustomBoulderInput]       = useState("");
+  const [customRopeInput, setCustomRopeInput]             = useState("");
   const [hiddenLocations, setHiddenLocations]   = useState([]);
   const [showAccountPanel, setShowAccountPanel] = useState(false);
   const [confirmLogout, setConfirmLogout]       = useState(false);
@@ -941,6 +945,10 @@ export default function App() {
           setEditDisplayName(userData.profile?.displayName || username);
           setCustomBoulderGrades(userData.profile?.customBoulderGrades || []);
           setCustomRopeGrades(userData.profile?.customRopeGrades || []);
+          setCustomBoulderScaleName(userData.profile?.customBoulderScaleName || "Custom");
+          setCustomRopeScaleName(userData.profile?.customRopeScaleName || "Custom");
+          setCustomBoulderInput((userData.profile?.customBoulderGrades || []).join(", "));
+          setCustomRopeInput((userData.profile?.customRopeGrades || []).join(", "));
           setHiddenLocations(userData.profile?.hiddenLocations || []);
           setSocialFollowing(userData.profile?.following || []);
           setColorTheme(userData.profile?.colorTheme || "espresso");
@@ -971,7 +979,7 @@ export default function App() {
     setSaveStatus("saving");
     saveTimeoutRef.current = setTimeout(async () => {
       const userData = {
-        profile: { displayName: editDisplayName || currentUser.displayName, preferredScale, preferredRopeScale, profilePic, customBoulderGrades, customRopeGrades, hiddenLocations, following: socialFollowing, colorTheme, mutedUsers, notifPrefs, isPrivate, pendingFollowRequests },
+        profile: { displayName: editDisplayName || currentUser.displayName, preferredScale, preferredRopeScale, profilePic, customBoulderGrades, customRopeGrades, customBoulderScaleName, customRopeScaleName, hiddenLocations, following: socialFollowing, colorTheme, mutedUsers, notifPrefs, isPrivate, pendingFollowRequests },
         sessions,
         projects,
       };
@@ -980,7 +988,7 @@ export default function App() {
       setTimeout(() => setSaveStatus(""), 2000);
     }, 1000);
     return () => clearTimeout(saveTimeoutRef.current);
-  }, [sessions, projects, editDisplayName, preferredScale, preferredRopeScale, profilePic, customBoulderGrades, customRopeGrades, hiddenLocations, socialFollowing, colorTheme, mutedUsers, notifPrefs, isPrivate, pendingFollowRequests]);
+  }, [sessions, projects, editDisplayName, preferredScale, preferredRopeScale, profilePic, customBoulderGrades, customRopeGrades, customBoulderScaleName, customRopeScaleName, hiddenLocations, socialFollowing, colorTheme, mutedUsers, notifPrefs, isPrivate, pendingFollowRequests]);
 
   useEffect(() => {
     if (timerRunning) { timerRef.current = setInterval(() => setSessionTimer(t => t + 1), 1000); }
@@ -1059,6 +1067,10 @@ export default function App() {
       setProfilePic(safeData.profile?.profilePic || null);
       setCustomBoulderGrades(safeData.profile?.customBoulderGrades || []);
       setCustomRopeGrades(safeData.profile?.customRopeGrades || []);
+      setCustomBoulderScaleName(safeData.profile?.customBoulderScaleName || "Custom");
+      setCustomRopeScaleName(safeData.profile?.customRopeScaleName || "Custom");
+      setCustomBoulderInput((safeData.profile?.customBoulderGrades || []).join(", "));
+      setCustomRopeInput((safeData.profile?.customRopeGrades || []).join(", "));
       setEditDisplayName(safeData.profile?.displayName || username.toLowerCase());
       setHiddenLocations(safeData.profile?.hiddenLocations || []);
       setSocialFollowing(safeData.profile?.following || []);
@@ -1116,6 +1128,10 @@ export default function App() {
     setPreferredRopeScale("French");
     setCustomBoulderGrades([]);
     setCustomRopeGrades([]);
+    setCustomBoulderScaleName("Custom");
+    setCustomRopeScaleName("Custom");
+    setCustomBoulderInput("");
+    setCustomRopeInput("");
     setAuthScreen("login");
   };
 
@@ -1379,7 +1395,14 @@ export default function App() {
   const retiredProjects   = projects.filter(p => !p.active && !p.completed);
   const climbDates     = sessions.map(s => s.date);
 
-  const getGradeIndex = (grade, scale) => (GRADES[scale] || GRADES["V-Scale"]).indexOf(grade);
+  const getGradeIndex = (grade, scale) => {
+    if (scale === "Custom") {
+      const i = customBoulderGrades.indexOf(grade);
+      if (i !== -1) return i;
+      return customRopeGrades.indexOf(grade);
+    }
+    return (GRADES[scale] || ROPE_GRADES[scale] || GRADES["V-Scale"]).indexOf(grade);
+  };
 
   const getTimeframeSessions = () => {
     const cutoffs = { "2w": 14, "1m": 30, "6m": 182, "1y": 365 };
@@ -1398,8 +1421,13 @@ export default function App() {
     const flashRate = base.length ? Math.round((flashes.length / base.length) * 100) : 0;
     const avgTries  = base.length ? (base.reduce((a, c) => a + c.tries, 0) / base.length).toFixed(1) : "—";
     const vBase     = tfClimbs.filter(c => c.completed && c.scale === preferredScale);
-    const bestGrade = vBase.length ? [...vBase].sort((a, b) => (GRADES[preferredScale] || []).indexOf(b.grade) - (GRADES[preferredScale] || []).indexOf(a.grade))[0]?.grade : "—";
-    const gradeBreakdown = (GRADES[statsScaleFilter] || []).map(g => ({ grade: g, count: completed.filter(c => c.grade === g).length })).filter(g => g.count > 0);
+    const boulderGradeList = preferredScale === "Custom" ? customBoulderGrades : (GRADES[preferredScale] || []);
+    const bestGrade = vBase.length ? [...vBase].sort((a, b) => boulderGradeList.indexOf(b.grade) - boulderGradeList.indexOf(a.grade))[0]?.grade : "—";
+    const statsCustomGrades = [...new Set([...customBoulderGrades, ...customRopeGrades])];
+    const gradeScaleList = statsScaleFilter === "Custom" ? statsCustomGrades : (GRADES[statsScaleFilter] || []);
+    const gradeBreakdown = gradeScaleList.length > 0
+      ? gradeScaleList.map(g => ({ grade: g, count: completed.filter(c => c.grade === g).length })).filter(g => g.count > 0)
+      : [...new Set(completed.map(c => c.grade))].map(g => ({ grade: g, count: completed.filter(c => c.grade === g).length }));
     const totalAttempts = base.reduce((a, c) => a + c.tries, 0);
     const totalFalls = base.reduce((a, c) => a + (c.climbType === "rope" ? (c.falls ?? c.tries) : c.tries), 0);
     const avgFalls = base.length ? (totalFalls / base.length).toFixed(1) : "—";
@@ -1951,7 +1979,7 @@ export default function App() {
             <Label>Scale</Label>
             <select value={climbForm.scale} onChange={e => { const s = e.target.value; const gl = s === "Custom" ? customBoulderGrades : (GRADES[s] || []); setClimbForm(f => ({ ...f, scale: s, grade: gl[0] || f.grade })); }} style={{ width: "100%", padding: "10px 12px", background: W.surface, border: `2px solid ${W.border}`, borderRadius: 10, color: W.text, fontSize: 14, boxSizing: "border-box", marginBottom: 12, fontFamily: "inherit", cursor: "pointer" }}>
               {Object.keys(GRADES).map(scale => <option key={scale} value={scale}>{scale}</option>)}
-              <option value="Custom">Custom</option>
+              <option value="Custom">{customBoulderScaleName}</option>
             </select>
             <Label>Grade</Label>
             <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 12 }}>
@@ -1977,7 +2005,7 @@ export default function App() {
             <Label>Scale</Label>
             <div style={{ display: "flex", gap: 8, marginBottom: 12, flexWrap: "wrap" }}>
               {[...Object.keys(ROPE_GRADES), "Custom"].map(s => (
-                <button key={s} onClick={() => { const gl = s === "Custom" ? customRopeGrades : (ROPE_GRADES[s] || []); setClimbForm(f => ({ ...f, scale: s, grade: gl[Math.floor(gl.length / 2)] || gl[0] || f.grade })); }} style={{ flex: 1, padding: "9px", borderRadius: 10, border: "2px solid", borderColor: climbForm.scale === s ? W.accent : W.border, background: climbForm.scale === s ? W.accent + "22" : W.surface, color: climbForm.scale === s ? W.accent : W.textDim, cursor: "pointer", fontWeight: 700, fontSize: 13 }}>{s}</button>
+                <button key={s} onClick={() => { const gl = s === "Custom" ? customRopeGrades : (ROPE_GRADES[s] || []); setClimbForm(f => ({ ...f, scale: s, grade: gl[Math.floor(gl.length / 2)] || gl[0] || f.grade })); }} style={{ flex: 1, padding: "9px", borderRadius: 10, border: "2px solid", borderColor: climbForm.scale === s ? W.accent : W.border, background: climbForm.scale === s ? W.accent + "22" : W.surface, color: climbForm.scale === s ? W.accent : W.textDim, cursor: "pointer", fontWeight: 700, fontSize: 13 }}>{s === "Custom" ? customRopeScaleName : s}</button>
               ))}
             </div>
             <Label>Grade</Label>
@@ -2573,8 +2601,13 @@ export default function App() {
     const stats = getStats();
     const logbookClimbs = getLogbookClimbs();
     const filteredSessions = getFilteredSessions();
-    const availableGrades = statsScaleFilter !== "All Scales" ? ["All", ...GRADES[statsScaleFilter]] : ["All"];
-    const logbookGrades   = logbookScale !== "All Scales" ? ["All", ...GRADES[logbookScale]] : ["All"];
+    const customAllGrades = [...new Set([...customBoulderGrades, ...customRopeGrades])];
+    const availableGrades = statsScaleFilter === "Custom"
+      ? ["All", ...customAllGrades]
+      : statsScaleFilter !== "All Scales" ? ["All", ...(GRADES[statsScaleFilter] || [])] : ["All"];
+    const logbookGrades = logbookScale === "Custom"
+      ? ["All", ...customAllGrades]
+      : logbookScale !== "All Scales" ? ["All", ...(GRADES[logbookScale] || [])] : ["All"];
     const hasClimbFilters   = logbookFilter !== "all" || logbookScale !== "All Scales" || logbookGrade !== "All" || logbookSort !== "date";
     const hasSessionFilters = logbookGymFilter !== "All Gyms" || sessionSort !== "date" || sessionTypeFilter !== "all";
 
@@ -2681,18 +2714,26 @@ export default function App() {
               <div style={{ fontSize: 11, fontWeight: 700, color: W.textMuted, textTransform: "uppercase", letterSpacing: 1.2, marginBottom: 8 }}>Boulder Grading</div>
               <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
                 {["V-Scale", "French", "Custom"].map(s => (
-                  <button key={s} onClick={() => setPreferredScale(s)} style={{ padding: "6px 12px", borderRadius: 16, border: "2px solid", borderColor: preferredScale === s ? W.accent : W.border, background: preferredScale === s ? W.accent + "22" : W.surface2, color: preferredScale === s ? W.accent : W.textDim, cursor: "pointer", fontSize: 12, fontWeight: preferredScale === s ? 700 : 500 }}>{s}</button>
+                  <button key={s} onClick={() => setPreferredScale(s)} style={{ padding: "6px 12px", borderRadius: 16, border: "2px solid", borderColor: preferredScale === s ? W.accent : W.border, background: preferredScale === s ? W.accent + "22" : W.surface2, color: preferredScale === s ? W.accent : W.textDim, cursor: "pointer", fontSize: 12, fontWeight: preferredScale === s ? 700 : 500 }}>{s === "Custom" ? customBoulderScaleName : s}</button>
                 ))}
               </div>
               {preferredScale === "Custom" && (
-                <div style={{ marginTop: 8 }}>
-                  <div style={{ fontSize: 11, color: W.textMuted, marginBottom: 4 }}>Enter grades from easiest to hardest, comma-separated</div>
+                <div style={{ marginTop: 10 }}>
+                  <div style={{ fontSize: 11, color: W.textMuted, marginBottom: 4 }}>Scale name</div>
+                  <input
+                    value={customBoulderScaleName}
+                    onChange={e => setCustomBoulderScaleName(e.target.value)}
+                    placeholder="e.g. Gym Grades"
+                    style={{ width: "100%", boxSizing: "border-box", padding: "8px 10px", background: W.surface2, border: `1px solid ${W.accent}`, borderRadius: 10, color: W.text, fontSize: 13, fontFamily: "inherit", marginBottom: 8 }}
+                  />
+                  <div style={{ fontSize: 11, color: W.textMuted, marginBottom: 4 }}>Grades (easiest → hardest, one per line or comma-separated)</div>
                   <textarea
-                    value={customBoulderGrades.join(", ")}
-                    onChange={e => setCustomBoulderGrades(e.target.value.split(",").map(x => x.trim()).filter(Boolean))}
-                    placeholder="e.g. Easy, Medium, Hard, Very Hard"
-                    rows={2}
-                    style={{ width: "100%", boxSizing: "border-box", background: W.surface2, border: `1px solid ${W.border}`, borderRadius: 10, padding: "8px 10px", color: W.text, fontSize: 12, resize: "vertical" }}
+                    value={customBoulderInput}
+                    onChange={e => setCustomBoulderInput(e.target.value)}
+                    onBlur={e => { const parsed = e.target.value.split(/[\n,]+/).map(x => x.trim()).filter(Boolean); setCustomBoulderGrades(parsed); setCustomBoulderInput(parsed.join(", ")); }}
+                    placeholder={"Easy\nMedium\nHard\nVery Hard"}
+                    rows={3}
+                    style={{ width: "100%", boxSizing: "border-box", background: W.surface2, border: `1px solid ${W.border}`, borderRadius: 10, padding: "8px 10px", color: W.text, fontSize: 12, resize: "vertical", fontFamily: "inherit" }}
                   />
                   {customBoulderGrades.length > 0 && (
                     <div style={{ display: "flex", gap: 4, flexWrap: "wrap", marginTop: 6 }}>
@@ -2710,18 +2751,26 @@ export default function App() {
               <div style={{ fontSize: 11, fontWeight: 700, color: W.textMuted, textTransform: "uppercase", letterSpacing: 1.2, marginBottom: 8 }}>Rope Grading</div>
               <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
                 {["YDS", "French", "Custom"].map(s => (
-                  <button key={s} onClick={() => setPreferredRopeScale(s)} style={{ padding: "6px 12px", borderRadius: 16, border: "2px solid", borderColor: preferredRopeScale === s ? W.accent : W.border, background: preferredRopeScale === s ? W.accent + "22" : W.surface2, color: preferredRopeScale === s ? W.accent : W.textDim, cursor: "pointer", fontSize: 12, fontWeight: preferredRopeScale === s ? 700 : 500 }}>{s}</button>
+                  <button key={s} onClick={() => setPreferredRopeScale(s)} style={{ padding: "6px 12px", borderRadius: 16, border: "2px solid", borderColor: preferredRopeScale === s ? W.accent : W.border, background: preferredRopeScale === s ? W.accent + "22" : W.surface2, color: preferredRopeScale === s ? W.accent : W.textDim, cursor: "pointer", fontSize: 12, fontWeight: preferredRopeScale === s ? 700 : 500 }}>{s === "Custom" ? customRopeScaleName : s}</button>
                 ))}
               </div>
               {preferredRopeScale === "Custom" && (
-                <div style={{ marginTop: 8 }}>
-                  <div style={{ fontSize: 11, color: W.textMuted, marginBottom: 4 }}>Enter grades from easiest to hardest, comma-separated</div>
+                <div style={{ marginTop: 10 }}>
+                  <div style={{ fontSize: 11, color: W.textMuted, marginBottom: 4 }}>Scale name</div>
+                  <input
+                    value={customRopeScaleName}
+                    onChange={e => setCustomRopeScaleName(e.target.value)}
+                    placeholder="e.g. Local Wall Grades"
+                    style={{ width: "100%", boxSizing: "border-box", padding: "8px 10px", background: W.surface2, border: `1px solid ${W.accent}`, borderRadius: 10, color: W.text, fontSize: 13, fontFamily: "inherit", marginBottom: 8 }}
+                  />
+                  <div style={{ fontSize: 11, color: W.textMuted, marginBottom: 4 }}>Grades (easiest → hardest, one per line or comma-separated)</div>
                   <textarea
-                    value={customRopeGrades.join(", ")}
-                    onChange={e => setCustomRopeGrades(e.target.value.split(",").map(x => x.trim()).filter(Boolean))}
-                    placeholder="e.g. 5.8, 5.9, 5.10, 5.11"
-                    rows={2}
-                    style={{ width: "100%", boxSizing: "border-box", background: W.surface2, border: `1px solid ${W.border}`, borderRadius: 10, padding: "8px 10px", color: W.text, fontSize: 12, resize: "vertical" }}
+                    value={customRopeInput}
+                    onChange={e => setCustomRopeInput(e.target.value)}
+                    onBlur={e => { const parsed = e.target.value.split(/[\n,]+/).map(x => x.trim()).filter(Boolean); setCustomRopeGrades(parsed); setCustomRopeInput(parsed.join(", ")); }}
+                    placeholder={"Easy\nMedium\nHard\nProject"}
+                    rows={3}
+                    style={{ width: "100%", boxSizing: "border-box", background: W.surface2, border: `1px solid ${W.border}`, borderRadius: 10, padding: "8px 10px", color: W.text, fontSize: 12, resize: "vertical", fontFamily: "inherit" }}
                   />
                   {customRopeGrades.length > 0 && (
                     <div style={{ display: "flex", gap: 4, flexWrap: "wrap", marginTop: 6 }}>
@@ -3029,7 +3078,7 @@ export default function App() {
                     <div style={{ background: W.surface, border: `1px solid ${W.border}`, borderTop: "none", borderRadius: "0 0 14px 14px", padding: "14px" }}>
                       <Label>Scale</Label>
                       <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 12 }}>
-                        {["All Scales", ...Object.keys(GRADES)].map(s => <button key={s} onClick={() => { setStatsScaleFilter(s); setStatsGradeFilter("All"); }} style={{ padding: "5px 12px", borderRadius: 16, border: "2px solid", borderColor: statsScaleFilter === s ? W.accent : W.border, background: statsScaleFilter === s ? W.accent + "22" : W.surface, color: statsScaleFilter === s ? W.accent : W.textDim, cursor: "pointer", fontSize: 11, fontWeight: 600 }}>{s}</button>)}
+                        {["All Scales", ...Object.keys(GRADES), ...(customAllGrades.length > 0 ? ["Custom"] : [])].map(s => <button key={s} onClick={() => { setStatsScaleFilter(s); setStatsGradeFilter("All"); }} style={{ padding: "5px 12px", borderRadius: 16, border: "2px solid", borderColor: statsScaleFilter === s ? W.accent : W.border, background: statsScaleFilter === s ? W.accent + "22" : W.surface, color: statsScaleFilter === s ? W.accent : W.textDim, cursor: "pointer", fontSize: 11, fontWeight: 600 }}>{s === "Custom" && customBoulderScaleName !== "Custom" ? customBoulderScaleName : s}</button>)}
                       </div>
                       <Label>Grade</Label>
                       <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
@@ -3304,7 +3353,7 @@ export default function App() {
                       </div>
                       <Label>Scale</Label>
                       <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 12 }}>
-                        {["All Scales", ...Object.keys(GRADES)].map(s => <button key={s} onClick={() => { setLogbookScale(s); setLogbookGrade("All"); }} style={{ padding: "5px 10px", borderRadius: 14, border: "2px solid", borderColor: logbookScale === s ? W.accent : W.border, background: logbookScale === s ? W.accent + "22" : W.surface, color: logbookScale === s ? W.accent : W.textDim, cursor: "pointer", fontSize: 11, fontWeight: 600 }}>{s}</button>)}
+                        {["All Scales", ...Object.keys(GRADES), ...(customAllGrades.length > 0 ? ["Custom"] : [])].map(s => <button key={s} onClick={() => { setLogbookScale(s); setLogbookGrade("All"); }} style={{ padding: "5px 10px", borderRadius: 14, border: "2px solid", borderColor: logbookScale === s ? W.accent : W.border, background: logbookScale === s ? W.accent + "22" : W.surface, color: logbookScale === s ? W.accent : W.textDim, cursor: "pointer", fontSize: 11, fontWeight: 600 }}>{s === "Custom" && customBoulderScaleName !== "Custom" ? customBoulderScaleName : s}</button>)}
                       </div>
                       <Label>Grade</Label>
                       <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 12 }}>

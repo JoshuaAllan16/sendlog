@@ -4,6 +4,21 @@ A log of all features, fixes, and improvements grouped by push.
 
 
 ──────────────────────────────────────────────────────────────
+PUSH 34  |  Custom grade polish: scale names, comma fix, stats support
+──────────────────────────────────────────────────────────────
+- Custom grade input no longer breaks when typing commas
+  → Textarea now uses a raw string; grades are parsed only when you leave the field
+  → Supports both comma-separated and newline-separated input
+- Custom scales can now be named (e.g. "Gym Grades", "Local Wall")
+  → Name appears on the scale selector button in settings and in the climb form
+  → Name also shown in the Stats and Logbook scale filter buttons
+- Stats and Logbook scale filters now include your custom scale as an option
+  → Grade breakdown in stats shows climbs logged on your custom scale
+  → Grade filter pills update to show your custom grade list
+- Climb form scale label shows your custom name instead of generic "Custom"
+
+
+──────────────────────────────────────────────────────────────
 PUSH 33  |  Custom grade support, display name editor, feed profile pics
 ──────────────────────────────────────────────────────────────
 - Climb form now uses custom grades when Boulder or Rope scale is set to Custom
