@@ -213,3 +213,26 @@ PUSH 21  |  5be63ca  |  Session card bar chart, photo strip, border polish
 - Photo strip added to session cards: climbs with photos appear as a horizontal scrollable row of 72×72 thumbnails, each with a grade badge overlaid in the bottom-left corner
 - Session card border made more prominent: thicker border using accent color with a subtle glow box-shadow for better contrast against the background
 - Profile screen notifications list made collapsible: click the "Notifications" header to expand/collapse, collapsed by default to reduce clutter
+
+
+──────────────────────────────────────────────────────────────
+PUSH 22  |  c0a7613  |  Rope/speed climb types, lightbox nav, bar legend, pagination
+──────────────────────────────────────────────────────────────
+New climb types:
+- "New Climb" button renamed to "New Boulder"; session action buttons now a 2×2 grid
+- New Rope Climb button: opens a form with hold color, French/YDS grade picker, and Top Rope vs Lead style selector
+- New Speed Climb button: opens a form with optional name, time entry in seconds, and completed toggle
+- All climb types share the same name, comments, photo, and project-toggle fields where applicable
+
+Photo improvements:
+- Climb photos in card strips and session detail are now tappable to open fullscreen lightbox
+- Lightbox supports prev/next navigation (◀▶ buttons) when a session has multiple photos; shows photo count (e.g. 2/4)
+- Hold color circle indicator added to photo thumbnails (bottom-right corner) in both card strips and session detail photos
+
+Session card:
+- Bar chart now shows a two-tone fill: bright = sends, dim = remaining attempts per grade
+- Bar chart label changed from raw tries to sends/attempted (e.g. 2/3)
+- Legend row added below bar chart explaining the two-tone colour coding
+
+Feed & logbook:
+- Logbook sessions tab now paginated (8 per page) with a "Load more" button showing remaining count
