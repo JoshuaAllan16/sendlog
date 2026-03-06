@@ -162,6 +162,45 @@ const THEMES = {
     purple: "#0e0028", purpleDark: "#c880ff",
     navBg: "#08040e",
   },
+  blossom: {
+    bg: "linear-gradient(160deg, #fce8f0 0%, #fad0e4 50%, #f7b8d6 100%)",
+    surface: "rgba(255, 246, 251, 0.99)", surface2: "rgba(253, 232, 244, 0.97)",
+    border: "#f0a8cc", accent: "#c01e5e", accentGlow: "rgba(192,30,94,0.22)", accentDark: "#8c1444",
+    text: "#28081a", textMuted: "#8c2058", textDim: "#c07898",
+    gold: "#b87010", goldLight: "#ffe8d0",
+    pink: "#fcdce8", pinkDark: "#b81858",
+    yellow: "#fef5c0", yellowDark: "#906000",
+    green: "#d0f0da", greenDark: "#1c6e40",
+    red: "#fcdcdc", redDark: "#b82020",
+    purple: "#e8d0f8", purpleDark: "#5a1ca8",
+    navBg: "#f4aed0",
+  },
+  slate: {
+    bg: "linear-gradient(160deg, #1c2028 0%, #141820 50%, #101418 100%)",
+    surface: "rgba(20, 24, 32, 0.98)", surface2: "rgba(28, 34, 44, 0.96)",
+    border: "#384050", accent: "#78a0c8", accentGlow: "rgba(120,160,200,0.25)", accentDark: "#486e9e",
+    text: "#d0dcea", textMuted: "#6878a0", textDim: "#384060",
+    gold: "#c0a040", goldLight: "#181c24",
+    pink: "#201828", pinkDark: "#d87090",
+    yellow: "#181810", yellowDark: "#c0b040",
+    green: "#0c1c14", greenDark: "#58b878",
+    red: "#180c0c", redDark: "#c86060",
+    purple: "#140c28", purpleDark: "#9870d0",
+    navBg: "#0c1016",
+  },
+  crimson: {
+    bg: "linear-gradient(160deg, #1e0408 0%, #160204 50%, #100102 100%)",
+    surface: "rgba(22, 4, 6, 0.99)", surface2: "rgba(32, 8, 10, 0.97)",
+    border: "#581018", accent: "#f03050", accentGlow: "rgba(240,48,80,0.30)", accentDark: "#b01830",
+    text: "#ffccd0", textMuted: "#a04050", textDim: "#602030",
+    gold: "#c08020", goldLight: "#200a04",
+    pink: "#200010", pinkDark: "#f870a8",
+    yellow: "#181000", yellowDark: "#c09820",
+    green: "#081410", greenDark: "#50b870",
+    red: "#280808", redDark: "#ff6060",
+    purple: "#120818", purpleDark: "#a060d8",
+    navBg: "#0e0204",
+  },
 };
 
 const SAMPLE_PROJECTS = [
@@ -1842,7 +1881,16 @@ export default function App() {
     setLeaderboardLoading(true);
     setLeaderboardData(null);
     try {
-      const friends = socialFollowing.filter(u => socialFollowers.includes(u));
+      // Always load fresh data — don't rely on potentially-stale React state
+      const [myData, freshFollowers] = await Promise.all([
+        loadUserData(currentUser.username),
+        loadFollowersStore(currentUser.username),
+      ]);
+      const freshFollowing = myData?.profile?.following || [];
+      const friends = freshFollowing.filter(u => freshFollowers.includes(u));
+      // Also update state so the profile reflects current data
+      setSocialFollowing(freshFollowing);
+      setSocialFollowers(freshFollowers);
       const entries = await Promise.all(
         friends.map(async (uname) => {
           try {
@@ -2830,6 +2878,9 @@ export default function App() {
                   { id: "abyss",    label: "Abyss",    icon: "🔵",  desc: "Black + blue" },
                   { id: "forest",   label: "Forest",   icon: "🌲",  desc: "Dark green" },
                   { id: "dusk",     label: "Dusk",     icon: "🌆",  desc: "Dark purple" },
+                  { id: "blossom",  label: "Blossom",  icon: "🌸",  desc: "Pink light" },
+                  { id: "slate",    label: "Slate",    icon: "🩶",  desc: "Cool gray" },
+                  { id: "crimson",  label: "Crimson",  icon: "🩸",  desc: "Dark red" },
                 ].map(t => (
                   <button key={t.id} onClick={() => setColorTheme(t.id)} style={{ padding: "8px 4px", borderRadius: 12, border: `2px solid`, borderColor: colorTheme === t.id ? W.accent : W.border, background: colorTheme === t.id ? W.accent + "22" : W.surface2, color: colorTheme === t.id ? W.accent : W.textDim, cursor: "pointer", fontSize: 10, fontWeight: colorTheme === t.id ? 700 : 500, textAlign: "center" }}>
                     <div style={{ fontSize: 18, marginBottom: 2 }}>{t.icon}</div>
@@ -3780,6 +3831,22 @@ export default function App() {
             ))}
           </div>
         )}
+        {leaderboardData && leaderboardData.length > 1 && (() => {
+          const ranked = [...leaderboardData].map(e => ({ ...e, totalTime: (e.sessions || []).reduce((t, s) => t + (s.duration || 0), 0) })).sort((a, b) => b.totalTime - a.totalTime);
+          const myRank = ranked.findIndex(e => e.isMe) + 1;
+          if (myRank === 0) return null;
+          const leader = ranked[0];
+          return (
+            <div style={{ background: W.surface, borderRadius: 16, padding: "16px", border: `1px solid ${W.border}`, marginBottom: 16, textAlign: "center" }}>
+              <div style={{ fontSize: 24, marginBottom: 6 }}>🏆</div>
+              <div style={{ fontWeight: 800, color: W.text, fontSize: 16, marginBottom: 2 }}>
+                #{myRank} of {ranked.length} friends
+              </div>
+              <div style={{ fontSize: 12, color: W.textMuted, marginBottom: 10 }}>by all-time climbing time{myRank > 1 ? ` · ${leader.displayName} leads` : " · You're on top!"}</div>
+              <button onClick={goToLeaderboard} style={{ padding: "8px 20px", background: `linear-gradient(135deg, ${W.accent}, ${W.accentDark})`, border: "none", borderRadius: 10, color: "#fff", fontSize: 13, fontWeight: 700, cursor: "pointer" }}>View Leaderboard</button>
+            </div>
+          );
+        })()}
         <button onClick={() => { setSessionSummary(null); setScreen("home"); }} style={{ width: "100%", padding: "16px", background: `linear-gradient(135deg, ${W.accent}, ${W.accentDark})`, border: "none", borderRadius: 16, color: "#fff", fontSize: 16, fontWeight: 800, cursor: "pointer", boxShadow: `0 4px 20px ${W.accentGlow}`, marginBottom: 10 }}>Done</button>
         {showDiscard
           ? (
@@ -3984,11 +4051,11 @@ export default function App() {
     };
 
     const boards = [
-      { id: "time",    label: "⏱ Time",    sortKey: e => -e.totalTime,      value: e => fmtTime(e.totalTime),                         unit: "total time" },
-      { id: "climbs",  label: "🧗 Climbs",  sortKey: e => -e.totalClimbs,    value: e => e.totalClimbs.toLocaleString(),                unit: "climbs" },
-      { id: "hardest", label: "🏅 Hardest", sortKey: e => -e.bestSend.score, value: e => e.bestSend.grade || "—",                      unit: "best send" },
-      { id: "session", label: "⌛ Session", sortKey: e => -e.longestSession, value: e => e.longestSession > 0 ? fmtTime(e.longestSession) : "—", unit: "longest session" },
-      { id: "week",    label: "📅 Week",    sortKey: e => -e.bestWeek,       value: e => e.bestWeek > 0 ? `${e.bestWeek}` : "—",       unit: "best week" },
+      { id: "time",    label: "⏱ Time",    sortKey: e => -e.totalTime,      value: e => fmtTime(e.totalTime),                                    rawValue: e => e.totalTime,      unit: "total time" },
+      { id: "climbs",  label: "🧗 Climbs",  sortKey: e => -e.totalClimbs,    value: e => e.totalClimbs.toLocaleString(),                           rawValue: e => e.totalClimbs,    unit: "climbs" },
+      { id: "hardest", label: "🏅 Hardest", sortKey: e => -e.bestSend.score, value: e => e.bestSend.grade || "—",                                  rawValue: e => Math.max(0, e.bestSend.score), unit: "best send" },
+      { id: "session", label: "⌛ Session", sortKey: e => -e.longestSession, value: e => e.longestSession > 0 ? fmtTime(e.longestSession) : "—",   rawValue: e => e.longestSession, unit: "longest session" },
+      { id: "week",    label: "📅 Week",    sortKey: e => -e.bestWeek,       value: e => e.bestWeek > 0 ? `${e.bestWeek}` : "—",                   rawValue: e => e.bestWeek,       unit: "best week" },
     ];
     const activeBoardCfg = boards.find(b => b.id === lbBoard) || boards[0];
 
@@ -4032,23 +4099,33 @@ export default function App() {
 
         {!leaderboardLoading && computed.length > 1 && (
           <div>
-            {board.map((entry, i) => (
-              <div key={entry.username} onClick={() => !entry.isMe && openUserProfile(entry.username, entry.displayName, "leaderboard")} style={{ display: "flex", alignItems: "center", gap: 12, background: entry.isMe ? W.surface2 : W.surface, borderRadius: 14, padding: "14px 16px", marginBottom: 10, border: `1px solid ${entry.isMe ? W.accent : W.border}`, cursor: entry.isMe ? "default" : "pointer" }}>
-                <div style={{ fontSize: i < 3 ? 22 : 15, fontWeight: 800, color: W.textDim, width: 32, textAlign: "center", flexShrink: 0 }}>
-                  {i < 3 ? medalEmoji[i] : i + 1}
-                </div>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontWeight: 700, color: entry.isMe ? W.accent : W.text, fontSize: 15 }}>
-                    {entry.displayName}{entry.isMe && " ✓"}
+            {board.map((entry, i) => {
+              const leaderVal = board[0] ? activeBoardCfg.rawValue(board[0]) : 1;
+              const entryVal = activeBoardCfg.rawValue(entry);
+              const pct = leaderVal > 0 ? Math.round((entryVal / leaderVal) * 100) : 0;
+              return (
+                <div key={entry.username} onClick={() => !entry.isMe && openUserProfile(entry.username, entry.displayName, "leaderboard")} style={{ background: entry.isMe ? W.surface2 : W.surface, borderRadius: 14, padding: "12px 16px", marginBottom: 10, border: `1px solid ${entry.isMe ? W.accent : W.border}`, cursor: entry.isMe ? "default" : "pointer" }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                    <div style={{ fontSize: i < 3 ? 22 : 15, fontWeight: 800, color: W.textDim, width: 32, textAlign: "center", flexShrink: 0 }}>
+                      {i < 3 ? medalEmoji[i] : i + 1}
+                    </div>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontWeight: 700, color: entry.isMe ? W.accent : W.text, fontSize: 15 }}>
+                        {entry.displayName}{entry.isMe && " ✓"}
+                      </div>
+                      <div style={{ fontSize: 12, color: W.textMuted }}>@{entry.username}</div>
+                    </div>
+                    <div style={{ textAlign: "right", flexShrink: 0 }}>
+                      <div style={{ fontWeight: 800, color: W.text, fontSize: 16 }}>{activeBoardCfg.value(entry)}</div>
+                      <div style={{ fontSize: 11, color: W.textDim }}>{activeBoardCfg.unit}</div>
+                    </div>
                   </div>
-                  <div style={{ fontSize: 12, color: W.textMuted }}>@{entry.username}</div>
+                  <div style={{ marginTop: 8, height: 4, background: W.border, borderRadius: 2, overflow: "hidden" }}>
+                    <div style={{ height: "100%", width: `${pct}%`, background: entry.isMe ? W.accent : W.accentDark + "88", borderRadius: 2, transition: "width 0.4s" }} />
+                  </div>
                 </div>
-                <div style={{ textAlign: "right", flexShrink: 0 }}>
-                  <div style={{ fontWeight: 800, color: W.text, fontSize: 16 }}>{activeBoardCfg.value(entry)}</div>
-                  <div style={{ fontSize: 11, color: W.textDim }}>{activeBoardCfg.unit}</div>
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </div>
