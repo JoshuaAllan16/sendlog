@@ -162,6 +162,19 @@ const THEMES = {
     purple: "#0e0028", purpleDark: "#c880ff",
     navBg: "#08040e",
   },
+  sakura: {
+    bg: "linear-gradient(160deg, #1a0810 0%, #120508 50%, #0e0306 100%)",
+    surface: "rgba(20, 6, 12, 0.99)", surface2: "rgba(30, 10, 18, 0.97)",
+    border: "#601030", accent: "#f060a0", accentGlow: "rgba(240,96,160,0.30)", accentDark: "#c03070",
+    text: "#ffc8d8", textMuted: "#a04068", textDim: "#602040",
+    gold: "#c08020", goldLight: "#200a08",
+    pink: "#280018", pinkDark: "#ff70b8",
+    yellow: "#180c00", yellowDark: "#c09820",
+    green: "#081210", greenDark: "#50b870",
+    red: "#200810", redDark: "#ff6070",
+    purple: "#100818", purpleDark: "#a060d8",
+    navBg: "#0e0408",
+  },
   blossom: {
     bg: "linear-gradient(160deg, #fce8f0 0%, #fad0e4 50%, #f7b8d6 100%)",
     surface: "rgba(255, 246, 251, 0.99)", surface2: "rgba(253, 232, 244, 0.97)",
@@ -1881,24 +1894,34 @@ export default function App() {
     setLeaderboardLoading(true);
     setLeaderboardData(null);
     try {
-      // Always load fresh data — don't rely on potentially-stale React state
-      const [myData, freshFollowers] = await Promise.all([
-        loadUserData(currentUser.username),
-        loadFollowersStore(currentUser.username),
-      ]);
-      const freshFollowing = myData?.profile?.following || [];
-      const friends = freshFollowing.filter(u => freshFollowers.includes(u));
-      // Also update state so the profile reflects current data
-      setSocialFollowing(freshFollowing);
-      setSocialFollowers(freshFollowers);
-      const entries = await Promise.all(
-        friends.map(async (uname) => {
+      // Load my fresh profile to get who I follow
+      const myData = await loadUserData(currentUser.username);
+      const myFollowing = myData?.profile?.following || [];
+      setSocialFollowing(myFollowing);
+
+      // For each person I follow, load their full profile and check if they follow me back.
+      // Check profile.following directly — more reliable than the secondary followers: store
+      const results = await Promise.all(
+        myFollowing.map(async (uname) => {
           try {
-            const data = await loadUserData(uname);
-            return { username: uname, displayName: data?.profile?.displayName || uname, sessions: data?.sessions || [], isMe: false };
-          } catch { return { username: uname, displayName: uname, sessions: [], isMe: false }; }
+            const theirData = await loadUserData(uname);
+            const theyFollowMe = (theirData?.profile?.following || []).includes(currentUser.username);
+            return { username: uname, theirData, isMutual: theyFollowMe };
+          } catch { return { username: uname, theirData: null, isMutual: false }; }
         })
       );
+
+      // Refresh followers secondary store for profile display (fire-and-forget)
+      loadFollowersStore(currentUser.username).then(setSocialFollowers).catch(() => {});
+
+      const entries = results
+        .filter(r => r.isMutual && r.theirData)
+        .map(r => ({
+          username: r.username,
+          displayName: r.theirData.profile?.displayName || r.username,
+          sessions: r.theirData.sessions || [],
+          isMe: false,
+        }));
       entries.push({ username: currentUser.username, displayName: displayName, sessions, isMe: true });
       setLeaderboardData(entries);
     } catch { setLeaderboardData([]); }
@@ -2879,10 +2902,12 @@ export default function App() {
                   { id: "forest",   label: "Forest",   icon: "🌲",  desc: "Dark green" },
                   { id: "dusk",     label: "Dusk",     icon: "🌆",  desc: "Dark purple" },
                   { id: "blossom",  label: "Blossom",  icon: "🌸",  desc: "Pink light" },
+                  { id: "sakura",   label: "Sakura",   icon: "🌺",  desc: "Dark pink" },
                   { id: "slate",    label: "Slate",    icon: "🩶",  desc: "Cool gray" },
                   { id: "crimson",  label: "Crimson",  icon: "🩸",  desc: "Dark red" },
                 ].map(t => (
-                  <button key={t.id} onClick={() => setColorTheme(t.id)} style={{ padding: "8px 4px", borderRadius: 12, border: `2px solid`, borderColor: colorTheme === t.id ? W.accent : W.border, background: colorTheme === t.id ? W.accent + "22" : W.surface2, color: colorTheme === t.id ? W.accent : W.textDim, cursor: "pointer", fontSize: 10, fontWeight: colorTheme === t.id ? 700 : 500, textAlign: "center" }}>
+                  <button key={t.id} onClick={() => setColorTheme(t.id)} style={{ padding: "8px 4px", borderRadius: 12, border: `2px solid`, borderColor: colorTheme === t.id ? W.accent : W.border, background: colorTheme === t.id ? W.accent + "22" : W.surface2, color: colorTheme === t.id ? W.accent : W.textDim, cursor: "pointer", fontSize: 10, fontWeight: colorTheme === t.id ? 700 : 500, textAlign: "center", position: "relative" }}>
+                    {colorTheme === t.id && <div style={{ position: "absolute", top: 4, right: 6, fontSize: 10, fontWeight: 900, color: W.accent }}>✓</div>}
                     <div style={{ fontSize: 18, marginBottom: 2 }}>{t.icon}</div>
                     <div style={{ fontWeight: 700, fontSize: 11 }}>{t.label}</div>
                     <div style={{ fontSize: 9, opacity: 0.7, marginTop: 1 }}>{t.desc}</div>
@@ -4113,7 +4138,9 @@ export default function App() {
                       <div style={{ fontWeight: 700, color: entry.isMe ? W.accent : W.text, fontSize: 15 }}>
                         {entry.displayName}{entry.isMe && " ✓"}
                       </div>
-                      <div style={{ fontSize: 12, color: W.textMuted }}>@{entry.username}</div>
+                      <div style={{ fontSize: 12, color: W.textMuted }}>
+                        @{entry.username}{entry.bestSend?.grade ? ` · Best: ${entry.bestSend.grade}` : ""}
+                      </div>
                     </div>
                     <div style={{ textAlign: "right", flexShrink: 0 }}>
                       <div style={{ fontWeight: 800, color: W.text, fontSize: 16 }}>{activeBoardCfg.value(entry)}</div>
