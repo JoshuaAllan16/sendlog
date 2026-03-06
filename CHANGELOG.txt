@@ -239,6 +239,27 @@ Feed & logbook:
 
 
 ──────────────────────────────────────────────────────────────
+PUSH 29  |  pending  |  Session button layout, boulder pause, new themes
+
+Session active screen:
+- "New Boulder" button moved inside the boulder section (below the climbs list)
+- "New Rope Climb" button moved inside the rope section (below the climbs list)
+- Before a section is started, the button still appears in the main action area
+- "Log Project" button always visible in the bottom action area
+
+Boulder pause/resume:
+- After at least one attempt, a pause (⏸) button appears next to the rest timer
+- Tapping it pauses attempt tracking: rest timer hidden, "Paused" state shown
+- "Resume" button re-activates attempt tracking on that climb
+
+App themes — 3 new themes added (6 total):
+- Neon: pure black background with neon cyan highlights
+- Midnight: dark navy blue, easy on the eyes, cool tone
+- Ember: dark charcoal with warm amber accents, easy on the eyes
+- Theme picker updated to a 3x2 grid with descriptions
+
+
+──────────────────────────────────────────────────────────────
 PUSH 28  |  pending  |  Rope climb timer rework, grouped layout, logbook type filter
 
 Rope climb timer rework:

@@ -84,6 +84,45 @@ const THEMES = {
     purple: "#e8d4fc", purpleDark: "#6618bc",
     navBg: "#f6d888",
   },
+  neon: {
+    bg: "linear-gradient(160deg, #00060f 0%, #000408 50%, #000204 100%)",
+    surface: "rgba(0, 8, 20, 0.98)", surface2: "rgba(0, 14, 32, 0.96)",
+    border: "#00304860", accent: "#00d4ff", accentGlow: "rgba(0,212,255,0.35)", accentDark: "#0090c8",
+    text: "#d8f0ff", textMuted: "#5090b0", textDim: "#204860",
+    gold: "#f59e0b", goldLight: "#001428",
+    pink: "#0c0020", pinkDark: "#f472b6",
+    yellow: "#0c1000", yellowDark: "#fbbf24",
+    green: "#001c10", greenDark: "#00e87a",
+    red: "#160008", redDark: "#ff6080",
+    purple: "#08001e", purpleDark: "#c084fc",
+    navBg: "#000204",
+  },
+  midnight: {
+    bg: "linear-gradient(160deg, #0d1525 0%, #091020 50%, #060c18 100%)",
+    surface: "rgba(10, 16, 32, 0.98)", surface2: "rgba(16, 24, 48, 0.96)",
+    border: "#243456", accent: "#7ba4d8", accentGlow: "rgba(123,164,216,0.22)", accentDark: "#4a74b0",
+    text: "#c0d0e8", textMuted: "#6880a8", textDim: "#384860",
+    gold: "#b88820", goldLight: "#181830",
+    pink: "#180d26", pinkDark: "#c870b8",
+    yellow: "#181808", yellowDark: "#c09838",
+    green: "#081a14", greenDark: "#48b878",
+    red: "#180a0a", redDark: "#c86060",
+    purple: "#100828", purpleDark: "#9070c8",
+    navBg: "#050c18",
+  },
+  ember: {
+    bg: "linear-gradient(160deg, #1a1410 0%, #120e08 50%, #0e0a06 100%)",
+    surface: "rgba(20, 14, 8, 0.98)", surface2: "rgba(30, 22, 12, 0.96)",
+    border: "#483020", accent: "#d08040", accentGlow: "rgba(208,128,64,0.25)", accentDark: "#a05820",
+    text: "#e8d4b0", textMuted: "#987050", textDim: "#584030",
+    gold: "#c09010", goldLight: "#281c04",
+    pink: "#240c14", pinkDark: "#c86880",
+    yellow: "#201800", yellowDark: "#c89820",
+    green: "#0a1c08", greenDark: "#60b050",
+    red: "#200808", redDark: "#c85848",
+    purple: "#160c28", purpleDark: "#9068b8",
+    navBg: "#0c0806",
+  },
 };
 
 const SAMPLE_PROJECTS = [
@@ -398,7 +437,7 @@ const BoulderRopeSessionCard = ({ type, totalSec, activeStart, isEnded, tick, on
   );
 };
 
-const ActiveClimbCard = ({ climb, onEdit, onStartClimbing, onEndAttempt, onUpdateTries, onToggleCompleted, onLogRope, onRemove, onLightbox, tick }) => {
+const ActiveClimbCard = ({ climb, onEdit, onStartClimbing, onEndAttempt, onUpdateTries, onToggleCompleted, onLogRope, onRemove, onLightbox, onPauseClimb, onResumeClimb, tick }) => {
   const W = useTheme() || THEMES.espresso;
   const [confirmRemove, setConfirmRemove] = useState(false);
   const [showRopeLog, setShowRopeLog] = useState(false);
@@ -406,7 +445,7 @@ const ActiveClimbCard = ({ climb, onEdit, onStartClimbing, onEndAttempt, onUpdat
   const [ropeLogTopped, setRopeLogTopped] = useState(false);
   const isFlash = climb.completed && climb.tries === 0;
   const isRope = climb.climbType === "rope";
-  const restSec = !climb.climbingStartedAt && climb.lastAttemptEndedAt
+  const restSec = !climb.climbingStartedAt && !climb.paused && climb.lastAttemptEndedAt
     ? Math.max(0, Math.floor((Date.now() - climb.lastAttemptEndedAt) / 1000)) : null;
   const showReady = restSec !== null && restSec >= 180;
 
@@ -511,13 +550,24 @@ const ActiveClimbCard = ({ climb, onEdit, onStartClimbing, onEndAttempt, onUpdat
                 : <div style={{ fontSize: 10, color: W.greenDark, opacity: 0.7 }}>Log a fall or mark sent to stop</div>
               }
             </div>
+          ) : climb.paused ? (
+            <div style={{ display: "flex", alignItems: "center", padding: "10px 14px", gap: 10 }}>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontSize: 9, color: W.textDim, textTransform: "uppercase", letterSpacing: 0.8, fontWeight: 700 }}>⏸ Paused</div>
+                <div style={{ fontSize: 12, color: W.textMuted, marginTop: 1 }}>Attempt tracking paused</div>
+              </div>
+              <button onClick={() => onResumeClimb(climb.id)} style={{ padding: "7px 14px", background: W.green, border: `2px solid ${W.greenDark}`, borderRadius: 10, color: W.greenDark, fontWeight: 700, fontSize: 12, cursor: "pointer" }}>▶ Resume</button>
+            </div>
           ) : (
-            <div style={{ display: "flex", alignItems: "center", padding: "8px 14px", gap: 10 }}>
+            <div style={{ display: "flex", alignItems: "center", padding: "8px 14px", gap: 8 }}>
               {restSec !== null && (
                 <div style={{ flex: 1 }}>
                   <div style={{ fontSize: 9, color: showReady ? W.accent : W.textDim, textTransform: "uppercase", letterSpacing: 0.8, fontWeight: showReady ? 700 : 400 }}>{showReady ? "⚡ Ready?" : "Resting"}</div>
                   <div style={{ fontSize: 16, fontWeight: 700, color: showReady ? W.accent : W.textMuted, fontVariantNumeric: "tabular-nums" }}>{formatDuration(restSec)}</div>
                 </div>
+              )}
+              {!isRope && climb.lastAttemptEndedAt && (
+                <button onClick={() => onPauseClimb(climb.id)} title="Pause attempts" style={{ padding: "6px 10px", background: W.surface, border: `1px solid ${W.border}`, borderRadius: 8, color: W.textDim, fontWeight: 700, fontSize: 12, cursor: "pointer", flexShrink: 0 }}>⏸</button>
               )}
               <button onClick={() => onStartClimbing(climb.id)} style={{ flex: restSec !== null ? "0 0 auto" : 1, padding: "8px 14px", background: isRope ? W.purple : W.green, border: `2px solid ${isRope ? W.purpleDark : W.greenDark}`, borderRadius: 10, color: isRope ? W.purpleDark : W.greenDark, fontWeight: 700, fontSize: 12, cursor: "pointer" }}>
                 {climb.tries === 0 ? (isRope ? "Start Attempt" : "Start Climbing") : "Start Attempt"}
@@ -918,6 +968,16 @@ export default function App() {
   const logRopeAttempt = (id, falls, topped) => setActiveSession(s => ({
     ...s,
     climbs: s.climbs.map(c => c.id === id ? { ...c, tries: (c.tries || 0) + 1, falls: (c.falls || 0) + falls, completed: topped } : c),
+  }));
+  // Pauses attempt tracking on a boulder climb (hides rest timer)
+  const pauseClimb = (id) => setActiveSession(s => ({
+    ...s,
+    climbs: s.climbs.map(c => c.id === id ? { ...c, paused: true } : c),
+  }));
+  // Resumes attempt tracking on a paused boulder climb
+  const resumeClimb = (id) => setActiveSession(s => ({
+    ...s,
+    climbs: s.climbs.map(c => c.id === id ? { ...c, paused: false } : c),
   }));
   const endSession = () => {
     if (!activeSession) return;
@@ -2010,6 +2070,7 @@ export default function App() {
       onEdit: openClimbForm, onStartClimbing: startClimbing, onEndAttempt: endClimbAttempt,
       onUpdateTries: updateActiveClimbTries, onToggleCompleted: toggleActiveClimbCompleted,
       onLogRope: logRopeAttempt, onRemove: removeClimbFromActive, onLightbox: setLightboxPhoto,
+      onPauseClimb: pauseClimb, onResumeClimb: resumeClimb,
       tick: sessionTimer,
     };
     return (
@@ -2037,6 +2098,9 @@ export default function App() {
             <BoulderRopeSessionCard type="boulder" totalSec={activeSession.boulderTotalSec || 0} activeStart={activeSession.boulderActiveStart || null} isEnded={!!activeSession.boulderEndedAt} tick={sessionTimer} onEnd={endBoulderSession} />
             <div style={{ borderLeft: `3px solid ${W.greenDark}44`, paddingLeft: 10, marginLeft: 2 }}>
               {boulderClimbs.map(c => <ActiveClimbCard key={c.id} climb={c} {...cardProps} />)}
+              {selectedTypes.includes("boulder") && !activeSession.boulderEndedAt && (
+                <button onClick={() => openClimbForm(null, null, "boulder")} style={{ width: "100%", padding: "10px", background: W.green, border: `2px solid ${W.greenDark}`, borderRadius: 12, color: W.greenDark, fontWeight: 700, fontSize: 13, cursor: "pointer", marginTop: 2 }}>+ New Boulder</button>
+              )}
             </div>
           </div>
         )}
@@ -2047,6 +2111,9 @@ export default function App() {
             <BoulderRopeSessionCard type="rope" totalSec={activeSession.ropeTotalSec || 0} activeStart={activeSession.ropeActiveStart || null} isEnded={!!activeSession.ropeEndedAt} tick={sessionTimer} onEnd={endRopeSession} />
             <div style={{ borderLeft: `3px solid ${W.purpleDark}44`, paddingLeft: 10, marginLeft: 2 }}>
               {ropeClimbs.map(c => <ActiveClimbCard key={c.id} climb={c} {...cardProps} />)}
+              {selectedTypes.includes("rope") && !activeSession.ropeEndedAt && (
+                <button onClick={() => openClimbForm(null, null, "rope")} style={{ width: "100%", padding: "10px", background: W.purple, border: `2px solid ${W.purpleDark}`, borderRadius: 12, color: W.purpleDark, fontWeight: 700, fontSize: 13, cursor: "pointer", marginTop: 2 }}>+ New Rope Climb</button>
+              )}
             </div>
           </div>
         )}
@@ -2072,20 +2139,33 @@ export default function App() {
             <button onClick={() => setShowProjectPicker(false)} style={{ width: "100%", marginTop: 8, padding: "10px", background: "transparent", border: `1px solid ${W.border}`, borderRadius: 10, color: W.textMuted, cursor: "pointer" }}>Cancel</button>
           </div>
         )}
-        {!showClimbForm && !showProjectPicker && (
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 12, marginTop: 8 }}>
-            {primaryBtns.map(b => (
-              <button key={b.type} onClick={b.onClick} style={{ padding: "13px", background: b.bg, border: `2px solid ${b.border}`, borderRadius: 14, color: b.color, fontWeight: 700, fontSize: 13, cursor: "pointer" }}>{b.label}</button>
-            ))}
-            <button onClick={() => setShowProjectPicker(true)} style={{ padding: "13px", background: W.pink, border: `2px solid ${W.pinkDark}`, borderRadius: 14, color: W.pinkDark, fontWeight: 700, fontSize: 13, cursor: "pointer" }}>🎯 Log Project</button>
-            {secondaryBtns.length > 0 && (
-              <button onClick={() => setShowMoreClimbTypes(v => !v)} style={{ padding: "13px", background: W.surface2, border: `2px solid ${W.border}`, borderRadius: 14, color: W.textMuted, fontWeight: 700, fontSize: 13, cursor: "pointer" }}>{showMoreClimbTypes ? "▲ Less" : "▼ See More"}</button>
-            )}
-            {showMoreClimbTypes && secondaryBtns.map(b => (
-              <button key={b.type} onClick={b.onClick} style={{ padding: "13px", background: b.bg, border: `2px solid ${b.border}`, borderRadius: 14, color: b.color, fontWeight: 700, fontSize: 13, cursor: "pointer", opacity: 0.85 }}>{b.label}</button>
-            ))}
-          </div>
-        )}
+        {!showClimbForm && !showProjectPicker && (() => {
+          // Buttons for types whose section isn't started yet (first climb of that type)
+          const unstartedPrimary = primaryBtns.filter(b =>
+            !(b.type === "boulder" && activeSession?.boulderStartedAt) &&
+            !(b.type === "rope"    && activeSession?.ropeStartedAt)
+          );
+          const hasBottomButtons = unstartedPrimary.length > 0 || secondaryBtns.length > 0;
+          if (!hasBottomButtons) return (
+            <div style={{ marginBottom: 12, marginTop: 4 }}>
+              <button onClick={() => setShowProjectPicker(true)} style={{ width: "100%", padding: "13px", background: W.pink, border: `2px solid ${W.pinkDark}`, borderRadius: 14, color: W.pinkDark, fontWeight: 700, fontSize: 13, cursor: "pointer" }}>🎯 Log Project</button>
+            </div>
+          );
+          return (
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 12, marginTop: 8 }}>
+              {unstartedPrimary.map(b => (
+                <button key={b.type} onClick={b.onClick} style={{ padding: "13px", background: b.bg, border: `2px solid ${b.border}`, borderRadius: 14, color: b.color, fontWeight: 700, fontSize: 13, cursor: "pointer" }}>{b.label}</button>
+              ))}
+              <button onClick={() => setShowProjectPicker(true)} style={{ padding: "13px", background: W.pink, border: `2px solid ${W.pinkDark}`, borderRadius: 14, color: W.pinkDark, fontWeight: 700, fontSize: 13, cursor: "pointer" }}>🎯 Log Project</button>
+              {secondaryBtns.length > 0 && (
+                <button onClick={() => setShowMoreClimbTypes(v => !v)} style={{ padding: "13px", background: W.surface2, border: `2px solid ${W.border}`, borderRadius: 14, color: W.textMuted, fontWeight: 700, fontSize: 13, cursor: "pointer" }}>{showMoreClimbTypes ? "▲ Less" : "▼ See More"}</button>
+              )}
+              {showMoreClimbTypes && secondaryBtns.map(b => (
+                <button key={b.type} onClick={b.onClick} style={{ padding: "13px", background: b.bg, border: `2px solid ${b.border}`, borderRadius: 14, color: b.color, fontWeight: 700, fontSize: 13, cursor: "pointer", opacity: 0.85 }}>{b.label}</button>
+              ))}
+            </div>
+          );
+        })()}
         {!showClimbForm && !showProjectPicker && (
           <button onClick={() => setShowEndConfirm(true)} style={{ width: "100%", padding: "14px", background: W.surface, border: `2px solid ${W.border}`, borderRadius: 14, color: W.redDark, fontWeight: 700, fontSize: 15, cursor: "pointer", marginTop: 4 }}>⏹ End Session</button>
         )}
@@ -2313,15 +2393,19 @@ export default function App() {
             </div>
             <div style={{ marginBottom: 14 }}>
               <div style={{ fontSize: 11, fontWeight: 700, color: W.textMuted, textTransform: "uppercase", letterSpacing: 1.2, marginBottom: 8 }}>App Theme</div>
-              <div style={{ display: "flex", gap: 6 }}>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 6 }}>
                 {[
-                  { id: "espresso", label: "Espresso", icon: "☕" },
-                  { id: "alpine",   label: "Alpine",   icon: "🏔" },
-                  { id: "chalk",    label: "Chalk",    icon: "🎨" },
+                  { id: "espresso", label: "Espresso", icon: "☕",  desc: "Dark warm" },
+                  { id: "alpine",   label: "Alpine",   icon: "🏔",  desc: "Light natural" },
+                  { id: "chalk",    label: "Chalk",    icon: "🎨",  desc: "Warm bright" },
+                  { id: "neon",     label: "Neon",     icon: "⚡",  desc: "Black + cyan" },
+                  { id: "midnight", label: "Midnight", icon: "🌙",  desc: "Dark navy" },
+                  { id: "ember",    label: "Ember",    icon: "🔥",  desc: "Dark amber" },
                 ].map(t => (
-                  <button key={t.id} onClick={() => setColorTheme(t.id)} style={{ flex: 1, padding: "8px 4px", borderRadius: 12, border: `2px solid`, borderColor: colorTheme === t.id ? W.accent : W.border, background: colorTheme === t.id ? W.accent + "22" : W.surface2, color: colorTheme === t.id ? W.accent : W.textDim, cursor: "pointer", fontSize: 11, fontWeight: colorTheme === t.id ? 700 : 500, textAlign: "center" }}>
-                    <div style={{ fontSize: 18 }}>{t.icon}</div>
-                    <div>{t.label}</div>
+                  <button key={t.id} onClick={() => setColorTheme(t.id)} style={{ padding: "8px 4px", borderRadius: 12, border: `2px solid`, borderColor: colorTheme === t.id ? W.accent : W.border, background: colorTheme === t.id ? W.accent + "22" : W.surface2, color: colorTheme === t.id ? W.accent : W.textDim, cursor: "pointer", fontSize: 10, fontWeight: colorTheme === t.id ? 700 : 500, textAlign: "center" }}>
+                    <div style={{ fontSize: 18, marginBottom: 2 }}>{t.icon}</div>
+                    <div style={{ fontWeight: 700, fontSize: 11 }}>{t.label}</div>
+                    <div style={{ fontSize: 9, opacity: 0.7, marginTop: 1 }}>{t.desc}</div>
                   </button>
                 ))}
               </div>
