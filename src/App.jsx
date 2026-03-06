@@ -981,6 +981,8 @@ export default function App() {
   const [pieScale, setPieScale]                     = useState("");
   const [pieHiddenGrades, setPieHiddenGrades]       = useState([]);
   const [pieSelGrade, setPieSelGrade]               = useState(null);
+  const [showSendsBreakdown, setShowSendsBreakdown] = useState(false);
+  const [showTimeBreakdown, setShowTimeBreakdown]   = useState(false);
   const [analyzeOpen, setAnalyzeOpen] = useState(false);
 
   // ── SOCIAL STATE ───────────────────────────────────────────
@@ -3232,7 +3234,8 @@ export default function App() {
           const renderStatCards = (cards) => (
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 16 }}>
               {cards.filter(Boolean).map(s => (
-                <div key={s.label} style={{ background: s.bg, borderRadius: 14, padding: "14px", border: `1px solid ${W.border}` }}>
+                <div key={s.label} onClick={s.onClick} style={{ background: s.bg, borderRadius: 14, padding: "14px", border: `1px solid ${W.border}`, cursor: s.onClick ? "pointer" : "default", position: "relative" }}>
+                  {s.onClick && <div style={{ position: "absolute", top: 10, right: 10, fontSize: 10, color: W.textDim }}>{s.expanded ? "▲" : "▼"}</div>}
                   <div style={{ fontSize: 20, marginBottom: 4 }}>{s.icon}</div>
                   <div style={{ fontSize: 20, fontWeight: 800, color: s.tc }}>{s.value}</div>
                   <div style={{ fontSize: 12, fontWeight: 700, color: W.text, marginTop: 2 }}>{s.label}</div>
@@ -3403,8 +3406,8 @@ export default function App() {
                   )}
                 </div>
                 {renderStatCards([
-                  { icon: "🧗", label: "Total Sends",        value: displayStats.completed.length,                  sub: selLabel || tfLabels[statsTimeFrame], bg: W.surface2,  tc: W.accent },
-                  { icon: "⏱", label: "Time Climbed",        value: formatTotalTime(displayStats.totalTimeClimbed), sub: selLabel || tfLabels[statsTimeFrame], bg: W.purple,    tc: W.purpleDark },
+                  { icon: "🧗", label: "Total Sends",        value: displayStats.completed.length,                  sub: selLabel || tfLabels[statsTimeFrame], bg: W.surface2,  tc: W.accent,     onClick: () => setShowSendsBreakdown(o => !o), expanded: showSendsBreakdown },
+                  { icon: "⏱", label: "Time Climbed",        value: formatTotalTime(displayStats.totalTimeClimbed), sub: selLabel || tfLabels[statsTimeFrame], bg: W.purple,    tc: W.purpleDark, onClick: () => setShowTimeBreakdown(o => !o),  expanded: showTimeBreakdown  },
                   { icon: "🔁", label: "Total Attempts",      value: displayStats.totalAttempts,                     sub: selLabel || tfLabels[statsTimeFrame], bg: W.green,     tc: W.greenDark },
                   { icon: "📅", label: "Sessions",            value: displayStats.sessionCount,                      sub: selLabel || tfLabels[statsTimeFrame], bg: W.surface2,  tc: W.accentDark },
                   { icon: "⚡", label: "Flash Rate",          value: `${displayStats.flashRate}%`,                   sub: `${displayStats.flashes.length} flashes`,             bg: W.yellow,    tc: W.yellowDark },
@@ -3421,7 +3424,121 @@ export default function App() {
                   { icon: "🐢", label: "Longest Climb Rest",  value: formatRestSec(displayStats.maxClimbRestSec),    sub: "single longest gap",                 bg: W.surface2,  tc: W.accentDark },
                   ...(displayStats.speedPB != null ? [{ icon: "⚡", label: "Speed PB", value: `${displayStats.speedPB.toFixed(2)}s`, sub: selLabel || tfLabels[statsTimeFrame], bg: W.yellow, tc: W.yellowDark }] : []),
                 ])}
-                {displayStats.gradeBreakdown.length > 0 && renderGradeBreakdown(displayStats.gradeBreakdown)}
+                {/* Total Sends type breakdown */}
+                {showSendsBreakdown && (() => {
+                  const bSends = displayStats.completed.filter(c => !c.climbType || c.climbType === "boulder").length;
+                  const rSends = displayStats.completed.filter(c => c.climbType === "rope").length;
+                  const sSends = displayStats.completed.filter(c => c.climbType === "speed-session").length;
+                  const total = bSends + rSends + sSends || 1;
+                  const slices = [
+                    { label: "Boulder", value: bSends, color: W.accent },
+                    { label: "Rope",    value: rSends, color: W.purple },
+                    { label: "Speed",   value: sSends, color: W.yellow },
+                  ].filter(s => s.value > 0);
+                  let cumAngle = 0;
+                  const pieSlices = slices.map(s => {
+                    const angle = (s.value / total) * 2 * Math.PI;
+                    const x1 = 50 + 44 * Math.cos(cumAngle - Math.PI / 2);
+                    const y1 = 50 + 44 * Math.sin(cumAngle - Math.PI / 2);
+                    cumAngle += angle;
+                    const x2 = 50 + 44 * Math.cos(cumAngle - Math.PI / 2);
+                    const y2 = 50 + 44 * Math.sin(cumAngle - Math.PI / 2);
+                    const large = angle > Math.PI ? 1 : 0;
+                    return { ...s, path: `M50,50 L${x1.toFixed(2)},${y1.toFixed(2)} A44,44 0 ${large},1 ${x2.toFixed(2)},${y2.toFixed(2)} Z` };
+                  });
+                  return (
+                    <div style={{ background: W.surface, borderRadius: 16, padding: "16px", border: `1px solid ${W.border}`, marginBottom: 16 }}>
+                      <div style={{ fontSize: 12, fontWeight: 700, color: W.textMuted, textTransform: "uppercase", letterSpacing: 1, marginBottom: 12 }}>Sends by Type</div>
+                      {slices.length === 0 ? (
+                        <div style={{ textAlign: "center", color: W.textDim, fontSize: 13, padding: "12px 0" }}>No sends in selected period</div>
+                      ) : (
+                        <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
+                          <svg width={110} height={110} viewBox="0 0 100 100" style={{ flexShrink: 0 }}>
+                            {slices.length === 1 ? <circle cx="50" cy="50" r="44" fill={slices[0].color} opacity={0.85} /> : pieSlices.map((sl, i) => <path key={i} d={sl.path} fill={sl.color} opacity={0.85} />)}
+                            <circle cx="50" cy="50" r="28" fill={W.surface} />
+                            <text x="50" y="47" textAnchor="middle" fontSize="13" fontWeight="bold" fill={W.text}>{total}</text>
+                            <text x="50" y="58" textAnchor="middle" fontSize="7" fill={W.textMuted}>total</text>
+                          </svg>
+                          <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 8 }}>
+                            {slices.map(sl => (
+                              <div key={sl.label} style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                                <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                                  <div style={{ width: 10, height: 10, borderRadius: 3, background: sl.color, flexShrink: 0 }} />
+                                  <span style={{ fontSize: 12, color: W.textMuted }}>{sl.label}</span>
+                                </div>
+                                <div>
+                                  <span style={{ fontSize: 14, fontWeight: 800, color: W.text }}>{sl.value}</span>
+                                  <span style={{ fontSize: 10, color: W.textDim, marginLeft: 4 }}>{Math.round((sl.value / total) * 100)}%</span>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })()}
+                {/* Time Climbed type breakdown */}
+                {showTimeBreakdown && (() => {
+                  const typeTime = { boulder: 0, rope: 0, speed: 0 };
+                  tfSessions.forEach(s => {
+                    const bCount = s.climbs.filter(c => !c.climbType || c.climbType === "boulder").length;
+                    const rCount = s.climbs.filter(c => c.climbType === "rope").length;
+                    const sCount = s.climbs.filter(c => c.climbType === "speed-session").length;
+                    const ct = bCount + rCount + sCount || 1;
+                    typeTime.boulder += (bCount / ct) * (s.duration || 0);
+                    typeTime.rope    += (rCount / ct) * (s.duration || 0);
+                    typeTime.speed   += (sCount / ct) * (s.duration || 0);
+                  });
+                  const total = typeTime.boulder + typeTime.rope + typeTime.speed || 1;
+                  const slices = [
+                    { label: "Boulder", value: typeTime.boulder, color: W.accent },
+                    { label: "Rope",    value: typeTime.rope,    color: W.purple },
+                    { label: "Speed",   value: typeTime.speed,   color: W.yellow },
+                  ].filter(s => s.value > 0);
+                  let cumAngle = 0;
+                  const pieSlices = slices.map(s => {
+                    const angle = (s.value / total) * 2 * Math.PI;
+                    const x1 = 50 + 44 * Math.cos(cumAngle - Math.PI / 2);
+                    const y1 = 50 + 44 * Math.sin(cumAngle - Math.PI / 2);
+                    cumAngle += angle;
+                    const x2 = 50 + 44 * Math.cos(cumAngle - Math.PI / 2);
+                    const y2 = 50 + 44 * Math.sin(cumAngle - Math.PI / 2);
+                    const large = angle > Math.PI ? 1 : 0;
+                    return { ...s, path: `M50,50 L${x1.toFixed(2)},${y1.toFixed(2)} A44,44 0 ${large},1 ${x2.toFixed(2)},${y2.toFixed(2)} Z` };
+                  });
+                  return (
+                    <div style={{ background: W.surface, borderRadius: 16, padding: "16px", border: `1px solid ${W.border}`, marginBottom: 16 }}>
+                      <div style={{ fontSize: 12, fontWeight: 700, color: W.textMuted, textTransform: "uppercase", letterSpacing: 1, marginBottom: 12 }}>Time by Type</div>
+                      {slices.length === 0 ? (
+                        <div style={{ textAlign: "center", color: W.textDim, fontSize: 13, padding: "12px 0" }}>No session data in selected period</div>
+                      ) : (
+                        <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
+                          <svg width={110} height={110} viewBox="0 0 100 100" style={{ flexShrink: 0 }}>
+                            {slices.length === 1 ? <circle cx="50" cy="50" r="44" fill={slices[0].color} opacity={0.85} /> : pieSlices.map((sl, i) => <path key={i} d={sl.path} fill={sl.color} opacity={0.85} />)}
+                            <circle cx="50" cy="50" r="28" fill={W.surface} />
+                            <text x="50" y="47" textAnchor="middle" fontSize="9" fontWeight="bold" fill={W.text}>{formatTotalTime(Math.round(total))}</text>
+                            <text x="50" y="58" textAnchor="middle" fontSize="7" fill={W.textMuted}>total</text>
+                          </svg>
+                          <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 8 }}>
+                            {slices.map(sl => (
+                              <div key={sl.label} style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                                <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                                  <div style={{ width: 10, height: 10, borderRadius: 3, background: sl.color, flexShrink: 0 }} />
+                                  <span style={{ fontSize: 12, color: W.textMuted }}>{sl.label}</span>
+                                </div>
+                                <div>
+                                  <span style={{ fontSize: 13, fontWeight: 800, color: W.text }}>{formatTotalTime(Math.round(sl.value))}</span>
+                                  <span style={{ fontSize: 10, color: W.textDim, marginLeft: 4 }}>{Math.round((sl.value / total) * 100)}%</span>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })()}
                 {/* Grade Pie Chart */}
                 <div style={{ background: W.surface, borderRadius: 16, padding: "16px", border: `1px solid ${W.border}` }}>
                   <div style={{ fontSize: 12, fontWeight: 700, color: W.textMuted, textTransform: "uppercase", letterSpacing: 1, marginBottom: 12 }}>Grade Pie Chart</div>
@@ -3537,15 +3654,6 @@ export default function App() {
                       </div>
                       <div style={{ fontSize: 12, color: W.yellowDark, opacity: 0.65, marginTop: 8 }}>{tfLabels[statsTimeFrame]}</div>
                     </div>
-                    {/* Stat cards */}
-                    {renderStatCards([
-                      { icon: "⏱", label: "Total Speed Time",  value: formatTotalTime(totalSpeedSec),       sub: tfLabels[statsTimeFrame],                    bg: W.surface2, tc: W.accent },
-                      { icon: "✅", label: "Total Tops",        value: timedAttempts.length,                 sub: "successful attempts",                       bg: W.green,    tc: W.greenDark },
-                      { icon: "✗",  label: "Total Falls",       value: fellAttempts.length,                  sub: "failed attempts",                           bg: W.red,      tc: W.redDark },
-                      { icon: "📊", label: "Success Rate",      value: `${successRatio}%`,                   sub: `${allSpeedAttempts.length} total attempts`,  bg: W.purple,   tc: W.purpleDark },
-                      { icon: "📅", label: "Sessions",          value: allSpeedSessions.length,              sub: tfLabels[statsTimeFrame],                    bg: W.surface2, tc: W.accentDark },
-                      { icon: "🔁", label: "Avg per Session",   value: allSpeedSessions.length ? (Math.round(allSpeedAttempts.length / allSpeedSessions.length * 10) / 10) : "—", sub: "attempts per session", bg: W.surface2, tc: W.accentDark },
-                    ])}
                     {/* Attempt timeline chart */}
                     {timedAttempts.length > 0 && (() => {
                       const times = timedAttempts.map(a => a.time);
@@ -3611,6 +3719,15 @@ export default function App() {
                         </div>
                       );
                     })()}
+                    {/* Stat cards */}
+                    {renderStatCards([
+                      { icon: "⏱", label: "Total Speed Time",  value: formatTotalTime(totalSpeedSec),       sub: tfLabels[statsTimeFrame],                    bg: W.surface2, tc: W.accent },
+                      { icon: "✅", label: "Total Tops",        value: timedAttempts.length,                 sub: "successful attempts",                       bg: W.green,    tc: W.greenDark },
+                      { icon: "✗",  label: "Total Falls",       value: fellAttempts.length,                  sub: "failed attempts",                           bg: W.red,      tc: W.redDark },
+                      { icon: "📊", label: "Success Rate",      value: `${successRatio}%`,                   sub: `${allSpeedAttempts.length} total attempts`,  bg: W.purple,   tc: W.purpleDark },
+                      { icon: "📅", label: "Sessions",          value: allSpeedSessions.length,              sub: tfLabels[statsTimeFrame],                    bg: W.surface2, tc: W.accentDark },
+                      { icon: "🔁", label: "Avg per Session",   value: allSpeedSessions.length ? (Math.round(allSpeedAttempts.length / allSpeedSessions.length * 10) / 10) : "—", sub: "attempts per session", bg: W.surface2, tc: W.accentDark },
+                    ])}
                   </>
                 )}
               </div>
