@@ -495,7 +495,7 @@ const SpeedSessionCard = ({ climb, tick, index, totalCount, onAddAttempt, onRemo
   );
 };
 
-const BoulderRopeSessionCard = ({ type, totalSec, activeStart, isEnded, tick, onEnd }) => {
+const BoulderRopeSessionCard = ({ type, totalSec, activeStart, isEnded, tick, onPause, onResume }) => {
   const W = useTheme() || THEMES.espresso;
   const liveSec = !isEnded && activeStart
     ? Math.max(0, Math.floor((Date.now() - activeStart) / 1000))
@@ -521,7 +521,8 @@ const BoulderRopeSessionCard = ({ type, totalSec, activeStart, isEnded, tick, on
           {isPaused && (totalSec || 0) === 0 && <div style={{ fontSize: 10, color: darkColor, opacity: 0.6, marginTop: 2 }}>Timer starts when you begin climbing</div>}
         </div>
         <div>
-          {!isEnded && <button onClick={onEnd} style={{ background: darkColor, border: "none", color: color, fontSize: 12, fontWeight: 700, cursor: "pointer", padding: "6px 12px", borderRadius: 8 }}>End</button>}
+          {isActive && <button onClick={onPause} style={{ background: darkColor, border: "none", color: color, fontSize: 12, fontWeight: 700, cursor: "pointer", padding: "6px 12px", borderRadius: 8 }}>⏸ Pause</button>}
+          {isPaused && (totalSec || 0) > 0 && <button onClick={onResume} style={{ background: darkColor, border: "none", color: color, fontSize: 12, fontWeight: 700, cursor: "pointer", padding: "6px 12px", borderRadius: 8 }}>▶ Resume</button>}
         </div>
       </div>
     </div>
@@ -1316,6 +1317,18 @@ export default function App() {
     const elapsed = s.ropeActiveStart ? Math.max(0, Math.floor((now - s.ropeActiveStart) / 1000)) : 0;
     return { ...s, ropeTotalSec: (s.ropeTotalSec || 0) + elapsed, ropeActiveStart: null, ropeEndedAt: now };
   });
+  const pauseBoulderSession = () => setActiveSession(s => {
+    const now = Date.now();
+    const elapsed = s.boulderActiveStart ? Math.max(0, Math.floor((now - s.boulderActiveStart) / 1000)) : 0;
+    return { ...s, boulderTotalSec: (s.boulderTotalSec || 0) + elapsed, boulderActiveStart: null };
+  });
+  const resumeBoulderSession = () => setActiveSession(s => ({ ...s, boulderActiveStart: Date.now() }));
+  const pauseRopeSession = () => setActiveSession(s => {
+    const now = Date.now();
+    const elapsed = s.ropeActiveStart ? Math.max(0, Math.floor((now - s.ropeActiveStart) / 1000)) : 0;
+    return { ...s, ropeTotalSec: (s.ropeTotalSec || 0) + elapsed, ropeActiveStart: null };
+  });
+  const resumeRopeSession = () => setActiveSession(s => ({ ...s, ropeActiveStart: Date.now() }));
   // Stops the per-climb timer without logging tries (used for rope "Done" button)
   // Type section timer keeps running — it only pauses when switching types or ending the section
   const endClimbAttempt = (id) => setActiveSession(s => {
@@ -1352,7 +1365,7 @@ export default function App() {
     return {
       ...s,
       climbs: s.climbs.map(c => c.id === id
-        ? { ...c, climbingStartedAt: null, lastAttemptEndedAt: now, attemptLog: [...(c.attemptLog || []), { startedAt: c.climbingStartedAt, duration, falls: c.tries }] }
+        ? { ...c, climbingStartedAt: null, attemptLog: [...(c.attemptLog || []), { startedAt: c.climbingStartedAt, duration, falls: c.tries }] }
         : c),
     };
   });
@@ -2533,7 +2546,7 @@ export default function App() {
         {/* ── Boulder Section ─────────────────────────────────── */}
         {!showClimbForm && !showProjectPicker && activeSession?.boulderStartedAt && (
           <div style={{ marginBottom: 16 }}>
-            <BoulderRopeSessionCard type="boulder" totalSec={activeSession.boulderTotalSec || 0} activeStart={activeSession.boulderActiveStart || null} isEnded={!!activeSession.boulderEndedAt} tick={sessionTimer} onEnd={endBoulderSession} />
+            <BoulderRopeSessionCard type="boulder" totalSec={activeSession.boulderTotalSec || 0} activeStart={activeSession.boulderActiveStart || null} isEnded={!!activeSession.boulderEndedAt} tick={sessionTimer} onPause={pauseBoulderSession} onResume={resumeBoulderSession} />
             <div style={{ borderLeft: `3px solid ${W.greenDark}44`, paddingLeft: 10, marginLeft: 2 }}>
               {boulderClimbs.map(c => <ActiveClimbCard key={c.id} climb={c} {...cardProps} />)}
               {selectedTypes.includes("boulder") && !activeSession.boulderEndedAt && (
@@ -2546,7 +2559,7 @@ export default function App() {
         {/* ── Rope Section ─────────────────────────────────────── */}
         {!showClimbForm && !showProjectPicker && activeSession?.ropeStartedAt && (
           <div style={{ marginBottom: 16 }}>
-            <BoulderRopeSessionCard type="rope" totalSec={activeSession.ropeTotalSec || 0} activeStart={activeSession.ropeActiveStart || null} isEnded={!!activeSession.ropeEndedAt} tick={sessionTimer} onEnd={endRopeSession} />
+            <BoulderRopeSessionCard type="rope" totalSec={activeSession.ropeTotalSec || 0} activeStart={activeSession.ropeActiveStart || null} isEnded={!!activeSession.ropeEndedAt} tick={sessionTimer} onPause={pauseRopeSession} onResume={resumeRopeSession} />
             <div style={{ borderLeft: `3px solid ${W.purpleDark}44`, paddingLeft: 10, marginLeft: 2 }}>
               {ropeClimbs.map(c => <ActiveClimbCard key={c.id} climb={c} {...cardProps} />)}
               {selectedTypes.includes("rope") && !activeSession.ropeEndedAt && (
