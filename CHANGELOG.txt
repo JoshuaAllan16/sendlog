@@ -239,6 +239,35 @@ Feed & logbook:
 
 
 ──────────────────────────────────────────────────────────────
+PUSH 28  |  pending  |  Rope climb timer rework, grouped layout, logbook type filter
+
+Rope climb timer rework:
+- Tapping "Start Attempt" starts a live wall timer for how long you're on the route
+- Tapping "Done" stops the timer and opens an inline form: enter falls + topped checkbox
+- "Log Attempt" saves the attempt (+1 try, adds falls, sets completed)
+- Rope climbs now track attempts (tries) and falls separately — old data is backward-compatible
+
+Active session layout:
+- Boulder climbs grouped under the Boulder session card with a left border accent
+- Rope climbs grouped under the Rope session card with a left border accent
+- Starting an attempt on any climb clears the rest timer on all other climbs
+
+Rest recommendations:
+- After 3+ minutes of rest since the last attempt, the card shows a "Ready?" prompt
+
+Logbook session type filter:
+- New "Type" pill row in the sessions filter panel: All / Boulder / Rope / Speed / Mixed
+- Sessions are classified by the types of climbs they contain
+- "Active" badge on the filter toggle reflects the type filter
+
+Rope falls tracking:
+- Logbook ClimbRow shows "X attempts · Y falls" for rope climbs
+- Session summary climbs list shows "X attempts · Y falls" for rope climbs
+- Stats tab rope stats: "Total Falls" and "Avg Falls/Route" now use actual falls (not attempt count)
+- "Best Day Falls" in rope stats also uses actual falls
+
+
+──────────────────────────────────────────────────────────────
 PUSH 27  |  pending  |  Activity-based timers, falls model, discard session
 ──────────────────────────────────────────────────────────────
 Activity-based boulder/rope timers:
