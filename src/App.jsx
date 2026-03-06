@@ -981,8 +981,11 @@ export default function App() {
   const [pieScale, setPieScale]                     = useState("");
   const [pieHiddenGrades, setPieHiddenGrades]       = useState([]);
   const [pieSelGrade, setPieSelGrade]               = useState(null);
-  const [showSendsBreakdown, setShowSendsBreakdown] = useState(false);
-  const [showTimeBreakdown, setShowTimeBreakdown]   = useState(false);
+  const [openOverallDropdown, setOpenOverallDropdown] = useState(null); // null | "sends" | "time"
+  const [ropePieStat, setRopePieStat]               = useState("sends");
+  const [ropePieSelGrade, setRopePieSelGrade]       = useState(null);
+  const [ropePieHiddenGrades, setRopePieHiddenGrades] = useState([]);
+  const [statsChartFilter, setStatsChartFilter]     = useState("all");
   const [analyzeOpen, setAnalyzeOpen] = useState(false);
 
   // ── SOCIAL STATE ───────────────────────────────────────────
@@ -3240,6 +3243,10 @@ export default function App() {
                   <div style={{ fontSize: 20, fontWeight: 800, color: s.tc }}>{s.value}</div>
                   <div style={{ fontSize: 12, fontWeight: 700, color: W.text, marginTop: 2 }}>{s.label}</div>
                   <div style={{ fontSize: 11, color: W.textMuted, marginTop: 1 }}>{s.sub}</div>
+                  {s.trendPct != null && (() => {
+                    const good = (s.trendPct > 0) === (s.trendGood !== false);
+                    return <div style={{ fontSize: 10, marginTop: 4, fontWeight: 700, color: good ? W.greenDark : W.redDark }}>{s.trendPct > 0 ? "▲" : "▼"} {Math.abs(s.trendPct)}% vs prev</div>;
+                  })()}
                 </div>
               ))}
             </div>
@@ -3309,6 +3316,74 @@ export default function App() {
             });
             return { slices, total };
           })();
+
+          // ── Previous period stats (for trend arrows) ──────────
+          const prevSessions = (() => {
+            const cutoffs = { "2w": 14, "1m": 30, "6m": 182, "1y": 365 };
+            const days = cutoffs[statsTimeFrame];
+            if (!days) return null;
+            const end = Date.now() - days * 86400000;
+            const start = end - days * 86400000;
+            return sessions.filter(s => { const t = new Date(s.date).getTime(); return t >= start && t < end; });
+          })();
+          const prevStats = prevSessions ? getStats(prevSessions) : null;
+          const trendPct = (cur, prev) => {
+            if (prev == null || typeof prev !== "number" || prev === 0) return null;
+            const pct = Math.round(((cur - prev) / prev) * 100);
+            return pct === 0 ? null : pct;
+          };
+
+          // ── Shared grade pie renderer ──────────────────────────
+          const renderGradePie = (climbsList, scale, pStat, setPStat, selGrade, setSelGrade, hiddenGrades, setHiddenGrades) => {
+            const gradeList = scale === "Custom" ? [...new Set([...customBoulderGrades, ...customRopeGrades])] : (GRADES[scale] || ROPE_GRADES[scale] || []);
+            const visGrades = gradeList.filter(g => !hiddenGrades.includes(g));
+            const raw = visGrades.map(g => {
+              const gc = climbsList.filter(c => c.grade === g);
+              const value = pStat === "attempts" ? gc.reduce((t, c) => t + c.tries, 0) : pStat === "sends" ? gc.filter(c => c.completed).length : gc.filter(c => c.completed && c.tries === 1).length;
+              return { grade: g, value, color: getGradeColor(g) };
+            }).filter(d => d.value > 0);
+            const total = raw.reduce((s, d) => s + d.value, 0);
+            if (!total) return (
+              <div style={{ background: W.surface, borderRadius: 16, padding: "16px", border: `1px solid ${W.border}`, marginBottom: 16 }}>
+                <div style={{ fontSize: 12, fontWeight: 700, color: W.textMuted, textTransform: "uppercase", letterSpacing: 1, marginBottom: 8 }}>Grade Breakdown</div>
+                <div style={{ textAlign: "center", color: W.textDim, fontSize: 13, padding: "20px 0" }}>No data for selected filters</div>
+              </div>
+            );
+            let angle = -Math.PI / 2;
+            const slices = raw.map(d => {
+              const sweep = (d.value / total) * 2 * Math.PI;
+              const end = angle + sweep; const sa = angle; angle = end;
+              const ir = 22, cx = 50, cy = 50;
+              const mkPath = (r) => { const x1=cx+r*Math.cos(sa),y1=cy+r*Math.sin(sa),x2=cx+r*Math.cos(end),y2=cy+r*Math.sin(end),ix1=cx+ir*Math.cos(sa),iy1=cy+ir*Math.sin(sa),ix2=cx+ir*Math.cos(end),iy2=cy+ir*Math.sin(end),large=sweep>Math.PI?1:0; return `M ${ix1.toFixed(2)} ${iy1.toFixed(2)} L ${x1.toFixed(2)} ${y1.toFixed(2)} A ${r} ${r} 0 ${large} 1 ${x2.toFixed(2)} ${y2.toFixed(2)} L ${ix2.toFixed(2)} ${iy2.toFixed(2)} A ${ir} ${ir} 0 ${large} 0 ${ix1.toFixed(2)} ${iy1.toFixed(2)} Z`; };
+              return { ...d, path: mkPath(42), pathSel: mkPath(47) };
+            });
+            const anySelected = selGrade !== null;
+            const selSlice = slices.find(s => s.grade === selGrade);
+            return (
+              <div style={{ background: W.surface, borderRadius: 16, padding: "16px", border: `1px solid ${W.border}`, marginBottom: 16 }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+                  <div style={{ fontSize: 12, fontWeight: 700, color: W.textMuted, textTransform: "uppercase", letterSpacing: 1 }}>Grade Breakdown</div>
+                  <select value={pStat} onChange={e => { setPStat(e.target.value); setSelGrade(null); }} style={{ background: W.surface2, border: `1px solid ${W.border}`, borderRadius: 8, padding: "4px 8px", color: W.text, fontSize: 11, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}>
+                    <option value="attempts">Attempts</option>
+                    <option value="sends">Sends</option>
+                    <option value="flashes">Flashes</option>
+                  </select>
+                </div>
+                <div style={{ display: "flex", gap: 5, flexWrap: "wrap", marginBottom: 14 }}>
+                  {gradeList.map(g => { const hidden = hiddenGrades.includes(g); return (<button key={g} onClick={() => { setHiddenGrades(prev => hidden ? prev.filter(x => x !== g) : [...prev, g]); setSelGrade(null); }} style={{ padding: "3px 10px", borderRadius: 12, border: `2px solid ${hidden ? W.border : getGradeColor(g)}`, background: hidden ? W.surface2 : getGradeColor(g) + "33", color: hidden ? W.textDim : getGradeColor(g), fontSize: 11, fontWeight: 700, cursor: "pointer", opacity: hidden ? 0.5 : 1 }}>{g}</button>); })}
+                </div>
+                <div style={{ display: "flex", justifyContent: "center", marginBottom: 12 }}>
+                  <svg width={220} height={220} viewBox="-6 -6 112 112" style={{ display: "block" }}>
+                    {slices.map((sl, i) => <path key={i} d={sl.grade === selGrade ? sl.pathSel : sl.path} fill={sl.color} opacity={anySelected ? (sl.grade === selGrade ? 1 : 0.25) : 0.9} style={{ cursor: "pointer", transition: "opacity 0.15s" }} onClick={() => setSelGrade(selGrade === sl.grade ? null : sl.grade)} />)}
+                    {selSlice ? (<><text x="50" y="44" textAnchor="middle" fontSize="9" fontWeight="bold" fill={selSlice.color}>{selSlice.grade}</text><text x="50" y="57" textAnchor="middle" fontSize="14" fontWeight="bold" fill={W.text}>{selSlice.value}</text><text x="50" y="67" textAnchor="middle" fontSize="7" fill={W.textMuted}>{Math.round((selSlice.value / total) * 100)}%</text></>) : (<><text x="50" y="47" textAnchor="middle" fontSize="13" fontWeight="bold" fill={W.text}>{total}</text><text x="50" y="58" textAnchor="middle" fontSize="7" fill={W.textMuted}>total</text></>)}
+                  </svg>
+                </div>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
+                  {slices.map(sl => { const isSel = selGrade === sl.grade; return (<div key={sl.grade} onClick={() => setSelGrade(selGrade === sl.grade ? null : sl.grade)} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", cursor: "pointer", opacity: anySelected ? (isSel ? 1 : 0.4) : 1, transition: "opacity 0.15s", background: isSel ? sl.color + "18" : "transparent", borderRadius: 8, padding: "5px 8px", border: `1px solid ${isSel ? sl.color + "60" : "transparent"}` }}><div style={{ display: "flex", alignItems: "center", gap: 6 }}><div style={{ width: 10, height: 10, borderRadius: 3, background: sl.color, flexShrink: 0 }} /><span style={{ fontSize: 12, fontWeight: isSel ? 900 : 700, color: sl.color }}>{sl.grade}</span></div><div><span style={{ fontSize: 13, fontWeight: 800, color: isSel ? sl.color : W.text }}>{sl.value}</span><span style={{ fontSize: 10, color: W.textDim, marginLeft: 4 }}>{Math.round((sl.value / total) * 100)}%</span></div></div>); })}
+                </div>
+              </div>
+            );
+          };
 
           return (
           <div>
@@ -3381,7 +3456,15 @@ export default function App() {
                     </div>
                   );
                 })()}
-                {!statsShowCalendar ? renderChart(chartBuckets) : (
+                {/* Chart type filter */}
+                {!statsShowCalendar && (
+                  <div style={{ display: "flex", gap: 6, marginBottom: 8 }}>
+                    {[["all", "All"], ["boulder", "🪨 Boulder"], ["rope", "🪢 Rope"]].map(([id, label]) => (
+                      <button key={id} onClick={() => setStatsChartFilter(id)} style={{ padding: "4px 10px", borderRadius: 10, border: "2px solid", borderColor: statsChartFilter === id ? W.accent : W.border, background: statsChartFilter === id ? W.accent + "22" : W.surface, color: statsChartFilter === id ? W.accent : W.textDim, fontSize: 11, fontWeight: 700, cursor: "pointer" }}>{label}</button>
+                    ))}
+                  </div>
+                )}
+                {!statsShowCalendar ? renderChart(statsChartFilter === "boulder" ? boulderBuckets : statsChartFilter === "rope" ? ropeBuckets : chartBuckets) : (
                   <div style={{ background: W.surface, borderRadius: 16, border: `1px solid ${W.border}`, marginBottom: 10, overflow: "hidden" }}>{CalendarScreen()}</div>
                 )}
                 <button onClick={() => setStatsShowCalendar(s => !s)} style={{ width: "100%", padding: "12px", background: statsShowCalendar ? W.surface2 : `linear-gradient(135deg, ${W.gold}, #d97706)`, border: `1px solid ${W.border}`, borderRadius: 14, color: statsShowCalendar ? W.textMuted : "#fff", fontSize: 13, fontWeight: 700, cursor: "pointer", marginBottom: 16 }}>
@@ -3405,12 +3488,110 @@ export default function App() {
                     </div>
                   )}
                 </div>
+                {/* Top row: Total Sends + Time Climbed (clickable with inline dropdown) */}
+                {(() => {
+                  const makeTypePie = (slices) => {
+                    const total = slices.reduce((s, sl) => s + sl.value, 0) || 1;
+                    let cumAngle = 0;
+                    return slices.filter(sl => sl.value > 0).map(sl => {
+                      const angle = (sl.value / total) * 2 * Math.PI;
+                      const x1 = 50 + 44 * Math.cos(cumAngle - Math.PI / 2);
+                      const y1 = 50 + 44 * Math.sin(cumAngle - Math.PI / 2);
+                      cumAngle += angle;
+                      const x2 = 50 + 44 * Math.cos(cumAngle - Math.PI / 2);
+                      const y2 = 50 + 44 * Math.sin(cumAngle - Math.PI / 2);
+                      return { ...sl, total, path: `M50,50 L${x1.toFixed(2)},${y1.toFixed(2)} A44,44 0 ${angle > Math.PI ? 1 : 0},1 ${x2.toFixed(2)},${y2.toFixed(2)} Z` };
+                    });
+                  };
+                  const renderTypePie = (pieSlices, centerLabel) => {
+                    const total = pieSlices[0]?.total || 1;
+                    return (
+                      <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
+                        <svg width={100} height={100} viewBox="0 0 100 100" style={{ flexShrink: 0 }}>
+                          {pieSlices.length === 1 ? <circle cx="50" cy="50" r="44" fill={pieSlices[0].color} opacity={0.85} /> : pieSlices.map((sl, i) => <path key={i} d={sl.path} fill={sl.color} opacity={0.85} />)}
+                          <circle cx="50" cy="50" r="28" fill={W.surface} />
+                          <text x="50" y="47" textAnchor="middle" fontSize="11" fontWeight="bold" fill={W.text}>{centerLabel}</text>
+                          <text x="50" y="58" textAnchor="middle" fontSize="7" fill={W.textMuted}>total</text>
+                        </svg>
+                        <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 6 }}>
+                          {pieSlices.map(sl => (
+                            <div key={sl.label} style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                              <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                                <div style={{ width: 9, height: 9, borderRadius: 3, background: sl.color, flexShrink: 0 }} />
+                                <span style={{ fontSize: 11, color: W.textMuted }}>{sl.label}</span>
+                              </div>
+                              <div>
+                                <span style={{ fontSize: 13, fontWeight: 800, color: W.text }}>{sl.value}</span>
+                                <span style={{ fontSize: 10, color: W.textDim, marginLeft: 4 }}>{Math.round((sl.value / total) * 100)}%</span>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    );
+                  };
+                  const sendsSlices = makeTypePie([
+                    { label: "Boulder", value: displayStats.completed.filter(c => !c.climbType || c.climbType === "boulder").length, color: W.accent },
+                    { label: "Rope",    value: displayStats.completed.filter(c => c.climbType === "rope").length,                    color: W.purple },
+                    { label: "Speed",   value: displayStats.completed.filter(c => c.climbType === "speed-session").length,           color: W.yellow },
+                  ]);
+                  const timeSlices = makeTypePie((() => {
+                    const t = { boulder: 0, rope: 0, speed: 0 };
+                    tfSessions.forEach(s => {
+                      const b = s.climbs.filter(c => !c.climbType || c.climbType === "boulder").length;
+                      const r = s.climbs.filter(c => c.climbType === "rope").length;
+                      const sp = s.climbs.filter(c => c.climbType === "speed-session").length;
+                      const ct = b + r + sp || 1;
+                      t.boulder += (b / ct) * (s.duration || 0);
+                      t.rope    += (r / ct) * (s.duration || 0);
+                      t.speed   += (sp / ct) * (s.duration || 0);
+                    });
+                    return [
+                      { label: "Boulder", value: Math.round(t.boulder), color: W.accent },
+                      { label: "Rope",    value: Math.round(t.rope),    color: W.purple },
+                      { label: "Speed",   value: Math.round(t.speed),   color: W.yellow },
+                    ];
+                  })());
+                  const cardStyle = (key) => ({ background: key === "sends" ? W.surface2 : W.purple, borderRadius: 14, padding: "14px", border: `2px solid ${openOverallDropdown === key ? (key === "sends" ? W.accent : W.purpleDark) : W.border}`, cursor: "pointer", position: "relative", flex: 1 });
+                  return (
+                    <>
+                      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 0 }}>
+                        <div onClick={() => setOpenOverallDropdown(d => d === "sends" ? null : "sends")} style={cardStyle("sends")}>
+                          <div style={{ position: "absolute", top: 10, right: 10, fontSize: 10, color: W.textDim }}>{openOverallDropdown === "sends" ? "▲" : "▼"}</div>
+                          <div style={{ fontSize: 20, marginBottom: 4 }}>🧗</div>
+                          <div style={{ fontSize: 20, fontWeight: 800, color: W.accent }}>{displayStats.completed.length}</div>
+                          <div style={{ fontSize: 12, fontWeight: 700, color: W.text, marginTop: 2 }}>Total Sends</div>
+                          <div style={{ fontSize: 11, color: W.textMuted, marginTop: 1 }}>{selLabel || tfLabels[statsTimeFrame]}</div>
+                          {prevStats && trendPct(displayStats.completed.length, prevStats.completed.length) != null && (() => { const p = trendPct(displayStats.completed.length, prevStats.completed.length); return <div style={{ fontSize: 10, marginTop: 4, fontWeight: 700, color: p > 0 ? W.greenDark : W.redDark }}>{p > 0 ? "▲" : "▼"} {Math.abs(p)}% vs prev</div>; })()}
+                        </div>
+                        <div onClick={() => setOpenOverallDropdown(d => d === "time" ? null : "time")} style={cardStyle("time")}>
+                          <div style={{ position: "absolute", top: 10, right: 10, fontSize: 10, color: W.textDim }}>{openOverallDropdown === "time" ? "▲" : "▼"}</div>
+                          <div style={{ fontSize: 20, marginBottom: 4 }}>⏱</div>
+                          <div style={{ fontSize: 20, fontWeight: 800, color: W.purpleDark }}>{formatTotalTime(displayStats.totalTimeClimbed)}</div>
+                          <div style={{ fontSize: 12, fontWeight: 700, color: W.text, marginTop: 2 }}>Time Climbed</div>
+                          <div style={{ fontSize: 11, color: W.textMuted, marginTop: 1 }}>{selLabel || tfLabels[statsTimeFrame]}</div>
+                          {prevStats && trendPct(displayStats.totalTimeClimbed, prevStats.totalTimeClimbed) != null && (() => { const p = trendPct(displayStats.totalTimeClimbed, prevStats.totalTimeClimbed); return <div style={{ fontSize: 10, marginTop: 4, fontWeight: 700, color: p > 0 ? W.greenDark : W.redDark }}>{p > 0 ? "▲" : "▼"} {Math.abs(p)}% vs prev</div>; })()}
+                        </div>
+                      </div>
+                      {openOverallDropdown === "sends" && (
+                        <div style={{ background: W.surface, borderRadius: "0 0 16px 16px", padding: "14px 16px", border: `1px solid ${W.border}`, borderTop: "none", marginBottom: 10 }}>
+                          <div style={{ fontSize: 11, fontWeight: 700, color: W.textMuted, textTransform: "uppercase", letterSpacing: 1, marginBottom: 10 }}>Sends by Type</div>
+                          {sendsSlices.length === 0 ? <div style={{ textAlign: "center", color: W.textDim, fontSize: 12 }}>No sends in selected period</div> : renderTypePie(sendsSlices, String(displayStats.completed.length))}
+                        </div>
+                      )}
+                      {openOverallDropdown === "time" && (
+                        <div style={{ background: W.surface, borderRadius: "0 0 16px 16px", padding: "14px 16px", border: `1px solid ${W.border}`, borderTop: "none", marginBottom: 10 }}>
+                          <div style={{ fontSize: 11, fontWeight: 700, color: W.textMuted, textTransform: "uppercase", letterSpacing: 1, marginBottom: 10 }}>Time by Type</div>
+                          {timeSlices.length === 0 ? <div style={{ textAlign: "center", color: W.textDim, fontSize: 12 }}>No session data in selected period</div> : renderTypePie(timeSlices, formatTotalTime(Math.round(timeSlices.reduce((s, sl) => s + sl.value, 0))))}
+                        </div>
+                      )}
+                    </>
+                  );
+                })()}
                 {renderStatCards([
-                  { icon: "🧗", label: "Total Sends",        value: displayStats.completed.length,                  sub: selLabel || tfLabels[statsTimeFrame], bg: W.surface2,  tc: W.accent,     onClick: () => setShowSendsBreakdown(o => !o), expanded: showSendsBreakdown },
-                  { icon: "⏱", label: "Time Climbed",        value: formatTotalTime(displayStats.totalTimeClimbed), sub: selLabel || tfLabels[statsTimeFrame], bg: W.purple,    tc: W.purpleDark, onClick: () => setShowTimeBreakdown(o => !o),  expanded: showTimeBreakdown  },
-                  { icon: "🔁", label: "Total Attempts",      value: displayStats.totalAttempts,                     sub: selLabel || tfLabels[statsTimeFrame], bg: W.green,     tc: W.greenDark },
-                  { icon: "📅", label: "Sessions",            value: displayStats.sessionCount,                      sub: selLabel || tfLabels[statsTimeFrame], bg: W.surface2,  tc: W.accentDark },
-                  { icon: "⚡", label: "Flash Rate",          value: `${displayStats.flashRate}%`,                   sub: `${displayStats.flashes.length} flashes`,             bg: W.yellow,    tc: W.yellowDark },
+                  { icon: "🔁", label: "Total Attempts",      value: displayStats.totalAttempts,                     sub: selLabel || tfLabels[statsTimeFrame], bg: W.green,     tc: W.greenDark,  trendPct: prevStats ? trendPct(displayStats.totalAttempts, prevStats.totalAttempts) : null },
+                  { icon: "📅", label: "Sessions",            value: displayStats.sessionCount,                      sub: selLabel || tfLabels[statsTimeFrame], bg: W.surface2,  tc: W.accentDark, trendPct: prevStats ? trendPct(displayStats.sessionCount, prevStats.sessionCount) : null },
+                  { icon: "⚡", label: "Flash Rate",          value: `${displayStats.flashRate}%`,                   sub: `${displayStats.flashes.length} flashes`,             bg: W.yellow,    tc: W.yellowDark, trendPct: prevStats ? trendPct(displayStats.flashRate, prevStats.flashRate) : null },
                   { icon: "🏆", label: "Best Grade",          value: displayStats.bestGrade,                         sub: `${preferredScale} · ${selLabel || tfLabels[statsTimeFrame]}`, bg: W.goldLight, tc: W.yellowDark },
                   { icon: "✅", label: "Projects Sent",       value: completedProjects.length,                       sub: "all time",                           bg: W.green,     tc: W.greenDark },
                   { icon: "🎯", label: "Active Projects",     value: activeProjects.length,                          sub: "in progress",                        bg: W.pink,      tc: W.pinkDark },
@@ -3418,164 +3599,12 @@ export default function App() {
                   { icon: "💥", label: "Best Day (Attempts)", value: displayStats.mostAttemptsInDay,                 sub: "attempts in one session",            bg: W.surface2,  tc: W.accentDark },
                   { icon: "📍", label: "Unique Gyms",         value: displayStats.uniqueGyms,                        sub: "visited",                            bg: W.surface2,  tc: W.accent },
                   { icon: "🏅", label: "Top Gym Visits",      value: displayStats.mostGymVisits,                     sub: "visits to one gym",                  bg: W.goldLight, tc: W.yellowDark },
+                  { icon: "🔁", label: "Avg Tries",           value: displayStats.avgTries,                          sub: "per climb",                          bg: W.green,     tc: W.greenDark,  trendPct: prevStats ? trendPct(displayStats.avgTries, prevStats.avgTries) : null, trendGood: false },
                   { icon: "😴", label: "Avg Rest Days",       value: displayStats.avgRestDays,                       sub: "between sessions",                   bg: W.surface2,  tc: W.accentDark },
-                  { icon: "🔁", label: "Avg Tries",           value: displayStats.avgTries,                          sub: "per climb",                          bg: W.green,     tc: W.greenDark },
                   { icon: "⏸", label: "Avg Rest (Climbs)",   value: formatRestSec(displayStats.avgClimbRestSec),    sub: "between logged climbs",              bg: W.purple,    tc: W.purpleDark },
                   { icon: "🐢", label: "Longest Climb Rest",  value: formatRestSec(displayStats.maxClimbRestSec),    sub: "single longest gap",                 bg: W.surface2,  tc: W.accentDark },
                   ...(displayStats.speedPB != null ? [{ icon: "⚡", label: "Speed PB", value: `${displayStats.speedPB.toFixed(2)}s`, sub: selLabel || tfLabels[statsTimeFrame], bg: W.yellow, tc: W.yellowDark }] : []),
                 ])}
-                {/* Total Sends type breakdown */}
-                {showSendsBreakdown && (() => {
-                  const bSends = displayStats.completed.filter(c => !c.climbType || c.climbType === "boulder").length;
-                  const rSends = displayStats.completed.filter(c => c.climbType === "rope").length;
-                  const sSends = displayStats.completed.filter(c => c.climbType === "speed-session").length;
-                  const total = bSends + rSends + sSends || 1;
-                  const slices = [
-                    { label: "Boulder", value: bSends, color: W.accent },
-                    { label: "Rope",    value: rSends, color: W.purple },
-                    { label: "Speed",   value: sSends, color: W.yellow },
-                  ].filter(s => s.value > 0);
-                  let cumAngle = 0;
-                  const pieSlices = slices.map(s => {
-                    const angle = (s.value / total) * 2 * Math.PI;
-                    const x1 = 50 + 44 * Math.cos(cumAngle - Math.PI / 2);
-                    const y1 = 50 + 44 * Math.sin(cumAngle - Math.PI / 2);
-                    cumAngle += angle;
-                    const x2 = 50 + 44 * Math.cos(cumAngle - Math.PI / 2);
-                    const y2 = 50 + 44 * Math.sin(cumAngle - Math.PI / 2);
-                    const large = angle > Math.PI ? 1 : 0;
-                    return { ...s, path: `M50,50 L${x1.toFixed(2)},${y1.toFixed(2)} A44,44 0 ${large},1 ${x2.toFixed(2)},${y2.toFixed(2)} Z` };
-                  });
-                  return (
-                    <div style={{ background: W.surface, borderRadius: 16, padding: "16px", border: `1px solid ${W.border}`, marginBottom: 16 }}>
-                      <div style={{ fontSize: 12, fontWeight: 700, color: W.textMuted, textTransform: "uppercase", letterSpacing: 1, marginBottom: 12 }}>Sends by Type</div>
-                      {slices.length === 0 ? (
-                        <div style={{ textAlign: "center", color: W.textDim, fontSize: 13, padding: "12px 0" }}>No sends in selected period</div>
-                      ) : (
-                        <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
-                          <svg width={110} height={110} viewBox="0 0 100 100" style={{ flexShrink: 0 }}>
-                            {slices.length === 1 ? <circle cx="50" cy="50" r="44" fill={slices[0].color} opacity={0.85} /> : pieSlices.map((sl, i) => <path key={i} d={sl.path} fill={sl.color} opacity={0.85} />)}
-                            <circle cx="50" cy="50" r="28" fill={W.surface} />
-                            <text x="50" y="47" textAnchor="middle" fontSize="13" fontWeight="bold" fill={W.text}>{total}</text>
-                            <text x="50" y="58" textAnchor="middle" fontSize="7" fill={W.textMuted}>total</text>
-                          </svg>
-                          <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 8 }}>
-                            {slices.map(sl => (
-                              <div key={sl.label} style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                                <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                                  <div style={{ width: 10, height: 10, borderRadius: 3, background: sl.color, flexShrink: 0 }} />
-                                  <span style={{ fontSize: 12, color: W.textMuted }}>{sl.label}</span>
-                                </div>
-                                <div>
-                                  <span style={{ fontSize: 14, fontWeight: 800, color: W.text }}>{sl.value}</span>
-                                  <span style={{ fontSize: 10, color: W.textDim, marginLeft: 4 }}>{Math.round((sl.value / total) * 100)}%</span>
-                                </div>
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  );
-                })()}
-                {/* Time Climbed type breakdown */}
-                {showTimeBreakdown && (() => {
-                  const typeTime = { boulder: 0, rope: 0, speed: 0 };
-                  tfSessions.forEach(s => {
-                    const bCount = s.climbs.filter(c => !c.climbType || c.climbType === "boulder").length;
-                    const rCount = s.climbs.filter(c => c.climbType === "rope").length;
-                    const sCount = s.climbs.filter(c => c.climbType === "speed-session").length;
-                    const ct = bCount + rCount + sCount || 1;
-                    typeTime.boulder += (bCount / ct) * (s.duration || 0);
-                    typeTime.rope    += (rCount / ct) * (s.duration || 0);
-                    typeTime.speed   += (sCount / ct) * (s.duration || 0);
-                  });
-                  const total = typeTime.boulder + typeTime.rope + typeTime.speed || 1;
-                  const slices = [
-                    { label: "Boulder", value: typeTime.boulder, color: W.accent },
-                    { label: "Rope",    value: typeTime.rope,    color: W.purple },
-                    { label: "Speed",   value: typeTime.speed,   color: W.yellow },
-                  ].filter(s => s.value > 0);
-                  let cumAngle = 0;
-                  const pieSlices = slices.map(s => {
-                    const angle = (s.value / total) * 2 * Math.PI;
-                    const x1 = 50 + 44 * Math.cos(cumAngle - Math.PI / 2);
-                    const y1 = 50 + 44 * Math.sin(cumAngle - Math.PI / 2);
-                    cumAngle += angle;
-                    const x2 = 50 + 44 * Math.cos(cumAngle - Math.PI / 2);
-                    const y2 = 50 + 44 * Math.sin(cumAngle - Math.PI / 2);
-                    const large = angle > Math.PI ? 1 : 0;
-                    return { ...s, path: `M50,50 L${x1.toFixed(2)},${y1.toFixed(2)} A44,44 0 ${large},1 ${x2.toFixed(2)},${y2.toFixed(2)} Z` };
-                  });
-                  return (
-                    <div style={{ background: W.surface, borderRadius: 16, padding: "16px", border: `1px solid ${W.border}`, marginBottom: 16 }}>
-                      <div style={{ fontSize: 12, fontWeight: 700, color: W.textMuted, textTransform: "uppercase", letterSpacing: 1, marginBottom: 12 }}>Time by Type</div>
-                      {slices.length === 0 ? (
-                        <div style={{ textAlign: "center", color: W.textDim, fontSize: 13, padding: "12px 0" }}>No session data in selected period</div>
-                      ) : (
-                        <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
-                          <svg width={110} height={110} viewBox="0 0 100 100" style={{ flexShrink: 0 }}>
-                            {slices.length === 1 ? <circle cx="50" cy="50" r="44" fill={slices[0].color} opacity={0.85} /> : pieSlices.map((sl, i) => <path key={i} d={sl.path} fill={sl.color} opacity={0.85} />)}
-                            <circle cx="50" cy="50" r="28" fill={W.surface} />
-                            <text x="50" y="47" textAnchor="middle" fontSize="9" fontWeight="bold" fill={W.text}>{formatTotalTime(Math.round(total))}</text>
-                            <text x="50" y="58" textAnchor="middle" fontSize="7" fill={W.textMuted}>total</text>
-                          </svg>
-                          <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 8 }}>
-                            {slices.map(sl => (
-                              <div key={sl.label} style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                                <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                                  <div style={{ width: 10, height: 10, borderRadius: 3, background: sl.color, flexShrink: 0 }} />
-                                  <span style={{ fontSize: 12, color: W.textMuted }}>{sl.label}</span>
-                                </div>
-                                <div>
-                                  <span style={{ fontSize: 13, fontWeight: 800, color: W.text }}>{formatTotalTime(Math.round(sl.value))}</span>
-                                  <span style={{ fontSize: 10, color: W.textDim, marginLeft: 4 }}>{Math.round((sl.value / total) * 100)}%</span>
-                                </div>
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  );
-                })()}
-                {/* Grade Pie Chart */}
-                <div style={{ background: W.surface, borderRadius: 16, padding: "16px", border: `1px solid ${W.border}` }}>
-                  <div style={{ fontSize: 12, fontWeight: 700, color: W.textMuted, textTransform: "uppercase", letterSpacing: 1, marginBottom: 12 }}>Grade Pie Chart</div>
-                  <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
-                    <select value={pieStat} onChange={e => { setPieStat(e.target.value); setPieSelGrade(null); }} style={{ flex: 1, background: W.surface2, border: `1px solid ${W.border}`, borderRadius: 8, padding: "6px 8px", color: W.text, fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}>
-                      <option value="attempts">Total Attempts</option>
-                      <option value="sends">Total Sends</option>
-                      <option value="flashes">Total Flashes</option>
-                    </select>
-                    <select value={effectivePieScale} onChange={e => { setPieScale(e.target.value); setPieHiddenGrades([]); setPieSelGrade(null); }} style={{ flex: 1, background: W.surface2, border: `1px solid ${W.border}`, borderRadius: 8, padding: "6px 8px", color: W.text, fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}>
-                      {Object.keys(GRADES).map(s => <option key={s} value={s}>{s}</option>)}
-                      {[...new Set([...customBoulderGrades, ...customRopeGrades])].length > 0 && <option value="Custom">{customBoulderScaleName !== "Custom" ? customBoulderScaleName : "Custom"}</option>}
-                    </select>
-                  </div>
-                  <div style={{ display: "flex", gap: 5, flexWrap: "wrap", marginBottom: 14 }}>
-                    {pieGradeList.map(g => { const hidden = pieHiddenGrades.includes(g); return (<button key={g} onClick={() => { setPieHiddenGrades(prev => hidden ? prev.filter(x => x !== g) : [...prev, g]); setPieSelGrade(null); }} style={{ padding: "3px 10px", borderRadius: 12, border: `2px solid ${hidden ? W.border : getGradeColor(g)}`, background: hidden ? W.surface2 : getGradeColor(g) + "33", color: hidden ? W.textDim : getGradeColor(g), fontSize: 11, fontWeight: 700, cursor: "pointer", opacity: hidden ? 0.5 : 1 }}>{g}</button>); })}
-                  </div>
-                  {pieData.total === 0 ? (
-                    <div style={{ textAlign: "center", color: W.textDim, fontSize: 13, padding: "20px 0" }}>No data for selected filters</div>
-                  ) : (() => {
-                    const anySelected = pieSelGrade !== null;
-                    const selSlice = pieData.slices.find(s => s.grade === pieSelGrade);
-                    return (
-                      <div>
-                        <div style={{ display: "flex", justifyContent: "center", marginBottom: 16 }}>
-                          <svg width={220} height={220} viewBox="-6 -6 112 112" style={{ display: "block" }}>
-                            {pieData.slices.map((sl, i) => <path key={i} d={sl.grade === pieSelGrade ? sl.pathSel : sl.path} fill={sl.color} opacity={anySelected ? (sl.grade === pieSelGrade ? 1 : 0.25) : 0.9} style={{ cursor: "pointer", transition: "opacity 0.15s" }} onClick={() => setPieSelGrade(pieSelGrade === sl.grade ? null : sl.grade)} />)}
-                            {selSlice ? (<><text x="50" y="44" textAnchor="middle" fontSize="9" fontWeight="bold" fill={selSlice.color}>{selSlice.grade}</text><text x="50" y="57" textAnchor="middle" fontSize="14" fontWeight="bold" fill={W.text}>{selSlice.value}</text><text x="50" y="67" textAnchor="middle" fontSize="7" fill={W.textMuted}>{Math.round((selSlice.value / pieData.total) * 100)}%</text></>) : (<><text x="50" y="47" textAnchor="middle" fontSize="13" fontWeight="bold" fill={W.text}>{pieData.total}</text><text x="50" y="58" textAnchor="middle" fontSize="7" fill={W.textMuted}>total</text></>)}
-                          </svg>
-                        </div>
-                        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
-                          {pieData.slices.map(sl => { const isSel = pieSelGrade === sl.grade; return (<div key={sl.grade} onClick={() => setPieSelGrade(pieSelGrade === sl.grade ? null : sl.grade)} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", cursor: "pointer", opacity: anySelected ? (isSel ? 1 : 0.4) : 1, transition: "opacity 0.15s", background: isSel ? sl.color + "18" : "transparent", borderRadius: 8, padding: "5px 8px", border: `1px solid ${isSel ? sl.color + "60" : "transparent"}` }}><div style={{ display: "flex", alignItems: "center", gap: 6 }}><div style={{ width: 10, height: 10, borderRadius: 3, background: sl.color, flexShrink: 0 }} /><span style={{ fontSize: 12, fontWeight: isSel ? 900 : 700, color: sl.color }}>{sl.grade}</span></div><div><span style={{ fontSize: 13, fontWeight: 800, color: isSel ? sl.color : W.text }}>{sl.value}</span><span style={{ fontSize: 10, color: W.textDim, marginLeft: 4 }}>{Math.round((sl.value / pieData.total) * 100)}%</span></div></div>); })}
-                        </div>
-                      </div>
-                    );
-                  })()}
-                </div>
               </div>
             )}
 
@@ -3588,11 +3617,11 @@ export default function App() {
                   <>
                     {renderChart(boulderBuckets)}
                     {renderStatCards([
-                      { icon: "🧗", label: "Sends",           value: boulderDisplayStats.completed.length,               sub: boulderSelLabel || tfLabels[statsTimeFrame], bg: W.surface2, tc: W.accent },
+                      { icon: "🧗", label: "Sends",           value: boulderDisplayStats.completed.length,               sub: boulderSelLabel || tfLabels[statsTimeFrame], bg: W.surface2, tc: W.accent,     trendPct: prevStats ? trendPct(boulderDisplayStats.completed.length, getStats(prevSessions ? prevSessions.map(s => ({ ...s, climbs: s.climbs.filter(boulderFilter) })).filter(s => s.climbs.length > 0) : []).completed.length) : null },
                       { icon: "🔁", label: "Total Attempts",  value: boulderDisplayStats.totalAttempts,                  sub: boulderSelLabel || tfLabels[statsTimeFrame], bg: W.green,    tc: W.greenDark },
                       { icon: "⚡", label: "Flash Rate",      value: `${boulderDisplayStats.flashRate}%`,                sub: `${boulderDisplayStats.flashes.length} flashes`,             bg: W.yellow,   tc: W.yellowDark },
                       { icon: "🏆", label: "Best Grade",      value: boulderDisplayStats.bestGrade,                      sub: preferredScale,                              bg: W.goldLight,tc: W.yellowDark },
-                      { icon: "🔄", label: "Avg Tries",       value: boulderDisplayStats.avgTries,                       sub: "per boulder",                               bg: W.surface2, tc: W.accentDark },
+                      { icon: "🔄", label: "Avg Tries",       value: boulderDisplayStats.avgTries,                       sub: "per boulder",                               bg: W.surface2, tc: W.accentDark, trendGood: false },
                       { icon: "📅", label: "Sessions",        value: boulderDisplayStats.sessionCount,                   sub: boulderSelLabel || tfLabels[statsTimeFrame], bg: W.surface2, tc: W.accentDark },
                       { icon: "📈", label: "Best Day",        value: boulderDisplayStats.mostInDay,                      sub: "boulders in one session",                   bg: W.surface2, tc: W.accentDark },
                       { icon: "💥", label: "Best Day Tries",  value: boulderDisplayStats.mostAttemptsInDay,              sub: "attempts in one session",                   bg: W.surface2, tc: W.accentDark },
@@ -3601,7 +3630,13 @@ export default function App() {
                       { icon: "⏸", label: "Avg Rest",        value: formatRestSec(boulderDisplayStats.avgClimbRestSec), sub: "between logged climbs",                     bg: W.purple,   tc: W.purpleDark },
                       { icon: "🐢", label: "Longest Rest",    value: formatRestSec(boulderDisplayStats.maxClimbRestSec), sub: "single gap",                                bg: W.surface2, tc: W.accentDark },
                     ])}
-                    {renderGradeBreakdown(boulderDisplayStats.gradeBreakdown)}
+                    {renderGradePie(
+                      boulderSessions.flatMap(s => s.climbs),
+                      effectivePieScale,
+                      pieStat, setPieStat,
+                      pieSelGrade, setPieSelGrade,
+                      pieHiddenGrades, setPieHiddenGrades
+                    )}
                   </>
                 )}
               </div>
@@ -3627,7 +3662,13 @@ export default function App() {
                       { icon: "⏸", label: "Avg Rest",       value: formatRestSec(ropeDisplayStats.avgClimbRestSec), sub: "between logged routes",                bg: W.purple,   tc: W.purpleDark },
                       { icon: "🐢", label: "Longest Rest",   value: formatRestSec(ropeDisplayStats.maxClimbRestSec), sub: "single gap",                          bg: W.surface2, tc: W.accentDark },
                     ])}
-                    {renderGradeBreakdown(ropeDisplayStats.gradeBreakdown)}
+                    {(() => {
+                      const ropeClimbs = ropeSessions.flatMap(s => s.climbs);
+                      const scaleCounts = {};
+                      ropeClimbs.forEach(c => { if (c.scale) scaleCounts[c.scale] = (scaleCounts[c.scale] || 0) + 1; });
+                      const defaultRopeScale = Object.keys(scaleCounts).sort((a, b) => scaleCounts[b] - scaleCounts[a])[0] || Object.keys(ROPE_GRADES)[0];
+                      return renderGradePie(ropeClimbs, defaultRopeScale, ropePieStat, setRopePieStat, ropePieSelGrade, setRopePieSelGrade, ropePieHiddenGrades, setRopePieHiddenGrades);
+                    })()}
                   </>
                 )}
               </div>
