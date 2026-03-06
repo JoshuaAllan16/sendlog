@@ -2724,7 +2724,41 @@ export default function App() {
           );
         })()}
         {!showClimbForm && !showProjectPicker && (
-          <button onClick={() => setShowEndConfirm(true)} style={{ width: "100%", padding: "14px", background: W.surface, border: `2px solid ${W.border}`, borderRadius: 14, color: W.redDark, fontWeight: 700, fontSize: 15, cursor: "pointer", marginTop: 4 }}>⏹ End Session</button>
+          <div style={{ marginTop: 4 }}>
+            {/* Section timer status indicators */}
+            {(activeSession?.boulderStartedAt || activeSession?.ropeStartedAt || speedSessions.some(s => !s.endedAt)) && (
+              <div style={{ display: "flex", gap: 6, justifyContent: "center", marginBottom: 8, flexWrap: "wrap" }}>
+                {activeSession?.boulderStartedAt && !activeSession.boulderEndedAt && (() => {
+                  const active = !!activeSession.boulderActiveStart;
+                  return (
+                    <div style={{ display: "flex", alignItems: "center", gap: 4, background: W.surface2, borderRadius: 10, padding: "4px 10px", border: `1px solid ${active ? W.greenDark + "55" : W.border}` }}>
+                      <div style={{ width: 7, height: 7, borderRadius: "50%", background: active ? W.greenDark : W.textDim }} />
+                      <span style={{ fontSize: 10, fontWeight: 700, color: active ? W.greenDark : W.textDim }}>🪨 {active ? "active" : "paused"}</span>
+                    </div>
+                  );
+                })()}
+                {activeSession?.ropeStartedAt && !activeSession.ropeEndedAt && (() => {
+                  const active = !!activeSession.ropeActiveStart;
+                  return (
+                    <div style={{ display: "flex", alignItems: "center", gap: 4, background: W.surface2, borderRadius: 10, padding: "4px 10px", border: `1px solid ${active ? W.purpleDark + "55" : W.border}` }}>
+                      <div style={{ width: 7, height: 7, borderRadius: "50%", background: active ? W.purpleDark : W.textDim }} />
+                      <span style={{ fontSize: 10, fontWeight: 700, color: active ? W.purpleDark : W.textDim }}>🪢 {active ? "active" : "paused"}</span>
+                    </div>
+                  );
+                })()}
+                {speedSessions.filter(s => !s.endedAt).map(s => {
+                  const active = !!s.speedActiveStart;
+                  return (
+                    <div key={s.id} style={{ display: "flex", alignItems: "center", gap: 4, background: W.surface2, borderRadius: 10, padding: "4px 10px", border: `1px solid ${active ? W.yellowDark + "55" : W.border}` }}>
+                      <div style={{ width: 7, height: 7, borderRadius: "50%", background: active ? W.yellowDark : W.textDim }} />
+                      <span style={{ fontSize: 10, fontWeight: 700, color: active ? W.yellowDark : W.textDim }}>⚡ {active ? "active" : "paused"}</span>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+            <button onClick={() => setShowEndConfirm(true)} style={{ width: "100%", padding: "14px", background: W.surface, border: `2px solid ${W.border}`, borderRadius: 14, color: W.redDark, fontWeight: 700, fontSize: 15, cursor: "pointer" }}>⏹ End Session</button>
+          </div>
         )}
         {showEndConfirm && (
           <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", zIndex: 200, display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
@@ -4231,6 +4265,50 @@ export default function App() {
                   <div style={{ fontWeight: 900, color: r.color, fontSize: 16, fontVariantNumeric: "tabular-nums" }}>{formatDuration(r.time)}</div>
                 </div>
               ))}
+            </div>
+          );
+        })()}
+        {/* Speed session detail */}
+        {stats.speedSessions.length > 0 && (() => {
+          const allAttempts = stats.speedSessions.flatMap(ss => (ss.attempts || []).map(a => ({ ...a, sessionId: ss.id })));
+          const tops = allAttempts.filter(a => !a.fell && a.time != null);
+          const falls = allAttempts.filter(a => a.fell);
+          return (
+            <div style={{ background: W.surface, borderRadius: 16, padding: "16px", border: `1px solid ${W.border}`, marginBottom: 16 }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+                <div style={{ fontSize: 11, fontWeight: 700, color: W.textMuted, textTransform: "uppercase", letterSpacing: 1 }}>⚡ Speed Climbing</div>
+                <div style={{ fontSize: 11, color: W.textDim }}>{allAttempts.length} attempt{allAttempts.length !== 1 ? "s" : ""}</div>
+              </div>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8, marginBottom: tops.length > 0 ? 14 : 0 }}>
+                <div style={{ background: W.yellow, borderRadius: 12, padding: "10px", textAlign: "center", border: `1px solid ${W.yellowDark}33` }}>
+                  <div style={{ fontSize: 18, fontWeight: 900, color: W.yellowDark, fontVariantNumeric: "tabular-nums" }}>{stats.speedBest != null ? `${stats.speedBest.toFixed(2)}s` : "—"}</div>
+                  <div style={{ fontSize: 10, color: W.yellowDark, opacity: 0.75, marginTop: 2 }}>Session PB</div>
+                </div>
+                <div style={{ background: W.green, borderRadius: 12, padding: "10px", textAlign: "center", border: `1px solid ${W.greenDark}33` }}>
+                  <div style={{ fontSize: 18, fontWeight: 900, color: W.greenDark }}>{tops.length}</div>
+                  <div style={{ fontSize: 10, color: W.greenDark, opacity: 0.75, marginTop: 2 }}>Tops</div>
+                </div>
+                <div style={{ background: W.red, borderRadius: 12, padding: "10px", textAlign: "center", border: `1px solid ${W.redDark}33` }}>
+                  <div style={{ fontSize: 18, fontWeight: 900, color: W.redDark }}>{falls.length}</div>
+                  <div style={{ fontSize: 10, color: W.redDark, opacity: 0.75, marginTop: 2 }}>Falls</div>
+                </div>
+              </div>
+              {tops.length > 0 && (
+                <div>
+                  <div style={{ fontSize: 10, fontWeight: 700, color: W.textMuted, textTransform: "uppercase", letterSpacing: 1, marginBottom: 6 }}>Attempt Times</div>
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+                    {allAttempts.map((a, i) => (
+                      <div key={a.id || i} style={{ background: a.fell ? W.red : W.surface2, borderRadius: 8, padding: "4px 10px", border: `1px solid ${a.fell ? W.redDark + "44" : W.border}`, display: "flex", alignItems: "center", gap: 4 }}>
+                        {a.fell
+                          ? <span style={{ fontSize: 11, fontWeight: 700, color: W.redDark }}>✗ fell</span>
+                          : <><span style={{ fontSize: 11, fontWeight: 900, color: a.time === stats.speedBest ? W.yellowDark : W.text, fontVariantNumeric: "tabular-nums" }}>{a.time.toFixed(2)}s</span>
+                            {a.time === stats.speedBest && <span style={{ fontSize: 9, fontWeight: 800, color: W.yellowDark }}>PB</span>}</>
+                        }
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
           );
         })()}
