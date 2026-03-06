@@ -239,6 +239,31 @@ Feed & logbook:
 
 
 ──────────────────────────────────────────────────────────────
+PUSH 27  |  pending  |  Activity-based timers, falls model, discard session
+──────────────────────────────────────────────────────────────
+Activity-based boulder/rope timers:
+- Boulder/rope session timers now only tick when a climb of that type is actively being worked on
+- Timer shows ACTIVE (green) / PAUSED / ENDED badge — pausing is automatic
+- Mutual exclusion: starting a boulder climb auto-pauses rope timer (and vice versa)
+- Timer accumulates correctly across multiple active/rest periods
+
+Falls model (boulder):
+- Boulder "tries" renamed to "falls" throughout (active session cards, logbook, summary)
+- Flash = 0 falls when marked sent (previously tried === 1)
+- Auto-increment removed: marking sent no longer adds a try automatically
+
+Discard session:
+- After ending a session, "Discard Session" button appears on the summary screen
+- Discarding removes the session from the logbook and reverts any project completions
+
+Related improvements:
+- Auto-stop climb timer when the Edit form is opened for a climb
+- Attempt times (chips) shown on logbook ClimbRow cards
+- Per-climb attempt time chips shown in Session Summary climbs list
+- BoulderRopeSessionCard shows Active/Paused/Ended visual state badges
+
+
+──────────────────────────────────────────────────────────────
 PUSH 26  |  pending  |  Climb type session timers + per-climb attempt tracking
 ──────────────────────────────────────────────────────────────
 Session timers (boulder + rope):
