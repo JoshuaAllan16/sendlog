@@ -239,6 +239,18 @@ Feed & logbook:
 
 
 ──────────────────────────────────────────────────────────────
+PUSH 25  |  pending  |  Stats category tabs: Overall, Boulder, Rope, Speed
+──────────────────────────────────────────────────────────────
+- Four category tabs at top of stats: Overall, Bouldering, Rope, Speed
+- Overall: broad overview — all existing stats, chart, calendar, grade breakdown, pie chart
+- Bouldering: filtered stats (sends, flash rate, best grade, avg tries, projects, rest) + grade breakdown
+- Rope: filtered stats (routes sent, falls, onsight rate, best grade, avg falls/route) + grade breakdown
+- Speed: PB hero card, stat cards (total time, tops, falls, success rate, sessions, avg per session), attempt timeline chart with PB line
+- Bar chart interactions (click to filter stats) work independently per category
+- Empty state shown when no data exists for a type in the selected time frame
+
+
+──────────────────────────────────────────────────────────────
 PUSH 24  |  pending  |  Speed session timer, photo cards, rope labels, speed stats
 ──────────────────────────────────────────────────────────────
 Speed session card:
