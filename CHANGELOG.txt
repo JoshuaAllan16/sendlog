@@ -239,6 +239,27 @@ Feed & logbook:
 
 
 ──────────────────────────────────────────────────────────────
+PUSH 24  |  pending  |  Speed session timer, photo cards, rope labels, speed stats
+──────────────────────────────────────────────────────────────
+Speed session card:
+- Session elapsed timer shown at top-left of every SpeedSessionCard (live while active, frozen when ended)
+- "End" button in card header: freezes the timer and hides Add Attempt / rest timer
+- "ENDED" badge shown when session is finished
+- Multiple speed sessions labeled "Speed Session 1", "Speed Session 2", etc.
+
+Session summary screen:
+- Speed Climbing stats block added: total time in speed sessions, total attempts, best time
+
+Stats tab:
+- Speed PB stat card added (only shown when speed attempts exist in the selected time frame)
+
+Active climb cards:
+- Photo thumbnail shown at top-left of card if a photo exists; tap to open fullscreen lightbox; no overlay on thumbnail
+- Rope climb style badge ("🔝 TR" or "🧗 Lead") shown on active climb card
+- Rope climb try counter label changed from "tries/try" to "falls/fall"
+
+
+──────────────────────────────────────────────────────────────
 PUSH 23  |  8f71469  |  Session type selector, speed sessions, lightbox swipe
 ──────────────────────────────────────────────────────────────
 Session setup:

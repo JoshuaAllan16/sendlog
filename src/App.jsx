@@ -259,15 +259,20 @@ const LocationDropdown = ({ value, onChange, open, setOpen, knownLocations, onRe
   );
 };
 
-const SpeedSessionCard = ({ climb, tick, onAddAttempt, onRemove }) => {
+const SpeedSessionCard = ({ climb, tick, index, totalCount, onAddAttempt, onRemove, onEnd }) => {
   const W = useTheme() || THEMES.espresso;
   const [showForm, setShowForm] = useState(false);
   const [timeInput, setTimeInput] = useState("");
+  const isEnded = !!climb.endedAt;
   const attempts = climb.attempts || [];
   const lastTs = attempts.length > 0 ? attempts[attempts.length - 1].loggedAt : climb.startedAt;
-  const restSec = Math.max(0, Math.floor((Date.now() - lastTs) / 1000));
+  const restSec = isEnded ? 0 : Math.max(0, Math.floor((Date.now() - lastTs) / 1000));
+  const sessionDurationSec = isEnded
+    ? Math.floor((climb.endedAt - climb.startedAt) / 1000)
+    : Math.max(0, Math.floor((Date.now() - climb.startedAt) / 1000));
   const validTimes = attempts.filter(a => !a.fell && a.time != null).map(a => a.time);
   const bestTime = validTimes.length ? Math.min(...validTimes) : null;
+  const sessionLabel = totalCount > 1 ? `Speed Session ${index + 1}` : "Speed Climb Session";
 
   const handleAdd = (fell) => {
     if (!fell && !timeInput) return;
@@ -279,13 +284,20 @@ const SpeedSessionCard = ({ climb, tick, onAddAttempt, onRemove }) => {
   return (
     <div style={{ borderRadius: 14, border: `2px solid ${W.yellowDark}55`, marginBottom: 10, overflow: "hidden", background: W.surface }}>
       {/* Header */}
-      <div style={{ background: W.yellow, padding: "10px 14px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-        <div>
-          <div style={{ fontWeight: 800, color: W.yellowDark, fontSize: 14 }}>⚡ Speed Climb Session</div>
-          {bestTime != null && <div style={{ fontSize: 11, color: W.yellowDark, marginTop: 1 }}>Best this session: {bestTime.toFixed(2)}s</div>}
+      <div style={{ background: W.yellow, padding: "10px 14px", display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+        <div style={{ flex: 1 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 3 }}>
+            <div style={{ fontSize: 11, fontVariantNumeric: "tabular-nums", fontWeight: 900, color: W.yellowDark, background: `${W.yellowDark}22`, borderRadius: 7, padding: "2px 8px", letterSpacing: 0.5 }}>
+              ⏱ {formatDuration(sessionDurationSec)}
+            </div>
+            {isEnded && <span style={{ background: W.yellowDark, color: W.yellow, borderRadius: 6, padding: "1px 7px", fontSize: 10, fontWeight: 800 }}>ENDED</span>}
+          </div>
+          <div style={{ fontWeight: 800, color: W.yellowDark, fontSize: 14 }}>⚡ {sessionLabel}</div>
+          {bestTime != null && <div style={{ fontSize: 11, color: W.yellowDark, marginTop: 1 }}>Best: {bestTime.toFixed(2)}s</div>}
         </div>
-        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
           <span style={{ fontSize: 11, color: W.yellowDark, fontWeight: 700 }}>{attempts.length} attempt{attempts.length !== 1 ? "s" : ""}</span>
+          {!isEnded && <button onClick={onEnd} style={{ background: W.yellowDark, border: "none", color: W.yellow, fontSize: 11, fontWeight: 700, cursor: "pointer", padding: "4px 8px", borderRadius: 7 }}>End</button>}
           <button onClick={onRemove} style={{ background: "none", border: "none", color: W.yellowDark, fontSize: 16, cursor: "pointer", padding: "0 2px", opacity: 0.6 }} title="Remove">×</button>
         </div>
       </div>
@@ -319,31 +331,35 @@ const SpeedSessionCard = ({ climb, tick, onAddAttempt, onRemove }) => {
         </div>
       )}
 
-      {/* Rest timer */}
-      <div style={{ textAlign: "center", padding: attempts.length > 0 ? "8px 14px" : "12px 14px", background: W.surface2, borderTop: attempts.length > 0 ? `1px solid ${W.border}` : "none" }}>
-        <div style={{ fontSize: 10, color: W.textDim, textTransform: "uppercase", letterSpacing: 0.8, marginBottom: 2 }}>
-          {attempts.length === 0 ? "Ready to start" : "Resting"}
-        </div>
-        <div style={{ fontSize: 22, fontWeight: 900, color: W.yellowDark, fontVariantNumeric: "tabular-nums", letterSpacing: 1 }}>
-          {formatDuration(restSec)}
-        </div>
-      </div>
-
-      {/* Add attempt form */}
-      {showForm ? (
-        <div style={{ padding: "12px 14px", borderTop: `1px solid ${W.border}` }}>
-          <div style={{ fontSize: 12, fontWeight: 700, color: W.textMuted, marginBottom: 8 }}>Log Attempt</div>
-          <input type="number" min="0" step="0.01" value={timeInput} onChange={e => setTimeInput(e.target.value)} placeholder="Time in seconds (e.g. 14.83)" autoFocus style={{ width: "100%", padding: "10px 12px", background: W.surface, border: `2px solid ${W.accent}`, borderRadius: 10, color: W.text, fontSize: 18, fontWeight: 800, boxSizing: "border-box", marginBottom: 10, fontFamily: "inherit" }} />
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8 }}>
-            <button onClick={() => { setShowForm(false); setTimeInput(""); }} style={{ padding: "10px", background: "transparent", border: `1px solid ${W.border}`, borderRadius: 10, color: W.textMuted, fontWeight: 700, fontSize: 13, cursor: "pointer" }}>Cancel</button>
-            <button onClick={() => handleAdd(true)} style={{ padding: "10px", background: W.red, border: `2px solid ${W.redDark}`, borderRadius: 10, color: W.redDark, fontWeight: 700, fontSize: 13, cursor: "pointer" }}>✗ Fell</button>
-            <button onClick={() => handleAdd(false)} disabled={!timeInput} style={{ padding: "10px", background: timeInput ? W.green : W.surface2, border: `2px solid ${timeInput ? W.greenDark : W.border}`, borderRadius: 10, color: timeInput ? W.greenDark : W.textDim, fontWeight: 700, fontSize: 13, cursor: timeInput ? "pointer" : "default" }}>✓ Log</button>
+      {!isEnded && (
+        <>
+          {/* Rest timer */}
+          <div style={{ textAlign: "center", padding: attempts.length > 0 ? "8px 14px" : "12px 14px", background: W.surface2, borderTop: attempts.length > 0 ? `1px solid ${W.border}` : "none" }}>
+            <div style={{ fontSize: 10, color: W.textDim, textTransform: "uppercase", letterSpacing: 0.8, marginBottom: 2 }}>
+              {attempts.length === 0 ? "Ready to start" : "Resting"}
+            </div>
+            <div style={{ fontSize: 22, fontWeight: 900, color: W.yellowDark, fontVariantNumeric: "tabular-nums", letterSpacing: 1 }}>
+              {formatDuration(restSec)}
+            </div>
           </div>
-        </div>
-      ) : (
-        <div style={{ padding: "10px 14px", borderTop: `1px solid ${W.border}` }}>
-          <button onClick={() => setShowForm(true)} style={{ width: "100%", padding: "10px", background: W.yellow, border: `2px solid ${W.yellowDark}`, borderRadius: 10, color: W.yellowDark, fontWeight: 700, fontSize: 14, cursor: "pointer" }}>+ Add Attempt</button>
-        </div>
+
+          {/* Add attempt form */}
+          {showForm ? (
+            <div style={{ padding: "12px 14px", borderTop: `1px solid ${W.border}` }}>
+              <div style={{ fontSize: 12, fontWeight: 700, color: W.textMuted, marginBottom: 8 }}>Log Attempt</div>
+              <input type="number" min="0" step="0.01" value={timeInput} onChange={e => setTimeInput(e.target.value)} placeholder="Time in seconds (e.g. 14.83)" autoFocus style={{ width: "100%", padding: "10px 12px", background: W.surface, border: `2px solid ${W.accent}`, borderRadius: 10, color: W.text, fontSize: 18, fontWeight: 800, boxSizing: "border-box", marginBottom: 10, fontFamily: "inherit" }} />
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8 }}>
+                <button onClick={() => { setShowForm(false); setTimeInput(""); }} style={{ padding: "10px", background: "transparent", border: `1px solid ${W.border}`, borderRadius: 10, color: W.textMuted, fontWeight: 700, fontSize: 13, cursor: "pointer" }}>Cancel</button>
+                <button onClick={() => handleAdd(true)} style={{ padding: "10px", background: W.red, border: `2px solid ${W.redDark}`, borderRadius: 10, color: W.redDark, fontWeight: 700, fontSize: 13, cursor: "pointer" }}>✗ Fell</button>
+                <button onClick={() => handleAdd(false)} disabled={!timeInput} style={{ padding: "10px", background: timeInput ? W.green : W.surface2, border: `2px solid ${timeInput ? W.greenDark : W.border}`, borderRadius: 10, color: timeInput ? W.greenDark : W.textDim, fontWeight: 700, fontSize: 13, cursor: timeInput ? "pointer" : "default" }}>✓ Log</button>
+              </div>
+            </div>
+          ) : (
+            <div style={{ padding: "10px 14px", borderTop: `1px solid ${W.border}` }}>
+              <button onClick={() => setShowForm(true)} style={{ width: "100%", padding: "10px", background: W.yellow, border: `2px solid ${W.yellowDark}`, borderRadius: 10, color: W.yellowDark, fontWeight: 700, fontSize: 14, cursor: "pointer" }}>+ Add Attempt</button>
+            </div>
+          )}
+        </>
       )}
     </div>
   );
@@ -654,6 +670,9 @@ export default function App() {
   const removeSpeedSession = (climbId) => {
     setActiveSession(s => ({ ...s, climbs: s.climbs.filter(c => c.id !== climbId) }));
   };
+  const endSpeedSession = (climbId) => {
+    setActiveSession(s => ({ ...s, climbs: s.climbs.map(c => c.id === climbId ? { ...c, endedAt: Date.now() } : c) }));
+  };
   const endSession = () => {
     if (!activeSession) return;
     const completed = { id: Date.now(), date: new Date().toISOString(), duration: sessionTimer, location: activeSession.location || pendingLocation || "Unknown Gym", climbs: activeSession.climbs };
@@ -772,7 +791,9 @@ export default function App() {
       restCount++;
     }
     const avgRestDays = restCount > 0 ? (restTotal / restCount).toFixed(1) : "—";
-    return { base, completed, flashes, flashRate, avgTries, bestGrade, gradeBreakdown, mostInDay, mostAttemptsInDay, totalAttempts, uniqueGyms, mostGymVisits, totalTimeClimbed, sessionCount: tfSessions.length, avgRestDays, avgClimbRestSec, maxClimbRestSec };
+    const allSpeedAttempts = tfSessions.flatMap(s => s.climbs.filter(c => c.climbType === "speed-session").flatMap(ss => ss.attempts || [])).filter(a => !a.fell && a.time != null);
+    const speedPB = allSpeedAttempts.length ? Math.min(...allSpeedAttempts.map(a => a.time)) : null;
+    return { base, completed, flashes, flashRate, avgTries, bestGrade, gradeBreakdown, mostInDay, mostAttemptsInDay, totalAttempts, uniqueGyms, mostGymVisits, totalTimeClimbed, sessionCount: tfSessions.length, avgRestDays, avgClimbRestSec, maxClimbRestSec, speedPB };
   };
 
   const getProjectHistory    = (pid) => sessions.flatMap(s => s.climbs.filter(c => c.projectId === pid).map(c => ({ ...c, sessionDate: s.date, sessionLocation: s.location }))).sort((a, b) => new Date(b.sessionDate) - new Date(a.sessionDate));
@@ -1388,13 +1409,22 @@ export default function App() {
     return (
       <div style={{ background: W.surface, borderRadius: 14, border: `2px solid ${climb.completed ? W.greenDark : W.border}`, marginBottom: 10, overflow: "hidden" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "12px 14px 8px" }}>
-          <div style={{ width: 38, height: 38, borderRadius: 10, display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 900, fontSize: 12, flexShrink: 0, background: getGradeColor(climb.grade) + "30", color: getGradeColor(climb.grade), border: `1.5px solid ${getGradeColor(climb.grade)}60` }}>{climb.grade}</div>
+          {climb.photo ? (
+            <div onClick={() => setLightboxPhoto({ photos: [{ src: climb.photo, grade: climb.grade, name: climb.name, colorId: climb.color }], idx: 0 })} style={{ width: 44, height: 44, borderRadius: 8, overflow: "hidden", flexShrink: 0, cursor: "pointer", border: `1.5px solid ${W.border}` }}>
+              <img src={climb.photo} style={{ width: "100%", height: "100%", objectFit: "cover" }} alt="" />
+            </div>
+          ) : (
+            <div style={{ width: 38, height: 38, borderRadius: 10, display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 900, fontSize: 12, flexShrink: 0, background: getGradeColor(climb.grade) + "30", color: getGradeColor(climb.grade), border: `1.5px solid ${getGradeColor(climb.grade)}60` }}>{climb.grade}</div>
+          )}
           <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
               {climb.color && <ColorDot colorId={climb.color} size={11} />}
               <span style={{ fontWeight: 700, color: W.text, fontSize: 14 }}>{climb.name || climb.grade}</span>
               {climb.isProject && <span style={{ background: W.pink, color: W.pinkDark, borderRadius: 6, padding: "1px 6px", fontSize: 10, fontWeight: 700 }}>PROJECT</span>}
               {isFlash && <span style={{ background: W.yellow, color: W.yellowDark, borderRadius: 6, padding: "1px 6px", fontSize: 10, fontWeight: 700 }}>⚡ FLASH</span>}
+              {climb.climbType === "rope" && climb.ropeStyle && (
+                <span style={{ background: W.purple, color: W.purpleDark, borderRadius: 6, padding: "1px 6px", fontSize: 10, fontWeight: 700 }}>{climb.ropeStyle === "top-rope" ? "🔝 TR" : "🧗 Lead"}</span>
+              )}
             </div>
             {climb.comments && <div style={{ fontSize: 11, color: W.textDim, marginTop: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{climb.comments}</div>}
             <TagChips wallTypes={climb.wallTypes} holdTypes={climb.holdTypes} />
@@ -1406,7 +1436,7 @@ export default function App() {
             <button onClick={() => updateActiveClimbTries(climb.id, -1)} disabled={climb.tries <= 0} style={{ width: 34, height: 34, borderRadius: 8, border: `1px solid ${W.border}`, background: climb.tries <= 0 ? "transparent" : W.surface, color: climb.tries <= 0 ? W.textDim : W.text, fontSize: 18, cursor: climb.tries <= 0 ? "default" : "pointer", fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center" }}>−</button>
             <div style={{ minWidth: 52, textAlign: "center" }}>
               <div style={{ fontSize: 20, fontWeight: 900, color: W.text, lineHeight: 1 }}>{climb.tries}</div>
-              <div style={{ fontSize: 9, color: W.textDim, textTransform: "uppercase", letterSpacing: 0.8 }}>{climb.tries === 1 ? "try" : "tries"}</div>
+              <div style={{ fontSize: 9, color: W.textDim, textTransform: "uppercase", letterSpacing: 0.8 }}>{climb.climbType === "rope" ? (climb.tries === 1 ? "fall" : "falls") : (climb.tries === 1 ? "try" : "tries")}</div>
             </div>
             <button onClick={() => updateActiveClimbTries(climb.id, 1)} style={{ width: 34, height: 34, borderRadius: 8, border: `1px solid ${W.border}`, background: W.surface, color: W.text, fontSize: 18, cursor: "pointer", fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center" }}>+</button>
           </div>
@@ -1705,7 +1735,7 @@ export default function App() {
         </div>
         {showClimbForm && ClimbFormPanel({ isActiveSession: true, onSave: saveClimbToActiveSession, onCancel: () => { setShowClimbForm(false); setPhotoPreview(null); setEditingClimbId(null); } })}
         {!showClimbForm && !showProjectPicker && speedSessions.length > 0 && (
-          <>{speedSessions.map(c => <SpeedSessionCard key={c.id} climb={c} tick={sessionTimer} onAddAttempt={a => addSpeedAttempt(c.id, a)} onRemove={() => removeSpeedSession(c.id)} />)}</>
+          <>{speedSessions.map((c, i) => <SpeedSessionCard key={c.id} climb={c} tick={sessionTimer} index={i} totalCount={speedSessions.length} onAddAttempt={a => addSpeedAttempt(c.id, a)} onRemove={() => removeSpeedSession(c.id)} onEnd={() => endSpeedSession(c.id)} />)}</>
         )}
         {!showClimbForm && !showProjectPicker && attempted.length > 0 && (
           <><Label>Climbs This Session</Label>{attempted.map(c => <ActiveClimbCard key={c.id} climb={c} />)}</>
@@ -2264,6 +2294,7 @@ export default function App() {
                 { icon: "🔁", label: "Avg Tries",           value: displayStats.avgTries,                            sub: "per climb",                          bg: W.green,     tc: W.greenDark },
                 { icon: "⏸", label: "Avg Rest (Climbs)",   value: formatRestSec(displayStats.avgClimbRestSec),      sub: "between logged climbs",              bg: W.purple,    tc: W.purpleDark },
                 { icon: "🐢", label: "Longest Climb Rest",  value: formatRestSec(displayStats.maxClimbRestSec),      sub: "single longest gap",                 bg: W.surface2,  tc: W.accentDark },
+                ...(displayStats.speedPB != null ? [{ icon: "⚡", label: "Speed PB", value: `${displayStats.speedPB.toFixed(2)}s`, sub: `${selLabel || tfLabels[statsTimeFrame]}`, bg: W.yellow, tc: W.yellowDark }] : []),
               ].map(s => (
                 <div key={s.label} style={{ background: s.bg, borderRadius: 14, padding: "14px", border: `1px solid ${W.border}` }}>
                   <div style={{ fontSize: 20, marginBottom: 4 }}>{s.icon}</div>
@@ -2693,10 +2724,37 @@ export default function App() {
             </div>
           </div>
         )}
-        {session.climbs.length > 0 && (
+        {stats.speedSessions.length > 0 && (() => {
+          const totalSpeedSec = stats.speedSessions.reduce((sum, ss) => {
+            const end = ss.endedAt || ss.loggedAt;
+            return sum + Math.max(0, Math.floor((end - ss.startedAt) / 1000));
+          }, 0);
+          const allSpeedAttempts = stats.speedSessions.flatMap(ss => ss.attempts || []);
+          const successAttempts = allSpeedAttempts.filter(a => !a.fell && a.time != null);
+          return (
+            <div style={{ background: W.yellow, borderRadius: 16, padding: "16px", border: `1px solid ${W.yellowDark}40`, marginBottom: 16 }}>
+              <div style={{ fontSize: 11, fontWeight: 700, color: W.yellowDark, textTransform: "uppercase", letterSpacing: 1, marginBottom: 10 }}>⚡ Speed Climbing</div>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8 }}>
+                <div style={{ background: `${W.yellowDark}18`, borderRadius: 10, padding: "10px 8px", textAlign: "center" }}>
+                  <div style={{ fontSize: 16, fontWeight: 900, color: W.yellowDark }}>{formatDuration(totalSpeedSec)}</div>
+                  <div style={{ fontSize: 10, color: W.yellowDark, opacity: 0.75, marginTop: 2 }}>Total time</div>
+                </div>
+                <div style={{ background: `${W.yellowDark}18`, borderRadius: 10, padding: "10px 8px", textAlign: "center" }}>
+                  <div style={{ fontSize: 16, fontWeight: 900, color: W.yellowDark }}>{allSpeedAttempts.length}</div>
+                  <div style={{ fontSize: 10, color: W.yellowDark, opacity: 0.75, marginTop: 2 }}>Attempt{allSpeedAttempts.length !== 1 ? "s" : ""}</div>
+                </div>
+                <div style={{ background: `${W.yellowDark}18`, borderRadius: 10, padding: "10px 8px", textAlign: "center" }}>
+                  <div style={{ fontSize: 16, fontWeight: 900, color: W.yellowDark }}>{stats.speedBest != null ? `${stats.speedBest.toFixed(2)}s` : "—"}</div>
+                  <div style={{ fontSize: 10, color: W.yellowDark, opacity: 0.75, marginTop: 2 }}>Best time</div>
+                </div>
+              </div>
+            </div>
+          );
+        })()}
+        {session.climbs.filter(c => c.climbType !== "speed-session").length > 0 && (
           <div style={{ background: W.surface, borderRadius: 16, padding: "16px", border: `1px solid ${W.border}`, marginBottom: 20 }}>
             <div style={{ fontSize: 11, fontWeight: 700, color: W.textMuted, textTransform: "uppercase", letterSpacing: 1, marginBottom: 10 }}>Climbs This Session</div>
-            {session.climbs.map(c => (
+            {session.climbs.filter(c => c.climbType !== "speed-session").map(c => (
               <div key={c.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 0", borderBottom: `1px solid ${W.border}` }}>
                 <div style={{ width: 36, height: 36, borderRadius: 8, display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 900, fontSize: 11, flexShrink: 0, background: getGradeColor(c.grade) + "30", color: getGradeColor(c.grade), border: `1.5px solid ${getGradeColor(c.grade)}60` }}>{c.grade}</div>
                 <div style={{ flex: 1, minWidth: 0 }}>
@@ -2705,7 +2763,7 @@ export default function App() {
                     <span style={{ fontWeight: 700, color: W.text, fontSize: 13 }}>{c.name || c.grade}</span>
                     {c.completed && c.tries === 1 && <span style={{ background: W.yellow, color: W.yellowDark, borderRadius: 5, padding: "1px 5px", fontSize: 9, fontWeight: 700 }}>FLASH</span>}
                   </div>
-                  <div style={{ fontSize: 11, color: W.textMuted, marginTop: 1 }}>{c.tries} {c.tries === 1 ? "try" : "tries"} · {c.completed ? "✓ Sent" : "✗ Not sent"}</div>
+                  <div style={{ fontSize: 11, color: W.textMuted, marginTop: 1 }}>{c.tries} {c.climbType === "rope" ? (c.tries === 1 ? "fall" : "falls") : (c.tries === 1 ? "try" : "tries")} · {c.completed ? "✓ Sent" : "✗ Not sent"}</div>
                 </div>
               </div>
             ))}
