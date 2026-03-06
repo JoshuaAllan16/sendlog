@@ -236,3 +236,28 @@ Session card:
 
 Feed & logbook:
 - Logbook sessions tab now paginated (8 per page) with a "Load more" button showing remaining count
+
+
+──────────────────────────────────────────────────────────────
+PUSH 23  |  8f71469  |  Session type selector, speed sessions, lightbox swipe
+──────────────────────────────────────────────────────────────
+Session setup:
+- New type selection prompt before starting: choose Bouldering, Rope Climbing, and/or Speed Climbing (multi-select)
+- At least one type must be selected; selection remembered for the session
+
+Session active screen:
+- Action buttons filtered to selected climb types; Log Project always shown
+- "See More" toggle reveals unselected type buttons without cluttering the main view
+- Header sent/total count excludes speed sessions
+
+Speed Climb Session (replaces old "New Speed Climb" form):
+- Tapping "Speed Climb Session" immediately adds a speed session card to the active session
+- Card shows a live rest timer counting up since the last attempt (ticks every second)
+- "Add Attempt" opens an inline form: enter time in seconds, or tap "Fell"
+- Attempts listed with ✓ time / ✗ Fell and rest gap shown between entries
+- Best time highlighted with a PB badge
+- Speed sessions are excluded from regular climb stats (sends, grade breakdown, bar chart)
+- End Session confirmation shows speed attempt count separately
+
+Lightbox:
+- Touch swipe left/right to navigate between photos (in addition to tap buttons)
