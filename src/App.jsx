@@ -1312,8 +1312,14 @@ export default function App() {
   const W = THEMES[colorTheme] || THEMES.espresso;
 
   // ── APP LOGIC ──────────────────────────────────────────────
-  const knownLocations = [...new Set([...KNOWN_GYMS, ...sessions.map(s => s.location).filter(Boolean), ...customLocations, pendingLocation, activeSession?.location, mainGym].filter(Boolean))].filter(l => !hiddenLocations.includes(l));
-  const addCustomLocation = (loc) => { if (loc && !KNOWN_GYMS.includes(loc) && !sessions.some(s => s.location === loc)) setCustomLocations(prev => [...new Set([...prev, loc])]); };
+  const knownLocations = (() => {
+    const seen = new Set();
+    return [...KNOWN_GYMS, ...sessions.map(s => s.location).filter(Boolean), ...customLocations, pendingLocation, activeSession?.location, mainGym]
+      .filter(Boolean)
+      .filter(l => { const k = l.trim().toLowerCase(); if (seen.has(k)) return false; seen.add(k); return true; })
+      .filter(l => !hiddenLocations.includes(l));
+  })();
+  const addCustomLocation = (loc) => { const trimmed = loc?.trim(); if (trimmed && !KNOWN_GYMS.some(g => g.toLowerCase() === trimmed.toLowerCase()) && !sessions.some(s => s.location?.toLowerCase() === trimmed.toLowerCase()) && !customLocations.some(c => c.toLowerCase() === trimmed.toLowerCase())) setCustomLocations(prev => [...prev, trimmed]); };
   const allGyms = ["All Gyms", ...new Set(sessions.map(s => s.location).filter(Boolean))];
 
   const goToSessionSetup = () => { setPendingLocation(mainGym || ""); setSessionStarted(false); setActiveSession({ location: mainGym || "", climbs: [], collapsedSections: { boulder: false, rope: false } }); setSessionTimer(0); setSessionActiveStart(null); setSessionPausedSec(0); setShowMoreClimbTypes(false); setScreen("session"); };
@@ -1570,6 +1576,10 @@ export default function App() {
   const removeClimbFromSession     = (sessionId, climbId) => {
     setSessions(prev => prev.map(s => s.id === sessionId ? { ...s, climbs: s.climbs.filter(c => c.id !== climbId) } : s));
     setSelectedSession(prev => ({ ...prev, climbs: prev.climbs.filter(c => c.id !== climbId) }));
+  };
+  const saveClimbInlineEdit = (sessionId, climbId, changes) => {
+    setSessions(prev => prev.map(s => s.id === sessionId ? { ...s, climbs: s.climbs.map(c => c.id === climbId ? { ...c, ...changes } : c) } : s));
+    setSelectedSession(prev => ({ ...prev, climbs: prev.climbs.map(c => c.id === climbId ? { ...c, ...changes } : c) }));
   };
 
   const openClimbForm = (existing = null, fromProject = null, climbType = "boulder") => {
@@ -2385,10 +2395,17 @@ export default function App() {
   // ActiveClimbCard is defined outside App() — see above export default
 
   // ── REGULAR CLIMB ROW ──────────────────────────────────────
-  const ClimbRow = ({ climb, onEdit, onRemove }) => {
+  const ClimbRow = ({ climb, onEdit, onRemove, onInlineSave }) => {
     const [confirmRemove, setConfirmRemove] = useState(false);
+    const [inlineEditing, setInlineEditing] = useState(false);
+    const [inlineName, setInlineName] = useState(climb.name || "");
+    const [inlineTries, setInlineTries] = useState(climb.tries || 0);
+    const [inlineCompleted, setInlineCompleted] = useState(!!climb.completed);
+    const [inlineComments, setInlineComments] = useState(climb.comments || "");
+    const handleEditClick = () => onInlineSave ? setInlineEditing(e => !e) : onEdit && onEdit(climb);
+    const handleInlineSave = () => { onInlineSave(climb.id, { name: inlineName, tries: inlineTries, completed: inlineCompleted, comments: inlineComments }); setInlineEditing(false); };
     return (
-      <div style={{ background: W.surface, borderRadius: 12, padding: "12px 14px", border: `1px solid ${W.border}`, marginBottom: 8, borderLeft: `4px solid ${climb.completed ? W.greenDark : W.redDark}` }}>
+      <div style={{ background: W.surface, borderRadius: 12, padding: "12px 14px", border: `1px solid ${W.border}`, marginBottom: 8, borderLeft: `4px solid ${(inlineEditing ? inlineCompleted : climb.completed) ? W.greenDark : W.redDark}` }}>
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
           <div style={{ width: 40, height: 40, borderRadius: 10, display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 900, fontSize: 12, flexShrink: 0, background: getGradeColor(climb.grade) + "30", color: getGradeColor(climb.grade), border: `1.5px solid ${getGradeColor(climb.grade)}60` }}>{climb.grade}</div>
           <div style={{ flex: 1, minWidth: 0 }}>
@@ -2400,7 +2417,7 @@ export default function App() {
             </div>
             <div style={{ fontSize: 12, color: W.textMuted, marginTop: 2 }}>{climb.grade} · {climb.climbType === "rope" ? `${climb.tries} ${climb.tries === 1 ? "attempt" : "attempts"} · ${climb.falls ?? climb.tries} ${(climb.falls ?? climb.tries) === 1 ? "fall" : "falls"}` : `${climb.tries} ${climb.tries === 1 ? "fall" : "falls"}`} · {climb.completed ? "✓ Completed" : "✗ Not completed"}</div>
             <TagChips wallTypes={climb.wallTypes} holdTypes={climb.holdTypes} />
-            {climb.comments && <div style={{ fontSize: 12, color: W.textDim, marginTop: 3, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{climb.comments}</div>}
+            {!inlineEditing && climb.comments && <div style={{ fontSize: 12, color: W.textDim, marginTop: 3, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{climb.comments}</div>}
             {(climb.attemptLog || []).length > 0 && (
               <div style={{ display: "flex", gap: 4, flexWrap: "wrap", marginTop: 4 }}>
                 {(climb.attemptLog || []).map((a, i) => (
@@ -2412,10 +2429,27 @@ export default function App() {
             )}
           </div>
           <div style={{ display: "flex", flexDirection: "column", gap: 5, flexShrink: 0 }}>
-            {onEdit && !confirmRemove && <button onClick={() => onEdit(climb)} style={{ background: W.surface2, border: `1px solid ${W.border}`, borderRadius: 7, padding: "4px 9px", fontSize: 11, color: W.accent, fontWeight: 700, cursor: "pointer" }}>Edit</button>}
-            {onRemove && !confirmRemove && <button onClick={() => setConfirmRemove(true)} style={{ background: W.red, border: `1px solid ${W.redDark}`, borderRadius: 7, padding: "4px 9px", fontSize: 11, color: W.redDark, fontWeight: 700, cursor: "pointer" }}>Remove</button>}
+            {(onEdit || onInlineSave) && !confirmRemove && <button onClick={handleEditClick} style={{ background: inlineEditing ? W.accent + "22" : W.surface2, border: `1px solid ${inlineEditing ? W.accent : W.border}`, borderRadius: 7, padding: "4px 9px", fontSize: 11, color: W.accent, fontWeight: 700, cursor: "pointer" }}>{inlineEditing ? "Cancel" : "Edit"}</button>}
+            {onRemove && !confirmRemove && !inlineEditing && <button onClick={() => setConfirmRemove(true)} style={{ background: W.red, border: `1px solid ${W.redDark}`, borderRadius: 7, padding: "4px 9px", fontSize: 11, color: W.redDark, fontWeight: 700, cursor: "pointer" }}>Remove</button>}
           </div>
         </div>
+        {inlineEditing && (
+          <div style={{ marginTop: 12, paddingTop: 12, borderTop: `1px solid ${W.border}` }}>
+            <input value={inlineName} onChange={e => setInlineName(e.target.value)} placeholder="Climb name" style={{ width: "100%", padding: "8px 10px", background: W.surface2, border: `1.5px solid ${W.border}`, borderRadius: 9, color: W.text, fontSize: 13, boxSizing: "border-box", marginBottom: 8, fontFamily: "inherit" }} />
+            <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8 }}>
+              <span style={{ fontSize: 12, color: W.textMuted, fontWeight: 600 }}>Tries</span>
+              <button onClick={() => setInlineTries(t => Math.max(0, t - 1))} style={{ width: 28, height: 28, borderRadius: 7, border: `1px solid ${W.border}`, background: W.surface, color: W.text, fontSize: 16, cursor: "pointer", fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center" }}>−</button>
+              <span style={{ fontSize: 16, fontWeight: 900, color: W.text, minWidth: 24, textAlign: "center" }}>{inlineTries}</span>
+              <button onClick={() => setInlineTries(t => t + 1)} style={{ width: 28, height: 28, borderRadius: 7, border: `1px solid ${W.border}`, background: W.surface, color: W.text, fontSize: 16, cursor: "pointer", fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center" }}>+</button>
+              <button onClick={() => setInlineCompleted(c => !c)} style={{ marginLeft: "auto", padding: "5px 12px", borderRadius: 8, border: `2px solid ${inlineCompleted ? W.greenDark : W.border}`, background: inlineCompleted ? W.green : W.surface, color: inlineCompleted ? W.greenDark : W.textMuted, fontWeight: 700, fontSize: 12, cursor: "pointer" }}>{inlineCompleted ? "✓ Sent" : "Not Sent"}</button>
+            </div>
+            <textarea value={inlineComments} onChange={e => setInlineComments(e.target.value)} placeholder="Notes..." style={{ width: "100%", padding: "8px 10px", background: W.surface2, border: `1.5px solid ${W.border}`, borderRadius: 9, color: W.text, fontSize: 12, resize: "none", height: 52, boxSizing: "border-box", marginBottom: 8, fontFamily: "inherit" }} />
+            <div style={{ display: "flex", gap: 8 }}>
+              {onEdit && <button onClick={() => { setInlineEditing(false); onEdit(climb); }} style={{ padding: "7px 12px", background: "transparent", border: `1px solid ${W.border}`, borderRadius: 9, color: W.textMuted, fontWeight: 600, fontSize: 12, cursor: "pointer" }}>Full Edit</button>}
+              <button onClick={handleInlineSave} style={{ flex: 1, padding: "7px", background: `linear-gradient(135deg, ${W.accent}, ${W.accentDark})`, border: "none", borderRadius: 9, color: "#fff", fontWeight: 700, fontSize: 13, cursor: "pointer" }}>Save</button>
+            </div>
+          </div>
+        )}
         {confirmRemove && (
           <div style={{ marginTop: 10, background: W.red, borderRadius: 10, padding: "10px 12px", border: `1px solid ${W.redDark}` }}>
             <div style={{ fontSize: 12, color: W.redDark, fontWeight: 700, marginBottom: 8 }}>Remove this climb?</div>
@@ -2604,14 +2638,18 @@ export default function App() {
                   <div style={{ fontSize: 24, fontWeight: 900, color: milestone ? W.yellowDark : W.accent, fontVariantNumeric: "tabular-nums" }}>{streak}w</div>
                 </div>
               )}
-              <div style={{ display: "flex", gap: 10, marginBottom: 20 }}>
-                <div style={{ flex: 1, background: W.surface2, border: `1px solid ${W.border}`, borderRadius: 12, padding: "10px 14px" }}>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10, marginBottom: 20 }}>
+                <div style={{ background: W.surface2, border: `1px solid ${W.border}`, borderRadius: 12, padding: "10px 14px" }}>
                   <div style={{ fontSize: 18, fontWeight: 900, color: W.text }}>{sessionsThisMonth}</div>
                   <div style={{ fontSize: 11, color: W.textMuted, marginTop: 1 }}>Sessions this month</div>
                 </div>
-                <div style={{ flex: 1, background: W.surface2, border: `1px solid ${W.border}`, borderRadius: 12, padding: "10px 14px" }}>
+                <div style={{ background: W.surface2, border: `1px solid ${W.border}`, borderRadius: 12, padding: "10px 14px" }}>
                   <div style={{ fontSize: 18, fontWeight: 900, color: W.text }}>{totalSends}</div>
                   <div style={{ fontSize: 11, color: W.textMuted, marginTop: 1 }}>Total sends</div>
+                </div>
+                <div onClick={() => { setScreen("profile"); setProfileTab("projects"); }} style={{ background: W.pink, border: `1px solid ${W.border}`, borderRadius: 12, padding: "10px 14px", cursor: activeProjects.length > 0 ? "pointer" : "default" }}>
+                  <div style={{ fontSize: 18, fontWeight: 900, color: W.pinkDark }}>{activeProjects.length}</div>
+                  <div style={{ fontSize: 11, color: W.pinkDark, marginTop: 1, opacity: 0.85 }}>Active projects</div>
                 </div>
               </div>
             </>
@@ -2953,7 +2991,7 @@ export default function App() {
     return (
       <div style={{ padding: "24px 20px" }}>
         {!readOnly && (
-          <button onClick={() => setScreen("profile")} style={{ width: "100%", padding: "14px", background: `linear-gradient(135deg, ${W.accent}, ${W.accentDark})`, border: "none", borderRadius: 14, color: "#fff", fontWeight: 800, fontSize: 15, cursor: "pointer", marginBottom: 16, boxShadow: `0 4px 16px ${W.accentGlow}` }}>Save Session</button>
+          <button onClick={() => { setScreen("profile"); setProfileTab("logbook"); }} style={{ width: "100%", padding: "14px", background: `linear-gradient(135deg, ${W.accent}, ${W.accentDark})`, border: "none", borderRadius: 14, color: "#fff", fontWeight: 800, fontSize: 15, cursor: "pointer", marginBottom: 16, boxShadow: `0 4px 16px ${W.accentGlow}` }}>Save Session</button>
         )}
         {readOnly && (
           <div style={{ background: W.surface2, borderRadius: 12, padding: "8px 14px", marginBottom: 14, border: `1px solid ${W.border}`, display: "flex", alignItems: "center", gap: 8 }}>
@@ -2997,6 +3035,7 @@ export default function App() {
           session.climbs.map(c => (
             <ClimbRow key={c.id} climb={c}
               onEdit={readOnly ? null : (climb => { setEditingClimbId(climb.id); setEditingSessionId(session.id); setClimbForm({ name: climb.name || "", grade: climb.grade, scale: climb.scale, tries: climb.tries, completed: climb.completed, isProject: climb.isProject, comments: climb.comments, photo: climb.photo, projectId: climb.projectId, color: climb.color || null, wallTypes: climb.wallTypes || [], holdTypes: climb.holdTypes || [] }); setPhotoPreview(climb.photo); setShowClimbForm(true); })}
+              onInlineSave={readOnly ? null : (climbId, changes) => saveClimbInlineEdit(session.id, climbId, changes)}
               onRemove={readOnly ? null : (climbId => removeClimbFromSession(session.id, climbId))}
             />
           ))
@@ -4266,6 +4305,31 @@ export default function App() {
           ))}
         </div>
         {bestSession && <div style={{ background: W.green, borderRadius: 14, padding: "12px 14px", marginBottom: 14 }}><div style={{ fontSize: 11, fontWeight: 700, color: W.greenDark, textTransform: "uppercase" }}>Best Session</div><div style={{ fontSize: 16, fontWeight: 800, color: W.greenDark }}>{bestSession.tries} {bestSession.tries === 1 ? "try" : "tries"} · {formatDate(bestSession.sessionDate)}</div></div>}
+        {history.length > 1 && (() => {
+          const sorted = [...history].sort((a, b) => new Date(a.sessionDate) - new Date(b.sessionDate));
+          const maxTries = Math.max(...sorted.map(h => h.tries), 1);
+          const pts = sorted.map((h, i) => ({
+            x: sorted.length > 1 ? (i / (sorted.length - 1)) * 280 : 140,
+            y: 34 - Math.round((h.tries / maxTries) * 30),
+            sent: h.completed,
+          }));
+          return (
+            <div style={{ background: W.surface, borderRadius: 14, padding: "12px 16px 8px", marginBottom: 14, border: `1px solid ${W.border}` }}>
+              <div style={{ fontSize: 11, fontWeight: 700, color: W.textMuted, textTransform: "uppercase", letterSpacing: 1, marginBottom: 8 }}>Progress (tries per session)</div>
+              <svg width="100%" height={44} viewBox="0 0 300 44" preserveAspectRatio="none" style={{ display: "block", overflow: "visible" }}>
+                <polyline points={pts.map(p => `${p.x},${p.y}`).join(" ")} fill="none" stroke={W.accent} strokeWidth={2} strokeLinejoin="round" strokeLinecap="round" />
+                {pts.map((p, i) => (
+                  <circle key={i} cx={p.x} cy={p.y} r={4} fill={p.sent ? W.greenDark : W.accent} stroke={W.surface} strokeWidth={1.5} />
+                ))}
+              </svg>
+              <div style={{ display: "flex", justifyContent: "space-between", fontSize: 9, color: W.textDim, marginTop: 2 }}>
+                <span>{formatDate(sorted[0].sessionDate)}</span>
+                <span>{sorted[sorted.length - 1].tries} tries (latest)</span>
+                <span>{formatDate(sorted[sorted.length - 1].sessionDate)}</span>
+              </div>
+            </div>
+          );
+        })()}
         <div style={{ fontSize: 12, fontWeight: 700, color: W.textMuted, textTransform: "uppercase", letterSpacing: 1, marginBottom: 10 }}>Session History</div>
         {history.length === 0 ? <div style={{ color: W.textDim, fontSize: 13, marginBottom: 16 }}>No attempts yet.</div>
           : history.map((h, i) => (<div key={i} style={{ background: W.surface, borderRadius: 12, padding: "12px 14px", marginBottom: 8, border: `1px solid ${W.border}`, borderLeft: `4px solid ${h.completed ? W.greenDark : W.accent}` }}><div style={{ display: "flex", justifyContent: "space-between" }}><div style={{ fontWeight: 700, color: W.text, fontSize: 13 }}>{h.sessionLocation}</div><div style={{ fontSize: 11, color: W.textMuted }}>{formatDate(h.sessionDate)}</div></div><div style={{ fontSize: 12, color: W.textMuted, marginTop: 3 }}>{h.tries} {h.tries === 1 ? "try" : "tries"} · {h.completed ? <span style={{ color: W.greenDark, fontWeight: 700 }}>✓ Sent!</span> : <span style={{ color: W.pinkDark }}>✗ Not sent</span>}</div></div>))}
@@ -4609,6 +4673,7 @@ export default function App() {
             </div>
           );
         })()}
+        <button onClick={() => { setSessionReadOnly(false); setSelectedSession(session); setScreen("sessionDetail"); }} style={{ width: "100%", padding: "13px", background: "transparent", border: `1px solid ${W.border}`, borderRadius: 14, color: W.textMuted, fontWeight: 700, fontSize: 14, cursor: "pointer", marginBottom: 10 }}>View Session Details</button>
         <button onClick={() => { setSessionSummary(null); setScreen("home"); }} style={{ width: "100%", padding: "16px", background: `linear-gradient(135deg, ${W.accent}, ${W.accentDark})`, border: "none", borderRadius: 16, color: "#fff", fontSize: 16, fontWeight: 800, cursor: "pointer", boxShadow: `0 4px 20px ${W.accentGlow}`, marginBottom: 10 }}>Done</button>
         {showDiscard
           ? (
@@ -5052,6 +5117,7 @@ export default function App() {
             <div style={{ display: "flex", justifyContent: "center", gap: 6, marginTop: 16 }}>
               {[0, 1, 2].map(i => <div key={i} style={{ width: onboardingStep === i ? 20 : 8, height: 8, borderRadius: 4, background: onboardingStep === i ? W.accent : W.border, transition: "width 0.2s" }} />)}
             </div>
+            <button onClick={() => setShowOnboarding(false)} style={{ marginTop: 12, background: "none", border: "none", color: W.textDim, fontSize: 12, cursor: "pointer", textDecoration: "underline" }}>Skip setup</button>
           </div>
           {onboardingStep === 0 && (
             <div>
