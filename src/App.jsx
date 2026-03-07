@@ -823,6 +823,8 @@ export default function App() {
   const [showMoreClimbTypes, setShowMoreClimbTypes] = useState(false);
   const [colorTheme, setColorTheme]             = useState("espresso");
   const [showEndConfirm, setShowEndConfirm]     = useState(false);
+  const [showProjectPrompt, setShowProjectPrompt] = useState(false);
+  const [projectPromptChecked, setProjectPromptChecked] = useState({});
   const [sessionSummary, setSessionSummary]     = useState(null);
   const [projectTypeFilter, setProjectTypeFilter]     = useState(() => localStorage.getItem("projectTypeFilter") || "all");
   const [projectSort, setProjectSort]                 = useState(() => localStorage.getItem("projectSort") || "recent");
@@ -2840,6 +2842,49 @@ export default function App() {
             <button onClick={() => setShowEndConfirm(true)} style={{ width: "100%", padding: "14px", background: W.surface, border: `2px solid ${W.border}`, borderRadius: 14, color: W.redDark, fontWeight: 700, fontSize: 15, cursor: "pointer" }}>⏹ End Session</button>
           </div>
         )}
+        {showProjectPrompt && (() => {
+          const unsent = (activeSession?.climbs || []).filter(c => !c.completed && c.climbType !== "speed-session");
+          const confirmAndEnd = () => {
+            const checkedIds = Object.entries(projectPromptChecked).filter(([, v]) => v).map(([id]) => id);
+            if (checkedIds.length > 0) {
+              const newProjects = checkedIds.map(id => {
+                const c = unsent.find(u => u.id === id);
+                return { id: `proj_${Date.now()}_${id}`, name: c.name || "", grade: c.grade, scale: c.scale, climbType: c.climbType || "boulder", active: true, completed: false, dateAdded: new Date().toISOString() };
+              });
+              setProjects(prev => [...prev, ...newProjects]);
+            }
+            setShowProjectPrompt(false);
+            endSession();
+          };
+          return (
+            <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.55)", zIndex: 200, display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
+              <div style={{ background: W.surface, borderRadius: 20, padding: "24px", width: "100%", maxWidth: 360, boxShadow: "0 20px 60px rgba(0,0,0,0.3)", maxHeight: "80vh", overflowY: "auto" }}>
+                <div style={{ fontSize: 18, fontWeight: 900, color: W.text, marginBottom: 6 }}>Add Projects?</div>
+                <div style={{ fontSize: 13, color: W.textMuted, marginBottom: 18 }}>These climbs weren't sent — add any as projects to track them across sessions.</div>
+                {unsent.map(c => {
+                  const checked = !!projectPromptChecked[c.id];
+                  return (
+                    <div key={c.id} onClick={() => setProjectPromptChecked(prev => ({ ...prev, [c.id]: !prev[c.id] }))} style={{ display: "flex", alignItems: "center", gap: 12, background: checked ? W.pink : W.surface2, borderRadius: 12, padding: "12px 14px", marginBottom: 8, border: `1.5px solid ${checked ? W.pinkDark + "55" : W.border}`, cursor: "pointer" }}>
+                      <div style={{ width: 22, height: 22, borderRadius: 6, border: `2px solid ${checked ? W.pinkDark : W.border}`, background: checked ? W.pinkDark : "transparent", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                        {checked && <span style={{ color: "#fff", fontSize: 13, fontWeight: 900 }}>✓</span>}
+                      </div>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontWeight: 700, fontSize: 14, color: W.text }}>{c.name || c.grade}</div>
+                        <div style={{ fontSize: 12, color: getGradeColor(c.grade), fontWeight: 700 }}>{c.grade} · {c.tries} {c.tries === 1 ? "try" : "tries"}</div>
+                      </div>
+                    </div>
+                  );
+                })}
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginTop: 18 }}>
+                  <button onClick={() => { setShowProjectPrompt(false); endSession(); }} style={{ padding: "12px", background: "transparent", border: `1.5px solid ${W.border}`, borderRadius: 12, color: W.textMuted, fontWeight: 700, fontSize: 13, cursor: "pointer" }}>Skip</button>
+                  <button onClick={confirmAndEnd} style={{ padding: "12px", background: `linear-gradient(135deg, ${W.pinkDark}, #be185d)`, border: "none", borderRadius: 12, color: "#fff", fontWeight: 800, fontSize: 13, cursor: "pointer" }}>
+                    {Object.values(projectPromptChecked).filter(Boolean).length > 0 ? `Add ${Object.values(projectPromptChecked).filter(Boolean).length} Project${Object.values(projectPromptChecked).filter(Boolean).length > 1 ? "s" : ""}` : "End Session"}
+                  </button>
+                </div>
+              </div>
+            </div>
+          );
+        })()}
         {showEndConfirm && (
           <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", zIndex: 200, display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
             <div style={{ background: W.surface, borderRadius: 20, padding: "28px 24px", width: "100%", maxWidth: 340, boxShadow: "0 20px 60px rgba(0,0,0,0.3)" }}>
@@ -2855,7 +2900,16 @@ export default function App() {
               </div>
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
                 <button onClick={() => setShowEndConfirm(false)} style={{ padding: "13px", background: "transparent", border: `2px solid ${W.border}`, borderRadius: 12, color: W.textMuted, fontWeight: 700, fontSize: 14, cursor: "pointer" }}>Keep Going</button>
-                <button onClick={endSession} style={{ padding: "13px", background: `linear-gradient(135deg, ${W.redDark}, #b91c1c)`, border: "none", borderRadius: 12, color: "#fff", fontWeight: 800, fontSize: 14, cursor: "pointer" }}>End It</button>
+                <button onClick={() => {
+                  const unsent = (activeSession?.climbs || []).filter(c => !c.completed && c.climbType !== "speed-session");
+                  if (unsent.length > 0) {
+                    setProjectPromptChecked({});
+                    setShowEndConfirm(false);
+                    setShowProjectPrompt(true);
+                  } else {
+                    endSession();
+                  }
+                }} style={{ padding: "13px", background: `linear-gradient(135deg, ${W.redDark}, #b91c1c)`, border: "none", borderRadius: 12, color: "#fff", fontWeight: 800, fontSize: 14, cursor: "pointer" }}>End It</button>
               </div>
             </div>
           </div>
@@ -2874,6 +2928,9 @@ export default function App() {
     const saveLocation = () => { setSessions(prev => prev.map(s => s.id === session.id ? { ...s, location: locationVal } : s)); setSelectedSession(s => ({ ...s, location: locationVal })); setEditingLocation(false); };
     return (
       <div style={{ padding: "24px 20px" }}>
+        {!readOnly && (
+          <button onClick={() => setScreen("profile")} style={{ width: "100%", padding: "14px", background: `linear-gradient(135deg, ${W.accent}, ${W.accentDark})`, border: "none", borderRadius: 14, color: "#fff", fontWeight: 800, fontSize: 15, cursor: "pointer", marginBottom: 16, boxShadow: `0 4px 16px ${W.accentGlow}` }}>Save Session</button>
+        )}
         {readOnly && (
           <div style={{ background: W.surface2, borderRadius: 12, padding: "8px 14px", marginBottom: 14, border: `1px solid ${W.border}`, display: "flex", alignItems: "center", gap: 8 }}>
             <span style={{ fontSize: 12, color: W.textMuted }}>👤 Viewing someone else's session</span>
@@ -4073,6 +4130,7 @@ export default function App() {
                     <span style={{ background: isRope ? W.purple : W.surface2, color: isRope ? W.purpleDark : W.textDim, borderRadius: 6, padding: "1px 6px", fontSize: 10, fontWeight: 700 }}>{isRope ? "Rope" : "Boulder"}</span>
                     {last && <span style={{ fontSize: 10, color: accentColor, fontWeight: 600 }}>{last.sessionLocation} · {formatDate(last.sessionDate)}</span>}
                   </div>
+                  {p.notes && <div style={{ fontSize: 11, color: W.textDim, marginTop: 3, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{p.notes.split('\n')[0]}</div>}
                   <div style={{ display: "flex", gap: 6, marginTop: 6, flexWrap: "wrap" }}>
                     {tries > 0 && <span style={{ background: badgeBg, borderRadius: 7, padding: "2px 9px", fontSize: 11, fontWeight: 700, color: accentColor }}>{tries} {tries === 1 ? "try" : "tries"}</span>}
                     {totalMs >= 1000 && <span style={{ background: badgeBg, borderRadius: 7, padding: "2px 9px", fontSize: 11, fontWeight: 700, color: accentColor }}>{formatDuration(Math.floor(totalMs / 1000))} worked</span>}
@@ -4166,7 +4224,7 @@ export default function App() {
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 16 }}>
           {[
             { icon: "🔁", label: "Total Tries", value: totalTries },
-            { icon: "📅", label: "Sessions", value: history.length },
+            { icon: "📅", label: "Sessions Worked", value: history.length },
             { icon: "📊", label: "Avg/Session", value: avgTriesPerSession },
             { icon: "⏱", label: "Time Worked", value: totalMs >= 1000 ? formatDuration(Math.floor(totalMs / 1000)) : "—" },
           ].map(s => (
