@@ -823,7 +823,11 @@ export default function App() {
   const [colorTheme, setColorTheme]             = useState("espresso");
   const [showEndConfirm, setShowEndConfirm]     = useState(false);
   const [sessionSummary, setSessionSummary]     = useState(null);
-  const [projectTypeFilter, setProjectTypeFilter] = useState("all");
+  const [projectTypeFilter, setProjectTypeFilter]     = useState("all");
+  const [projectSort, setProjectSort]                 = useState("recent");
+  const [projActiveCollapsed, setProjActiveCollapsed] = useState(false);
+  const [projSentCollapsed, setProjSentCollapsed]     = useState(false);
+  const [projRetiredCollapsed, setProjRetiredCollapsed] = useState(false);
 
   const blankForm = { name: "", grade: GRADES[preferredScale]?.[2] || "V3", scale: preferredScale, isProject: false, comments: "", photo: null, color: null, wallTypes: [], holdTypes: [], climbType: "boulder", ropeStyle: "lead", speedTime: "" };
 
@@ -4028,88 +4032,86 @@ export default function App() {
           const ropeScaleKeys = Object.keys(ROPE_GRADES);
           const inferType = p => p.climbType || (ropeScaleKeys.includes(p.scale) ? "rope" : "boulder");
           const filterFn = p => projectTypeFilter === "all" || inferType(p) === projectTypeFilter;
-          const filteredActive    = activeProjects.filter(filterFn);
-          const filteredCompleted = completedProjects.filter(filterFn);
-          const filteredRetired   = retiredProjects.filter(filterFn);
+          const sortFn = (a, b) => {
+            if (projectSort === "time") return getProjectTotalTimeMs(b.id) - getProjectTotalTimeMs(a.id);
+            if (projectSort === "tries") return getProjectTotalTries(b.id) - getProjectTotalTries(a.id);
+            // "recent": sort by last attempt date
+            const ha = getProjectHistory(a.id), hb = getProjectHistory(b.id);
+            const da = ha[0]?.sessionDate || "0", db = hb[0]?.sessionDate || "0";
+            return db.localeCompare(da);
+          };
+          const filteredActive    = activeProjects.filter(filterFn).sort(sortFn);
+          const filteredCompleted = completedProjects.filter(filterFn).sort(sortFn);
+          const filteredRetired   = retiredProjects.filter(filterFn).sort(sortFn);
+
+          const renderCard = (p, bg, accentColor, badgeBg) => {
+            const photo = getProjectPhoto(p.id);
+            const totalMs = getProjectTotalTimeMs(p.id);
+            const tries = getProjectTotalTries(p.id);
+            const history = getProjectHistory(p.id);
+            const last = history[0];
+            const isRope = inferType(p) === "rope";
+            return (
+              <div key={p.id} onClick={() => { setSelectedProject(p); setScreen("projectDetail"); }} style={{ background: bg, borderRadius: 16, padding: "14px 16px", marginBottom: 10, border: `1px solid ${accentColor}30`, cursor: "pointer", display: "flex", alignItems: "center", gap: 12 }}>
+                {photo && <div style={{ width: 56, height: 56, borderRadius: 10, overflow: "hidden", flexShrink: 0, border: `1.5px solid ${accentColor}40` }}><img src={photo} style={{ width: "100%", height: "100%", objectFit: "cover" }} alt="" /></div>}
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+                    <span style={{ fontWeight: 800, fontSize: 15, color: W.text }}>{p.name || p.grade}</span>
+                    {p.completed && <span style={{ background: accentColor, color: "#fff", borderRadius: 6, padding: "1px 8px", fontSize: 10, fontWeight: 700 }}>SENT</span>}
+                  </div>
+                  <div style={{ display: "flex", gap: 6, alignItems: "center", marginTop: 3, flexWrap: "wrap" }}>
+                    <span style={{ fontWeight: 700, fontSize: 13, color: getGradeColor(p.grade) }}>{p.grade}</span>
+                    <span style={{ background: isRope ? W.purple : W.surface2, color: isRope ? W.purpleDark : W.textDim, borderRadius: 6, padding: "1px 6px", fontSize: 10, fontWeight: 700 }}>{isRope ? "Rope" : "Boulder"}</span>
+                    {last && <span style={{ fontSize: 10, color: accentColor, fontWeight: 600 }}>{last.sessionLocation} · {formatDate(last.sessionDate)}</span>}
+                  </div>
+                  <div style={{ display: "flex", gap: 6, marginTop: 6, flexWrap: "wrap" }}>
+                    {tries > 0 && <span style={{ background: badgeBg, borderRadius: 7, padding: "2px 9px", fontSize: 11, fontWeight: 700, color: accentColor }}>{tries} {tries === 1 ? "try" : "tries"}</span>}
+                    {totalMs >= 1000 && <span style={{ background: badgeBg, borderRadius: 7, padding: "2px 9px", fontSize: 11, fontWeight: 700, color: accentColor }}>{formatDuration(Math.floor(totalMs / 1000))} worked</span>}
+                  </div>
+                </div>
+                <div style={{ color: accentColor, fontSize: 20, flexShrink: 0 }}>›</div>
+              </div>
+            );
+          };
+
+          const SectionHeader = ({ label, count, countBg, countColor, collapsed, onToggle }) => (
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: collapsed ? 16 : 10 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <span style={{ fontSize: 12, fontWeight: 700, color: W.textMuted, textTransform: "uppercase", letterSpacing: 1 }}>{label}</span>
+                <span style={{ background: countBg, color: countColor, borderRadius: 10, padding: "1px 8px", fontSize: 11, fontWeight: 700 }}>{count}</span>
+              </div>
+              <button onClick={onToggle} style={{ background: W.surface2, border: `1px solid ${W.border}`, borderRadius: 8, padding: "3px 10px", fontSize: 12, color: W.textDim, cursor: "pointer", fontWeight: 700 }}>{collapsed ? "▼ Show" : "▲ Hide"}</button>
+            </div>
+          );
+
           return (
             <div>
-              <div style={{ display: "flex", gap: 6, marginBottom: 14, flexWrap: "wrap" }}>
-                {[["all","All"],["boulder","🪨 Boulder"],["rope","🪢 Rope"]].map(([val, label]) => (
+              <div style={{ display: "flex", gap: 6, marginBottom: 10, flexWrap: "wrap", alignItems: "center" }}>
+                {[["all","All"],["boulder","Boulder"],["rope","Rope"]].map(([val, label]) => (
                   <button key={val} onClick={() => setProjectTypeFilter(val)} style={{ padding: "5px 12px", borderRadius: 20, border: `1px solid ${projectTypeFilter === val ? W.accent : W.border}`, background: projectTypeFilter === val ? W.accent + "22" : W.surface2, color: projectTypeFilter === val ? W.accent : W.textMuted, fontWeight: 700, fontSize: 12, cursor: "pointer" }}>{label}</button>
                 ))}
+                <div style={{ marginLeft: "auto", display: "flex", gap: 4 }}>
+                  {[["recent","Recent"],["tries","Tries"],["time","Time"]].map(([val, label]) => (
+                    <button key={val} onClick={() => setProjectSort(val)} style={{ padding: "4px 9px", borderRadius: 20, border: `1px solid ${projectSort === val ? W.accent : W.border}`, background: projectSort === val ? W.accent + "22" : W.surface2, color: projectSort === val ? W.accent : W.textMuted, fontWeight: 700, fontSize: 11, cursor: "pointer" }}>{label}</button>
+                  ))}
+                </div>
               </div>
-              <div style={{ fontSize: 12, fontWeight: 700, color: W.textMuted, textTransform: "uppercase", letterSpacing: 1, marginBottom: 10 }}>Active Projects <span style={{ background: W.pink, color: W.pinkDark, borderRadius: 10, padding: "1px 8px", fontSize: 11 }}>{filteredActive.length}</span></div>
-              {filteredActive.length === 0
+              <SectionHeader label="Active Projects" count={filteredActive.length} countBg={W.pink} countColor={W.pinkDark} collapsed={projActiveCollapsed} onToggle={() => setProjActiveCollapsed(v => !v)} />
+              {!projActiveCollapsed && (filteredActive.length === 0
                 ? <div style={{ color: W.textDim, fontSize: 13, marginBottom: 20, padding: "12px", background: W.surface, borderRadius: 12, border: `1px solid ${W.border}` }}>No active projects.</div>
-                : filteredActive.map(p => {
-                  const photo = getProjectPhoto(p.id);
-                  const totalMs = getProjectTotalTimeMs(p.id);
-                  const tries = getProjectTotalTries(p.id);
-                  return (
-                    <div key={p.id} onClick={() => { setSelectedProject(p); setScreen("projectDetail"); }} style={{ background: W.pink, borderRadius: 16, padding: "14px 16px", marginBottom: 10, border: `1px solid ${W.pinkDark}30`, cursor: "pointer", display: "flex", alignItems: "center", gap: 12 }}>
-                      {photo && <div style={{ width: 56, height: 56, borderRadius: 10, overflow: "hidden", flexShrink: 0, border: `1.5px solid ${W.pinkDark}40` }}><img src={photo} style={{ width: "100%", height: "100%", objectFit: "cover" }} alt="" /></div>}
-                      <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{ fontWeight: 800, fontSize: 15, color: W.text }}>{p.name || p.grade}</div>
-                        <div style={{ display: "flex", gap: 6, alignItems: "center", marginTop: 3 }}>
-                          <span style={{ fontWeight: 700, fontSize: 13, color: getGradeColor(p.grade) }}>{p.grade}</span>
-                          {inferType(p) === "rope" && <span style={{ background: W.purple, color: W.purpleDark, borderRadius: 6, padding: "1px 6px", fontSize: 10, fontWeight: 700 }}>🪢 Rope</span>}
-                        </div>
-                        <div style={{ display: "flex", gap: 6, marginTop: 6, flexWrap: "wrap" }}>
-                          <span style={{ background: "rgba(255,255,255,0.6)", borderRadius: 7, padding: "2px 9px", fontSize: 11, fontWeight: 700, color: W.pinkDark }}>{tries} {tries === 1 ? "try" : "tries"}</span>
-                          {totalMs >= 1000 && <span style={{ background: "rgba(255,255,255,0.6)", borderRadius: 7, padding: "2px 9px", fontSize: 11, fontWeight: 700, color: W.pinkDark }}>{formatDuration(Math.floor(totalMs / 1000))} worked</span>}
-                        </div>
-                      </div>
-                      <div style={{ color: W.pinkDark, fontSize: 20, flexShrink: 0 }}>›</div>
-                    </div>
-                  );
-                })}
+                : filteredActive.map(p => renderCard(p, W.pink, W.pinkDark, "rgba(255,255,255,0.6)"))
+              )}
               {filteredCompleted.length > 0 && (
-                <>
-                  <div style={{ fontSize: 12, fontWeight: 700, color: W.textMuted, textTransform: "uppercase", letterSpacing: 1, marginBottom: 10, marginTop: 22 }}>✓ Sent! <span style={{ background: W.green, color: W.greenDark, borderRadius: 10, padding: "1px 8px", fontSize: 11 }}>{filteredCompleted.length}</span></div>
-                  {filteredCompleted.map(p => {
-                    const photo = getProjectPhoto(p.id);
-                    const totalMs = getProjectTotalTimeMs(p.id);
-                    const tries = getProjectTotalTries(p.id);
-                    return (
-                      <div key={p.id} onClick={() => { setSelectedProject(p); setScreen("projectDetail"); }} style={{ background: W.green, borderRadius: 16, padding: "14px 16px", marginBottom: 10, border: `1px solid ${W.greenDark}30`, cursor: "pointer", display: "flex", alignItems: "center", gap: 12 }}>
-                        {photo && <div style={{ width: 56, height: 56, borderRadius: 10, overflow: "hidden", flexShrink: 0, border: `1.5px solid ${W.greenDark}40` }}><img src={photo} style={{ width: "100%", height: "100%", objectFit: "cover" }} alt="" /></div>}
-                        <div style={{ flex: 1, minWidth: 0 }}>
-                          <div style={{ display: "flex", alignItems: "center", gap: 8 }}><div style={{ fontWeight: 800, fontSize: 15, color: W.text }}>{p.name || p.grade}</div><span style={{ background: W.greenDark, color: "#fff", borderRadius: 6, padding: "1px 8px", fontSize: 10, fontWeight: 700 }}>SENT</span></div>
-                          <div style={{ display: "flex", gap: 6, alignItems: "center", marginTop: 3 }}><span style={{ fontWeight: 700, fontSize: 13, color: getGradeColor(p.grade) }}>{p.grade}</span></div>
-                          <div style={{ display: "flex", gap: 6, marginTop: 6, flexWrap: "wrap" }}>
-                            {tries > 0 && <span style={{ background: "rgba(255,255,255,0.6)", borderRadius: 7, padding: "2px 9px", fontSize: 11, fontWeight: 700, color: W.greenDark }}>{tries} {tries === 1 ? "try" : "tries"}</span>}
-                            {totalMs >= 1000 && <span style={{ background: "rgba(255,255,255,0.6)", borderRadius: 7, padding: "2px 9px", fontSize: 11, fontWeight: 700, color: W.greenDark }}>{formatDuration(Math.floor(totalMs / 1000))} worked</span>}
-                          </div>
-                        </div>
-                        <div style={{ color: W.greenDark, fontSize: 20, flexShrink: 0 }}>›</div>
-                      </div>
-                    );
-                  })}
-                </>
+                <div style={{ marginTop: 22 }}>
+                  <SectionHeader label="Projects Sent" count={filteredCompleted.length} countBg={W.green} countColor={W.greenDark} collapsed={projSentCollapsed} onToggle={() => setProjSentCollapsed(v => !v)} />
+                  {!projSentCollapsed && filteredCompleted.map(p => renderCard(p, W.green, W.greenDark, "rgba(255,255,255,0.6)"))}
+                </div>
               )}
               {filteredRetired.length > 0 && (
-                <>
-                  <div style={{ fontSize: 12, fontWeight: 700, color: W.textMuted, textTransform: "uppercase", letterSpacing: 1, marginBottom: 10, marginTop: 22 }}>🪨 Off The Wall <span style={{ background: W.surface2, color: W.textMuted, borderRadius: 10, padding: "1px 8px", fontSize: 11 }}>{filteredRetired.length}</span></div>
-                  {filteredRetired.map(p => {
-                    const photo = getProjectPhoto(p.id);
-                    const totalMs = getProjectTotalTimeMs(p.id);
-                    const tries = getProjectTotalTries(p.id);
-                    return (
-                      <div key={p.id} onClick={() => { setSelectedProject(p); setScreen("projectDetail"); }} style={{ background: W.surface2, borderRadius: 16, padding: "14px 16px", marginBottom: 10, border: `1px solid ${W.border}`, cursor: "pointer", opacity: 0.8, display: "flex", alignItems: "center", gap: 12 }}>
-                        {photo && <div style={{ width: 56, height: 56, borderRadius: 10, overflow: "hidden", flexShrink: 0, border: `1.5px solid ${W.border}` }}><img src={photo} style={{ width: "100%", height: "100%", objectFit: "cover" }} alt="" /></div>}
-                        <div style={{ flex: 1, minWidth: 0 }}>
-                          <div style={{ fontWeight: 700, fontSize: 15, color: W.textMuted }}>{p.name || p.grade}</div>
-                          <div style={{ display: "flex", gap: 6, alignItems: "center", marginTop: 3 }}><span style={{ fontWeight: 700, fontSize: 12, color: getGradeColor(p.grade) }}>{p.grade}</span></div>
-                          <div style={{ display: "flex", gap: 6, marginTop: 6, flexWrap: "wrap" }}>
-                            {tries > 0 && <span style={{ background: W.surface, borderRadius: 7, padding: "2px 9px", fontSize: 11, fontWeight: 700, color: W.textDim }}>{tries} {tries === 1 ? "try" : "tries"}</span>}
-                            {totalMs >= 1000 && <span style={{ background: W.surface, borderRadius: 7, padding: "2px 9px", fontSize: 11, fontWeight: 700, color: W.textDim }}>{formatDuration(Math.floor(totalMs / 1000))} worked</span>}
-                          </div>
-                        </div>
-                        <div style={{ color: W.textDim, fontSize: 20, flexShrink: 0 }}>›</div>
-                      </div>
-                    );
-                  })}
-                </>
+                <div style={{ marginTop: 22 }}>
+                  <SectionHeader label="Off The Wall" count={filteredRetired.length} countBg={W.surface2} countColor={W.textMuted} collapsed={projRetiredCollapsed} onToggle={() => setProjRetiredCollapsed(v => !v)} />
+                  {!projRetiredCollapsed && filteredRetired.map(p => renderCard(p, W.surface2, W.textDim, W.surface))}
+                </div>
               )}
             </div>
           );
@@ -4121,23 +4123,33 @@ export default function App() {
   const ProjectDetailScreen = ({ project }) => {
     const history = getProjectHistory(project.id);
     const totalTries = getProjectTotalTries(project.id);
+    const totalMs = getProjectTotalTimeMs(project.id);
+    const photo = getProjectPhoto(project.id);
     const avgTriesPerSession = history.length ? (history.reduce((a, h) => a + h.tries, 0) / history.length).toFixed(1) : "—";
     const bestSession = history.length ? [...history].sort((a, b) => a.tries - b.tries)[0] : null;
+    const climbType = project.climbType || (Object.keys(ROPE_GRADES).includes(project.scale) ? "rope" : "boulder");
+    const headerBg = project.completed ? W.green : W.pink;
+    const headerAccent = project.completed ? W.greenDark : W.pinkDark;
     return (
       <div style={{ padding: "24px 20px" }}>
-        <div style={{ background: project.completed ? W.green : W.pink, borderRadius: 20, padding: "20px", marginBottom: 20, border: `1px solid ${project.completed ? W.greenDark : W.pinkDark}30` }}>
+        <div style={{ background: headerBg, borderRadius: 20, padding: "20px", marginBottom: 20, border: `1px solid ${headerAccent}30` }}>
+          {photo && <div style={{ width: "100%", height: 160, borderRadius: 12, overflow: "hidden", marginBottom: 14, border: `1.5px solid ${headerAccent}30` }}><img src={photo} style={{ width: "100%", height: "100%", objectFit: "cover" }} alt="" /></div>}
           <div style={{ fontSize: 22, fontWeight: 900, color: W.text }}>{project.name || project.grade}</div>
           <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 4, flexWrap: "wrap" }}>
             <span style={{ fontWeight: 800, fontSize: 16, color: getGradeColor(project.grade) }}>{project.grade}</span>
-            <span style={{ color: W.textMuted, fontSize: 13 }}>{resolveScaleName(project.scale)}</span>
-            {(() => { const t = project.climbType || (Object.keys(ROPE_GRADES).includes(project.scale) ? "rope" : "boulder"); return t === "rope" ? <span style={{ background: W.purple, color: W.purpleDark, borderRadius: 7, padding: "2px 8px", fontSize: 11, fontWeight: 700 }}>🪢 Rope</span> : <span style={{ background: W.green, color: W.greenDark, borderRadius: 7, padding: "2px 8px", fontSize: 11, fontWeight: 700 }}>🪨 Boulder</span>; })()}
-            {project.completed && <span style={{ background: W.greenDark, color: "#fff", borderRadius: 8, padding: "2px 10px", fontSize: 11, fontWeight: 700 }}>✓ SENT!</span>}
+            {climbType === "rope" ? <span style={{ background: W.purple, color: W.purpleDark, borderRadius: 7, padding: "2px 8px", fontSize: 11, fontWeight: 700 }}>Rope</span> : <span style={{ background: W.surface2, color: W.textDim, borderRadius: 7, padding: "2px 8px", fontSize: 11, fontWeight: 700 }}>Boulder</span>}
+            {project.completed && <span style={{ background: headerAccent, color: "#fff", borderRadius: 8, padding: "2px 10px", fontSize: 11, fontWeight: 700 }}>✓ SENT!</span>}
           </div>
           {project.comments && <div style={{ fontSize: 13, color: W.textMuted, marginTop: 6 }}>{project.comments}</div>}
           <div style={{ fontSize: 11, color: W.textDim, marginTop: 6 }}>Added {formatDate(project.dateAdded)}{project.dateSent && ` · Sent ${formatDate(project.dateSent)}`}</div>
         </div>
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10, marginBottom: 16 }}>
-          {[{ icon: "🔁", label: "Total Tries", value: totalTries }, { icon: "📅", label: "Sessions", value: history.length }, { icon: "📊", label: "Avg/Session", value: avgTriesPerSession }].map(s => (
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 16 }}>
+          {[
+            { icon: "🔁", label: "Total Tries", value: totalTries },
+            { icon: "📅", label: "Sessions", value: history.length },
+            { icon: "📊", label: "Avg/Session", value: avgTriesPerSession },
+            { icon: "⏱", label: "Time Worked", value: totalMs >= 1000 ? formatDuration(Math.floor(totalMs / 1000)) : "—" },
+          ].map(s => (
             <div key={s.label} style={{ background: W.surface, borderRadius: 14, padding: "12px", textAlign: "center", border: `1px solid ${W.border}` }}>
               <div style={{ fontSize: 18 }}>{s.icon}</div>
               <div style={{ fontSize: 18, fontWeight: 800, color: W.accent, marginTop: 2 }}>{s.value}</div>
