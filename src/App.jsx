@@ -1700,6 +1700,8 @@ export default function App() {
 
   const getProjectHistory    = (pid) => sessions.flatMap(s => s.climbs.filter(c => c.projectId === pid).map(c => ({ ...c, sessionDate: s.date, sessionLocation: s.location }))).sort((a, b) => new Date(b.sessionDate) - new Date(a.sessionDate));
   const getProjectTotalTries = (pid) => getProjectHistory(pid).reduce((sum, c) => sum + c.tries, 0);
+  const getProjectTotalTimeMs = (pid) => sessions.flatMap(s => s.climbs.filter(c => c.projectId === pid)).flatMap(c => c.attemptLog || []).reduce((sum, a) => sum + (a.duration || 0), 0);
+  const getProjectPhoto = (pid) => { const c = sessions.flatMap(s => s.climbs).find(c => c.projectId === pid && c.photo); return c ? c.photo : null; };
 
   const getLogbookClimbs = () => {
     let climbs = sessions.flatMap(s => s.climbs.map(c => ({ ...c, sessionDate: s.date, sessionLocation: s.location })))
@@ -4039,45 +4041,74 @@ export default function App() {
               <div style={{ fontSize: 12, fontWeight: 700, color: W.textMuted, textTransform: "uppercase", letterSpacing: 1, marginBottom: 10 }}>Active Projects <span style={{ background: W.pink, color: W.pinkDark, borderRadius: 10, padding: "1px 8px", fontSize: 11 }}>{filteredActive.length}</span></div>
               {filteredActive.length === 0
                 ? <div style={{ color: W.textDim, fontSize: 13, marginBottom: 20, padding: "12px", background: W.surface, borderRadius: 12, border: `1px solid ${W.border}` }}>No active projects.</div>
-                : filteredActive.map(p => (
-                  <div key={p.id} onClick={() => { setSelectedProject(p); setScreen("projectDetail"); }} style={{ background: W.pink, borderRadius: 16, padding: "14px 16px", marginBottom: 10, border: `1px solid ${W.pinkDark}30`, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                    <div>
-                      <div style={{ fontWeight: 800, fontSize: 15, color: W.text }}>{p.name || p.grade}</div>
-                      <div style={{ display: "flex", gap: 6, alignItems: "center", marginTop: 3 }}>
-                        <span style={{ fontWeight: 700, fontSize: 13, color: getGradeColor(p.grade) }}>{p.grade}</span>
-                        <span style={{ color: W.textMuted, fontSize: 12 }}>{resolveScaleName(p.scale)}</span>
-                        {inferType(p) === "rope" && <span style={{ background: W.purple, color: W.purpleDark, borderRadius: 6, padding: "1px 6px", fontSize: 10, fontWeight: 700 }}>🪢 Rope</span>}
+                : filteredActive.map(p => {
+                  const photo = getProjectPhoto(p.id);
+                  const totalMs = getProjectTotalTimeMs(p.id);
+                  const tries = getProjectTotalTries(p.id);
+                  return (
+                    <div key={p.id} onClick={() => { setSelectedProject(p); setScreen("projectDetail"); }} style={{ background: W.pink, borderRadius: 16, padding: "14px 16px", marginBottom: 10, border: `1px solid ${W.pinkDark}30`, cursor: "pointer", display: "flex", alignItems: "center", gap: 12 }}>
+                      {photo && <div style={{ width: 56, height: 56, borderRadius: 10, overflow: "hidden", flexShrink: 0, border: `1.5px solid ${W.pinkDark}40` }}><img src={photo} style={{ width: "100%", height: "100%", objectFit: "cover" }} alt="" /></div>}
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontWeight: 800, fontSize: 15, color: W.text }}>{p.name || p.grade}</div>
+                        <div style={{ display: "flex", gap: 6, alignItems: "center", marginTop: 3 }}>
+                          <span style={{ fontWeight: 700, fontSize: 13, color: getGradeColor(p.grade) }}>{p.grade}</span>
+                          {inferType(p) === "rope" && <span style={{ background: W.purple, color: W.purpleDark, borderRadius: 6, padding: "1px 6px", fontSize: 10, fontWeight: 700 }}>🪢 Rope</span>}
+                        </div>
+                        <div style={{ display: "flex", gap: 6, marginTop: 6, flexWrap: "wrap" }}>
+                          <span style={{ background: "rgba(255,255,255,0.6)", borderRadius: 7, padding: "2px 9px", fontSize: 11, fontWeight: 700, color: W.pinkDark }}>{tries} {tries === 1 ? "try" : "tries"}</span>
+                          {totalMs >= 1000 && <span style={{ background: "rgba(255,255,255,0.6)", borderRadius: 7, padding: "2px 9px", fontSize: 11, fontWeight: 700, color: W.pinkDark }}>{formatDuration(Math.floor(totalMs / 1000))} worked</span>}
+                        </div>
                       </div>
-                      <div style={{ display: "flex", gap: 6, marginTop: 6 }}>
-                        <span style={{ background: "rgba(255,255,255,0.6)", borderRadius: 7, padding: "2px 9px", fontSize: 11, fontWeight: 700, color: W.pinkDark }}>🔁 {getProjectTotalTries(p.id)} tries</span>
-                      </div>
+                      <div style={{ color: W.pinkDark, fontSize: 20, flexShrink: 0 }}>›</div>
                     </div>
-                    <div style={{ color: W.pinkDark, fontSize: 20 }}>›</div>
-                  </div>
-                ))}
+                  );
+                })}
               {filteredCompleted.length > 0 && (
                 <>
                   <div style={{ fontSize: 12, fontWeight: 700, color: W.textMuted, textTransform: "uppercase", letterSpacing: 1, marginBottom: 10, marginTop: 22 }}>✓ Sent! <span style={{ background: W.green, color: W.greenDark, borderRadius: 10, padding: "1px 8px", fontSize: 11 }}>{filteredCompleted.length}</span></div>
-                  {filteredCompleted.map(p => (
-                    <div key={p.id} onClick={() => { setSelectedProject(p); setScreen("projectDetail"); }} style={{ background: W.green, borderRadius: 16, padding: "14px 16px", marginBottom: 10, border: `1px solid ${W.greenDark}30`, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                      <div>
-                        <div style={{ display: "flex", alignItems: "center", gap: 8 }}><div style={{ fontWeight: 800, fontSize: 15, color: W.text }}>{p.name || p.grade}</div><span style={{ background: W.greenDark, color: "#fff", borderRadius: 6, padding: "1px 8px", fontSize: 10, fontWeight: 700 }}>SENT</span></div>
-                        <div style={{ display: "flex", gap: 6, alignItems: "center", marginTop: 3 }}><span style={{ fontWeight: 700, fontSize: 13, color: getGradeColor(p.grade) }}>{p.grade}</span></div>
+                  {filteredCompleted.map(p => {
+                    const photo = getProjectPhoto(p.id);
+                    const totalMs = getProjectTotalTimeMs(p.id);
+                    const tries = getProjectTotalTries(p.id);
+                    return (
+                      <div key={p.id} onClick={() => { setSelectedProject(p); setScreen("projectDetail"); }} style={{ background: W.green, borderRadius: 16, padding: "14px 16px", marginBottom: 10, border: `1px solid ${W.greenDark}30`, cursor: "pointer", display: "flex", alignItems: "center", gap: 12 }}>
+                        {photo && <div style={{ width: 56, height: 56, borderRadius: 10, overflow: "hidden", flexShrink: 0, border: `1.5px solid ${W.greenDark}40` }}><img src={photo} style={{ width: "100%", height: "100%", objectFit: "cover" }} alt="" /></div>}
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ display: "flex", alignItems: "center", gap: 8 }}><div style={{ fontWeight: 800, fontSize: 15, color: W.text }}>{p.name || p.grade}</div><span style={{ background: W.greenDark, color: "#fff", borderRadius: 6, padding: "1px 8px", fontSize: 10, fontWeight: 700 }}>SENT</span></div>
+                          <div style={{ display: "flex", gap: 6, alignItems: "center", marginTop: 3 }}><span style={{ fontWeight: 700, fontSize: 13, color: getGradeColor(p.grade) }}>{p.grade}</span></div>
+                          <div style={{ display: "flex", gap: 6, marginTop: 6, flexWrap: "wrap" }}>
+                            {tries > 0 && <span style={{ background: "rgba(255,255,255,0.6)", borderRadius: 7, padding: "2px 9px", fontSize: 11, fontWeight: 700, color: W.greenDark }}>{tries} {tries === 1 ? "try" : "tries"}</span>}
+                            {totalMs >= 1000 && <span style={{ background: "rgba(255,255,255,0.6)", borderRadius: 7, padding: "2px 9px", fontSize: 11, fontWeight: 700, color: W.greenDark }}>{formatDuration(Math.floor(totalMs / 1000))} worked</span>}
+                          </div>
+                        </div>
+                        <div style={{ color: W.greenDark, fontSize: 20, flexShrink: 0 }}>›</div>
                       </div>
-                      <div style={{ color: W.greenDark, fontSize: 20 }}>›</div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </>
               )}
               {filteredRetired.length > 0 && (
                 <>
                   <div style={{ fontSize: 12, fontWeight: 700, color: W.textMuted, textTransform: "uppercase", letterSpacing: 1, marginBottom: 10, marginTop: 22 }}>🪨 Off The Wall <span style={{ background: W.surface2, color: W.textMuted, borderRadius: 10, padding: "1px 8px", fontSize: 11 }}>{filteredRetired.length}</span></div>
-                  {filteredRetired.map(p => (
-                    <div key={p.id} onClick={() => { setSelectedProject(p); setScreen("projectDetail"); }} style={{ background: W.surface2, borderRadius: 16, padding: "14px 16px", marginBottom: 10, border: `1px solid ${W.border}`, cursor: "pointer", opacity: 0.8, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                      <div><div style={{ fontWeight: 700, fontSize: 15, color: W.textMuted }}>{p.name || p.grade}</div><div style={{ fontSize: 12, color: W.textDim, marginTop: 2 }}>{p.grade} · {resolveScaleName(p.scale)}</div></div>
-                      <div style={{ color: W.textDim, fontSize: 20 }}>›</div>
-                    </div>
-                  ))}
+                  {filteredRetired.map(p => {
+                    const photo = getProjectPhoto(p.id);
+                    const totalMs = getProjectTotalTimeMs(p.id);
+                    const tries = getProjectTotalTries(p.id);
+                    return (
+                      <div key={p.id} onClick={() => { setSelectedProject(p); setScreen("projectDetail"); }} style={{ background: W.surface2, borderRadius: 16, padding: "14px 16px", marginBottom: 10, border: `1px solid ${W.border}`, cursor: "pointer", opacity: 0.8, display: "flex", alignItems: "center", gap: 12 }}>
+                        {photo && <div style={{ width: 56, height: 56, borderRadius: 10, overflow: "hidden", flexShrink: 0, border: `1.5px solid ${W.border}` }}><img src={photo} style={{ width: "100%", height: "100%", objectFit: "cover" }} alt="" /></div>}
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ fontWeight: 700, fontSize: 15, color: W.textMuted }}>{p.name || p.grade}</div>
+                          <div style={{ display: "flex", gap: 6, alignItems: "center", marginTop: 3 }}><span style={{ fontWeight: 700, fontSize: 12, color: getGradeColor(p.grade) }}>{p.grade}</span></div>
+                          <div style={{ display: "flex", gap: 6, marginTop: 6, flexWrap: "wrap" }}>
+                            {tries > 0 && <span style={{ background: W.surface, borderRadius: 7, padding: "2px 9px", fontSize: 11, fontWeight: 700, color: W.textDim }}>{tries} {tries === 1 ? "try" : "tries"}</span>}
+                            {totalMs >= 1000 && <span style={{ background: W.surface, borderRadius: 7, padding: "2px 9px", fontSize: 11, fontWeight: 700, color: W.textDim }}>{formatDuration(Math.floor(totalMs / 1000))} worked</span>}
+                          </div>
+                        </div>
+                        <div style={{ color: W.textDim, fontSize: 20, flexShrink: 0 }}>›</div>
+                      </div>
+                    );
+                  })}
                 </>
               )}
             </div>
