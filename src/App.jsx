@@ -2532,7 +2532,31 @@ export default function App() {
       <div style={{ padding: "24px 20px" }}>
         <h1 style={{ fontSize: 26, fontWeight: 800, color: W.text, margin: "0 0 4px" }}>Hey, {currentUser?.displayName || "Climber"} 👋</h1>
         <p style={{ color: W.textMuted, margin: "0 0 22px", fontSize: 14 }}>Ready to send something today?</p>
-        <button onClick={goToSessionSetup} style={{ width: "100%", padding: "16px", background: `linear-gradient(135deg, ${W.accent}, ${W.accentDark})`, border: "none", borderRadius: 16, color: "#fff", fontSize: 16, fontWeight: 700, cursor: "pointer", marginBottom: 28, boxShadow: `0 4px 20px ${W.accentGlow}` }}>▶ Start a Session</button>
+        <button onClick={goToSessionSetup} style={{ width: "100%", padding: "16px", background: `linear-gradient(135deg, ${W.accent}, ${W.accentDark})`, border: "none", borderRadius: 16, color: "#fff", fontSize: 16, fontWeight: 700, cursor: "pointer", marginBottom: 16, boxShadow: `0 4px 20px ${W.accentGlow}` }}>▶ Start a Session</button>
+        {(() => {
+          if (!sessions.length) return null;
+          const weekKey = (d) => { const dt = new Date(d); dt.setHours(0,0,0,0); dt.setDate(dt.getDate() - dt.getDay()); return dt.toISOString().slice(0, 10); };
+          const weekKeys = new Set(sessions.map(s => weekKey(s.date)));
+          let streak = 0;
+          const expectedWk = new Date(); expectedWk.setHours(0,0,0,0); expectedWk.setDate(expectedWk.getDate() - expectedWk.getDay());
+          for (let i = 0; i < 260; i++) {
+            const k = expectedWk.toISOString().slice(0, 10);
+            if (weekKeys.has(k)) { streak++; expectedWk.setDate(expectedWk.getDate() - 7); }
+            else if (i === 0) { expectedWk.setDate(expectedWk.getDate() - 7); continue; }
+            else break;
+          }
+          if (streak === 0) return null;
+          return (
+            <div style={{ display: "flex", alignItems: "center", gap: 12, background: W.accent + "18", border: `1px solid ${W.accent}44`, borderRadius: 14, padding: "12px 16px", marginBottom: 20 }}>
+              <div style={{ fontSize: 26 }}>🔥</div>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontSize: 15, fontWeight: 900, color: W.accent }}>{streak} week{streak !== 1 ? "s" : ""} in a row!</div>
+                <div style={{ fontSize: 11, color: W.textMuted }}>Keep your streak alive this week</div>
+              </div>
+              <div style={{ fontSize: 24, fontWeight: 900, color: W.accent, fontVariantNumeric: "tabular-nums" }}>{streak}w</div>
+            </div>
+          );
+        })()}
         <div style={{ fontSize: 13, fontWeight: 700, color: W.textMuted, marginBottom: 12, textTransform: "uppercase", letterSpacing: 1 }}>
           {socialFollowing.length > 0 ? "Feed" : "Previous Sessions"}
         </div>
@@ -3531,21 +3555,15 @@ export default function App() {
                     else { const prev = new Date(prevWk); prev.setDate(prev.getDate() + 7); runStreak = prev.toISOString().slice(0,10) === wk ? runStreak + 1 : 1; }
                     bestStreak = Math.max(bestStreak, runStreak); prevWk = wk;
                   }
-                  if (streak === 0 && sessions.length === 0) return null;
+                  if (sessions.length === 0) return null;
                   return (
-                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 14 }}>
-                      <div style={{ background: streak > 0 ? W.accent + "18" : W.surface2, border: `1px solid ${streak > 0 ? W.accent : W.border}`, borderRadius: 14, padding: "12px 14px" }}>
-                        <div style={{ fontSize: 22 }}>🔥</div>
-                        <div style={{ fontSize: 22, fontWeight: 900, color: streak > 0 ? W.accent : W.textDim }}>{streak}w</div>
-                        <div style={{ fontSize: 12, fontWeight: 700, color: W.text }}>Current Streak</div>
-                        <div style={{ fontSize: 11, color: W.textMuted }}>{streak === 0 ? "No sessions this week" : `${streak} week${streak !== 1 ? "s" : ""} in a row`}</div>
-                      </div>
-                      <div style={{ background: W.surface2, border: `1px solid ${W.border}`, borderRadius: 14, padding: "12px 14px" }}>
-                        <div style={{ fontSize: 22 }}>🏅</div>
-                        <div style={{ fontSize: 22, fontWeight: 900, color: W.goldLight || W.accent }}>{bestStreak}w</div>
+                    <div style={{ display: "flex", alignItems: "center", gap: 12, background: W.surface2, border: `1px solid ${W.border}`, borderRadius: 14, padding: "12px 16px", marginBottom: 14 }}>
+                      <div style={{ fontSize: 26 }}>🏅</div>
+                      <div style={{ flex: 1 }}>
                         <div style={{ fontSize: 12, fontWeight: 700, color: W.text }}>Best Streak</div>
                         <div style={{ fontSize: 11, color: W.textMuted }}>{bestStreak} week{bestStreak !== 1 ? "s" : ""} personal best</div>
                       </div>
+                      <div style={{ fontSize: 22, fontWeight: 900, color: W.goldLight || W.accent, fontVariantNumeric: "tabular-nums" }}>{bestStreak}w</div>
                     </div>
                   );
                 })()}
