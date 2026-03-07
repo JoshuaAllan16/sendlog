@@ -811,7 +811,14 @@ export default function App() {
   const [customBoulderInput, setCustomBoulderInput]       = useState("");
   const [customRopeInput, setCustomRopeInput]             = useState("");
   const [hiddenLocations, setHiddenLocations]   = useState([]);
+  const [customLocations, setCustomLocations]   = useState([]);
+  const [mainGym, setMainGym]                   = useState("");
+  const [showOnboarding, setShowOnboarding]     = useState(false);
+  const [onboardingStep, setOnboardingStep]     = useState(0);
+  const [onboardingGymInput, setOnboardingGymInput] = useState("");
+  const [onboardingGyms, setOnboardingGyms]     = useState([]);
   const [showAccountPanel, setShowAccountPanel] = useState(false);
+  const [homeGymDropOpen, setHomeGymDropOpen]   = useState(false);
   const [confirmLogout, setConfirmLogout]       = useState(false);
   const [notifPrefsOpen, setNotifPrefsOpen]       = useState(false);
   const [followRequestsOpen, setFollowRequestsOpen] = useState(false);
@@ -1083,6 +1090,8 @@ export default function App() {
           setCustomBoulderInput((userData.profile?.customBoulderGrades || []).join(", "));
           setCustomRopeInput((userData.profile?.customRopeGrades || []).join(", "));
           setHiddenLocations(userData.profile?.hiddenLocations || []);
+          setCustomLocations(userData.profile?.customLocations || []);
+          setMainGym(userData.profile?.mainGym || "");
           setSocialFollowing(userData.profile?.following || []);
           setColorTheme(userData.profile?.colorTheme || "espresso");
           setMutedUsers(userData.profile?.mutedUsers || []);
@@ -1112,7 +1121,7 @@ export default function App() {
     setSaveStatus("saving");
     saveTimeoutRef.current = setTimeout(async () => {
       const userData = {
-        profile: { displayName: editDisplayName || currentUser.displayName, preferredScale, preferredRopeScale, profilePic, customBoulderGrades, customRopeGrades, customBoulderScaleName, customRopeScaleName, hiddenLocations, following: socialFollowing, colorTheme, mutedUsers, notifPrefs, isPrivate, pendingFollowRequests },
+        profile: { displayName: editDisplayName || currentUser.displayName, preferredScale, preferredRopeScale, profilePic, customBoulderGrades, customRopeGrades, customBoulderScaleName, customRopeScaleName, hiddenLocations, customLocations, mainGym, following: socialFollowing, colorTheme, mutedUsers, notifPrefs, isPrivate, pendingFollowRequests },
         sessions,
         projects,
       };
@@ -1121,7 +1130,7 @@ export default function App() {
       setTimeout(() => setSaveStatus(""), 2000);
     }, 1000);
     return () => clearTimeout(saveTimeoutRef.current);
-  }, [sessions, projects, editDisplayName, preferredScale, preferredRopeScale, profilePic, customBoulderGrades, customRopeGrades, customBoulderScaleName, customRopeScaleName, hiddenLocations, socialFollowing, colorTheme, mutedUsers, notifPrefs, isPrivate, pendingFollowRequests]);
+  }, [sessions, projects, editDisplayName, preferredScale, preferredRopeScale, profilePic, customBoulderGrades, customRopeGrades, customBoulderScaleName, customRopeScaleName, hiddenLocations, customLocations, mainGym, socialFollowing, colorTheme, mutedUsers, notifPrefs, isPrivate, pendingFollowRequests]);
 
   useEffect(() => {
     if (timerRunning) {
@@ -1157,7 +1166,7 @@ export default function App() {
 
       const userData = {
         profile: { displayName: displayName.trim() || username },
-        sessions: generateInitialSessions(),
+        sessions: [],
         projects: [],
       };
       await saveUserData(username.toLowerCase(), userData);
@@ -1169,6 +1178,7 @@ export default function App() {
       setCurrentUser(user);
       setSessions(userData.sessions);
       setProjects(userData.projects);
+      setShowOnboarding(true);
       setAuthScreen("app");
     } catch (e) {
       setAuthError("Something went wrong. Please try again.");
@@ -1213,6 +1223,8 @@ export default function App() {
       setCustomRopeInput((safeData.profile?.customRopeGrades || []).join(", "));
       setEditDisplayName(safeData.profile?.displayName || username.toLowerCase());
       setHiddenLocations(safeData.profile?.hiddenLocations || []);
+      setCustomLocations(safeData.profile?.customLocations || []);
+      setMainGym(safeData.profile?.mainGym || "");
       setSocialFollowing(safeData.profile?.following || []);
       setColorTheme(safeData.profile?.colorTheme || "espresso");
       setMutedUsers(safeData.profile?.mutedUsers || []);
@@ -1300,10 +1312,11 @@ export default function App() {
   const W = THEMES[colorTheme] || THEMES.espresso;
 
   // ── APP LOGIC ──────────────────────────────────────────────
-  const knownLocations = [...new Set([...KNOWN_GYMS, ...sessions.map(s => s.location).filter(Boolean)])].filter(l => !hiddenLocations.includes(l));
+  const knownLocations = [...new Set([...KNOWN_GYMS, ...sessions.map(s => s.location).filter(Boolean), ...customLocations, pendingLocation, activeSession?.location, mainGym].filter(Boolean))].filter(l => !hiddenLocations.includes(l));
+  const addCustomLocation = (loc) => { if (loc && !KNOWN_GYMS.includes(loc) && !sessions.some(s => s.location === loc)) setCustomLocations(prev => [...new Set([...prev, loc])]); };
   const allGyms = ["All Gyms", ...new Set(sessions.map(s => s.location).filter(Boolean))];
 
-  const goToSessionSetup = () => { setPendingLocation(""); setSessionStarted(false); setActiveSession({ location: "", climbs: [], collapsedSections: { boulder: false, rope: false } }); setSessionTimer(0); setSessionActiveStart(null); setSessionPausedSec(0); setShowMoreClimbTypes(false); setScreen("session"); };
+  const goToSessionSetup = () => { setPendingLocation(mainGym || ""); setSessionStarted(false); setActiveSession({ location: mainGym || "", climbs: [], collapsedSections: { boulder: false, rope: false } }); setSessionTimer(0); setSessionActiveStart(null); setSessionPausedSec(0); setShowMoreClimbTypes(false); setScreen("session"); };
   const beginTimer = () => { setActiveSession(s => ({ ...s, location: pendingLocation, sessionTypes })); setSessionStarted(true); setSessionActiveStart(Date.now()); setTimerRunning(true); setShowMoreClimbTypes(false); };
   const toggleSessionTimer = () => {
     if (timerRunning) {
@@ -2660,7 +2673,7 @@ export default function App() {
         </div>
         <div style={{ background: W.surface, borderRadius: 18, padding: "20px", border: `1px solid ${W.border}`, marginBottom: 16 }}>
           <Label>Gym / Location</Label>
-          <LocationDropdown value={pendingLocation} onChange={setPendingLocation} open={locationDropdownOpen} setOpen={setLocationDropdownOpen} knownLocations={knownLocations} onRemove={loc => setHiddenLocations(h => [...h, loc])} />
+          <LocationDropdown value={pendingLocation} onChange={v => { setPendingLocation(v); addCustomLocation(v); }} open={locationDropdownOpen} setOpen={setLocationDropdownOpen} knownLocations={knownLocations} onRemove={loc => setHiddenLocations(h => [...h, loc])} />
         </div>
         <div style={{ background: W.surface, borderRadius: 18, padding: "20px", border: `1px solid ${W.border}`, marginBottom: 24 }}>
           <div style={{ fontSize: 12, fontWeight: 700, color: W.textMuted, textTransform: "uppercase", letterSpacing: 1, marginBottom: 12 }}>What will this session mostly involve? (select all that apply)</div>
@@ -2723,7 +2736,7 @@ export default function App() {
         </div>
         <Label>Gym / Location</Label>
         <div style={{ marginBottom: 18 }}>
-          <LocationDropdown value={activeSession?.location || ""} onChange={v => setActiveSession(s => ({ ...s, location: v }))} open={activeLocationDropdownOpen} setOpen={setActiveLocationDropdownOpen} knownLocations={knownLocations} onRemove={loc => setHiddenLocations(h => [...h, loc])} />
+          <LocationDropdown value={activeSession?.location || ""} onChange={v => { setActiveSession(s => ({ ...s, location: v })); addCustomLocation(v); }} open={activeLocationDropdownOpen} setOpen={setActiveLocationDropdownOpen} knownLocations={knownLocations} onRemove={loc => setHiddenLocations(h => [...h, loc])} />
         </div>
         {showClimbForm && ClimbFormPanel({ isActiveSession: true, onSave: saveClimbToActiveSession, onCancel: () => { setShowClimbForm(false); setPhotoPreview(null); setEditingClimbId(null); } })}
 
@@ -2843,15 +2856,23 @@ export default function App() {
           </div>
         )}
         {showProjectPrompt && (() => {
-          const unsent = (activeSession?.climbs || []).filter(c => !c.completed && c.climbType !== "speed-session");
+          // Filter out climbs already linked to a project
+          const unsent = (activeSession?.climbs || []).filter(c => !c.completed && c.climbType !== "speed-session" && !c.projectId);
+          // For each climb, find a similar existing project (same grade, not yet sent)
+          const findSimilar = (c) => projects.find(p => p.active && !p.completed && p.grade === c.grade && (p.name === c.name || (!p.name && !c.name)));
           const confirmAndEnd = () => {
             const checkedIds = Object.entries(projectPromptChecked).filter(([, v]) => v).map(([id]) => id);
             if (checkedIds.length > 0) {
-              const newProjects = checkedIds.map(id => {
+              const newProjects = [];
+              checkedIds.forEach(id => {
                 const c = unsent.find(u => u.id === id);
-                return { id: `proj_${Date.now()}_${id}`, name: c.name || "", grade: c.grade, scale: c.scale, climbType: c.climbType || "boulder", active: true, completed: false, dateAdded: new Date().toISOString() };
+                const similar = findSimilar(c);
+                if (!similar) {
+                  newProjects.push({ id: `proj_${Date.now()}_${id}`, name: c.name || "", grade: c.grade, scale: c.scale, climbType: c.climbType || "boulder", active: true, completed: false, dateAdded: new Date().toISOString() });
+                }
+                // if similar exists, it's already tracked — no duplicate created
               });
-              setProjects(prev => [...prev, ...newProjects]);
+              if (newProjects.length > 0) setProjects(prev => [...prev, ...newProjects]);
             }
             setShowProjectPrompt(false);
             endSession();
@@ -2861,8 +2882,10 @@ export default function App() {
               <div style={{ background: W.surface, borderRadius: 20, padding: "24px", width: "100%", maxWidth: 360, boxShadow: "0 20px 60px rgba(0,0,0,0.3)", maxHeight: "80vh", overflowY: "auto" }}>
                 <div style={{ fontSize: 18, fontWeight: 900, color: W.text, marginBottom: 6 }}>Add Projects?</div>
                 <div style={{ fontSize: 13, color: W.textMuted, marginBottom: 18 }}>These climbs weren't sent — add any as projects to track them across sessions.</div>
+                {unsent.length === 0 && <div style={{ color: W.textDim, fontSize: 13, textAlign: "center", padding: "16px 0" }}>All unsent climbs are already tracked as projects.</div>}
                 {unsent.map(c => {
                   const checked = !!projectPromptChecked[c.id];
+                  const similar = findSimilar(c);
                   return (
                     <div key={c.id} onClick={() => setProjectPromptChecked(prev => ({ ...prev, [c.id]: !prev[c.id] }))} style={{ display: "flex", alignItems: "center", gap: 12, background: checked ? W.pink : W.surface2, borderRadius: 12, padding: "12px 14px", marginBottom: 8, border: `1.5px solid ${checked ? W.pinkDark + "55" : W.border}`, cursor: "pointer" }}>
                       <div style={{ width: 22, height: 22, borderRadius: 6, border: `2px solid ${checked ? W.pinkDark : W.border}`, background: checked ? W.pinkDark : "transparent", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
@@ -2871,6 +2894,7 @@ export default function App() {
                       <div style={{ flex: 1, minWidth: 0 }}>
                         <div style={{ fontWeight: 700, fontSize: 14, color: W.text }}>{c.name || c.grade}</div>
                         <div style={{ fontSize: 12, color: getGradeColor(c.grade), fontWeight: 700 }}>{c.grade} · {c.tries} {c.tries === 1 ? "try" : "tries"}</div>
+                        {similar && <div style={{ fontSize: 10, color: W.accent, fontWeight: 600, marginTop: 2 }}>Already tracked as a project — checking this won't duplicate it</div>}
                       </div>
                     </div>
                   );
@@ -3135,6 +3159,12 @@ export default function App() {
                 placeholder={currentUser?.username}
                 style={{ width: "100%", boxSizing: "border-box", padding: "10px 12px", background: W.surface2, border: `1.5px solid ${W.border}`, borderRadius: 10, color: W.text, fontSize: 14, fontFamily: "inherit" }}
               />
+            </div>
+
+            {/* Home Gym */}
+            <div style={{ marginBottom: 14 }}>
+              <div style={{ fontSize: 11, fontWeight: 700, color: W.textMuted, textTransform: "uppercase", letterSpacing: 1.2, marginBottom: 8 }}>Home Gym (default session location)</div>
+              <LocationDropdown value={mainGym} onChange={v => { setMainGym(v); addCustomLocation(v); }} open={homeGymDropOpen} setOpen={setHomeGymDropOpen} knownLocations={knownLocations} onRemove={loc => setHiddenLocations(h => [...h, loc])} />
             </div>
 
             {/* Profile picture */}
@@ -5012,6 +5042,67 @@ export default function App() {
 
   return (
     <ThemeCtx.Provider value={W}>
+    {showOnboarding && (
+      <div style={{ position: "fixed", inset: 0, zIndex: 10000, background: W.bg, overflowY: "auto", display: "flex", alignItems: "flex-start", justifyContent: "center" }}>
+        <div style={{ width: "100%", maxWidth: 420, padding: "40px 24px" }}>
+          <div style={{ textAlign: "center", marginBottom: 32 }}>
+            <div style={{ fontSize: 48, marginBottom: 12 }}>🧗</div>
+            <div style={{ fontSize: 26, fontWeight: 900, color: W.text, marginBottom: 6 }}>Welcome to SendLog!</div>
+            <div style={{ fontSize: 14, color: W.textMuted }}>Let's set up your preferences</div>
+            <div style={{ display: "flex", justifyContent: "center", gap: 6, marginTop: 16 }}>
+              {[0, 1, 2].map(i => <div key={i} style={{ width: onboardingStep === i ? 20 : 8, height: 8, borderRadius: 4, background: onboardingStep === i ? W.accent : W.border, transition: "width 0.2s" }} />)}
+            </div>
+          </div>
+          {onboardingStep === 0 && (
+            <div>
+              <div style={{ fontSize: 16, fontWeight: 800, color: W.text, marginBottom: 6 }}>Boulder grading scale</div>
+              <div style={{ fontSize: 13, color: W.textMuted, marginBottom: 16 }}>Which grade system do you use for bouldering?</div>
+              {["V-Scale", "French", "Custom"].map(s => (
+                <button key={s} onClick={() => setPreferredScale(s)} style={{ display: "block", width: "100%", padding: "14px 16px", marginBottom: 10, borderRadius: 14, border: `2px solid ${preferredScale === s ? W.accent : W.border}`, background: preferredScale === s ? W.accent + "22" : W.surface, color: preferredScale === s ? W.accent : W.text, fontWeight: 700, fontSize: 15, cursor: "pointer", textAlign: "left" }}>
+                  {s === "V-Scale" ? "V-Scale — V0, V1, V2…" : s === "French" ? "French — 4a, 5b, 6c…" : "Custom — your own system"}
+                </button>
+              ))}
+              <button onClick={() => setOnboardingStep(1)} style={{ width: "100%", padding: "14px", background: `linear-gradient(135deg, ${W.accent}, ${W.accentDark})`, border: "none", borderRadius: 14, color: "#fff", fontWeight: 800, fontSize: 15, cursor: "pointer", marginTop: 8 }}>Next →</button>
+            </div>
+          )}
+          {onboardingStep === 1 && (
+            <div>
+              <div style={{ fontSize: 16, fontWeight: 800, color: W.text, marginBottom: 6 }}>Your gyms</div>
+              <div style={{ fontSize: 13, color: W.textMuted, marginBottom: 16 }}>Add climbing gyms so they appear in the location picker.</div>
+              <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
+                <input value={onboardingGymInput} onChange={e => setOnboardingGymInput(e.target.value)} onKeyDown={e => { if (e.key === "Enter" && onboardingGymInput.trim()) { setOnboardingGyms(prev => [...new Set([...prev, onboardingGymInput.trim()])]); setOnboardingGymInput(""); } }} placeholder="Type a gym name..." style={{ flex: 1, padding: "11px 14px", background: W.surface2, border: `1.5px solid ${W.border}`, borderRadius: 12, color: W.text, fontSize: 14, fontFamily: "inherit" }} />
+                <button onClick={() => { if (onboardingGymInput.trim()) { setOnboardingGyms(prev => [...new Set([...prev, onboardingGymInput.trim()])]); setOnboardingGymInput(""); } }} style={{ padding: "11px 16px", background: W.accent, border: "none", borderRadius: 12, color: "#fff", fontWeight: 700, cursor: "pointer", fontSize: 14 }}>Add</button>
+              </div>
+              {onboardingGyms.map(g => (
+                <div key={g} style={{ display: "flex", alignItems: "center", gap: 10, background: W.surface2, borderRadius: 10, padding: "10px 14px", marginBottom: 8, border: `1px solid ${W.border}` }}>
+                  <span style={{ flex: 1, fontWeight: 600, color: W.text, fontSize: 14 }}>📍 {g}</span>
+                  <button onClick={() => setOnboardingGyms(prev => prev.filter(x => x !== g))} style={{ background: "none", border: "none", color: W.redDark, cursor: "pointer", fontSize: 16 }}>×</button>
+                </div>
+              ))}
+              {onboardingGyms.length === 0 && <div style={{ color: W.textDim, fontSize: 13, textAlign: "center", padding: "20px 0" }}>No gyms added yet — you can skip this and add them later</div>}
+              <div style={{ display: "flex", gap: 10, marginTop: 16 }}>
+                <button onClick={() => setOnboardingStep(0)} style={{ flex: 1, padding: "13px", background: "transparent", border: `1.5px solid ${W.border}`, borderRadius: 14, color: W.textMuted, fontWeight: 700, cursor: "pointer" }}>← Back</button>
+                <button onClick={() => setOnboardingStep(2)} style={{ flex: 2, padding: "13px", background: `linear-gradient(135deg, ${W.accent}, ${W.accentDark})`, border: "none", borderRadius: 14, color: "#fff", fontWeight: 800, fontSize: 15, cursor: "pointer" }}>Next →</button>
+              </div>
+            </div>
+          )}
+          {onboardingStep === 2 && (
+            <div>
+              <div style={{ fontSize: 16, fontWeight: 800, color: W.text, marginBottom: 6 }}>Main gym</div>
+              <div style={{ fontSize: 13, color: W.textMuted, marginBottom: 16 }}>This will be the default location when you start a session.</div>
+              {[...onboardingGyms, ...KNOWN_GYMS.slice(0, 5)].filter((v, i, a) => a.indexOf(v) === i).map(g => (
+                <button key={g} onClick={() => setMainGym(mainGym === g ? "" : g)} style={{ display: "block", width: "100%", padding: "13px 16px", marginBottom: 10, borderRadius: 14, border: `2px solid ${mainGym === g ? W.accent : W.border}`, background: mainGym === g ? W.accent + "22" : W.surface, color: mainGym === g ? W.accent : W.text, fontWeight: 700, fontSize: 14, cursor: "pointer", textAlign: "left" }}>📍 {g}</button>
+              ))}
+              {onboardingGyms.length === 0 && <div style={{ color: W.textDim, fontSize: 13, marginBottom: 12 }}>Add gyms in the previous step to select a main gym.</div>}
+              <div style={{ display: "flex", gap: 10, marginTop: 8 }}>
+                <button onClick={() => setOnboardingStep(1)} style={{ flex: 1, padding: "13px", background: "transparent", border: `1.5px solid ${W.border}`, borderRadius: 14, color: W.textMuted, fontWeight: 700, cursor: "pointer" }}>← Back</button>
+                <button onClick={() => { if (onboardingGyms.length > 0) setCustomLocations(prev => [...new Set([...prev, ...onboardingGyms])]); setShowOnboarding(false); }} style={{ flex: 2, padding: "13px", background: `linear-gradient(135deg, ${W.accent}, ${W.accentDark})`, border: "none", borderRadius: 14, color: "#fff", fontWeight: 800, fontSize: 15, cursor: "pointer" }}>Let's Climb! 🎉</button>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+    )}
     <div style={{ width: "100%", minHeight: "100vh", background: W.bg, fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif", display: "flex", justifyContent: "center" }}>
     <div style={{ width: "100%", maxWidth: 420, display: "flex", flexDirection: "column" }}>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "14px 20px", borderBottom: `1px solid ${W.border}`, background: W.navBg }}>
