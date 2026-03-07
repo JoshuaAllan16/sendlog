@@ -423,7 +423,7 @@ const SpeedSessionCard = ({ climb, tick, index, totalCount, onAddAttempt, onRemo
         {/* Row 1: label + badges | × + collapse icon */}
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 6 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 7 }}>
-            <div style={{ fontWeight: 800, color: W.yellowDark, fontSize: 14 }}>⚡ {sessionLabel}</div>
+            <div style={{ fontWeight: 800, color: W.yellowDark, fontSize: 18 }}>{sessionLabel}</div>
             {isEnded    && <span style={{ background: W.yellowDark, color: W.yellow, borderRadius: 6, padding: "1px 7px", fontSize: 10, fontWeight: 800 }}>ENDED</span>}
             {isActive   && <span style={{ background: `${W.yellowDark}33`, color: W.yellowDark, borderRadius: 6, padding: "1px 7px", fontSize: 10, fontWeight: 800 }}>ACTIVE</span>}
             {isPausedSpeed && <span style={{ background: `${W.yellowDark}22`, color: W.yellowDark, borderRadius: 6, padding: "1px 7px", fontSize: 10, fontWeight: 800 }}>PAUSED</span>}
@@ -436,7 +436,7 @@ const SpeedSessionCard = ({ climb, tick, index, totalCount, onAddAttempt, onRemo
           </div>
         </div>
         {/* Row 2: timer */}
-        <div style={{ fontSize: 30, fontWeight: 900, color: W.yellowDark, fontVariantNumeric: "tabular-nums", letterSpacing: 1, lineHeight: 1.2, marginBottom: 4 }}>⏱ {formatDuration(sessionDurationSec)}</div>
+        <div style={{ fontSize: 48, fontWeight: 900, color: W.yellowDark, fontVariantNumeric: "tabular-nums", letterSpacing: 1, lineHeight: 1, marginBottom: 6 }}>{formatDuration(sessionDurationSec)}</div>
         {bestTime != null && <div style={{ fontSize: 11, color: W.yellowDark, opacity: 0.85, marginBottom: 6 }}>Best: {bestTime.toFixed(2)}s · {attempts.length} attempt{attempts.length !== 1 ? "s" : ""}</div>}
         {/* Row 3: subtitle | End + Pause/Resume */}
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", marginTop: bestTime == null ? 6 : 0 }}>
@@ -520,7 +520,7 @@ const BoulderRopeSessionCard = ({ type, totalSec, activeStart, isEnded, tick, on
   const isBoulder = type === "boulder";
   const color     = isBoulder ? W.green  : W.purple;
   const darkColor = isBoulder ? W.greenDark : W.purpleDark;
-  const label     = isBoulder ? "🪨 Boulder Session" : "🪢 Rope Session";
+  const label     = isBoulder ? "Boulder Session" : "Rope Session";
   const isActive  = !isEnded && !!activeStart;
   const isPaused  = !isEnded && !activeStart;
   return (
@@ -529,7 +529,7 @@ const BoulderRopeSessionCard = ({ type, totalSec, activeStart, isEnded, tick, on
         {/* Row 1: label + badges | collapse icon */}
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 6 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 7 }}>
-            <div style={{ fontWeight: 800, color: darkColor, fontSize: 14 }}>{label}</div>
+            <div style={{ fontWeight: 800, color: darkColor, fontSize: 18 }}>{label}</div>
             {isEnded  && <span style={{ background: darkColor, color: color, borderRadius: 6, padding: "1px 7px", fontSize: 10, fontWeight: 800 }}>ENDED</span>}
             {isActive && <span style={{ background: `${darkColor}33`, color: darkColor, borderRadius: 6, padding: "1px 7px", fontSize: 10, fontWeight: 800 }}>ACTIVE</span>}
             {isPaused && (totalSec || 0) > 0 && <span style={{ background: `${darkColor}22`, color: darkColor, borderRadius: 6, padding: "1px 7px", fontSize: 10, fontWeight: 800 }}>PAUSED</span>}
@@ -539,7 +539,7 @@ const BoulderRopeSessionCard = ({ type, totalSec, activeStart, isEnded, tick, on
           </button>
         </div>
         {/* Row 2: timer */}
-        <div style={{ fontSize: 30, fontWeight: 900, color: darkColor, fontVariantNumeric: "tabular-nums", letterSpacing: 1, lineHeight: 1.2, marginBottom: 6 }}>⏱ {formatDuration(displaySec)}</div>
+        <div style={{ fontSize: 48, fontWeight: 900, color: darkColor, fontVariantNumeric: "tabular-nums", letterSpacing: 1, lineHeight: 1, marginBottom: 8 }}>{formatDuration(displaySec)}</div>
         {/* Row 3: subtitle | pause/resume */}
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end" }}>
           <div>
@@ -583,9 +583,6 @@ const ActiveClimbCard = ({ climb, onEdit, onStartClimbing, onEndAttempt, onUpdat
           ? <div onClick={() => onLightbox({ photos: [{ src: climb.photo, grade: climb.grade, name: climb.name, colorId: climb.color }], idx: 0 })} style={{ width: 44, height: 44, borderRadius: 8, overflow: "hidden", flexShrink: 0, cursor: "pointer", border: `1.5px solid ${W.border}` }}><img src={climb.photo} style={{ width: "100%", height: "100%", objectFit: "cover" }} alt="" /></div>
           : <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 2, flexShrink: 0 }}>
               <div style={{ width: 38, height: 38, borderRadius: 10, display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 900, fontSize: 12, background: getGradeColor(climb.grade) + "30", color: getGradeColor(climb.grade), border: `1.5px solid ${getGradeColor(climb.grade)}60` }}>{climb.grade}</div>
-              {!climb.completed && !isRope && totalWorkedMs > 5000 && (
-                <div style={{ fontSize: 9, color: W.textDim, fontWeight: 600, fontVariantNumeric: "tabular-nums" }}>{formatDuration(Math.floor(totalWorkedMs / 1000))}</div>
-              )}
             </div>
         }
         <div style={{ flex: 1, minWidth: 0 }}>
@@ -596,6 +593,12 @@ const ActiveClimbCard = ({ climb, onEdit, onStartClimbing, onEndAttempt, onUpdat
             {isFlash && <span style={{ background: W.yellow, color: W.yellowDark, borderRadius: 6, padding: "1px 6px", fontSize: 10, fontWeight: 700 }}>⚡ FLASH</span>}
             {isRope && climb.ropeStyle && <span style={{ background: W.purple, color: W.purpleDark, borderRadius: 6, padding: "1px 6px", fontSize: 10, fontWeight: 700 }}>{climb.ropeStyle === "top-rope" ? "🔝 TR" : "🧗 Lead"}</span>}
           </div>
+          {!isRope && totalWorkedMs > 0 && (
+            <div style={{ display: "flex", alignItems: "center", gap: 4, marginTop: 3 }}>
+              <span style={{ fontSize: 13, fontWeight: 800, color: W.accent, fontVariantNumeric: "tabular-nums" }}>{formatDuration(Math.floor(totalWorkedMs / 1000))}</span>
+              <span style={{ fontSize: 11, color: W.textDim, fontWeight: 600 }}>worked</span>
+            </div>
+          )}
           {climb.comments && <div style={{ fontSize: 11, color: W.textDim, marginTop: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{climb.comments}</div>}
           <TagChips wallTypes={climb.wallTypes} holdTypes={climb.holdTypes} />
         </div>
@@ -1358,7 +1361,10 @@ export default function App() {
       ...s, ...updates,
       climbs: s.climbs.map(c => {
         if (c.id === climbId) return { ...c, climbingStartedAt: now };
-        if (c.climbingStartedAt && !c.completed) return { ...c, climbingStartedAt: null };
+        if (c.climbingStartedAt && !c.completed) {
+          const dur = now - c.climbingStartedAt;
+          return { ...c, climbingStartedAt: null, attemptLog: [...(c.attemptLog || []), { startedAt: c.climbingStartedAt, duration: dur, falls: c.tries }] };
+        }
         if (c.climbType === "speed-session" && c.speedActiveStart && !c.endedAt) return { ...c, speedTotalSec: (c.speedTotalSec || 0) + Math.max(0, Math.floor((now - c.speedActiveStart) / 1000)), speedActiveStart: null };
         return c;
       }),
