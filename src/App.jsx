@@ -557,7 +557,7 @@ const BoulderRopeSessionCard = ({ type, totalSec, activeStart, isEnded, tick, on
   );
 };
 
-const ActiveClimbCard = ({ climb, onEdit, onStartClimbing, onEndAttempt, onUpdateTries, onToggleCompleted, onLogRope, onRemove, onLightbox, onPauseClimb, onResumeClimb, onStopClimb, tick }) => {
+const ActiveClimbCard = ({ climb, onEdit, onStartClimbing, onEndAttempt, onUpdateTries, onToggleCompleted, onLogRope, onRemove, onLightbox, onPauseClimb, onResumeClimb, onStopClimb, tick, sessionCount }) => {
   const W = useTheme() || THEMES.espresso;
   const [confirmRemove, setConfirmRemove] = useState(false);
   const [showRopeLog, setShowRopeLog] = useState(false);
@@ -601,6 +601,7 @@ const ActiveClimbCard = ({ climb, onEdit, onStartClimbing, onEndAttempt, onUpdat
                 <span style={{ fontSize: 13, fontWeight: 800, color: timeColor, fontVariantNumeric: "tabular-nums" }}>{formatDuration(Math.floor(totalWorkedMs / 1000))}</span>
                 <span style={{ fontSize: 11, color: W.textDim, fontWeight: 600 }}>worked</span>
                 {totalAttempts > 0 && <><span style={{ fontSize: 11, color: W.textDim }}>·</span><span style={{ fontSize: 11, color: W.textDim, fontWeight: 600 }}>{totalAttempts} {totalAttempts === 1 ? "attempt" : "attempts"}</span></>}
+                {sessionCount != null && sessionCount > 1 && <><span style={{ fontSize: 11, color: W.textDim }}>·</span><span style={{ fontSize: 11, color: W.textDim, fontWeight: 600 }}>{sessionCount} sessions</span></>}
               </div>
             );
           })()}
@@ -823,8 +824,8 @@ export default function App() {
   const [colorTheme, setColorTheme]             = useState("espresso");
   const [showEndConfirm, setShowEndConfirm]     = useState(false);
   const [sessionSummary, setSessionSummary]     = useState(null);
-  const [projectTypeFilter, setProjectTypeFilter]     = useState("all");
-  const [projectSort, setProjectSort]                 = useState("recent");
+  const [projectTypeFilter, setProjectTypeFilter]     = useState(() => localStorage.getItem("projectTypeFilter") || "all");
+  const [projectSort, setProjectSort]                 = useState(() => localStorage.getItem("projectSort") || "recent");
   const [projActiveCollapsed, setProjActiveCollapsed] = useState(false);
   const [projSentCollapsed, setProjSentCollapsed]     = useState(false);
   const [projRetiredCollapsed, setProjRetiredCollapsed] = useState(false);
@@ -1621,8 +1622,9 @@ export default function App() {
     setEditingClimbId(null); setEditingSessionId(null); setShowClimbForm(false);
   };
 
-  const deactivateProject = (id) => setProjects(prev => prev.map(p => p.id === id ? { ...p, active: false } : p));
-  const reactivateProject  = (id) => setProjects(prev => prev.map(p => p.id === id ? { ...p, active: true, completed: false, dateSent: null } : p));
+  const deactivateProject    = (id) => setProjects(prev => prev.map(p => p.id === id ? { ...p, active: false } : p));
+  const reactivateProject    = (id) => setProjects(prev => prev.map(p => p.id === id ? { ...p, active: true, completed: false, dateSent: null } : p));
+  const updateProjectNotes   = (id, notes) => setProjects(prev => prev.map(p => p.id === id ? { ...p, notes } : p));
   const markProjectSent    = (id) => setProjects(prev => prev.map(p => p.id === id ? { ...p, completed: true, active: false, dateSent: new Date().toISOString() } : p));
 
   const allClimbs      = sessions.flatMap(s => s.climbs);
@@ -2729,7 +2731,7 @@ export default function App() {
             <BoulderRopeSessionCard type="boulder" totalSec={activeSession.boulderTotalSec || 0} activeStart={activeSession.boulderActiveStart || null} isEnded={!!activeSession.boulderEndedAt} tick={sessionTimer} onPause={pauseBoulderSession} onResume={resumeBoulderSession} pausedAt={activeSession.boulderPausedAt || null} collapsed={!!activeSession.collapsedSections?.boulder} onToggleCollapse={() => setActiveSession(s => ({ ...s, collapsedSections: { ...(s.collapsedSections || {}), boulder: !s.collapsedSections?.boulder } }))} />
             {!activeSession.collapsedSections?.boulder && (
               <div style={{ borderLeft: `3px solid ${W.greenDark}44`, paddingLeft: 10, marginLeft: 2 }}>
-                {boulderClimbs.map(c => <ActiveClimbCard key={c.id} climb={c} {...cardProps} />)}
+                {boulderClimbs.map(c => <ActiveClimbCard key={c.id} climb={c} {...cardProps} sessionCount={c.projectId ? getProjectHistory(c.projectId).length + 1 : null} />)}
                 {selectedTypes.includes("boulder") && !activeSession.boulderEndedAt && (
                   <button onClick={() => openClimbForm(null, null, "boulder")} style={{ width: "100%", padding: "10px", background: W.green, border: `2px solid ${W.greenDark}`, borderRadius: 12, color: W.greenDark, fontWeight: 700, fontSize: 13, cursor: "pointer", marginTop: 2 }}>+ New Boulder</button>
                 )}
@@ -2744,7 +2746,7 @@ export default function App() {
             <BoulderRopeSessionCard type="rope" totalSec={activeSession.ropeTotalSec || 0} activeStart={activeSession.ropeActiveStart || null} isEnded={!!activeSession.ropeEndedAt} tick={sessionTimer} onPause={pauseRopeSession} onResume={resumeRopeSession} pausedAt={activeSession.ropePausedAt || null} collapsed={!!activeSession.collapsedSections?.rope} onToggleCollapse={() => setActiveSession(s => ({ ...s, collapsedSections: { ...(s.collapsedSections || {}), rope: !s.collapsedSections?.rope } }))} />
             {!activeSession.collapsedSections?.rope && (
               <div style={{ borderLeft: `3px solid ${W.purpleDark}44`, paddingLeft: 10, marginLeft: 2 }}>
-                {ropeClimbs.map(c => <ActiveClimbCard key={c.id} climb={c} {...cardProps} />)}
+                {ropeClimbs.map(c => <ActiveClimbCard key={c.id} climb={c} {...cardProps} sessionCount={c.projectId ? getProjectHistory(c.projectId).length + 1 : null} />)}
                 {selectedTypes.includes("rope") && !activeSession.ropeEndedAt && (
                   <button onClick={() => openClimbForm(null, null, "rope")} style={{ width: "100%", padding: "10px", background: W.purple, border: `2px solid ${W.purpleDark}`, borderRadius: 12, color: W.purpleDark, fontWeight: 700, fontSize: 13, cursor: "pointer", marginTop: 2 }}>+ New Rope Climb</button>
                 )}
@@ -4044,13 +4046,20 @@ export default function App() {
           const filteredCompleted = completedProjects.filter(filterFn).sort(sortFn);
           const filteredRetired   = retiredProjects.filter(filterFn).sort(sortFn);
 
-          const renderCard = (p, bg, accentColor, badgeBg) => {
+          const avgSendTries = (() => {
+            const sent = completedProjects.filter(p => getProjectTotalTries(p.id) > 0);
+            if (!sent.length) return null;
+            return Math.round(sent.reduce((sum, p) => sum + getProjectTotalTries(p.id), 0) / sent.length);
+          })();
+
+          const renderCard = (p, bg, accentColor, badgeBg, isActive = false) => {
             const photo = getProjectPhoto(p.id);
             const totalMs = getProjectTotalTimeMs(p.id);
             const tries = getProjectTotalTries(p.id);
             const history = getProjectHistory(p.id);
             const last = history[0];
             const isRope = inferType(p) === "rope";
+            const progressPct = isActive && avgSendTries && tries > 0 ? Math.min(100, Math.round(tries / avgSendTries * 100)) : null;
             return (
               <div key={p.id} onClick={() => { setSelectedProject(p); setScreen("projectDetail"); }} style={{ background: bg, borderRadius: 16, padding: "14px 16px", marginBottom: 10, border: `1px solid ${accentColor}30`, cursor: "pointer", display: "flex", alignItems: "center", gap: 12 }}>
                 {photo && <div style={{ width: 56, height: 56, borderRadius: 10, overflow: "hidden", flexShrink: 0, border: `1.5px solid ${accentColor}40` }}><img src={photo} style={{ width: "100%", height: "100%", objectFit: "cover" }} alt="" /></div>}
@@ -4068,6 +4077,14 @@ export default function App() {
                     {tries > 0 && <span style={{ background: badgeBg, borderRadius: 7, padding: "2px 9px", fontSize: 11, fontWeight: 700, color: accentColor }}>{tries} {tries === 1 ? "try" : "tries"}</span>}
                     {totalMs >= 1000 && <span style={{ background: badgeBg, borderRadius: 7, padding: "2px 9px", fontSize: 11, fontWeight: 700, color: accentColor }}>{formatDuration(Math.floor(totalMs / 1000))} worked</span>}
                   </div>
+                  {progressPct != null && (
+                    <div style={{ marginTop: 8 }}>
+                      <div style={{ height: 5, borderRadius: 3, background: "rgba(0,0,0,0.12)", overflow: "hidden" }}>
+                        <div style={{ height: "100%", width: `${progressPct}%`, background: progressPct >= 80 ? W.redDark : accentColor, borderRadius: 3, transition: "width 0.3s" }} />
+                      </div>
+                      <div style={{ fontSize: 9, color: accentColor, marginTop: 2, fontWeight: 600 }}>{progressPct}% of avg send ({avgSendTries} tries)</div>
+                    </div>
+                  )}
                 </div>
                 <div style={{ color: accentColor, fontSize: 20, flexShrink: 0 }}>›</div>
               </div>
@@ -4088,18 +4105,18 @@ export default function App() {
             <div>
               <div style={{ display: "flex", gap: 6, marginBottom: 10, flexWrap: "wrap", alignItems: "center" }}>
                 {[["all","All"],["boulder","Boulder"],["rope","Rope"]].map(([val, label]) => (
-                  <button key={val} onClick={() => setProjectTypeFilter(val)} style={{ padding: "5px 12px", borderRadius: 20, border: `1px solid ${projectTypeFilter === val ? W.accent : W.border}`, background: projectTypeFilter === val ? W.accent + "22" : W.surface2, color: projectTypeFilter === val ? W.accent : W.textMuted, fontWeight: 700, fontSize: 12, cursor: "pointer" }}>{label}</button>
+                  <button key={val} onClick={() => { setProjectTypeFilter(val); localStorage.setItem("projectTypeFilter", val); }} style={{ padding: "5px 12px", borderRadius: 20, border: `1px solid ${projectTypeFilter === val ? W.accent : W.border}`, background: projectTypeFilter === val ? W.accent + "22" : W.surface2, color: projectTypeFilter === val ? W.accent : W.textMuted, fontWeight: 700, fontSize: 12, cursor: "pointer" }}>{label}</button>
                 ))}
                 <div style={{ marginLeft: "auto", display: "flex", gap: 4 }}>
                   {[["recent","Recent"],["tries","Tries"],["time","Time"]].map(([val, label]) => (
-                    <button key={val} onClick={() => setProjectSort(val)} style={{ padding: "4px 9px", borderRadius: 20, border: `1px solid ${projectSort === val ? W.accent : W.border}`, background: projectSort === val ? W.accent + "22" : W.surface2, color: projectSort === val ? W.accent : W.textMuted, fontWeight: 700, fontSize: 11, cursor: "pointer" }}>{label}</button>
+                    <button key={val} onClick={() => { setProjectSort(val); localStorage.setItem("projectSort", val); }} style={{ padding: "4px 9px", borderRadius: 20, border: `1px solid ${projectSort === val ? W.accent : W.border}`, background: projectSort === val ? W.accent + "22" : W.surface2, color: projectSort === val ? W.accent : W.textMuted, fontWeight: 700, fontSize: 11, cursor: "pointer" }}>{label}</button>
                   ))}
                 </div>
               </div>
               <SectionHeader label="Active Projects" count={filteredActive.length} countBg={W.pink} countColor={W.pinkDark} collapsed={projActiveCollapsed} onToggle={() => setProjActiveCollapsed(v => !v)} />
               {!projActiveCollapsed && (filteredActive.length === 0
                 ? <div style={{ color: W.textDim, fontSize: 13, marginBottom: 20, padding: "12px", background: W.surface, borderRadius: 12, border: `1px solid ${W.border}` }}>No active projects.</div>
-                : filteredActive.map(p => renderCard(p, W.pink, W.pinkDark, "rgba(255,255,255,0.6)"))
+                : filteredActive.map(p => renderCard(p, W.pink, W.pinkDark, "rgba(255,255,255,0.6)", true))
               )}
               {filteredCompleted.length > 0 && (
                 <div style={{ marginTop: 22 }}>
@@ -4128,6 +4145,9 @@ export default function App() {
     const avgTriesPerSession = history.length ? (history.reduce((a, h) => a + h.tries, 0) / history.length).toFixed(1) : "—";
     const bestSession = history.length ? [...history].sort((a, b) => a.tries - b.tries)[0] : null;
     const climbType = project.climbType || (Object.keys(ROPE_GRADES).includes(project.scale) ? "rope" : "boulder");
+    const [notes, setNotes] = useState(project.notes || "");
+    const [notesSaved, setNotesSaved] = useState(true);
+    const saveNotes = () => { updateProjectNotes(project.id, notes); setNotesSaved(true); };
     const headerBg = project.completed ? W.green : W.pink;
     const headerAccent = project.completed ? W.greenDark : W.pinkDark;
     return (
@@ -4161,6 +4181,18 @@ export default function App() {
         <div style={{ fontSize: 12, fontWeight: 700, color: W.textMuted, textTransform: "uppercase", letterSpacing: 1, marginBottom: 10 }}>Session History</div>
         {history.length === 0 ? <div style={{ color: W.textDim, fontSize: 13, marginBottom: 16 }}>No attempts yet.</div>
           : history.map((h, i) => (<div key={i} style={{ background: W.surface, borderRadius: 12, padding: "12px 14px", marginBottom: 8, border: `1px solid ${W.border}`, borderLeft: `4px solid ${h.completed ? W.greenDark : W.accent}` }}><div style={{ display: "flex", justifyContent: "space-between" }}><div style={{ fontWeight: 700, color: W.text, fontSize: 13 }}>{h.sessionLocation}</div><div style={{ fontSize: 11, color: W.textMuted }}>{formatDate(h.sessionDate)}</div></div><div style={{ fontSize: 12, color: W.textMuted, marginTop: 3 }}>{h.tries} {h.tries === 1 ? "try" : "tries"} · {h.completed ? <span style={{ color: W.greenDark, fontWeight: 700 }}>✓ Sent!</span> : <span style={{ color: W.pinkDark }}>✗ Not sent</span>}</div></div>))}
+        <div style={{ background: W.surface, borderRadius: 16, padding: "16px", border: `1px solid ${W.border}`, marginBottom: 16 }}>
+          <div style={{ fontSize: 12, fontWeight: 700, color: W.textMuted, textTransform: "uppercase", letterSpacing: 1, marginBottom: 8 }}>Notes & Beta</div>
+          <textarea
+            value={notes}
+            onChange={e => { setNotes(e.target.value); setNotesSaved(false); }}
+            placeholder="Add beta, conditions, or notes about this project..."
+            style={{ width: "100%", minHeight: 90, background: W.surface2, border: `1px solid ${notesSaved ? W.border : W.accent}`, borderRadius: 10, padding: "10px 12px", fontSize: 13, color: W.text, resize: "vertical", fontFamily: "inherit", boxSizing: "border-box", outline: "none" }}
+          />
+          {!notesSaved && (
+            <button onClick={saveNotes} style={{ marginTop: 8, padding: "7px 16px", background: W.accent, border: "none", borderRadius: 8, color: "#fff", fontWeight: 700, fontSize: 12, cursor: "pointer" }}>Save Notes</button>
+          )}
+        </div>
         <div style={{ marginTop: 20, display: "flex", flexDirection: "column", gap: 10 }}>
           {project.active && !project.completed && <>
             <button onClick={() => { markProjectSent(project.id); setScreen("profile"); setProfileTab("projects"); }} style={{ width: "100%", padding: "13px", background: W.green, border: `2px solid ${W.greenDark}`, borderRadius: 14, color: W.greenDark, fontWeight: 700, fontSize: 14, cursor: "pointer" }}>🎉 Mark as Sent!</button>
