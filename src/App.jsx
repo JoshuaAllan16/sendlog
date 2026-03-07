@@ -2545,16 +2545,53 @@ export default function App() {
             else if (i === 0) { expectedWk.setDate(expectedWk.getDate() - 7); continue; }
             else break;
           }
-          if (streak === 0) return null;
+          const hasThisWeek = weekKeys.has(weekKey(new Date()));
+          const dayOfWeek = new Date().getDay();
+          const atRisk = !hasThisWeek && dayOfWeek >= 4 && streak > 0;
+          const milestones = [
+            { w: 52, icon: "👑", label: "One full year!" },
+            { w: 26, icon: "🌟", label: "Half a year!" },
+            { w: 12, icon: "🏆", label: "3-month streak!" },
+            { w: 8,  icon: "🎯", label: "2-month streak!" },
+            { w: 4,  icon: "🎉", label: "One month in a row!" },
+          ];
+          const milestone = milestones.find(m => streak === m.w);
+          const now = new Date();
+          const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().slice(0, 10);
+          const sessionsThisMonth = sessions.filter(s => s.date >= monthStart).length;
+          const totalSends = sessions.reduce((sum, s) => sum + (s.climbs || []).filter(c => c.completed && c.climbType !== "speed-session").length, 0);
           return (
-            <div style={{ display: "flex", alignItems: "center", gap: 12, background: W.accent + "18", border: `1px solid ${W.accent}44`, borderRadius: 14, padding: "12px 16px", marginBottom: 20 }}>
-              <div style={{ fontSize: 26 }}>🔥</div>
-              <div style={{ flex: 1 }}>
-                <div style={{ fontSize: 15, fontWeight: 900, color: W.accent }}>{streak} week{streak !== 1 ? "s" : ""} in a row!</div>
-                <div style={{ fontSize: 11, color: W.textMuted }}>Keep your streak alive this week</div>
+            <>
+              {atRisk && (
+                <div style={{ display: "flex", alignItems: "center", gap: 12, background: W.red + "22", border: `1px solid ${W.redDark}55`, borderRadius: 14, padding: "12px 16px", marginBottom: 10 }}>
+                  <div style={{ fontSize: 22 }}>⚠️</div>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontSize: 14, fontWeight: 900, color: W.redDark }}>Streak at risk!</div>
+                    <div style={{ fontSize: 11, color: W.textMuted }}>No sessions this week — your {streak}w streak is on the line</div>
+                  </div>
+                </div>
+              )}
+              {streak > 0 && (
+                <div style={{ display: "flex", alignItems: "center", gap: 12, background: milestone ? W.yellow + "33" : W.accent + "18", border: `1px solid ${milestone ? W.yellowDark + "55" : W.accent + "44"}`, borderRadius: 14, padding: "12px 16px", marginBottom: 10 }}>
+                  <div style={{ fontSize: 26 }}>{milestone ? milestone.icon : "🔥"}</div>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontSize: 15, fontWeight: 900, color: milestone ? W.yellowDark : W.accent }}>{streak} week{streak !== 1 ? "s" : ""} in a row!</div>
+                    <div style={{ fontSize: 11, color: W.textMuted }}>{milestone ? milestone.label : "Keep your streak alive this week"}</div>
+                  </div>
+                  <div style={{ fontSize: 24, fontWeight: 900, color: milestone ? W.yellowDark : W.accent, fontVariantNumeric: "tabular-nums" }}>{streak}w</div>
+                </div>
+              )}
+              <div style={{ display: "flex", gap: 10, marginBottom: 20 }}>
+                <div style={{ flex: 1, background: W.surface2, border: `1px solid ${W.border}`, borderRadius: 12, padding: "10px 14px" }}>
+                  <div style={{ fontSize: 18, fontWeight: 900, color: W.text }}>{sessionsThisMonth}</div>
+                  <div style={{ fontSize: 11, color: W.textMuted, marginTop: 1 }}>Sessions this month</div>
+                </div>
+                <div style={{ flex: 1, background: W.surface2, border: `1px solid ${W.border}`, borderRadius: 12, padding: "10px 14px" }}>
+                  <div style={{ fontSize: 18, fontWeight: 900, color: W.text }}>{totalSends}</div>
+                  <div style={{ fontSize: 11, color: W.textMuted, marginTop: 1 }}>Total sends</div>
+                </div>
               </div>
-              <div style={{ fontSize: 24, fontWeight: 900, color: W.accent, fontVariantNumeric: "tabular-nums" }}>{streak}w</div>
-            </div>
+            </>
           );
         })()}
         <div style={{ fontSize: 13, fontWeight: 700, color: W.textMuted, marginBottom: 12, textTransform: "uppercase", letterSpacing: 1 }}>
@@ -2971,9 +3008,9 @@ export default function App() {
           </div>
           {/* Compact action buttons stacked vertically */}
           <div style={{ display: "flex", flexDirection: "column", gap: 5, flexShrink: 0 }}>
-            <button onClick={() => setShowAccountPanel(true)} style={{ padding: "5px 8px", background: W.surface2, border: `1px solid ${W.border}`, borderRadius: 9, fontSize: 11, color: W.textMuted, fontWeight: 700, cursor: "pointer", whiteSpace: "nowrap" }}>⚙️ Settings</button>
-            <button onClick={() => setScreen("social")} style={{ padding: "5px 8px", background: W.surface2, border: `1px solid ${W.border}`, borderRadius: 9, fontSize: 11, color: W.textMuted, fontWeight: 700, cursor: "pointer", whiteSpace: "nowrap" }}>👥 Social</button>
-            <button onClick={goToLeaderboard} style={{ padding: "5px 8px", background: W.surface2, border: `1px solid ${W.border}`, borderRadius: 9, fontSize: 11, color: W.textMuted, fontWeight: 700, cursor: "pointer", whiteSpace: "nowrap" }}>🏆 Board</button>
+            <button onClick={() => setShowAccountPanel(true)} style={{ padding: "6px 10px", background: W.surface2, border: `1px solid ${W.border}`, borderRadius: 9, fontSize: 16, color: W.textMuted, cursor: "pointer" }}>⚙️</button>
+            <button onClick={() => setScreen("social")} style={{ padding: "6px 10px", background: W.surface2, border: `1px solid ${W.border}`, borderRadius: 9, fontSize: 16, color: W.textMuted, cursor: "pointer" }}>👥</button>
+            <button onClick={goToLeaderboard} style={{ padding: "6px 10px", background: W.surface2, border: `1px solid ${W.border}`, borderRadius: 9, fontSize: 16, color: W.textMuted, cursor: "pointer" }}>🏆</button>
           </div>
         </div>
 
@@ -3210,8 +3247,8 @@ export default function App() {
         )}
 
         <div style={{ display: "flex", background: W.surface2, borderRadius: 14, padding: 5, marginBottom: 22, border: `1px solid ${W.border}` }}>
-          {[{ id: "stats", label: "📊 Stats" }, { id: "logbook", label: "📖 Logbook" }, { id: "projects", label: "🎯 Projects" }].map(tab => (
-            <button key={tab.id} onClick={() => setProfileTab(tab.id)} style={{ flex: 1, padding: "12px 4px", borderRadius: 10, border: "none", background: profileTab === tab.id ? `linear-gradient(135deg, ${W.accent}, ${W.accentDark})` : "transparent", color: profileTab === tab.id ? "#fff" : W.textDim, fontWeight: 700, fontSize: 13, cursor: "pointer" }}>{tab.label}</button>
+          {[{ id: "stats", label: "Stats" }, { id: "logbook", label: "Logbook" }, { id: "projects", label: "Projects" }].map(tab => (
+            <button key={tab.id} onClick={() => setProfileTab(tab.id)} style={{ flex: 1, padding: "12px 4px", borderRadius: 10, border: "none", background: profileTab === tab.id ? `linear-gradient(135deg, ${W.accent}, ${W.accentDark})` : "transparent", color: profileTab === tab.id ? "#fff" : W.textDim, fontWeight: 800, fontSize: 15, cursor: "pointer" }}>{tab.label}</button>
           ))}
         </div>
 
@@ -3507,14 +3544,13 @@ export default function App() {
             {/* ── Category tabs ── */}
             <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 3, marginBottom: 16, background: W.surface2, borderRadius: 10, padding: 3, border: `1px solid ${W.border}` }}>
               {[
-                { id: "overall", label: "Overall", icon: "📊" },
-                { id: "boulder", label: "Boulder", icon: "🪨" },
-                { id: "rope",    label: "Rope",    icon: "🪢" },
-                { id: "speed",   label: "Speed",   icon: "⚡" },
+                { id: "overall", label: "Overall" },
+                { id: "boulder", label: "Boulder" },
+                { id: "rope",    label: "Rope"    },
+                { id: "speed",   label: "Speed"   },
               ].map(tab => (
-                <button key={tab.id} onClick={() => { setStatsCategory(tab.id); localStorage.setItem("statsCategory", tab.id); setStatsBarSel(null); }} style={{ padding: "5px 2px", borderRadius: 7, border: "none", background: statsCategory === tab.id ? `linear-gradient(135deg, ${W.accent}, ${W.accentDark})` : "transparent", color: statsCategory === tab.id ? "#fff" : W.textDim, fontWeight: 700, fontSize: 10, cursor: "pointer", lineHeight: 1.4 }}>
-                  <div style={{ fontSize: 13 }}>{tab.icon}</div>
-                  <div>{tab.label}</div>
+                <button key={tab.id} onClick={() => { setStatsCategory(tab.id); localStorage.setItem("statsCategory", tab.id); setStatsBarSel(null); }} style={{ padding: "8px 2px", borderRadius: 7, border: "none", background: statsCategory === tab.id ? `linear-gradient(135deg, ${W.accent}, ${W.accentDark})` : "transparent", color: statsCategory === tab.id ? "#fff" : W.textDim, fontWeight: 800, fontSize: 13, cursor: "pointer" }}>
+                  {tab.label}
                 </button>
               ))}
             </div>
