@@ -1049,6 +1049,7 @@ export default function App() {
   const [viewedUserLoading, setViewedUserLoading] = useState(false);
   const [userProfileBackTo, setUserProfileBackTo] = useState("social");
   const [sessionDetailBackTo, setSessionDetailBackTo] = useState("home");
+  const [showSummaryLeaveWarn, setShowSummaryLeaveWarn] = useState(false);
   const [sessionReadOnly, setSessionReadOnly]     = useState(false);
   const [confirmUnfollowUser, setConfirmUnfollowUser] = useState(null); // username pending unfollow confirm
   const [notifications, setNotifications]         = useState([]);
@@ -2442,7 +2443,10 @@ export default function App() {
           <div style={{ marginTop: 12, paddingTop: 12, borderTop: `1px solid ${W.border}` }}>
             <input value={inlineName} onChange={e => setInlineName(e.target.value)} placeholder="Climb name" style={{ width: "100%", padding: "8px 10px", background: W.surface2, border: `1.5px solid ${W.border}`, borderRadius: 9, color: W.text, fontSize: 13, boxSizing: "border-box", marginBottom: 8, fontFamily: "inherit" }} />
             <div style={{ overflowX: "auto", display: "flex", gap: 4, marginBottom: 8, paddingBottom: 2 }}>
-              {(inlineScale === "Custom" ? customBoulderGrades : (GRADES[inlineScale] || GRADES["V-Scale"])).map(g => (
+              {(climb.climbType === "rope"
+                ? (inlineScale === "Custom" ? customRopeGrades : (ROPE_GRADES[inlineScale] || ROPE_GRADES["French"]))
+                : (inlineScale === "Custom" ? customBoulderGrades : (GRADES[inlineScale] || GRADES["V-Scale"]))
+              ).map(g => (
                 <button key={g} onClick={() => setInlineGrade(g)} style={{ flexShrink: 0, padding: "4px 9px", borderRadius: 7, border: `1.5px solid ${inlineGrade === g ? getGradeColor(g) : W.border}`, background: inlineGrade === g ? getGradeColor(g) + "30" : W.surface, color: inlineGrade === g ? getGradeColor(g) : W.textMuted, fontSize: 11, fontWeight: 700, cursor: "pointer" }}>{g}</button>
               ))}
             </div>
@@ -4469,11 +4473,7 @@ export default function App() {
       return { grade, path, color: getGradeColor(grade), data };
     });
     return (
-      <div>
-        <div style={{ position: "sticky", top: 0, zIndex: 10, padding: "12px 20px", background: W.navBg, borderBottom: `1px solid ${W.border}` }}>
-          <button onClick={() => { setSessionSummary(null); setScreen("home"); }} style={{ width: "100%", padding: "14px", background: `linear-gradient(135deg, ${W.accent}, ${W.accentDark})`, border: "none", borderRadius: 14, color: "#fff", fontWeight: 800, fontSize: 16, cursor: "pointer", boxShadow: `0 4px 16px ${W.accentGlow}` }}>Save Session</button>
-        </div>
-        <div style={{ padding: "24px 20px" }}>
+      <div style={{ padding: "24px 20px" }}>
         <div style={{ textAlign: "center", marginBottom: 24 }}>
           <div style={{ fontSize: 52, marginBottom: 8 }}>🎉</div>
           <div style={{ fontSize: 24, fontWeight: 900, color: W.text, marginBottom: 4 }}>Session Complete!</div>
@@ -4694,7 +4694,7 @@ export default function App() {
             </div>
           );
         })()}
-        <button onClick={() => { setSessionReadOnly(false); setSelectedSession(session); setSessionDetailBackTo("sessionSummary"); setScreen("sessionDetail"); }} style={{ width: "100%", padding: "13px", background: "transparent", border: `1px solid ${W.border}`, borderRadius: 14, color: W.textMuted, fontWeight: 700, fontSize: 14, cursor: "pointer", marginBottom: 10 }}>View Session Details</button>
+        <button onClick={() => { setSessionSummary(null); setScreen("home"); }} style={{ width: "100%", padding: "15px", background: `linear-gradient(135deg, ${W.accent}, ${W.accentDark})`, border: "none", borderRadius: 14, color: "#fff", fontWeight: 800, fontSize: 16, cursor: "pointer", boxShadow: `0 4px 16px ${W.accentGlow}`, marginBottom: 10 }}>Save Session</button>
         {showDiscard
           ? (
             <div style={{ background: W.red, borderRadius: 14, padding: "16px", border: `2px solid ${W.redDark}` }}>
@@ -4707,7 +4707,6 @@ export default function App() {
           )
           : <button onClick={() => setShowDiscard(true)} style={{ width: "100%", padding: "13px", background: "transparent", border: `2px solid ${W.redDark}55`, borderRadius: 14, color: W.redDark, fontWeight: 700, fontSize: 14, cursor: "pointer", opacity: 0.7 }}>Discard Session</button>
         }
-        </div>
       </div>
     );
   };
@@ -5194,8 +5193,8 @@ export default function App() {
     <div style={{ width: "100%", maxWidth: 420, display: "flex", flexDirection: "column" }}>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "14px 20px", borderBottom: `1px solid ${W.border}`, background: W.navBg }}>
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-          {(backMap[screen] || screen === "session") && (
-            <button onClick={() => { if (screen === "session" && !sessionStarted) setScreen("home"); else if (backMap[screen]) { setScreen(backMap[screen]); setShowClimbForm(false); if (screen === "calendar" || screen === "projectDetail") setProfileTab("stats"); if (screen === "sessionDetail") setSessionReadOnly(false); } }} style={{ background: "none", border: "none", color: W.accent, fontSize: 16, cursor: "pointer", padding: 0, marginRight: 4 }}>←</button>
+          {(backMap[screen] || screen === "session" || screen === "sessionSummary") && (
+            <button onClick={() => { if (screen === "session" && !sessionStarted) setScreen("home"); else if (screen === "sessionSummary") setShowSummaryLeaveWarn(true); else if (backMap[screen]) { setScreen(backMap[screen]); setShowClimbForm(false); if (screen === "calendar" || screen === "projectDetail") setProfileTab("stats"); if (screen === "sessionDetail") setSessionReadOnly(false); } }} style={{ background: "none", border: "none", color: W.accent, fontSize: 16, cursor: "pointer", padding: 0, marginRight: 4 }}>←</button>
           )}
           <span style={{ fontSize: 20 }}>🧗</span>
           <span style={{ fontWeight: 800, fontSize: 18, color: W.text }}>SendLog</span>
@@ -5225,6 +5224,21 @@ export default function App() {
         {screen === "leaderboard"    && LeaderboardScreen()}
         {screen === "sessionSummary" && sessionSummary && <SessionSummaryScreen session={sessionSummary} />}
       </div>
+
+      {/* Session summary leave warning */}
+      {showSummaryLeaveWarn && (
+        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.6)", zIndex: 300, display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
+          <div style={{ background: W.surface, borderRadius: 20, padding: "24px", width: "100%", maxWidth: 340, boxShadow: "0 20px 60px rgba(0,0,0,0.3)" }}>
+            <div style={{ fontSize: 20, fontWeight: 900, color: W.text, marginBottom: 8 }}>Leave without saving?</div>
+            <div style={{ fontSize: 13, color: W.textMuted, marginBottom: 20 }}>Your session is saved. Tap "Save &amp; Exit" to keep it, or "Discard" to delete it permanently.</div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+              <button onClick={() => { setSessionSummary(null); setScreen("home"); setShowSummaryLeaveWarn(false); }} style={{ padding: "13px", background: `linear-gradient(135deg, ${W.accent}, ${W.accentDark})`, border: "none", borderRadius: 12, color: "#fff", fontWeight: 800, fontSize: 14, cursor: "pointer" }}>Save &amp; Exit</button>
+              <button onClick={() => { discardSession(); setShowSummaryLeaveWarn(false); }} style={{ padding: "13px", background: "transparent", border: `2px solid ${W.redDark}55`, borderRadius: 12, color: W.redDark, fontWeight: 700, fontSize: 14, cursor: "pointer" }}>Discard Session</button>
+              <button onClick={() => setShowSummaryLeaveWarn(false)} style={{ padding: "11px", background: "transparent", border: `1px solid ${W.border}`, borderRadius: 12, color: W.textMuted, fontWeight: 600, fontSize: 13, cursor: "pointer" }}>Stay</button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Notification panel */}
       {showNotifPanel && (
