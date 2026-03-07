@@ -1048,6 +1048,7 @@ export default function App() {
   const [viewedUser, setViewedUser]           = useState(null);
   const [viewedUserLoading, setViewedUserLoading] = useState(false);
   const [userProfileBackTo, setUserProfileBackTo] = useState("social");
+  const [sessionDetailBackTo, setSessionDetailBackTo] = useState("home");
   const [sessionReadOnly, setSessionReadOnly]     = useState(false);
   const [confirmUnfollowUser, setConfirmUnfollowUser] = useState(null); // username pending unfollow confirm
   const [notifications, setNotifications]         = useState([]);
@@ -1522,7 +1523,9 @@ export default function App() {
       final.ropeActiveStart = null;
     }
     const finalDuration = sessionActiveStart ? Math.floor((now - sessionActiveStart) / 1000) + sessionPausedSec : sessionPausedSec;
-    const completed = { id: now, date: new Date().toISOString(), duration: finalDuration, location: final.location || pendingLocation || "Unknown Gym", climbs: final.climbs, boulderTotalSec: final.boulderTotalSec || 0, ropeTotalSec: final.ropeTotalSec || 0, boulderStartedAt: final.boulderStartedAt, ropeStartedAt: final.ropeStartedAt };
+    const rawLoc = (final.location || pendingLocation || "Unknown Gym").trim();
+    const location = rawLoc.replace(/\b([a-z])/g, c => c.toUpperCase());
+    const completed = { id: now, date: new Date().toISOString(), duration: finalDuration, location, climbs: final.climbs, boulderTotalSec: final.boulderTotalSec || 0, ropeTotalSec: final.ropeTotalSec || 0, boulderStartedAt: final.boulderStartedAt, ropeStartedAt: final.ropeStartedAt };
     setSessions(prev => [completed, ...prev]);
     const sentProjectIds = final.climbs.filter(c => c.isProject && c.completed && c.projectId).map(c => c.projectId);
     if (sentProjectIds.length > 0) {
@@ -2402,8 +2405,10 @@ export default function App() {
     const [inlineTries, setInlineTries] = useState(climb.tries || 0);
     const [inlineCompleted, setInlineCompleted] = useState(!!climb.completed);
     const [inlineComments, setInlineComments] = useState(climb.comments || "");
+    const [inlineGrade, setInlineGrade] = useState(climb.grade || "");
+    const [inlineScale, setInlineScale] = useState(climb.scale || preferredScale);
     const handleEditClick = () => onInlineSave ? setInlineEditing(e => !e) : onEdit && onEdit(climb);
-    const handleInlineSave = () => { onInlineSave(climb.id, { name: inlineName, tries: inlineTries, completed: inlineCompleted, comments: inlineComments }); setInlineEditing(false); };
+    const handleInlineSave = () => { onInlineSave(climb.id, { name: inlineName, tries: inlineTries, completed: inlineCompleted, comments: inlineComments, grade: inlineGrade, scale: inlineScale }); setInlineEditing(false); };
     return (
       <div style={{ background: W.surface, borderRadius: 12, padding: "12px 14px", border: `1px solid ${W.border}`, marginBottom: 8, borderLeft: `4px solid ${(inlineEditing ? inlineCompleted : climb.completed) ? W.greenDark : W.redDark}` }}>
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
@@ -2436,6 +2441,11 @@ export default function App() {
         {inlineEditing && (
           <div style={{ marginTop: 12, paddingTop: 12, borderTop: `1px solid ${W.border}` }}>
             <input value={inlineName} onChange={e => setInlineName(e.target.value)} placeholder="Climb name" style={{ width: "100%", padding: "8px 10px", background: W.surface2, border: `1.5px solid ${W.border}`, borderRadius: 9, color: W.text, fontSize: 13, boxSizing: "border-box", marginBottom: 8, fontFamily: "inherit" }} />
+            <div style={{ overflowX: "auto", display: "flex", gap: 4, marginBottom: 8, paddingBottom: 2 }}>
+              {(inlineScale === "Custom" ? customBoulderGrades : (GRADES[inlineScale] || GRADES["V-Scale"])).map(g => (
+                <button key={g} onClick={() => setInlineGrade(g)} style={{ flexShrink: 0, padding: "4px 9px", borderRadius: 7, border: `1.5px solid ${inlineGrade === g ? getGradeColor(g) : W.border}`, background: inlineGrade === g ? getGradeColor(g) + "30" : W.surface, color: inlineGrade === g ? getGradeColor(g) : W.textMuted, fontSize: 11, fontWeight: 700, cursor: "pointer" }}>{g}</button>
+              ))}
+            </div>
             <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8 }}>
               <span style={{ fontSize: 12, color: W.textMuted, fontWeight: 600 }}>Tries</span>
               <button onClick={() => setInlineTries(t => Math.max(0, t - 1))} style={{ width: 28, height: 28, borderRadius: 7, border: `1px solid ${W.border}`, background: W.surface, color: W.text, fontSize: 16, cursor: "pointer", fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center" }}>−</button>
@@ -2647,7 +2657,7 @@ export default function App() {
                   <div style={{ fontSize: 18, fontWeight: 900, color: W.text }}>{totalSends}</div>
                   <div style={{ fontSize: 11, color: W.textMuted, marginTop: 1 }}>Total sends</div>
                 </div>
-                <div onClick={() => { setScreen("profile"); setProfileTab("projects"); }} style={{ background: W.pink, border: `1px solid ${W.border}`, borderRadius: 12, padding: "10px 14px", cursor: activeProjects.length > 0 ? "pointer" : "default" }}>
+                <div onClick={() => { setScreen("profile"); setProfileTab("projects"); }} style={{ background: W.pink, border: `1px solid ${W.border}`, borderRadius: 12, padding: "10px 14px", cursor: activeProjects.length > 0 ? "pointer" : "default", boxShadow: activeProjects.length > 0 ? `0 0 14px ${W.pinkDark}55` : "none" }}>
                   <div style={{ fontSize: 18, fontWeight: 900, color: W.pinkDark }}>{activeProjects.length}</div>
                   <div style={{ fontSize: 11, color: W.pinkDark, marginTop: 1, opacity: 0.85 }}>Active projects</div>
                 </div>
@@ -2903,7 +2913,8 @@ export default function App() {
             if (checkedIds.length > 0) {
               const newProjects = [];
               checkedIds.forEach(id => {
-                const c = unsent.find(u => u.id === id);
+                const c = unsent.find(u => String(u.id) === id);
+                if (!c) return;
                 const similar = findSimilar(c);
                 if (!similar) {
                   newProjects.push({ id: `proj_${Date.now()}_${id}`, name: c.name || "", grade: c.grade, scale: c.scale, climbType: c.climbType || "boulder", active: true, completed: false, dateAdded: new Date().toISOString() });
@@ -4274,6 +4285,7 @@ export default function App() {
     const climbType = project.climbType || (Object.keys(ROPE_GRADES).includes(project.scale) ? "rope" : "boulder");
     const [notes, setNotes] = useState(project.notes || "");
     const [notesSaved, setNotesSaved] = useState(true);
+    const [selectedDot, setSelectedDot] = useState(null);
     const saveNotes = () => { updateProjectNotes(project.id, notes); setNotesSaved(true); };
     const headerBg = project.completed ? W.green : W.pink;
     const headerAccent = project.completed ? W.greenDark : W.pinkDark;
@@ -4319,9 +4331,14 @@ export default function App() {
               <svg width="100%" height={44} viewBox="0 0 300 44" preserveAspectRatio="none" style={{ display: "block", overflow: "visible" }}>
                 <polyline points={pts.map(p => `${p.x},${p.y}`).join(" ")} fill="none" stroke={W.accent} strokeWidth={2} strokeLinejoin="round" strokeLinecap="round" />
                 {pts.map((p, i) => (
-                  <circle key={i} cx={p.x} cy={p.y} r={4} fill={p.sent ? W.greenDark : W.accent} stroke={W.surface} strokeWidth={1.5} />
+                  <circle key={i} cx={p.x} cy={p.y} r={selectedDot === i ? 6 : 4} fill={p.sent ? W.greenDark : W.accent} stroke={W.surface} strokeWidth={1.5} style={{ cursor: "pointer" }} onClick={() => setSelectedDot(selectedDot === i ? null : i)} />
                 ))}
               </svg>
+              {selectedDot !== null && sorted[selectedDot] && (
+                <div style={{ background: W.surface2, border: `1px solid ${W.accent}`, borderRadius: 8, padding: "5px 10px", fontSize: 11, color: W.text, textAlign: "center", marginTop: 4, fontWeight: 700 }}>
+                  {formatDate(sorted[selectedDot].sessionDate)} · {sorted[selectedDot].tries} {sorted[selectedDot].tries === 1 ? "try" : "tries"}{sorted[selectedDot].completed ? " · ✓ Sent!" : ""}
+                </div>
+              )}
               <div style={{ display: "flex", justifyContent: "space-between", fontSize: 9, color: W.textDim, marginTop: 2 }}>
                 <span>{formatDate(sorted[0].sessionDate)}</span>
                 <span>{sorted[sorted.length - 1].tries} tries (latest)</span>
@@ -4452,7 +4469,11 @@ export default function App() {
       return { grade, path, color: getGradeColor(grade), data };
     });
     return (
-      <div style={{ padding: "28px 20px" }}>
+      <div>
+        <div style={{ position: "sticky", top: 0, zIndex: 10, padding: "12px 20px", background: W.navBg, borderBottom: `1px solid ${W.border}` }}>
+          <button onClick={() => { setSessionSummary(null); setScreen("home"); }} style={{ width: "100%", padding: "14px", background: `linear-gradient(135deg, ${W.accent}, ${W.accentDark})`, border: "none", borderRadius: 14, color: "#fff", fontWeight: 800, fontSize: 16, cursor: "pointer", boxShadow: `0 4px 16px ${W.accentGlow}` }}>Save Session</button>
+        </div>
+        <div style={{ padding: "24px 20px" }}>
         <div style={{ textAlign: "center", marginBottom: 24 }}>
           <div style={{ fontSize: 52, marginBottom: 8 }}>🎉</div>
           <div style={{ fontSize: 24, fontWeight: 900, color: W.text, marginBottom: 4 }}>Session Complete!</div>
@@ -4673,8 +4694,7 @@ export default function App() {
             </div>
           );
         })()}
-        <button onClick={() => { setSessionReadOnly(false); setSelectedSession(session); setScreen("sessionDetail"); }} style={{ width: "100%", padding: "13px", background: "transparent", border: `1px solid ${W.border}`, borderRadius: 14, color: W.textMuted, fontWeight: 700, fontSize: 14, cursor: "pointer", marginBottom: 10 }}>View Session Details</button>
-        <button onClick={() => { setSessionSummary(null); setScreen("home"); }} style={{ width: "100%", padding: "16px", background: `linear-gradient(135deg, ${W.accent}, ${W.accentDark})`, border: "none", borderRadius: 16, color: "#fff", fontSize: 16, fontWeight: 800, cursor: "pointer", boxShadow: `0 4px 20px ${W.accentGlow}`, marginBottom: 10 }}>Done</button>
+        <button onClick={() => { setSessionReadOnly(false); setSelectedSession(session); setSessionDetailBackTo("sessionSummary"); setScreen("sessionDetail"); }} style={{ width: "100%", padding: "13px", background: "transparent", border: `1px solid ${W.border}`, borderRadius: 14, color: W.textMuted, fontWeight: 700, fontSize: 14, cursor: "pointer", marginBottom: 10 }}>View Session Details</button>
         {showDiscard
           ? (
             <div style={{ background: W.red, borderRadius: 14, padding: "16px", border: `2px solid ${W.redDark}` }}>
@@ -4687,6 +4707,7 @@ export default function App() {
           )
           : <button onClick={() => setShowDiscard(true)} style={{ width: "100%", padding: "13px", background: "transparent", border: `2px solid ${W.redDark}55`, borderRadius: 14, color: W.redDark, fontWeight: 700, fontSize: 14, cursor: "pointer", opacity: 0.7 }}>Discard Session</button>
         }
+        </div>
       </div>
     );
   };
@@ -5098,7 +5119,7 @@ export default function App() {
     );
   };
 
-  const backMap  = { sessionDetail: "home", calendar: "profile", projectDetail: "profile", userProfile: userProfileBackTo, social: "profile", leaderboard: "profile" };
+  const backMap  = { sessionDetail: sessionDetailBackTo, calendar: "profile", projectDetail: "profile", userProfile: userProfileBackTo, social: "profile", leaderboard: "profile" };
   const navItems = [
     { id: "home",    label: "🏠", text: "Home" },
     { id: "session", label: "⏱", text: "Session", action: () => activeSession ? setScreen("session") : goToSessionSetup() },
@@ -5192,7 +5213,7 @@ export default function App() {
         </div>
       </div>
 
-      <div style={{ flex: 1, overflowY: "auto", paddingBottom: 80 }} onClick={() => { setLocationDropdownOpen(false); setActiveLocationDropdownOpen(false); }}>
+      <div style={{ flex: 1, overflowY: "auto", paddingBottom: screen === "sessionSummary" ? 0 : 80 }} onClick={() => { setLocationDropdownOpen(false); setActiveLocationDropdownOpen(false); }}>
         {screen === "home"          && <HomeScreen />}
         {screen === "session"       && (sessionStarted ? SessionActiveScreen() : SessionSetupScreen())}
         {screen === "social"        && SocialScreen()}
@@ -5359,7 +5380,7 @@ export default function App() {
         );
       })()}
 
-      <div style={{ position: "fixed", bottom: 0, left: "50%", transform: "translateX(-50%)", width: "100%", maxWidth: 420, background: W.navBg, borderTop: `1px solid ${W.border}`, display: "flex", justifyContent: "space-around", alignItems: "center", padding: "6px 12px 18px", zIndex: 10 }}>
+      {screen !== "sessionSummary" && <div style={{ position: "fixed", bottom: 0, left: "50%", transform: "translateX(-50%)", width: "100%", maxWidth: 420, background: W.navBg, borderTop: `1px solid ${W.border}`, display: "flex", justifyContent: "space-around", alignItems: "center", padding: "6px 12px 18px", zIndex: 10 }}>
         {navItems.map(item => {
           const isActive = screen === item.id || (item.id === "session" && (screen === "session" || screen === "sessionSummary"));
           return (
@@ -5370,7 +5391,7 @@ export default function App() {
             </button>
           );
         })}
-      </div>
+      </div>}
     </div>
     </div>
     </ThemeCtx.Provider>
