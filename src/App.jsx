@@ -593,12 +593,17 @@ const ActiveClimbCard = ({ climb, onEdit, onStartClimbing, onEndAttempt, onUpdat
             {isFlash && <span style={{ background: W.yellow, color: W.yellowDark, borderRadius: 6, padding: "1px 6px", fontSize: 10, fontWeight: 700 }}>⚡ FLASH</span>}
             {isRope && climb.ropeStyle && <span style={{ background: W.purple, color: W.purpleDark, borderRadius: 6, padding: "1px 6px", fontSize: 10, fontWeight: 700 }}>{climb.ropeStyle === "top-rope" ? "🔝 TR" : "🧗 Lead"}</span>}
           </div>
-          {!isRope && totalWorkedMs > 0 && (
-            <div style={{ display: "flex", alignItems: "center", gap: 4, marginTop: 3 }}>
-              <span style={{ fontSize: 13, fontWeight: 800, color: W.accent, fontVariantNumeric: "tabular-nums" }}>{formatDuration(Math.floor(totalWorkedMs / 1000))}</span>
-              <span style={{ fontSize: 11, color: W.textDim, fontWeight: 600 }}>worked</span>
-            </div>
-          )}
+          {!isRope && totalWorkedMs > 0 && (() => {
+            const totalAttempts = (climb.attemptLog || []).length + (climb.climbingStartedAt ? 1 : 0);
+            const timeColor = climb.completed ? W.greenDark : W.accent;
+            return (
+              <div style={{ display: "flex", alignItems: "center", gap: 4, marginTop: 3 }}>
+                <span style={{ fontSize: 13, fontWeight: 800, color: timeColor, fontVariantNumeric: "tabular-nums" }}>{formatDuration(Math.floor(totalWorkedMs / 1000))}</span>
+                <span style={{ fontSize: 11, color: W.textDim, fontWeight: 600 }}>worked</span>
+                {totalAttempts > 0 && <><span style={{ fontSize: 11, color: W.textDim }}>·</span><span style={{ fontSize: 11, color: W.textDim, fontWeight: 600 }}>{totalAttempts} {totalAttempts === 1 ? "attempt" : "attempts"}</span></>}
+              </div>
+            );
+          })()}
           {climb.comments && <div style={{ fontSize: 11, color: W.textDim, marginTop: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{climb.comments}</div>}
           <TagChips wallTypes={climb.wallTypes} holdTypes={climb.holdTypes} />
         </div>
@@ -4331,15 +4336,19 @@ export default function App() {
                     {c.completed && c.tries === 0 && <span style={{ background: W.yellow, color: W.yellowDark, borderRadius: 5, padding: "1px 5px", fontSize: 9, fontWeight: 700 }}>FLASH</span>}
                   </div>
                   <div style={{ fontSize: 11, color: W.textMuted, marginTop: 1 }}>{c.climbType === "rope" ? `${c.tries} ${c.tries === 1 ? "attempt" : "attempts"} · ${c.falls ?? c.tries} ${(c.falls ?? c.tries) === 1 ? "fall" : "falls"}` : `${c.tries} ${c.tries === 1 ? "fall" : "falls"}`} · {c.completed ? "✓ Sent" : "✗ Not sent"}</div>
-                  {(c.attemptLog || []).length > 0 && (
-                    <div style={{ display: "flex", gap: 4, flexWrap: "wrap", marginTop: 3 }}>
-                      {(c.attemptLog || []).map((a, i) => (
-                        <span key={i} style={{ fontSize: 9, color: W.textDim, background: W.surface2, borderRadius: 4, padding: "1px 5px", border: `1px solid ${W.border}` }}>
-                          #{i + 1} {formatDuration(Math.floor(a.duration / 1000))}
-                        </span>
-                      ))}
-                    </div>
-                  )}
+                  {c.climbType !== "rope" && (() => {
+                    const workedMs = (c.attemptLog || []).reduce((sum, a) => sum + a.duration, 0);
+                    const attempts = (c.attemptLog || []).length;
+                    if (workedMs < 1000) return null;
+                    const timeColor = c.completed ? W.greenDark : W.accent;
+                    return (
+                      <div style={{ display: "flex", alignItems: "center", gap: 4, marginTop: 3 }}>
+                        <span style={{ fontSize: 12, fontWeight: 800, color: timeColor, fontVariantNumeric: "tabular-nums" }}>{formatDuration(Math.floor(workedMs / 1000))}</span>
+                        <span style={{ fontSize: 10, color: W.textDim, fontWeight: 600 }}>worked</span>
+                        {attempts > 0 && <><span style={{ fontSize: 10, color: W.textDim }}>·</span><span style={{ fontSize: 10, color: W.textDim, fontWeight: 600 }}>{attempts} {attempts === 1 ? "attempt" : "attempts"}</span></>}
+                      </div>
+                    );
+                  })()}
                 </div>
               </div>
             ))}
