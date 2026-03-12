@@ -165,6 +165,7 @@ export default function App() {
   const [logbookPage, setLogbookPage]               = useState(1);
   const [sessionTypes, setSessionTypes]             = useState(["boulder"]);
   const [showMoreClimbTypes, setShowMoreClimbTypes] = useState(false);
+  const [showSentBoulders, setShowSentBoulders]     = useState(false);
   const [colorTheme, setColorTheme]             = useState("espresso");
   const [showEndConfirm, setShowEndConfirm]     = useState(false);
   const [showProjectPrompt, setShowProjectPrompt] = useState(false);
@@ -302,8 +303,16 @@ export default function App() {
               } else if (ss && sa) {
                 // Resume active session
                 setActiveSession(sa);
-                setSessionActiveStart(sas);
-                setSessionPausedSec(sps || 0);
+                // If timer was running, add reload gap to paused time and start fresh
+                // so the reload downtime isn't counted as active climbing time
+                if (tr && sas && lat) {
+                  const gapSec = Math.floor((Date.now() - lat) / 1000);
+                  setSessionPausedSec((sps || 0) + gapSec);
+                  setSessionActiveStart(Date.now());
+                } else {
+                  setSessionActiveStart(sas);
+                  setSessionPausedSec(sps || 0);
+                }
                 setSessionStarted(true);
                 setTimerRunning(tr);
                 setPendingLocation(pl || "");
@@ -398,8 +407,7 @@ export default function App() {
       setCurrentUser(user);
       setSessions(userData.sessions);
       setProjects(userData.projects);
-      setShowOnboarding(true);
-      setAuthScreen("app");
+      setAuthScreen("themeSelect");
     } catch (e) {
       setAuthError("Something went wrong. Please try again.");
     }
@@ -1383,6 +1391,57 @@ export default function App() {
     );
   }
 
+  if (authScreen === "themeSelect") {
+    const themes = [
+      { id: "espresso", label: "Espresso", icon: "☕",  desc: "Dark warm" },
+      { id: "alpine",   label: "Alpine",   icon: "🏔",  desc: "Light natural" },
+      { id: "chalk",    label: "Chalk",    icon: "🎨",  desc: "Warm bright" },
+      { id: "neon",     label: "Neon",     icon: "⚡",  desc: "Black + cyan" },
+      { id: "midnight", label: "Midnight", icon: "🌙",  desc: "Dark navy" },
+      { id: "ember",    label: "Ember",    icon: "🔥",  desc: "Dark amber" },
+      { id: "abyss",    label: "Abyss",    icon: "🔵",  desc: "Black + blue" },
+      { id: "forest",   label: "Forest",   icon: "🌲",  desc: "Dark green" },
+      { id: "dusk",     label: "Dusk",     icon: "🌆",  desc: "Dark purple" },
+      { id: "blossom",  label: "Blossom",  icon: "🌸",  desc: "Pink light" },
+      { id: "sakura",   label: "Sakura",   icon: "🌺",  desc: "Dark pink" },
+      { id: "slate",    label: "Slate",    icon: "🩶",  desc: "Cool gray" },
+      { id: "crimson",  label: "Crimson",  icon: "🩸",  desc: "Dark red" },
+    ];
+    return (
+      <div style={{ width: "100%", minHeight: "100vh", background: W.bg, fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif", display: "flex", justifyContent: "center" }}>
+        <div style={{ width: "100%", maxWidth: 420, padding: "48px 24px 40px" }}>
+          <div style={{ textAlign: "center", marginBottom: 32 }}>
+            <div style={{ fontSize: 48, marginBottom: 12 }}>🎨</div>
+            <div style={{ fontSize: 24, fontWeight: 900, color: W.text, marginBottom: 8 }}>Choose Your Theme</div>
+            <div style={{ fontSize: 14, color: W.textMuted }}>Pick a look that feels like you — you can change it anytime in settings.</div>
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 10, marginBottom: 28 }}>
+            {themes.map(t => {
+              const themeW = THEMES[t.id];
+              const isSelected = colorTheme === t.id;
+              return (
+                <button key={t.id} onClick={() => setColorTheme(t.id)} style={{ padding: "14px 8px", borderRadius: 16, border: `2px solid`, borderColor: isSelected ? W.accent : W.border, background: isSelected ? W.accent + "22" : W.surface, cursor: "pointer", textAlign: "center", position: "relative", overflow: "hidden" }}>
+                  {isSelected && <div style={{ position: "absolute", top: 6, right: 8, fontSize: 11, fontWeight: 900, color: W.accent }}>✓</div>}
+                  <div style={{ display: "flex", gap: 3, justifyContent: "center", marginBottom: 8 }}>
+                    <div style={{ width: 14, height: 14, borderRadius: "50%", background: themeW.accent }} />
+                    <div style={{ width: 14, height: 14, borderRadius: "50%", background: themeW.surface2 }} />
+                    <div style={{ width: 14, height: 14, borderRadius: "50%", background: themeW.green }} />
+                  </div>
+                  <div style={{ fontSize: 20, marginBottom: 4 }}>{t.icon}</div>
+                  <div style={{ fontWeight: 700, fontSize: 12, color: isSelected ? W.accent : W.text }}>{t.label}</div>
+                  <div style={{ fontSize: 10, color: W.textMuted, marginTop: 2, opacity: 0.8 }}>{t.desc}</div>
+                </button>
+              );
+            })}
+          </div>
+          <button onClick={() => { setShowOnboarding(true); setAuthScreen("app"); }} style={{ width: "100%", padding: "16px", background: `linear-gradient(135deg, ${W.accent}, ${W.accentDark})`, border: "none", borderRadius: 16, color: "#fff", fontSize: 17, fontWeight: 800, cursor: "pointer", boxShadow: `0 4px 20px ${W.accentGlow}` }}>
+            Continue →
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   if (authScreen === "login" || authScreen === "signup") {
     const isSignup = authScreen === "signup";
     return (
@@ -1537,6 +1596,7 @@ export default function App() {
                 ? boulderGrades.map(g => <button key={g} onClick={() => setClimbForm(f => ({ ...f, grade: g }))} style={{ padding: "5px 11px", borderRadius: 14, border: "2px solid", borderColor: climbForm.grade === g ? getGradeColor(g) : W.border, background: climbForm.grade === g ? getGradeColor(g) + "33" : W.surface, color: climbForm.grade === g ? getGradeColor(g) : W.textDim, cursor: "pointer", fontWeight: 700, fontSize: 12 }}>{g}</button>)
                 : <div style={{ fontSize: 12, color: W.textDim, padding: "6px 0" }}>No custom grades set — add them in Settings</div>
               }
+              <button onClick={() => setClimbForm(f => ({ ...f, grade: "Ungraded" }))} style={{ padding: "5px 11px", borderRadius: 14, border: "2px solid", borderColor: climbForm.grade === "Ungraded" ? W.textMuted : W.border, background: climbForm.grade === "Ungraded" ? W.surface2 : W.surface, color: climbForm.grade === "Ungraded" ? W.text : W.textDim, cursor: "pointer", fontWeight: 700, fontSize: 12 }}>Ungraded</button>
             </div>
             <Label>Wall Type</Label>
             <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
@@ -2054,9 +2114,18 @@ export default function App() {
             <BoulderRopeSessionCard type="boulder" totalSec={activeSession.boulderTotalSec || 0} activeStart={activeSession.boulderActiveStart || null} isEnded={!!activeSession.boulderEndedAt} tick={sessionTimer} onPause={pauseBoulderSession} onResume={resumeBoulderSession} pausedAt={activeSession.boulderPausedAt || null} collapsed={!!activeSession.collapsedSections?.boulder} onToggleCollapse={() => setActiveSession(s => ({ ...s, collapsedSections: { ...(s.collapsedSections || {}), boulder: !s.collapsedSections?.boulder } }))} />
             {!activeSession.collapsedSections?.boulder && (
               <div style={{ borderLeft: `3px solid ${W.greenDark}44`, paddingLeft: 10, marginLeft: 2 }}>
-                {boulderClimbs.map(c => <ActiveClimbCard key={c.id} climb={c} {...cardProps} sessionCount={c.projectId ? getProjectHistory(c.projectId).length + 1 : null} />)}
+                {boulderClimbs.filter(c => !c.completed).map(c => <ActiveClimbCard key={c.id} climb={c} {...cardProps} sessionCount={c.projectId ? getProjectHistory(c.projectId).length + 1 : null} />)}
                 {selectedTypes.includes("boulder") && !activeSession.boulderEndedAt && (
                   <button onClick={() => openClimbForm(null, null, "boulder")} style={{ width: "100%", padding: "10px", background: W.green, border: `2px solid ${W.greenDark}`, borderRadius: 12, color: W.greenDark, fontWeight: 700, fontSize: 13, cursor: "pointer", marginTop: 2 }}>+ New Boulder</button>
+                )}
+                {boulderClimbs.filter(c => c.completed).length > 0 && (
+                  <>
+                    <button onClick={() => setShowSentBoulders(v => !v)} style={{ width: "100%", display: "flex", alignItems: "center", justifyContent: "space-between", padding: "8px 10px", marginTop: 6, background: W.green + "33", border: `1px solid ${W.greenDark}44`, borderRadius: 10, color: W.greenDark, fontWeight: 700, fontSize: 12, cursor: "pointer" }}>
+                      <span>✓ Sent ({boulderClimbs.filter(c => c.completed).length})</span>
+                      <span>{showSentBoulders ? "▲" : "▼"}</span>
+                    </button>
+                    {showSentBoulders && boulderClimbs.filter(c => c.completed).map(c => <ActiveClimbCard key={c.id} climb={c} {...cardProps} sessionCount={c.projectId ? getProjectHistory(c.projectId).length + 1 : null} />)}
+                  </>
                 )}
               </div>
             )}

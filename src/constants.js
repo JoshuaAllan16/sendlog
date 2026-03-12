@@ -29,6 +29,7 @@ export const CLIMB_COLORS = [
   { id: "orange", label: "Orange", hex: "#f97316" },
   { id: "blue",   label: "Blue",   hex: "#3b82f6" },
   { id: "pink",   label: "Pink",   hex: "#ec4899" },
+  { id: "purple", label: "Purple", hex: "#a855f7" },
 ];
 
 export const WALL_TYPES = ["Slab", "Overhang", "Corner", "Roof"];
