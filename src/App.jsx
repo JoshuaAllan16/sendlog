@@ -1897,22 +1897,84 @@ export default function App() {
             </div>
           );
         })()}
-        {/* Stats list */}
-        <div style={{ padding: "4px 16px 0" }}>
-          {[
-            { label: "Climbs Sent",    value: `${stats.sends} / ${stats.total}` },
-            { label: "Total Tries",    value: stats.totalTries },
-            { label: "Flashes",        value: stats.flashes },
-            { label: "Avg Tries",      value: stats.avgTries },
-            { label: "Hardest Tried",  value: stats.hardestAttempted },
-            { label: "Hardest Sent",   value: stats.hardestSent },
-          ].map((row, i, arr) => (
-            <div key={row.label} onClick={() => { setSessionReadOnly(false); setSelectedSession(session); setScreen("sessionDetail"); }} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "9px 0", borderBottom: i < arr.length - 1 ? `1px solid ${W.border}` : "none", cursor: "pointer" }}>
-              <span style={{ fontSize: 13, color: W.textMuted, fontWeight: 600 }}>{row.label}</span>
-              <span style={{ fontSize: 14, fontWeight: 800, color: W.text }}>{row.value}</span>
+        {/* Stats section */}
+        {(() => {
+          const col1 = [
+            { label: "Climbs Sent",   value: `${stats.sends}/${stats.total}` },
+            stats.flashes > 0 && { label: "Flashes",       value: stats.flashes },
+            stats.hardestAttempted !== "—" && { label: "Hardest Tried", value: stats.hardestAttempted },
+          ].filter(Boolean);
+          const col2 = [
+            { label: "Total Tries", value: stats.totalTries },
+            { label: "Avg Tries",   value: stats.avgTries },
+            stats.hardestSent !== "—" && { label: "Hardest Sent", value: stats.hardestSent, accent: true },
+          ].filter(Boolean);
+          const boulderSec = session.boulderTotalSec || 0;
+          const ropeSec    = session.ropeTotalSec || 0;
+          const speedSec   = stats.speedSessions.reduce((s, ss) => s + Math.max(0, Math.floor(((ss.endedAt || Date.now()) - ss.startedAt) / 1000)), 0);
+          const pieSlices  = [
+            { sec: boulderSec, color: W.greenDark,  label: "🪨" },
+            { sec: ropeSec,    color: W.purpleDark, label: "🪢" },
+            { sec: speedSec,   color: W.yellowDark, label: "⚡" },
+          ].filter(s => s.sec > 0);
+          const pieTotal = pieSlices.reduce((s, r) => s + r.sec, 0);
+          let pieAngle = -Math.PI / 2;
+          const piePaths = pieSlices.length >= 2 ? pieSlices.map(s => {
+            const a = (s.sec / pieTotal) * 2 * Math.PI;
+            const end = pieAngle + a;
+            const [r, ir, cx, cy] = [32, 18, 40, 40];
+            const x1 = cx + r*Math.cos(pieAngle), y1 = cy + r*Math.sin(pieAngle);
+            const x2 = cx + r*Math.cos(end),      y2 = cy + r*Math.sin(end);
+            const ix1 = cx + ir*Math.cos(pieAngle), iy1 = cy + ir*Math.sin(pieAngle);
+            const ix2 = cx + ir*Math.cos(end),      iy2 = cy + ir*Math.sin(end);
+            const large = a > Math.PI ? 1 : 0;
+            const path = `M ${ix1.toFixed(1)} ${iy1.toFixed(1)} L ${x1.toFixed(1)} ${y1.toFixed(1)} A ${r} ${r} 0 ${large} 1 ${x2.toFixed(1)} ${y2.toFixed(1)} L ${ix2.toFixed(1)} ${iy2.toFixed(1)} A ${ir} ${ir} 0 ${large} 0 ${ix1.toFixed(1)} ${iy1.toFixed(1)} Z`;
+            pieAngle = end;
+            return { ...s, path };
+          }) : [];
+          return (
+            <div style={{ padding: "12px 16px 4px" }}>
+              <div style={{ fontSize: 10, fontWeight: 700, color: W.textMuted, textTransform: "uppercase", letterSpacing: 1, marginBottom: 10 }}>Stats</div>
+              <div style={{ display: "flex", gap: 12, alignItems: "flex-start" }}>
+                {/* Two-column stat list */}
+                <div style={{ flex: 1, display: "grid", gridTemplateColumns: "1fr 1fr", gap: 0 }}>
+                  <div style={{ borderRight: `1px solid ${W.border}`, paddingRight: 10 }}>
+                    {col1.map((row, i) => (
+                      <div key={row.label} style={{ padding: "6px 0", borderBottom: i < col1.length - 1 ? `1px solid ${W.border}` : "none" }}>
+                        <div style={{ fontSize: 10, color: W.textDim, fontWeight: 600 }}>{row.label}</div>
+                        <div style={{ fontSize: 15, fontWeight: 900, color: W.text, marginTop: 1 }}>{row.value}</div>
+                      </div>
+                    ))}
+                  </div>
+                  <div style={{ paddingLeft: 10 }}>
+                    {col2.map((row, i) => (
+                      <div key={row.label} style={{ padding: "6px 0", borderBottom: i < col2.length - 1 ? `1px solid ${W.border}` : "none" }}>
+                        <div style={{ fontSize: 10, color: W.textDim, fontWeight: 600 }}>{row.label}</div>
+                        <div style={{ fontSize: 15, fontWeight: 900, color: row.accent ? W.greenDark : W.text, marginTop: 1 }}>{row.value}</div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+                {/* Time breakdown pie chart */}
+                {piePaths.length >= 2 && (
+                  <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 6, flexShrink: 0 }}>
+                    <svg width={80} height={80} viewBox="0 0 80 80">
+                      {piePaths.map((s, i) => <path key={i} d={s.path} fill={s.color} />)}
+                    </svg>
+                    <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
+                      {piePaths.map((s, i) => (
+                        <div key={i} style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                          <div style={{ width: 8, height: 8, borderRadius: 2, background: s.color, flexShrink: 0 }} />
+                          <span style={{ fontSize: 10, color: W.textDim, fontVariantNumeric: "tabular-nums" }}>{s.label} {Math.round(s.sec / pieTotal * 100)}%</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
             </div>
-          ))}
-        </div>
+          );
+        })()}
         {/* Reactions + Comments — only on social feed cards */}
         {poster && (
           <div style={{ display: "flex", gap: 8, padding: "10px 16px", borderTop: `1px solid ${W.border}`, alignItems: "center" }}>
