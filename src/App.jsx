@@ -251,6 +251,43 @@ export default function App() {
   const [commentPanelOwner, setCommentPanelOwner] = useState(null); // username of session owner
 
   // §EFFECTS
+  // ── SHARED: restore active:climb from localStorage ─────────
+  // Called from both checkSession (auto-login) and handleLogin (manual login after logout/close).
+  const tryRestoreClimbSession = (loginUsername) => {
+    const IDLE_LIMIT_MS = 90 * 60 * 1000;
+    const savedClimb = localStorage.getItem("active:climb");
+    if (!savedClimb) return;
+    try {
+      const { username: su, activeSession: sa, sessionActiveStart: sas, sessionPausedSec: sps, sessionStarted: ss, timerRunning: tr, pendingLocation: pl, lastActivityAt: lat } = JSON.parse(savedClimb);
+      if (su && su !== loginUsername) return; // belongs to a different user on this device
+      if (Date.now() - (lat || 0) > IDLE_LIMIT_MS) {
+        // Idle too long — convert to abandoned session offer
+        const finalDuration = sas ? Math.floor((Date.now() - sas) / 1000) + (sps || 0) : (sps || 0);
+        const rawLoc = (sa?.location || pl || "Unknown Gym").trim();
+        const loc = rawLoc.replace(/\b([a-z])/g, c => c.toUpperCase());
+        const abandoned = { id: Date.now(), date: new Date().toISOString(), duration: finalDuration, location: loc, climbs: sa?.climbs || [], boulderTotalSec: sa?.boulderTotalSec || 0, ropeTotalSec: sa?.ropeTotalSec || 0, boulderStartedAt: sa?.boulderStartedAt, ropeStartedAt: sa?.ropeStartedAt };
+        localStorage.setItem("abandoned:session", JSON.stringify({ session: abandoned, idledAt: lat }));
+        localStorage.removeItem("active:climb");
+      } else if (ss && sa) {
+        setActiveSession(sa);
+        if (tr && sas && lat) {
+          const gapSec = Math.floor((Date.now() - lat) / 1000);
+          setSessionPausedSec((sps || 0) + gapSec);
+          setSessionActiveStart(Date.now());
+        } else {
+          setSessionActiveStart(sas);
+          setSessionPausedSec(sps || 0);
+        }
+        setSessionStarted(true);
+        setTimerRunning(tr);
+        setPendingLocation(pl || "");
+        setScreen("session");
+      }
+    } catch (e) { localStorage.removeItem("active:climb"); }
+    const ab = localStorage.getItem("abandoned:session");
+    if (ab) { try { setAbandonedSession(JSON.parse(ab)); } catch (e) { localStorage.removeItem("abandoned:session"); } }
+  };
+
   // ── INIT: check for existing session ──────────────────────
   useEffect(() => {
     const checkSession = async () => {
@@ -288,43 +325,7 @@ export default function App() {
           setPendingFollowRequests(userData.profile?.pendingFollowRequests || []);
           storage.get(`followRequests:${username}`).then(r => setMyFollowRequests(r ? JSON.parse(r.value) : [])).catch(() => {});
           setAuthScreen("app");
-          // ── Restore or auto-end previous climb session ──────
-          const IDLE_LIMIT_MS = 90 * 60 * 1000;
-          const savedClimb = localStorage.getItem("active:climb");
-          if (savedClimb) {
-            try {
-              const { activeSession: sa, sessionActiveStart: sas, sessionPausedSec: sps, sessionStarted: ss, timerRunning: tr, pendingLocation: pl, lastActivityAt: lat } = JSON.parse(savedClimb);
-              if (Date.now() - (lat || 0) > IDLE_LIMIT_MS) {
-                // Idle too long — auto-end and offer as abandoned session
-                const finalDuration = sas ? Math.floor((Date.now() - sas) / 1000) + (sps || 0) : (sps || 0);
-                const rawLoc = (sa?.location || pl || "Unknown Gym").trim();
-                const loc = rawLoc.replace(/\b([a-z])/g, c => c.toUpperCase());
-                const abandoned = { id: Date.now(), date: new Date().toISOString(), duration: finalDuration, location: loc, climbs: sa?.climbs || [], boulderTotalSec: sa?.boulderTotalSec || 0, ropeTotalSec: sa?.ropeTotalSec || 0, boulderStartedAt: sa?.boulderStartedAt, ropeStartedAt: sa?.ropeStartedAt };
-                localStorage.setItem("abandoned:session", JSON.stringify({ session: abandoned, idledAt: lat }));
-                localStorage.removeItem("active:climb");
-              } else if (ss && sa) {
-                // Resume active session
-                setActiveSession(sa);
-                // If timer was running, add reload gap to paused time and start fresh
-                // so the reload downtime isn't counted as active climbing time
-                if (tr && sas && lat) {
-                  const gapSec = Math.floor((Date.now() - lat) / 1000);
-                  setSessionPausedSec((sps || 0) + gapSec);
-                  setSessionActiveStart(Date.now());
-                } else {
-                  setSessionActiveStart(sas);
-                  setSessionPausedSec(sps || 0);
-                }
-                setSessionStarted(true);
-                setTimerRunning(tr);
-                setPendingLocation(pl || "");
-                setScreen("session");
-              }
-            } catch (e) { localStorage.removeItem("active:climb"); }
-          }
-          // ── Check for abandoned session from previous idle ───
-          const ab = localStorage.getItem("abandoned:session");
-          if (ab) { try { setAbandonedSession(JSON.parse(ab)); } catch (e) { localStorage.removeItem("abandoned:session"); } }
+          tryRestoreClimbSession(username);
         } else {
           setAuthScreen("login");
         }
@@ -375,8 +376,8 @@ export default function App() {
   useEffect(() => {
     if (!sessionInitialized.current) return; // don't touch active:climb until checkSession has read it
     if (!sessionStarted || !activeSession) { localStorage.removeItem("active:climb"); return; }
-    localStorage.setItem("active:climb", JSON.stringify({ activeSession, sessionActiveStart, sessionPausedSec, sessionStarted, timerRunning, pendingLocation, lastActivityAt: Date.now() }));
-  }, [activeSession, sessionActiveStart, sessionPausedSec, sessionStarted, timerRunning, pendingLocation]);
+    localStorage.setItem("active:climb", JSON.stringify({ username: currentUser?.username, activeSession, sessionActiveStart, sessionPausedSec, sessionStarted, timerRunning, pendingLocation, lastActivityAt: Date.now() }));
+  }, [activeSession, sessionActiveStart, sessionPausedSec, sessionStarted, timerRunning, pendingLocation, currentUser]);
 
   // §HANDLERS
   // ── AUTH HANDLERS ──────────────────────────────────────────
@@ -469,6 +470,7 @@ export default function App() {
       setPendingFollowRequests(safeData.profile?.pendingFollowRequests || []);
       storage.get(`followRequests:${username.toLowerCase()}`).then(r => setMyFollowRequests(r ? JSON.parse(r.value) : [])).catch(() => {});
       setAuthScreen("app");
+      tryRestoreClimbSession(username.toLowerCase());
     } catch (e) {
       setAuthError("Something went wrong. Please try again.");
     }
