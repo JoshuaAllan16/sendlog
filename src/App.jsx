@@ -363,6 +363,7 @@ const LocationDropdown = ({ value, onChange, open, setOpen, knownLocations, onRe
   const W = useTheme() || THEMES.espresso;
   const [addPopup, setAddPopup] = useState(false);
   const [newGymInput, setNewGymInput] = useState("");
+  const [removeConfirm, setRemoveConfirm] = useState(null);
   const handleAddConfirm = () => {
     const trimmed = newGymInput.trim();
     if (trimmed) onChange(trimmed);
@@ -380,7 +381,13 @@ const LocationDropdown = ({ value, onChange, open, setOpen, knownLocations, onRe
         {knownLocations.map(loc => (
           <div key={loc} style={{ display: "flex", alignItems: "center", borderBottom: `1px solid ${W.border}`, background: loc === value ? W.accent + "14" : "transparent" }}>
             <div onClick={() => { onChange(loc); setOpen(false); }} style={{ flex: 1, padding: "10px 14px", cursor: "pointer", color: loc === value ? W.accent : W.text, fontSize: 14, fontWeight: loc === value ? 700 : 400 }}>📍 {loc}{loc === value ? " ✓" : ""}</div>
-            {onRemove && <button onClick={e => { e.stopPropagation(); onRemove(loc); }} style={{ background: "none", border: "none", padding: "0 12px", cursor: "pointer", color: W.textDim, fontSize: 16, lineHeight: 1 }}>×</button>}
+            {onRemove && (removeConfirm === loc
+              ? <div style={{ display: "flex", alignItems: "center", gap: 4, padding: "0 8px" }} onClick={e => e.stopPropagation()}>
+                  <button onClick={() => { onRemove(loc); setRemoveConfirm(null); }} style={{ background: W.redDark, border: "none", borderRadius: 6, color: "#fff", padding: "3px 8px", fontSize: 11, fontWeight: 700, cursor: "pointer" }}>Remove</button>
+                  <button onClick={() => setRemoveConfirm(null)} style={{ background: "none", border: "none", color: W.textDim, fontSize: 13, cursor: "pointer" }}>✕</button>
+                </div>
+              : <button onClick={e => { e.stopPropagation(); setRemoveConfirm(loc); }} style={{ background: "none", border: "none", padding: "0 12px", cursor: "pointer", color: W.textDim, fontSize: 16, lineHeight: 1 }}>×</button>
+            )}
           </div>
         ))}
         <div onClick={() => { setOpen(false); setAddPopup(true); }} style={{ padding: "11px 14px", cursor: "pointer", color: W.accent, fontSize: 13, fontWeight: 700, borderTop: `1px solid ${W.border}`, display: "flex", alignItems: "center", gap: 6 }}>＋ Add new gym location</div>
@@ -803,6 +810,7 @@ export default function App() {
   const [sessionPausedSec, setSessionPausedSec]     = useState(0);
   const [sessionStarted, setSessionStarted] = useState(false);
   const [pendingLocation, setPendingLocation] = useState("");
+  const [abandonedSession, setAbandonedSession] = useState(null);
   const [locationDropdownOpen, setLocationDropdownOpen]       = useState(false);
   const [activeLocationDropdownOpen, setActiveLocationDropdownOpen] = useState(false);
   const timerRef = useRef(null);
@@ -1119,6 +1127,34 @@ export default function App() {
           setPendingFollowRequests(userData.profile?.pendingFollowRequests || []);
           storage.get(`followRequests:${username}`).then(r => setMyFollowRequests(r ? JSON.parse(r.value) : [])).catch(() => {});
           setAuthScreen("app");
+          // ── Restore or auto-end previous climb session ──────
+          const IDLE_LIMIT_MS = 90 * 60 * 1000;
+          const savedClimb = localStorage.getItem("active:climb");
+          if (savedClimb) {
+            try {
+              const { activeSession: sa, sessionActiveStart: sas, sessionPausedSec: sps, sessionStarted: ss, timerRunning: tr, pendingLocation: pl, lastActivityAt: lat } = JSON.parse(savedClimb);
+              if (Date.now() - (lat || 0) > IDLE_LIMIT_MS) {
+                // Idle too long — auto-end and offer as abandoned session
+                const finalDuration = sas ? Math.floor((Date.now() - sas) / 1000) + (sps || 0) : (sps || 0);
+                const rawLoc = (sa?.location || pl || "Unknown Gym").trim();
+                const loc = rawLoc.replace(/\b([a-z])/g, c => c.toUpperCase());
+                const abandoned = { id: Date.now(), date: new Date().toISOString(), duration: finalDuration, location: loc, climbs: sa?.climbs || [], boulderTotalSec: sa?.boulderTotalSec || 0, ropeTotalSec: sa?.ropeTotalSec || 0, boulderStartedAt: sa?.boulderStartedAt, ropeStartedAt: sa?.ropeStartedAt };
+                localStorage.setItem("abandoned:session", JSON.stringify({ session: abandoned, idledAt: lat }));
+                localStorage.removeItem("active:climb");
+              } else if (ss && sa) {
+                // Resume active session
+                setActiveSession(sa);
+                setSessionActiveStart(sas);
+                setSessionPausedSec(sps || 0);
+                setSessionStarted(true);
+                setTimerRunning(tr);
+                setPendingLocation(pl || "");
+              }
+            } catch (e) { localStorage.removeItem("active:climb"); }
+          }
+          // ── Check for abandoned session from previous idle ───
+          const ab = localStorage.getItem("abandoned:session");
+          if (ab) { try { setAbandonedSession(JSON.parse(ab)); } catch (e) { localStorage.removeItem("abandoned:session"); } }
         } else {
           setAuthScreen("login");
         }
@@ -1160,6 +1196,14 @@ export default function App() {
     }
     return () => clearInterval(timerRef.current);
   }, [timerRunning, sessionActiveStart, sessionPausedSec]);
+
+  // ── PERSIST IN-PROGRESS CLIMB SESSION ──────────────────────
+  // Saves to localStorage so a page refresh doesn't lose the session.
+  // Cleared on endSession / discardSession.
+  useEffect(() => {
+    if (!sessionStarted || !activeSession) { localStorage.removeItem("active:climb"); return; }
+    localStorage.setItem("active:climb", JSON.stringify({ activeSession, sessionActiveStart, sessionPausedSec, sessionStarted, timerRunning, pendingLocation, lastActivityAt: Date.now() }));
+  }, [activeSession, sessionActiveStart, sessionPausedSec, sessionStarted, timerRunning, pendingLocation]);
 
   // ── AUTH HANDLERS ──────────────────────────────────────────
   const handleSignup = async () => {
@@ -1548,6 +1592,7 @@ export default function App() {
     }
     setSessionSummary(completed);
     setTimerRunning(false); setSessionActiveStart(null); setSessionPausedSec(0); setActiveSession(null); setSessionTimer(0); setSessionStarted(false); setPendingLocation(""); setShowEndConfirm(false); setScreen("sessionSummary");
+    localStorage.removeItem("active:climb");
   };
   const deleteSession = (id) => { setSessions(prev => prev.filter(s => s.id !== id)); setScreen("profile"); setProfileTab("logbook"); };
   const discardSession = () => {
@@ -1558,6 +1603,7 @@ export default function App() {
       setProjects(prev => prev.map(p => sentProjectIds.includes(p.id) ? { ...p, completed: false, active: true, dateSent: null } : p));
     }
     setSessionSummary(null); setScreen("home");
+    localStorage.removeItem("active:climb");
   };
 
   const updateActiveClimbTries = (id, delta) => setActiveSession(s => {
@@ -5278,6 +5324,33 @@ export default function App() {
         {screen === "leaderboard"    && LeaderboardScreen()}
         {screen === "sessionSummary" && sessionSummary && <SessionSummaryScreen session={sessionSummary} />}
       </div>
+
+      {/* Abandoned session recovery popup */}
+      {abandonedSession && (() => {
+        const { session, idledAt } = abandonedSession;
+        const hoursAgo = Math.round((Date.now() - (idledAt || 0)) / (1000 * 60 * 60) * 10) / 10;
+        const sends = (session.climbs || []).filter(c => c.completed && c.climbType !== "speed-session").length;
+        const total = (session.climbs || []).filter(c => c.climbType !== "speed-session").length;
+        const keepSession = () => { setSessions(prev => [session, ...prev]); setAbandonedSession(null); localStorage.removeItem("abandoned:session"); };
+        const dismissSession = () => { setAbandonedSession(null); localStorage.removeItem("abandoned:session"); };
+        return (
+          <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.65)", zIndex: 300, display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
+            <div style={{ background: W.surface, borderRadius: 20, padding: "24px", width: "100%", maxWidth: 360, boxShadow: "0 20px 60px rgba(0,0,0,0.3)" }}>
+              <div style={{ fontSize: 28, marginBottom: 10 }}>💾</div>
+              <div style={{ fontSize: 18, fontWeight: 900, color: W.text, marginBottom: 6 }}>Unsaved Session Found</div>
+              <div style={{ fontSize: 13, color: W.textMuted, marginBottom: 4 }}>A session was auto-saved because the app was inactive for {hoursAgo}h.</div>
+              <div style={{ background: W.surface2, borderRadius: 12, padding: "12px 14px", marginBottom: 18, border: `1px solid ${W.border}` }}>
+                <div style={{ fontWeight: 700, color: W.text, fontSize: 14, marginBottom: 2 }}>📍 {session.location}</div>
+                <div style={{ fontSize: 12, color: W.textMuted }}>⏱ {formatDuration(session.duration)} · {sends}/{total} sends · {total} climbs</div>
+              </div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                <button onClick={keepSession} style={{ padding: "13px", background: `linear-gradient(135deg, ${W.accent}, ${W.accentDark})`, border: "none", borderRadius: 12, color: "#fff", fontWeight: 800, fontSize: 14, cursor: "pointer" }}>Save to Logbook</button>
+                <button onClick={dismissSession} style={{ padding: "12px", background: "transparent", border: `2px solid ${W.redDark}55`, borderRadius: 12, color: W.redDark, fontWeight: 700, fontSize: 13, cursor: "pointer" }}>Discard Session</button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
 
       {/* Session summary leave warning */}
       {showSummaryLeaveWarn && (
