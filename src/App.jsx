@@ -1412,6 +1412,12 @@ export default function App() {
     }
   }, [screen]);
 
+  // Lock body scroll when lightbox is open
+  useEffect(() => {
+    document.body.style.overflow = lightboxPhoto ? "hidden" : "";
+    return () => { document.body.style.overflow = ""; };
+  }, [lightboxPhoto]);
+
   // ── AUTH SCREENS ───────────────────────────────────────────
   if (authScreen === "loading") {
     return (
@@ -1779,7 +1785,13 @@ export default function App() {
     const stats = getSessionStats(session);
     const climbPhotos = session.climbs.filter(c => c.photo);
     const [photoIdx, setPhotoIdx] = useState(0);
+    const [photoVisible, setPhotoVisible] = useState(true);
     const safeIdx = Math.min(photoIdx, climbPhotos.length - 1);
+    const switchPhoto = (newIdx) => {
+      if (newIdx === safeIdx) return;
+      setPhotoVisible(false);
+      setTimeout(() => { setPhotoIdx(newIdx); setPhotoVisible(true); }, 130);
+    };
     const timeAgo = (dateStr) => {
       const diff = Math.floor((Date.now() - new Date(dateStr)) / 86400000);
       if (diff === 0) return "Today";
@@ -1822,31 +1834,42 @@ export default function App() {
           const colorHex = CLIMB_COLORS.find(cc => cc.id === photo.color)?.hex;
           return (
             <div
-              style={{ position: "relative", borderBottom: `1px solid ${W.border}` }}
+              style={{ position: "relative", borderBottom: `1px solid ${W.border}`, overflow: "hidden" }}
               onTouchStart={e => { e.currentTarget._swipeX = e.touches[0].clientX; }}
               onTouchEnd={e => {
                 const dx = e.changedTouches[0].clientX - (e.currentTarget._swipeX || 0);
-                if (Math.abs(dx) > 40) setPhotoIdx(i => dx < 0 ? Math.min(i + 1, climbPhotos.length - 1) : Math.max(i - 1, 0));
+                if (Math.abs(dx) > 40) switchPhoto(dx < 0 ? Math.min(safeIdx + 1, climbPhotos.length - 1) : Math.max(safeIdx - 1, 0));
               }}
             >
               <img
+                key={safeIdx}
                 src={photo.photo}
                 alt={photo.name || photo.grade}
                 onClick={e => { e.stopPropagation(); setLightboxPhoto({ photos: climbPhotos.map(p => ({ src: p.photo, grade: p.grade, name: p.name, colorId: p.color })), idx: safeIdx }); }}
-                style={{ width: "100%", height: 220, objectFit: "cover", display: "block", cursor: "pointer" }}
+                style={{ width: "100%", height: 220, objectFit: "cover", display: "block", cursor: "pointer", opacity: photoVisible ? 1 : 0, transition: "opacity 0.13s ease" }}
               />
-              <div style={{ position: "absolute", bottom: climbPhotos.length > 1 ? 30 : 10, left: 12, display: "flex", alignItems: "center", gap: 6 }}>
+              {/* Gradient overlay */}
+              <div style={{ position: "absolute", bottom: 0, left: 0, right: 0, height: 90, background: "linear-gradient(to top, rgba(0,0,0,0.6) 0%, transparent 100%)", pointerEvents: "none" }} />
+              {/* Tap zones for prev/next */}
+              {climbPhotos.length > 1 && safeIdx > 0 && (
+                <button onClick={e => { e.stopPropagation(); switchPhoto(safeIdx - 1); }} style={{ position: "absolute", left: 0, top: 0, bottom: 0, width: "28%", background: "transparent", border: "none", cursor: "pointer" }} />
+              )}
+              {climbPhotos.length > 1 && safeIdx < climbPhotos.length - 1 && (
+                <button onClick={e => { e.stopPropagation(); switchPhoto(safeIdx + 1); }} style={{ position: "absolute", right: 0, top: 0, bottom: 0, width: "28%", background: "transparent", border: "none", cursor: "pointer" }} />
+              )}
+              {/* Grade / name badges */}
+              <div style={{ position: "absolute", bottom: climbPhotos.length > 1 ? 30 : 10, left: 12, display: "flex", alignItems: "center", gap: 6, pointerEvents: "none" }}>
                 <div style={{ background: getGradeColor(photo.grade) + "ee", borderRadius: 6, padding: "2px 8px", fontSize: 12, fontWeight: 800, color: "#fff" }}>{photo.grade}</div>
                 {colorHex && <div style={{ width: 14, height: 14, borderRadius: "50%", background: colorHex, border: "2px solid rgba(255,255,255,0.85)", boxShadow: "0 1px 3px rgba(0,0,0,0.5)" }} />}
                 {photo.name && <div style={{ background: "rgba(0,0,0,0.45)", borderRadius: 6, padding: "2px 8px", fontSize: 11, color: "rgba(255,255,255,0.9)", fontWeight: 600 }}>{photo.name}</div>}
               </div>
               {climbPhotos.length > 1 && (
-                <div style={{ position: "absolute", top: 10, right: 10, background: "rgba(0,0,0,0.45)", borderRadius: 10, padding: "2px 8px", fontSize: 11, color: "rgba(255,255,255,0.9)", fontWeight: 600 }}>{safeIdx + 1}/{climbPhotos.length}</div>
+                <div style={{ position: "absolute", top: 10, right: 10, background: "rgba(0,0,0,0.45)", borderRadius: 10, padding: "2px 8px", fontSize: 11, color: "rgba(255,255,255,0.9)", fontWeight: 600, pointerEvents: "none" }}>{safeIdx + 1}/{climbPhotos.length}</div>
               )}
               {climbPhotos.length > 1 && (
                 <div style={{ position: "absolute", bottom: 8, left: 0, right: 0, display: "flex", justifyContent: "center", gap: 5 }}>
                   {climbPhotos.map((_, i) => (
-                    <div key={i} onClick={e => { e.stopPropagation(); setPhotoIdx(i); }} style={{ width: i === safeIdx ? 16 : 6, height: 6, borderRadius: 3, background: i === safeIdx ? "#fff" : "rgba(255,255,255,0.4)", cursor: "pointer" }} />
+                    <div key={i} onClick={e => { e.stopPropagation(); switchPhoto(i); }} style={{ width: i === safeIdx ? 16 : 6, height: 6, borderRadius: 3, background: i === safeIdx ? "#fff" : "rgba(255,255,255,0.4)", cursor: "pointer" }} />
                   ))}
                 </div>
               )}
@@ -1855,8 +1878,8 @@ export default function App() {
         })()}
         {/* Stats row */}
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", borderBottom: `1px solid ${W.border}` }}>
-          {[{ icon: "🧗", label: "Sends", value: `${stats.sends}/${stats.total}` }, { icon: "🔁", label: "Tries", value: stats.totalTries }, { icon: "⚡", label: "Flashes", value: stats.flashes }, { icon: "📊", label: "Avg", value: stats.avgTries }].map((s, i) => (
-            <div key={s.label} style={{ padding: "10px 6px", textAlign: "center", borderRight: i < 3 ? `1px solid ${W.border}` : "none" }}>
+          {[{ label: "Sends", value: `${stats.sends}/${stats.total}` }, { label: "Tries", value: stats.totalTries }, { label: "Flashes", value: stats.flashes }, { label: "Avg", value: stats.avgTries }].map((s, i) => (
+            <div key={s.label} onClick={() => { setSessionReadOnly(false); setSelectedSession(session); setScreen("sessionDetail"); }} style={{ padding: "10px 6px", textAlign: "center", borderRight: i < 3 ? `1px solid ${W.border}` : "none", cursor: "pointer" }}>
               <div style={{ fontSize: 18, fontWeight: 900, color: W.text }}>{s.value}</div>
               <div style={{ fontSize: 10, color: W.textDim, marginTop: 1 }}>{s.label}</div>
             </div>
