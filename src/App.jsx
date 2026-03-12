@@ -413,7 +413,8 @@ export default function App() {
       setCurrentUser(user);
       setSessions(userData.sessions);
       setProjects(userData.projects);
-      setAuthScreen("themeSelect");
+      setShowOnboarding(true);
+      setAuthScreen("app");
     } catch (e) {
       setAuthError("Something went wrong. Please try again.");
     }
@@ -1393,57 +1394,6 @@ export default function App() {
           <div style={{ fontSize: 52, marginBottom: 16 }}>🧗</div>
           <div style={{ fontSize: 22, fontWeight: 800, color: W.text }}>SendLog</div>
           <div style={{ marginTop: 20, color: W.textMuted, fontSize: 14 }}>Loading…</div>
-        </div>
-      </div>
-    );
-  }
-
-  if (authScreen === "themeSelect") {
-    const themes = [
-      { id: "espresso", label: "Espresso", icon: "☕",  desc: "Dark warm" },
-      { id: "alpine",   label: "Alpine",   icon: "🏔",  desc: "Light natural" },
-      { id: "chalk",    label: "Chalk",    icon: "🎨",  desc: "Warm bright" },
-      { id: "neon",     label: "Neon",     icon: "⚡",  desc: "Black + cyan" },
-      { id: "midnight", label: "Midnight", icon: "🌙",  desc: "Dark navy" },
-      { id: "ember",    label: "Ember",    icon: "🔥",  desc: "Dark amber" },
-      { id: "abyss",    label: "Abyss",    icon: "🔵",  desc: "Black + blue" },
-      { id: "forest",   label: "Forest",   icon: "🌲",  desc: "Dark green" },
-      { id: "dusk",     label: "Dusk",     icon: "🌆",  desc: "Dark purple" },
-      { id: "blossom",  label: "Blossom",  icon: "🌸",  desc: "Pink light" },
-      { id: "sakura",   label: "Sakura",   icon: "🌺",  desc: "Dark pink" },
-      { id: "slate",    label: "Slate",    icon: "🩶",  desc: "Cool gray" },
-      { id: "crimson",  label: "Crimson",  icon: "🩸",  desc: "Dark red" },
-    ];
-    return (
-      <div style={{ width: "100%", minHeight: "100vh", background: W.bg, fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif", display: "flex", justifyContent: "center" }}>
-        <div style={{ width: "100%", maxWidth: 420, padding: "48px 24px 40px" }}>
-          <div style={{ textAlign: "center", marginBottom: 32 }}>
-            <div style={{ fontSize: 48, marginBottom: 12 }}>🎨</div>
-            <div style={{ fontSize: 24, fontWeight: 900, color: W.text, marginBottom: 8 }}>Choose Your Theme</div>
-            <div style={{ fontSize: 14, color: W.textMuted }}>Pick a look that feels like you — you can change it anytime in settings.</div>
-          </div>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 10, marginBottom: 28 }}>
-            {themes.map(t => {
-              const themeW = THEMES[t.id];
-              const isSelected = colorTheme === t.id;
-              return (
-                <button key={t.id} onClick={() => setColorTheme(t.id)} style={{ padding: "14px 8px", borderRadius: 16, border: `2px solid`, borderColor: isSelected ? W.accent : W.border, background: isSelected ? W.accent + "22" : W.surface, cursor: "pointer", textAlign: "center", position: "relative", overflow: "hidden" }}>
-                  {isSelected && <div style={{ position: "absolute", top: 6, right: 8, fontSize: 11, fontWeight: 900, color: W.accent }}>✓</div>}
-                  <div style={{ display: "flex", gap: 3, justifyContent: "center", marginBottom: 8 }}>
-                    <div style={{ width: 14, height: 14, borderRadius: "50%", background: themeW.accent }} />
-                    <div style={{ width: 14, height: 14, borderRadius: "50%", background: themeW.surface2 }} />
-                    <div style={{ width: 14, height: 14, borderRadius: "50%", background: themeW.green }} />
-                  </div>
-                  <div style={{ fontSize: 20, marginBottom: 4 }}>{t.icon}</div>
-                  <div style={{ fontWeight: 700, fontSize: 12, color: isSelected ? W.accent : W.text }}>{t.label}</div>
-                  <div style={{ fontSize: 10, color: W.textMuted, marginTop: 2, opacity: 0.8 }}>{t.desc}</div>
-                </button>
-              );
-            })}
-          </div>
-          <button onClick={() => { setShowOnboarding(true); setAuthScreen("app"); }} style={{ width: "100%", padding: "16px", background: `linear-gradient(135deg, ${W.accent}, ${W.accentDark})`, border: "none", borderRadius: 16, color: "#fff", fontSize: 17, fontWeight: 800, cursor: "pointer", boxShadow: `0 4px 20px ${W.accentGlow}` }}>
-            Continue →
-          </button>
         </div>
       </div>
     );
@@ -4059,7 +4009,7 @@ export default function App() {
             <div style={{ fontSize: 26, fontWeight: 900, color: W.text, marginBottom: 6 }}>Welcome to SendLog!</div>
             <div style={{ fontSize: 14, color: W.textMuted }}>Let's set up your preferences</div>
             <div style={{ display: "flex", justifyContent: "center", gap: 6, marginTop: 16 }}>
-              {[0, 1, 2].map(i => <div key={i} style={{ width: onboardingStep === i ? 20 : 8, height: 8, borderRadius: 4, background: onboardingStep === i ? W.accent : W.border, transition: "width 0.2s" }} />)}
+              {[0, 1, 2, 3].map(i => <div key={i} style={{ width: onboardingStep === i ? 20 : 8, height: 8, borderRadius: 4, background: onboardingStep === i ? W.accent : W.border, transition: "width 0.2s" }} />)}
             </div>
             <button onClick={() => setShowOnboarding(false)} style={{ marginTop: 12, background: "none", border: "none", color: W.textDim, fontSize: 12, cursor: "pointer", textDecoration: "underline" }}>Skip setup</button>
           </div>
@@ -4072,6 +4022,19 @@ export default function App() {
                   {s === "V-Scale" ? "V-Scale — V0, V1, V2…" : s === "French" ? "French — 4a, 5b, 6c…" : "Custom — your own system"}
                 </button>
               ))}
+              {preferredScale === "Custom" && (
+                <div style={{ marginTop: 4, marginBottom: 8, background: W.surface2, borderRadius: 14, padding: "14px 16px", border: `1.5px solid ${W.border}` }}>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: W.text, marginBottom: 8 }}>Name your scale</div>
+                  <input value={customBoulderScaleName} onChange={e => setCustomBoulderScaleName(e.target.value || "Custom")} placeholder="e.g. My Gym Scale" style={{ width: "100%", padding: "9px 12px", background: W.surface, border: `1.5px solid ${W.border}`, borderRadius: 10, color: W.text, fontSize: 13, fontFamily: "inherit", boxSizing: "border-box", marginBottom: 12 }} />
+                  <div style={{ fontSize: 13, fontWeight: 700, color: W.text, marginBottom: 6 }}>Grade levels <span style={{ color: W.textDim, fontWeight: 400 }}>(easiest → hardest, one per line or comma-separated)</span></div>
+                  <textarea value={customBoulderInput} onChange={e => { setCustomBoulderInput(e.target.value); setCustomBoulderGrades(e.target.value.split(/[\n,]+/).map(g => g.trim()).filter(Boolean)); }} placeholder={"e.g.\nEasy\nMedium\nHard\nProject"} rows={4} style={{ width: "100%", padding: "9px 12px", background: W.surface, border: `1.5px solid ${W.border}`, borderRadius: 10, color: W.text, fontSize: 13, fontFamily: "inherit", boxSizing: "border-box", resize: "vertical" }} />
+                  {customBoulderGrades.length > 0 && (
+                    <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 10 }}>
+                      {customBoulderGrades.map((g, i) => <span key={i} style={{ background: W.surface, border: `1px solid ${W.border}`, borderRadius: 8, padding: "3px 10px", fontSize: 12, color: W.text, fontWeight: 600 }}>{g}</span>)}
+                    </div>
+                  )}
+                </div>
+              )}
               <button onClick={() => setOnboardingStep(1)} style={{ width: "100%", padding: "14px", background: `linear-gradient(135deg, ${W.accent}, ${W.accentDark})`, border: "none", borderRadius: 14, color: "#fff", fontWeight: 800, fontSize: 15, cursor: "pointer", marginTop: 8 }}>Next →</button>
             </div>
           )}
@@ -4106,14 +4069,60 @@ export default function App() {
               {onboardingGyms.length === 0 && <div style={{ color: W.textDim, fontSize: 13, marginBottom: 12 }}>Add gyms in the previous step to select a main gym.</div>}
               <div style={{ display: "flex", gap: 10, marginTop: 8 }}>
                 <button onClick={() => setOnboardingStep(1)} style={{ flex: 1, padding: "13px", background: "transparent", border: `1.5px solid ${W.border}`, borderRadius: 14, color: W.textMuted, fontWeight: 700, cursor: "pointer" }}>← Back</button>
-                <button onClick={() => { if (onboardingGyms.length > 0) setCustomLocations(prev => [...new Set([...prev, ...onboardingGyms])]); setShowOnboarding(false); }} style={{ flex: 2, padding: "13px", background: `linear-gradient(135deg, ${W.accent}, ${W.accentDark})`, border: "none", borderRadius: 14, color: "#fff", fontWeight: 800, fontSize: 15, cursor: "pointer" }}>Let's Climb! 🎉</button>
+                <button onClick={() => { if (onboardingGyms.length > 0) setCustomLocations(prev => [...new Set([...prev, ...onboardingGyms])]); setOnboardingStep(3); }} style={{ flex: 2, padding: "13px", background: `linear-gradient(135deg, ${W.accent}, ${W.accentDark})`, border: "none", borderRadius: 14, color: "#fff", fontWeight: 800, fontSize: 15, cursor: "pointer" }}>Next →</button>
               </div>
             </div>
           )}
+          {onboardingStep === 3 && (() => {
+            const themes = [
+              { id: "espresso", label: "Espresso", icon: "☕",  desc: "Dark warm" },
+              { id: "alpine",   label: "Alpine",   icon: "🏔",  desc: "Light natural" },
+              { id: "chalk",    label: "Chalk",    icon: "🎨",  desc: "Warm bright" },
+              { id: "neon",     label: "Neon",     icon: "⚡",  desc: "Black + cyan" },
+              { id: "midnight", label: "Midnight", icon: "🌙",  desc: "Dark navy" },
+              { id: "ember",    label: "Ember",    icon: "🔥",  desc: "Dark amber" },
+              { id: "abyss",    label: "Abyss",    icon: "🔵",  desc: "Black + blue" },
+              { id: "forest",   label: "Forest",   icon: "🌲",  desc: "Dark green" },
+              { id: "dusk",     label: "Dusk",     icon: "🌆",  desc: "Dark purple" },
+              { id: "blossom",  label: "Blossom",  icon: "🌸",  desc: "Pink light" },
+              { id: "sakura",   label: "Sakura",   icon: "🌺",  desc: "Dark pink" },
+              { id: "slate",    label: "Slate",    icon: "🩶",  desc: "Cool gray" },
+              { id: "crimson",  label: "Crimson",  icon: "🩸",  desc: "Dark red" },
+            ];
+            return (
+              <div>
+                <div style={{ fontSize: 16, fontWeight: 800, color: W.text, marginBottom: 6 }}>Choose your theme</div>
+                <div style={{ fontSize: 13, color: W.textMuted, marginBottom: 16 }}>Pick a look that feels like you — change it anytime in settings.</div>
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 8, marginBottom: 16 }}>
+                  {themes.map(t => {
+                    const themeW = THEMES[t.id];
+                    const isSelected = colorTheme === t.id;
+                    return (
+                      <button key={t.id} onClick={() => setColorTheme(t.id)} style={{ padding: "12px 6px", borderRadius: 14, border: `2px solid`, borderColor: isSelected ? W.accent : W.border, background: isSelected ? W.accent + "22" : W.surface, cursor: "pointer", textAlign: "center", position: "relative", overflow: "hidden" }}>
+                        {isSelected && <div style={{ position: "absolute", top: 5, right: 7, fontSize: 10, fontWeight: 900, color: W.accent }}>✓</div>}
+                        <div style={{ display: "flex", gap: 3, justifyContent: "center", marginBottom: 6 }}>
+                          <div style={{ width: 12, height: 12, borderRadius: "50%", background: themeW.accent }} />
+                          <div style={{ width: 12, height: 12, borderRadius: "50%", background: themeW.surface2 }} />
+                          <div style={{ width: 12, height: 12, borderRadius: "50%", background: themeW.green }} />
+                        </div>
+                        <div style={{ fontSize: 18, marginBottom: 3 }}>{t.icon}</div>
+                        <div style={{ fontWeight: 700, fontSize: 11, color: isSelected ? W.accent : W.text }}>{t.label}</div>
+                        <div style={{ fontSize: 9, color: W.textMuted, marginTop: 1, opacity: 0.8 }}>{t.desc}</div>
+                      </button>
+                    );
+                  })}
+                </div>
+                <div style={{ display: "flex", gap: 10 }}>
+                  <button onClick={() => setOnboardingStep(2)} style={{ flex: 1, padding: "13px", background: "transparent", border: `1.5px solid ${W.border}`, borderRadius: 14, color: W.textMuted, fontWeight: 700, cursor: "pointer" }}>← Back</button>
+                  <button onClick={() => setShowOnboarding(false)} style={{ flex: 2, padding: "13px", background: `linear-gradient(135deg, ${W.accent}, ${W.accentDark})`, border: "none", borderRadius: 14, color: "#fff", fontWeight: 800, fontSize: 15, cursor: "pointer" }}>Let's Climb! 🎉</button>
+                </div>
+              </div>
+            );
+          })()}
         </div>
       </div>
     )}
-    <div style={{ width: "100%", minHeight: "100vh", background: W.bg, fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif", display: "flex", justifyContent: "center" }}>
+    <div style={{ width: "100%", minHeight: "100vh", background: W.bg, fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif", display: "flex", justifyContent: "center", zoom: 1.1 }}>
     <div style={{ width: "100%", maxWidth: 420, display: "flex", flexDirection: "column" }}>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "14px 20px", borderBottom: `1px solid ${W.border}`, background: W.navBg }}>
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
