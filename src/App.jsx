@@ -1820,6 +1820,7 @@ export default function App() {
     const [photoIdx, setPhotoIdx] = useState(0);
     const [photoVisible, setPhotoVisible] = useState(true);
     const [selectedGradeSlice, setSelectedGradeSlice] = useState(null);
+    const [selectedTimeSlice, setSelectedTimeSlice]   = useState(null);
     const safeIdx = Math.min(photoIdx, climbPhotos.length - 1);
     const switchPhoto = (newIdx) => {
       if (newIdx === safeIdx) return;
@@ -1955,24 +1956,35 @@ export default function App() {
           if (typeCount >= 2) {
             // Multi-type: time breakdown pie
             const timeSlices = [
-              hasBoulder && boulderSec > 0 && { label: "🪨", value: boulderSec, color: W.greenDark },
-              hasRope    && ropeSec > 0    && { label: "🪢", value: ropeSec,    color: W.purpleDark },
-              hasSpeed   && speedSec > 0   && { label: "⚡", value: speedSec,   color: W.yellowDark },
+              hasBoulder && boulderSec > 0 && { label: "🪨 Boulder", value: boulderSec, color: W.greenDark },
+              hasRope    && ropeSec > 0    && { label: "🪢 Rope",    value: ropeSec,    color: W.purpleDark },
+              hasSpeed   && speedSec > 0   && { label: "⚡ Speed",   value: speedSec,   color: W.yellowDark },
             ].filter(Boolean);
             const paths = buildPie(timeSlices);
-            if (paths.length >= 2) rightPanel = (
-              <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 6, flexShrink: 0 }}>
-                <svg width={80} height={80} viewBox="0 0 80 80">{paths.map((s, i) => <path key={i} d={s.path} fill={s.color} />)}</svg>
-                <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
-                  {paths.map((s, i) => (
-                    <div key={i} style={{ display: "flex", alignItems: "center", gap: 4 }}>
-                      <div style={{ width: 8, height: 8, borderRadius: 2, background: s.color, flexShrink: 0 }} />
-                      <span style={{ fontSize: 10, color: W.textDim, fontVariantNumeric: "tabular-nums" }}>{s.label} {s.pct}%</span>
+            if (paths.length >= 2) {
+              const activeTimeLabel = selectedTimeSlice && paths.find(p => p.label === selectedTimeSlice) ? selectedTimeSlice : paths[0]?.label;
+              const activeTimeSlice = paths.find(p => p.label === activeTimeLabel) || paths[0];
+              rightPanel = (
+                <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 4, flexShrink: 0 }}>
+                  <svg width={110} height={110} viewBox="0 0 80 80" style={{ cursor: "pointer" }}>
+                    {paths.map((s, i) => (
+                      <path key={i} d={s.path} fill={s.color}
+                        style={{ opacity: s.label === activeTimeLabel ? 1 : 0.45, transition: "opacity 0.25s ease" }}
+                        onClick={e => { e.stopPropagation(); setSelectedTimeSlice(prev => prev === s.label ? null : s.label); }} />
+                    ))}
+                    {activeTimeSlice && (
+                      <text x="40" y="44" textAnchor="middle" fontSize="9" fontWeight="900" fill={W.text} pointerEvents="none">{activeTimeSlice.pct}%</text>
+                    )}
+                  </svg>
+                  {activeTimeSlice && (
+                    <div style={{ textAlign: "center" }}>
+                      <div style={{ fontSize: 13, fontWeight: 900, color: activeTimeSlice.color, lineHeight: 1 }}>{activeTimeSlice.label}</div>
+                      <div style={{ fontSize: 10, color: W.textDim, marginTop: 2 }}>{activeTimeSlice.pct}% · {formatDuration(activeTimeSlice.value)}</div>
                     </div>
-                  ))}
+                  )}
                 </div>
-              </div>
-            );
+              );
+            }
           } else if (typeCount === 1 && hasSpeed && !hasBoulder && !hasRope) {
             // Speed only: top times leaderboard
             const topTimes = stats.speedSessions.flatMap(ss => ss.attempts || []).filter(a => !a.fell && a.time != null).sort((a, b) => a.time - b.time).slice(0, 5);
@@ -2001,7 +2013,7 @@ export default function App() {
               const activeSlice = paths.find(p => p.label === activeLabel) || paths[0];
               rightPanel = (
                 <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 4, flexShrink: 0 }}>
-                  <svg width={80} height={80} viewBox="0 0 80 80" style={{ cursor: "pointer" }}>
+                  <svg width={110} height={110} viewBox="0 0 80 80" style={{ cursor: "pointer" }}>
                     {paths.map((s, i) => (
                       <path key={i} d={s.path} fill={s.color}
                         style={{ opacity: s.label === activeLabel ? 1 : 0.45, transition: "opacity 0.25s ease" }}
@@ -2549,7 +2561,7 @@ export default function App() {
           const activeSlice = paths.find(p => p.label === activeLabel) || paths[0];
           return (
             <div style={{ background: W.surface2, borderRadius: 16, padding: "16px", marginBottom: 16, border: `1px solid ${W.border}`, display: "flex", alignItems: "center", gap: 16 }}>
-              <svg width={90} height={90} viewBox="0 0 80 80" style={{ cursor: "pointer", flexShrink: 0 }}>
+              <svg width={110} height={110} viewBox="0 0 80 80" style={{ cursor: "pointer", flexShrink: 0 }}>
                 {paths.map((s, i) => (
                   <path key={i} d={s.path} fill={s.color}
                     style={{ opacity: s.label === activeLabel ? 1 : 0.45, transition: "opacity 0.25s ease" }}
