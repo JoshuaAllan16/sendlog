@@ -1781,6 +1781,39 @@ export default function App() {
   };
 
 
+  // Shared donut pie builder — returns slice paths + startAngle/endAngle/pct/total per slice
+  const buildPie = (slices) => {
+    const total = slices.reduce((s, r) => s + r.value, 0);
+    if (!total) return [];
+    let angle = -Math.PI / 2;
+    return slices.map(s => {
+      const startAngle = angle;
+      const a = (s.value / total) * 2 * Math.PI;
+      const end = angle + a;
+      const [r, ir, cx, cy] = [32, 18, 40, 40];
+      const x1 = cx+r*Math.cos(angle), y1 = cy+r*Math.sin(angle);
+      const x2 = cx+r*Math.cos(end),   y2 = cy+r*Math.sin(end);
+      const ix1 = cx+ir*Math.cos(angle), iy1 = cy+ir*Math.sin(angle);
+      const ix2 = cx+ir*Math.cos(end),   iy2 = cy+ir*Math.sin(end);
+      const large = a > Math.PI ? 1 : 0;
+      const path = `M ${ix1.toFixed(1)} ${iy1.toFixed(1)} L ${x1.toFixed(1)} ${y1.toFixed(1)} A ${r} ${r} 0 ${large} 1 ${x2.toFixed(1)} ${y2.toFixed(1)} L ${ix2.toFixed(1)} ${iy2.toFixed(1)} A ${ir} ${ir} 0 ${large} 0 ${ix1.toFixed(1)} ${iy1.toFixed(1)} Z`;
+      angle = end;
+      return { ...s, path, pct: Math.round((s.value / total) * 100), startAngle, endAngle: end, total };
+    });
+  };
+  // Build a send-ratio arc path at outer edge (r 27–32) for a grade slice
+  const makeSendArc = (startAngle, sendAngle) => {
+    if (sendAngle < 0.01) return null;
+    const [rO, rI, cx, cy] = [32, 27, 40, 40];
+    const end = startAngle + sendAngle;
+    const x1 = cx+rO*Math.cos(startAngle), y1 = cy+rO*Math.sin(startAngle);
+    const x2 = cx+rO*Math.cos(end),        y2 = cy+rO*Math.sin(end);
+    const ix1 = cx+rI*Math.cos(startAngle), iy1 = cy+rI*Math.sin(startAngle);
+    const ix2 = cx+rI*Math.cos(end),        iy2 = cy+rI*Math.sin(end);
+    const large = sendAngle > Math.PI ? 1 : 0;
+    return `M ${ix1.toFixed(1)} ${iy1.toFixed(1)} L ${x1.toFixed(1)} ${y1.toFixed(1)} A ${rO} ${rO} 0 ${large} 1 ${x2.toFixed(1)} ${y2.toFixed(1)} L ${ix2.toFixed(1)} ${iy2.toFixed(1)} A ${rI} ${rI} 0 ${large} 0 ${ix1.toFixed(1)} ${iy1.toFixed(1)} Z`;
+  };
+
   const LogbookSessionCard = ({ session, poster, onNavigate }) => {
     const stats = getSessionStats(session);
     const climbPhotos = session.climbs.filter(c => c.photo);
@@ -1917,25 +1950,6 @@ export default function App() {
           const hasRope    = ropeSec > 0 || session.climbs.some(c => c.climbType === "rope");
           const hasSpeed   = speedSec > 0 || stats.speedSessions.length > 0;
           const typeCount  = [hasBoulder, hasRope, hasSpeed].filter(Boolean).length;
-          // Shared donut builder
-          const buildPie = (slices) => {
-            const total = slices.reduce((s, r) => s + r.value, 0);
-            if (!total) return [];
-            let angle = -Math.PI / 2;
-            return slices.map(s => {
-              const a = (s.value / total) * 2 * Math.PI;
-              const end = angle + a;
-              const [r, ir, cx, cy] = [32, 18, 40, 40];
-              const x1 = cx+r*Math.cos(angle), y1 = cy+r*Math.sin(angle);
-              const x2 = cx+r*Math.cos(end),   y2 = cy+r*Math.sin(end);
-              const ix1 = cx+ir*Math.cos(angle), iy1 = cy+ir*Math.sin(angle);
-              const ix2 = cx+ir*Math.cos(end),   iy2 = cy+ir*Math.sin(end);
-              const large = a > Math.PI ? 1 : 0;
-              const path = `M ${ix1.toFixed(1)} ${iy1.toFixed(1)} L ${x1.toFixed(1)} ${y1.toFixed(1)} A ${r} ${r} 0 ${large} 1 ${x2.toFixed(1)} ${y2.toFixed(1)} L ${ix2.toFixed(1)} ${iy2.toFixed(1)} A ${ir} ${ir} 0 ${large} 0 ${ix1.toFixed(1)} ${iy1.toFixed(1)} Z`;
-              angle = end;
-              return { ...s, path, pct: Math.round((s.value / total) * 100) };
-            });
-          };
           // Build right panel based on session type mix
           let rightPanel = null;
           if (typeCount >= 2) {
@@ -1979,23 +1993,31 @@ export default function App() {
             // Single climb type: grade breakdown pie — sort by tries desc (handles custom scales)
             const gradeEntries = Object.entries(stats.gradeBreakdown).sort((a, b) => b[1].tries - a[1].tries);
             if (gradeEntries.length >= 2) {
-              const gradeSlices = gradeEntries.map(([grade, data]) => ({ label: grade, value: data.tries, color: getGradeColor(grade) }));
+              const gradeSlices = gradeEntries.map(([grade, data]) => ({ label: grade, value: data.tries, completed: data.completed || 0, color: getGradeColor(grade) }));
               const paths = buildPie(gradeSlices);
-              // default to largest slice (index 0 after sort-by-tries-desc)
+              const totalTries = paths[0]?.total || 0;
+              // default to largest slice (index 0); null = deselected → show largest
               const activeLabel = selectedGradeSlice && paths.find(p => p.label === selectedGradeSlice) ? selectedGradeSlice : paths[0]?.label;
               const activeSlice = paths.find(p => p.label === activeLabel) || paths[0];
               rightPanel = (
                 <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 4, flexShrink: 0 }}>
                   <svg width={80} height={80} viewBox="0 0 80 80" style={{ cursor: "pointer" }}>
                     {paths.map((s, i) => (
-                      <path key={i} d={s.path} fill={s.color} opacity={s.label === activeLabel ? 1 : 0.45}
-                        onClick={e => { e.stopPropagation(); setSelectedGradeSlice(s.label); }} />
+                      <path key={i} d={s.path} fill={s.color}
+                        style={{ opacity: s.label === activeLabel ? 1 : 0.45, transition: "opacity 0.25s ease" }}
+                        onClick={e => { e.stopPropagation(); setSelectedGradeSlice(prev => prev === s.label ? null : s.label); }} />
                     ))}
+                    {paths.map((s, i) => {
+                      const sendAngle = s.value > 0 ? ((s.completed / s.value) * (s.endAngle - s.startAngle)) : 0;
+                      const arcPath = makeSendArc(s.startAngle, sendAngle);
+                      return arcPath ? <path key={`sa${i}`} d={arcPath} fill="#22c55e" pointerEvents="none" /> : null;
+                    })}
+                    <text x="40" y="44" textAnchor="middle" fontSize="10" fontWeight="900" fill={W.text} pointerEvents="none">{totalTries}</text>
                   </svg>
                   {activeSlice && (
                     <div style={{ textAlign: "center" }}>
                       <div style={{ fontSize: 13, fontWeight: 900, color: activeSlice.color, lineHeight: 1 }}>{activeSlice.label}</div>
-                      <div style={{ fontSize: 10, color: W.textDim, marginTop: 2 }}>{activeSlice.pct}% · {activeSlice.value} tries</div>
+                      <div style={{ fontSize: 10, color: W.textDim, marginTop: 2 }}>{activeSlice.pct}% · {activeSlice.value} tries · {activeSlice.completed} sends</div>
                     </div>
                   )}
                 </div>
@@ -2470,7 +2492,8 @@ export default function App() {
     const [editingLocation, setEditingLocation] = useState(false);
     const [locationVal, setLocationVal]         = useState(session.location);
     const [locDropOpen, setLocDropOpen]         = useState(false);
-    const [confirmDelete, setConfirmDelete]     = useState(false);
+    const [confirmDelete, setConfirmDelete]           = useState(false);
+    const [selectedDetailGradeSlice, setSelectedDetailGradeSlice] = useState(null);
     const stats = getSessionStats(session);
     const saveLocation = () => { setSessions(prev => prev.map(s => s.id === session.id ? { ...s, location: locationVal } : s)); setSelectedSession(s => ({ ...s, location: locationVal })); setEditingLocation(false); };
     return (
@@ -2513,6 +2536,43 @@ export default function App() {
             </div>
           ))}
         </div>
+        {(() => {
+          const hasBoulder = session.climbs.some(c => c.climbType !== "rope" && c.climbType !== "speed-session");
+          const hasRope    = session.climbs.some(c => c.climbType === "rope");
+          if (!(hasBoulder || hasRope)) return null;
+          const gradeEntries = Object.entries(stats.gradeBreakdown).sort((a, b) => b[1].tries - a[1].tries);
+          if (gradeEntries.length < 2) return null;
+          const gradeSlices = gradeEntries.map(([grade, data]) => ({ label: grade, value: data.tries, completed: data.completed || 0, color: getGradeColor(grade) }));
+          const paths = buildPie(gradeSlices);
+          const totalTries = paths[0]?.total || 0;
+          const activeLabel = selectedDetailGradeSlice && paths.find(p => p.label === selectedDetailGradeSlice) ? selectedDetailGradeSlice : paths[0]?.label;
+          const activeSlice = paths.find(p => p.label === activeLabel) || paths[0];
+          return (
+            <div style={{ background: W.surface2, borderRadius: 16, padding: "16px", marginBottom: 16, border: `1px solid ${W.border}`, display: "flex", alignItems: "center", gap: 16 }}>
+              <svg width={90} height={90} viewBox="0 0 80 80" style={{ cursor: "pointer", flexShrink: 0 }}>
+                {paths.map((s, i) => (
+                  <path key={i} d={s.path} fill={s.color}
+                    style={{ opacity: s.label === activeLabel ? 1 : 0.45, transition: "opacity 0.25s ease" }}
+                    onClick={() => setSelectedDetailGradeSlice(prev => prev === s.label ? null : s.label)} />
+                ))}
+                {paths.map((s, i) => {
+                  const sendAngle = s.value > 0 ? ((s.completed / s.value) * (s.endAngle - s.startAngle)) : 0;
+                  const arcPath = makeSendArc(s.startAngle, sendAngle);
+                  return arcPath ? <path key={`sa${i}`} d={arcPath} fill="#22c55e" pointerEvents="none" /> : null;
+                })}
+                <text x="40" y="44" textAnchor="middle" fontSize="10" fontWeight="900" fill={W.text} pointerEvents="none">{totalTries}</text>
+              </svg>
+              {activeSlice && (
+                <div>
+                  <div style={{ fontSize: 9, fontWeight: 700, color: W.textDim, textTransform: "uppercase", letterSpacing: 0.8, marginBottom: 4 }}>Grade Breakdown</div>
+                  <div style={{ fontSize: 20, fontWeight: 900, color: activeSlice.color, lineHeight: 1 }}>{activeSlice.label}</div>
+                  <div style={{ fontSize: 12, color: W.textMuted, marginTop: 4 }}>{activeSlice.pct}% · {activeSlice.value} tries · {activeSlice.completed} sends</div>
+                  <div style={{ fontSize: 10, color: W.textDim, marginTop: 6 }}>Tap a slice to explore</div>
+                </div>
+              )}
+            </div>
+          );
+        })()}
         <div style={{ fontSize: 13, fontWeight: 700, color: W.textMuted, textTransform: "uppercase", letterSpacing: 1, marginBottom: 10 }}>Climbs</div>
         {!readOnly && showClimbForm && editingClimbId ? (
           <ClimbFormPanel onSave={() => saveClimbToFinishedSession(session.id)} onCancel={() => { setShowClimbForm(false); setEditingClimbId(null); setEditingSessionId(null); }} />
