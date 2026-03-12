@@ -202,6 +202,13 @@ export const SessionSummaryScreen = ({
             <div style={{ fontSize: 11, color: W.textMuted, marginTop: 2 }}>{s.label}</div>
           </div>
         ))}
+        {stats.totalPauses > 0 && (
+          <div style={{ background: W.yellow, borderRadius: 14, padding: "14px", border: `1px solid ${W.border}` }}>
+            <div style={{ fontSize: 20, marginBottom: 4 }}>⏸</div>
+            <div style={{ fontSize: 20, fontWeight: 800, color: W.yellowDark }}>{stats.totalPauses}</div>
+            <div style={{ fontSize: 11, color: W.textMuted, marginTop: 2 }}>Boulder Pauses</div>
+          </div>
+        )}
         {hasRestData && [
           { icon: "⏸", label: "Avg Rest", value: formatRestSec(stats.avgAttemptRest), sub: "between climbs", bg: W.surface2, tc: W.accentDark },
           { icon: "🐢", label: "Longest Rest", value: formatRestSec(stats.maxAttemptRest), sub: "single gap", bg: W.purple, tc: W.purpleDark },

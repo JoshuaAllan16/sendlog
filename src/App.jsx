@@ -735,9 +735,9 @@ export default function App() {
         if (c.id !== id) return c;
         if (c.climbingStartedAt) {
           // Pause during active attempt — bank elapsed time into pausedWorkedMs
-          return { ...c, paused: true, climbingStartedAt: null, pausedWorkedMs: (c.pausedWorkedMs || 0) + (now - c.climbingStartedAt) };
+          return { ...c, paused: true, climbingStartedAt: null, pausedWorkedMs: (c.pausedWorkedMs || 0) + (now - c.climbingStartedAt), pauseCount: (c.pauseCount || 0) + 1 };
         }
-        return { ...c, paused: true };
+        return { ...c, paused: true, pauseCount: (c.pauseCount || 0) + 1 };
       }),
     };
   });
@@ -1039,7 +1039,8 @@ export default function App() {
     const speedSessions = session.climbs.filter(c => c.climbType === "speed-session");
     const speedAttempts = speedSessions.flatMap(s => s.attempts || []).filter(a => !a.fell && a.time != null);
     const speedBest = speedAttempts.length ? Math.min(...speedAttempts.map(a => a.time)) : null;
-    return { sends, total, totalTries, flashes, flashRate, avgTries, gradeBreakdown, hardestAttempted, hardestSent, avgAttemptRest, maxAttemptRest, minAttemptRest, speedSessions, speedBest };
+    const totalPauses = climbs.filter(c => c.climbType !== "rope").reduce((s, c) => s + (c.pauseCount || 0), 0);
+    return { sends, total, totalTries, flashes, flashRate, avgTries, gradeBreakdown, hardestAttempted, hardestSent, avgAttemptRest, maxAttemptRest, minAttemptRest, speedSessions, speedBest, totalPauses };
   };
 
   // ── SOCIAL HELPERS ─────────────────────────────────────────
