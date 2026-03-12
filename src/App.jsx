@@ -1777,30 +1777,31 @@ export default function App() {
 
   const LogbookSessionCard = ({ session, poster, onNavigate }) => {
     const stats = getSessionStats(session);
-    const gradeEntries = Object.entries(stats.gradeBreakdown).sort((a, b) => getGradeIndex(b[0], b[1].scale || "V-Scale") - getGradeIndex(a[0], a[1].scale || "V-Scale"));
-    const barMax = gradeEntries.reduce((m, [, v]) => Math.max(m, v.tries), 0);
     const climbPhotos = session.climbs.filter(c => c.photo);
     return (
       <div style={{ background: W.surface, borderRadius: 18, border: `2px solid ${W.accent}40`, marginBottom: 16, overflow: "hidden", boxShadow: `0 2px 12px ${W.accentGlow}` }}>
         {/* Posted-by row (only in feed) */}
         {poster && (
-          <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 16px", borderBottom: `1px solid ${W.border}`, background: W.surface2 }}>
-            {poster.profilePic
-              ? <img src={poster.profilePic} style={{ width: 24, height: 24, borderRadius: 7, objectFit: "cover", flexShrink: 0 }} />
-              : <div style={{ width: 24, height: 24, borderRadius: 7, background: `linear-gradient(135deg, ${W.accent}, ${W.accentDark})`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, flexShrink: 0 }}>🧗</div>
-            }
-            <span style={{ fontWeight: 700, color: W.accent, fontSize: 13 }}>{poster.displayName}</span>
-            <span style={{ color: W.textDim, fontSize: 12 }}>@{poster.username}</span>
+          <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 16px", borderBottom: `1px solid ${W.border}`, background: W.surface2 }}>
+            <div onClick={() => poster.username !== currentUser?.username && openUserProfile(poster.username, poster.displayName, "home")} style={{ cursor: poster.username !== currentUser?.username ? "pointer" : "default", display: "flex", alignItems: "center", gap: 10 }}>
+              {poster.profilePic
+                ? <img src={poster.profilePic} style={{ width: 40, height: 40, borderRadius: 11, objectFit: "cover", flexShrink: 0 }} />
+                : <div style={{ width: 40, height: 40, borderRadius: 11, background: `linear-gradient(135deg, ${W.accent}, ${W.accentDark})`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18, flexShrink: 0 }}>🧗</div>
+              }
+              <span style={{ fontWeight: 800, color: W.accent, fontSize: 16 }}>{poster.displayName}</span>
+            </div>
           </div>
         )}
         {/* Header */}
         <div onClick={onNavigate || (() => { setSessionReadOnly(false); setSelectedSession(session); setScreen("sessionDetail"); })} style={{ padding: "14px 16px", cursor: "pointer", borderBottom: `1px solid ${W.border}`, display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
           <div>
-            <div style={{ fontWeight: 900, fontSize: 17, color: W.text }}>{formatDate(session.date)}</div>
-            <div style={{ fontSize: 14, fontWeight: 700, color: W.textMuted, marginTop: 2 }}>📍 {session.location}</div>
-            <div style={{ fontSize: 11, color: W.textDim, marginTop: 1 }}>⏱ {formatDuration(session.duration)}</div>
+            <div style={{ fontWeight: 900, fontSize: 17, color: W.text }}>📍 {session.location}</div>
+            <div style={{ fontSize: 11, color: W.textDim, marginTop: 2 }}>⏱ {formatDuration(session.duration)}</div>
           </div>
-          <div style={{ color: W.accent, fontSize: 13, fontWeight: 700 }}>Details ›</div>
+          <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 5 }}>
+            <div style={{ fontSize: 12, color: W.textDim, fontWeight: 600 }}>{formatDate(session.date)}</div>
+            <div style={{ color: W.accent, fontSize: 13, fontWeight: 700 }}>Details ›</div>
+          </div>
         </div>
         {/* Photos strip */}
         {climbPhotos.length > 0 && (
@@ -1809,39 +1810,12 @@ export default function App() {
               const colorHex = CLIMB_COLORS.find(cc => cc.id === c.color)?.hex;
               return (
                 <div key={c.id} onClick={e => { e.stopPropagation(); setLightboxPhoto({ photos: climbPhotos.map(p => ({ src: p.photo, grade: p.grade, name: p.name, colorId: p.color })), idx: ci }); }} style={{ position: "relative", flexShrink: 0, cursor: "pointer" }}>
-                  <img src={c.photo} alt={c.name || c.grade} style={{ width: 72, height: 72, objectFit: "cover", borderRadius: 10, display: "block" }} />
+                  <img src={c.photo} alt={c.name || c.grade} style={{ width: 110, height: 110, objectFit: "cover", borderRadius: 10, display: "block" }} />
                   <div style={{ position: "absolute", bottom: 4, left: 4, background: getGradeColor(c.grade) + "ee", borderRadius: 5, padding: "1px 6px", fontSize: 10, fontWeight: 800, color: "#fff" }}>{c.grade}</div>
                   {colorHex && <div style={{ position: "absolute", bottom: 4, right: 4, width: 13, height: 13, borderRadius: "50%", background: colorHex, border: "2px solid rgba(255,255,255,0.85)", boxShadow: "0 1px 3px rgba(0,0,0,0.5)" }} />}
                 </div>
               );
             })}
-          </div>
-        )}
-        {/* Bar chart — attempts per grade */}
-        {gradeEntries.length > 0 && (
-          <div style={{ padding: "12px 16px", borderBottom: `1px solid ${W.border}` }}>
-            {gradeEntries.map(([grade, data]) => (
-              <div key={grade} style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 5 }}>
-                <div style={{ width: 28, fontSize: 11, fontWeight: 800, color: getGradeColor(grade), flexShrink: 0, textAlign: "right" }}>{grade}</div>
-                <div style={{ flex: 1, height: 14, background: W.surface2, borderRadius: 4, overflow: "hidden" }}>
-                  <div style={{ height: "100%", width: `${(data.tries / barMax) * 100}%`, borderRadius: 4, display: "flex", overflow: "hidden", minWidth: 4 }}>
-                    <div style={{ height: "100%", width: `${(data.completed / Math.max(data.attempted, 1)) * 100}%`, background: getGradeColor(grade), minWidth: data.completed > 0 ? 4 : 0 }} />
-                    <div style={{ height: "100%", flex: 1, background: getGradeColor(grade) + "44" }} />
-                  </div>
-                </div>
-                <div style={{ width: 32, fontSize: 11, fontWeight: 700, color: W.text, flexShrink: 0 }}>{data.completed}/{data.attempted}</div>
-              </div>
-            ))}
-            <div style={{ display: "flex", gap: 12, marginTop: 6, justifyContent: "flex-end" }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
-                <div style={{ width: 10, height: 10, borderRadius: 2, background: W.accent }} />
-                <span style={{ fontSize: 10, color: W.textDim }}>Sends</span>
-              </div>
-              <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
-                <div style={{ width: 10, height: 10, borderRadius: 2, background: W.textDim + "55" }} />
-                <span style={{ fontSize: 10, color: W.textDim }}>Attempts</span>
-              </div>
-            </div>
           </div>
         )}
         {/* Stats row */}
