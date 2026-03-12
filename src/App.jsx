@@ -4030,26 +4030,51 @@ export default function App() {
           </div>
           {onboardingStep === 0 && (
             <div>
-              <div style={{ fontSize: 16, fontWeight: 800, color: W.text, marginBottom: 6 }}>Boulder grading scale</div>
-              <div style={{ fontSize: 13, color: W.textMuted, marginBottom: 16 }}>Which grade system do you use for bouldering?</div>
+              <div style={{ fontSize: 16, fontWeight: 800, color: W.text, marginBottom: 4 }}>Grading scales</div>
+              <div style={{ fontSize: 13, color: W.textMuted, marginBottom: 16 }}>Choose the grade systems you use for bouldering and rope climbing.</div>
+
+              {/* Boulder */}
+              <div style={{ fontSize: 13, fontWeight: 700, color: W.accent, marginBottom: 8, textTransform: "uppercase", letterSpacing: 0.8 }}>🪨 Bouldering</div>
               {["V-Scale", "French", "Custom"].map(s => (
-                <button key={s} onClick={() => setPreferredScale(s)} style={{ display: "block", width: "100%", padding: "14px 16px", marginBottom: 10, borderRadius: 14, border: `2px solid ${preferredScale === s ? W.accent : W.border}`, background: preferredScale === s ? W.accent + "22" : W.surface, color: preferredScale === s ? W.accent : W.text, fontWeight: 700, fontSize: 15, cursor: "pointer", textAlign: "left" }}>
+                <button key={s} onClick={() => setPreferredScale(s)} style={{ display: "block", width: "100%", padding: "12px 16px", marginBottom: 8, borderRadius: 12, border: `2px solid ${preferredScale === s ? W.accent : W.border}`, background: preferredScale === s ? W.accent + "22" : W.surface, color: preferredScale === s ? W.accent : W.text, fontWeight: 700, fontSize: 14, cursor: "pointer", textAlign: "left" }}>
                   {s === "V-Scale" ? "V-Scale — V0, V1, V2…" : s === "French" ? "French — 4a, 5b, 6c…" : "Custom — your own system"}
                 </button>
               ))}
               {preferredScale === "Custom" && (
-                <div style={{ marginTop: 4, marginBottom: 8, background: W.surface2, borderRadius: 14, padding: "14px 16px", border: `1.5px solid ${W.border}` }}>
-                  <div style={{ fontSize: 13, fontWeight: 700, color: W.text, marginBottom: 8 }}>Name your scale</div>
-                  <input value={customBoulderScaleName} onChange={e => setCustomBoulderScaleName(e.target.value || "Custom")} placeholder="e.g. My Gym Scale" style={{ width: "100%", padding: "9px 12px", background: W.surface, border: `1.5px solid ${W.border}`, borderRadius: 10, color: W.text, fontSize: 13, fontFamily: "inherit", boxSizing: "border-box", marginBottom: 12 }} />
-                  <div style={{ fontSize: 13, fontWeight: 700, color: W.text, marginBottom: 6 }}>Grade levels <span style={{ color: W.textDim, fontWeight: 400 }}>(easiest → hardest, one per line or comma-separated)</span></div>
-                  <textarea value={customBoulderInput} onChange={e => { setCustomBoulderInput(e.target.value); setCustomBoulderGrades(e.target.value.split(/[\n,]+/).map(g => g.trim()).filter(Boolean)); }} placeholder={"e.g.\nEasy\nMedium\nHard\nProject"} rows={4} style={{ width: "100%", padding: "9px 12px", background: W.surface, border: `1.5px solid ${W.border}`, borderRadius: 10, color: W.text, fontSize: 13, fontFamily: "inherit", boxSizing: "border-box", resize: "vertical" }} />
+                <div style={{ marginBottom: 12, background: W.surface2, borderRadius: 12, padding: "12px 14px", border: `1.5px solid ${W.border}` }}>
+                  <div style={{ fontSize: 12, fontWeight: 700, color: W.text, marginBottom: 6 }}>Scale name</div>
+                  <input value={customBoulderScaleName} onChange={e => setCustomBoulderScaleName(e.target.value)} onBlur={e => { if (!e.target.value.trim()) setCustomBoulderScaleName("Custom"); }} placeholder="e.g. My Gym Scale" style={{ width: "100%", padding: "8px 11px", background: W.surface, border: `1.5px solid ${W.border}`, borderRadius: 9, color: W.text, fontSize: 13, fontFamily: "inherit", boxSizing: "border-box", marginBottom: 10 }} />
+                  <div style={{ fontSize: 12, fontWeight: 700, color: W.text, marginBottom: 5 }}>Grade levels <span style={{ color: W.textDim, fontWeight: 400 }}>(easiest → hardest, comma or newline separated)</span></div>
+                  <textarea value={customBoulderInput} onChange={e => { setCustomBoulderInput(e.target.value); setCustomBoulderGrades(e.target.value.split(/[\n,]+/).map(g => g.trim()).filter(Boolean)); }} placeholder={"Easy, Medium, Hard, Project"} rows={3} style={{ width: "100%", padding: "8px 11px", background: W.surface, border: `1.5px solid ${W.border}`, borderRadius: 9, color: W.text, fontSize: 13, fontFamily: "inherit", boxSizing: "border-box", resize: "vertical" }} />
                   {customBoulderGrades.length > 0 && (
-                    <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 10 }}>
-                      {customBoulderGrades.map((g, i) => <span key={i} style={{ background: W.surface, border: `1px solid ${W.border}`, borderRadius: 8, padding: "3px 10px", fontSize: 12, color: W.text, fontWeight: 600 }}>{g}</span>)}
+                    <div style={{ display: "flex", flexWrap: "wrap", gap: 5, marginTop: 8 }}>
+                      {customBoulderGrades.map((g, i) => <span key={i} style={{ background: W.surface, border: `1px solid ${W.border}`, borderRadius: 7, padding: "2px 9px", fontSize: 11, color: W.text, fontWeight: 600 }}>{g}</span>)}
                     </div>
                   )}
                 </div>
               )}
+
+              {/* Rope */}
+              <div style={{ fontSize: 13, fontWeight: 700, color: W.accent, marginBottom: 8, marginTop: 6, textTransform: "uppercase", letterSpacing: 0.8 }}>🧗 Rope Climbing</div>
+              {["French", "YDS", "Custom"].map(s => (
+                <button key={s} onClick={() => setPreferredRopeScale(s)} style={{ display: "block", width: "100%", padding: "12px 16px", marginBottom: 8, borderRadius: 12, border: `2px solid ${preferredRopeScale === s ? W.accent : W.border}`, background: preferredRopeScale === s ? W.accent + "22" : W.surface, color: preferredRopeScale === s ? W.accent : W.text, fontWeight: 700, fontSize: 14, cursor: "pointer", textAlign: "left" }}>
+                  {s === "French" ? "French — 6a, 6b+, 7a…" : s === "YDS" ? "YDS — 5.10a, 5.11c…" : "Custom — your own system"}
+                </button>
+              ))}
+              {preferredRopeScale === "Custom" && (
+                <div style={{ marginBottom: 12, background: W.surface2, borderRadius: 12, padding: "12px 14px", border: `1.5px solid ${W.border}` }}>
+                  <div style={{ fontSize: 12, fontWeight: 700, color: W.text, marginBottom: 6 }}>Scale name</div>
+                  <input value={customRopeScaleName} onChange={e => setCustomRopeScaleName(e.target.value)} onBlur={e => { if (!e.target.value.trim()) setCustomRopeScaleName("Custom"); }} placeholder="e.g. My Gym Rope Scale" style={{ width: "100%", padding: "8px 11px", background: W.surface, border: `1.5px solid ${W.border}`, borderRadius: 9, color: W.text, fontSize: 13, fontFamily: "inherit", boxSizing: "border-box", marginBottom: 10 }} />
+                  <div style={{ fontSize: 12, fontWeight: 700, color: W.text, marginBottom: 5 }}>Grade levels <span style={{ color: W.textDim, fontWeight: 400 }}>(easiest → hardest, comma or newline separated)</span></div>
+                  <textarea value={customRopeInput} onChange={e => { setCustomRopeInput(e.target.value); setCustomRopeGrades(e.target.value.split(/[\n,]+/).map(g => g.trim()).filter(Boolean)); }} placeholder={"Easy, Medium, Hard, Project"} rows={3} style={{ width: "100%", padding: "8px 11px", background: W.surface, border: `1.5px solid ${W.border}`, borderRadius: 9, color: W.text, fontSize: 13, fontFamily: "inherit", boxSizing: "border-box", resize: "vertical" }} />
+                  {customRopeGrades.length > 0 && (
+                    <div style={{ display: "flex", flexWrap: "wrap", gap: 5, marginTop: 8 }}>
+                      {customRopeGrades.map((g, i) => <span key={i} style={{ background: W.surface, border: `1px solid ${W.border}`, borderRadius: 7, padding: "2px 9px", fontSize: 11, color: W.text, fontWeight: 600 }}>{g}</span>)}
+                    </div>
+                  )}
+                </div>
+              )}
+
               <button onClick={() => setOnboardingStep(1)} style={{ width: "100%", padding: "14px", background: `linear-gradient(135deg, ${W.accent}, ${W.accentDark})`, border: "none", borderRadius: 14, color: "#fff", fontWeight: 800, fontSize: 15, cursor: "pointer", marginTop: 8 }}>Next →</button>
             </div>
           )}
