@@ -471,7 +471,13 @@ export default function App() {
       setPendingFollowRequests(safeData.profile?.pendingFollowRequests || []);
       storage.get(`followRequests:${username.toLowerCase()}`).then(r => setMyFollowRequests(r ? JSON.parse(r.value) : [])).catch(() => {});
       setAuthScreen("app");
-      tryRestoreClimbSession(username.toLowerCase());
+      // If session is still live in memory (user logged out and back in without closing browser)
+      // just navigate to it directly rather than re-reading localStorage
+      if (sessionStarted && activeSession) {
+        setScreen("session");
+      } else {
+        tryRestoreClimbSession(username.toLowerCase());
+      }
     } catch (e) {
       setAuthError("Something went wrong. Please try again.");
     }
@@ -479,6 +485,15 @@ export default function App() {
   };
 
   const handleLogout = async () => {
+    // Explicitly snapshot active session before clearing auth — survives page close after logout
+    if (sessionStarted && activeSession) {
+      localStorage.setItem("active:climb", JSON.stringify({
+        username: currentUser?.username,
+        activeSession, sessionActiveStart, sessionPausedSec,
+        sessionStarted: true, timerRunning, pendingLocation,
+        lastActivityAt: Date.now(),
+      }));
+    }
     try { await storage.delete("active:session"); } catch (e) {}
     setCurrentUser(null);
     setSessions([]);
