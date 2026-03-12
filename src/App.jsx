@@ -2059,8 +2059,7 @@ export default function App() {
       onEdit: openClimbForm, onStartClimbing: startClimbing, onEndAttempt: endClimbAttempt,
       onUpdateTries: updateActiveClimbTries, onToggleCompleted: toggleActiveClimbCompleted,
       onLogRope: logRopeAttempt, onRemove: removeClimbFromActive, onLightbox: setLightboxPhoto,
-      onPauseClimb: pauseClimb, onResumeClimb: resumeClimb, onStopClimb: stopBoulderClimb,
-      tick: sessionTimer,
+      onPauseClimb: pauseClimb, onResumeClimb: resumeClimb,
     };
     return (
       <div style={{ padding: "20px" }}>
