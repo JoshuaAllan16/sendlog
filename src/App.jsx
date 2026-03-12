@@ -1786,6 +1786,7 @@ export default function App() {
     const climbPhotos = session.climbs.filter(c => c.photo);
     const [photoIdx, setPhotoIdx] = useState(0);
     const [photoVisible, setPhotoVisible] = useState(true);
+    const [selectedGradeSlice, setSelectedGradeSlice] = useState(null);
     const safeIdx = Math.min(photoIdx, climbPhotos.length - 1);
     const switchPhoto = (newIdx) => {
       if (newIdx === safeIdx) return;
@@ -1975,23 +1976,28 @@ export default function App() {
               </div>
             );
           } else if (typeCount === 1 && (hasBoulder || hasRope)) {
-            // Single climb type: grade breakdown pie
-            const gradeEntries = Object.entries(stats.gradeBreakdown).sort((a, b) => getGradeIndex(b[0], b[1].scale || "V-Scale") - getGradeIndex(a[0], a[1].scale || "V-Scale"));
+            // Single climb type: grade breakdown pie — sort by tries desc (handles custom scales)
+            const gradeEntries = Object.entries(stats.gradeBreakdown).sort((a, b) => b[1].tries - a[1].tries);
             if (gradeEntries.length >= 2) {
               const gradeSlices = gradeEntries.map(([grade, data]) => ({ label: grade, value: data.tries, color: getGradeColor(grade) }));
               const paths = buildPie(gradeSlices);
-              const legend = paths.slice(0, 3);
+              // default to largest slice (index 0 after sort-by-tries-desc)
+              const activeLabel = selectedGradeSlice && paths.find(p => p.label === selectedGradeSlice) ? selectedGradeSlice : paths[0]?.label;
+              const activeSlice = paths.find(p => p.label === activeLabel) || paths[0];
               rightPanel = (
-                <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 6, flexShrink: 0 }}>
-                  <svg width={80} height={80} viewBox="0 0 80 80">{paths.map((s, i) => <path key={i} d={s.path} fill={s.color} />)}</svg>
-                  <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
-                    {legend.map((s, i) => (
-                      <div key={i} style={{ display: "flex", alignItems: "center", gap: 4 }}>
-                        <div style={{ width: 8, height: 8, borderRadius: 2, background: s.color, flexShrink: 0 }} />
-                        <span style={{ fontSize: 10, color: W.textDim, fontVariantNumeric: "tabular-nums" }}>{s.label} {s.pct}%</span>
-                      </div>
+                <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 4, flexShrink: 0 }}>
+                  <svg width={80} height={80} viewBox="0 0 80 80" style={{ cursor: "pointer" }}>
+                    {paths.map((s, i) => (
+                      <path key={i} d={s.path} fill={s.color} opacity={s.label === activeLabel ? 1 : 0.45}
+                        onClick={e => { e.stopPropagation(); setSelectedGradeSlice(s.label); }} />
                     ))}
-                  </div>
+                  </svg>
+                  {activeSlice && (
+                    <div style={{ textAlign: "center" }}>
+                      <div style={{ fontSize: 13, fontWeight: 900, color: activeSlice.color, lineHeight: 1 }}>{activeSlice.label}</div>
+                      <div style={{ fontSize: 10, color: W.textDim, marginTop: 2 }}>{activeSlice.pct}% · {activeSlice.value} tries</div>
+                    </div>
+                  )}
                 </div>
               );
             }
