@@ -1,29 +1,6 @@
 import { useState } from "react";
 import { useTheme } from "./theme.js";
-
-// Shared constants used by these components
-const CLIMB_COLORS = [
-  { id: "black",  label: "Black",  hex: "#1a1a1a" },
-  { id: "white",  label: "White",  hex: "#ffffff" },
-  { id: "red",    label: "Red",    hex: "#ef4444" },
-  { id: "yellow", label: "Yellow", hex: "#facc15" },
-  { id: "green",  label: "Green",  hex: "#22c55e" },
-  { id: "orange", label: "Orange", hex: "#f97316" },
-  { id: "blue",   label: "Blue",   hex: "#3b82f6" },
-  { id: "pink",   label: "Pink",   hex: "#ec4899" },
-];
-
-const GRADE_COLORS = {
-  "VB": "#4ade80", "V0": "#86efac", "V1": "#fde047", "V2": "#fb923c",
-  "V3": "#f97316", "V4": "#ef4444", "V5": "#dc2626", "V6": "#b91c1c",
-  "V7": "#c084fc", "V8": "#a855f7", "V9": "#7c3aed", "V10": "#4c1d95",
-  "C1": "#4ade80", "C2": "#fde047", "C3": "#fb923c", "C4": "#f97316",
-  "C5": "#ef4444", "C6": "#dc2626", "C7": "#a855f7", "default": "#fb923c"
-};
-
-const getGradeColor = (g) => GRADE_COLORS[g] || GRADE_COLORS["default"];
-const formatDuration = (s) => `${Math.floor(s / 60)}:${(s % 60).toString().padStart(2, "0")}`;
-const formatRestSec  = (s) => { if (s === null || s === undefined) return "—"; const m = Math.floor(s / 60), sec = Math.round(s % 60); return m > 0 ? (sec ? `${m}m ${sec}s` : `${m}m`) : `${sec}s`; };
+import { CLIMB_COLORS, getGradeColor, formatDuration, formatRestSec } from "./constants.js";
 
 // §COLOR_DOT
 export const ColorDot = ({ colorId, size = 12 }) => {
