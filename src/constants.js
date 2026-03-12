@@ -33,7 +33,6 @@ export const CLIMB_COLORS = [
 
 export const WALL_TYPES = ["Slab", "Overhang", "Corner", "Roof"];
 export const HOLD_TYPES  = ["Jugs", "Crimps", "Slopes", "Pinches", "Pockets", "Sidepull", "Undercling", "Gaston", "Dyno", "Technical", "Bat Hang", "Coordination", "Knee Bar"];
-export const KNOWN_GYMS  = ["Boulder Barn", "The Crux Gym", "Movement", "Earth Treks"];
 
 export const getGradeColor  = (g) => GRADE_COLORS[g] || GRADE_COLORS["default"];
 export const formatDate      = (iso) => new Date(iso).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });

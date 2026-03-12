@@ -3,7 +3,7 @@ import { createClient } from "@supabase/supabase-js";
 import { ThemeCtx, THEMES } from "./theme.js";
 import { ColorDot, TagChips, LocationDropdown, SpeedSessionCard, BoulderRopeSessionCard, ActiveClimbCard } from "./Components.jsx";
 import { ProjectDetailScreen, SessionSummaryScreen } from "./Screens.jsx";
-import { GRADES, ROPE_GRADES, CLIMB_COLORS, WALL_TYPES, HOLD_TYPES, KNOWN_GYMS, getGradeColor, formatDate, formatDuration, formatTotalTime, formatRestSec } from "./constants.js";
+import { GRADES, ROPE_GRADES, CLIMB_COLORS, WALL_TYPES, HOLD_TYPES, getGradeColor, formatDate, formatDuration, formatTotalTime, formatRestSec } from "./constants.js";
 
 // §CONSTANTS — all constants and utils are in ./constants.js
 // §CONTEXT — ThemeCtx, useTheme, and THEMES are imported from ./theme.js
@@ -307,6 +307,7 @@ export default function App() {
                 setSessionStarted(true);
                 setTimerRunning(tr);
                 setPendingLocation(pl || "");
+                setScreen("session");
               }
             } catch (e) { localStorage.removeItem("active:climb"); }
           }
@@ -533,12 +534,12 @@ export default function App() {
   // ── APP LOGIC ──────────────────────────────────────────────
   const knownLocations = (() => {
     const seen = new Set();
-    return [...KNOWN_GYMS, ...sessions.map(s => s.location).filter(Boolean), ...customLocations, pendingLocation, activeSession?.location, mainGym]
+    return [...sessions.map(s => s.location).filter(Boolean), ...customLocations, pendingLocation, activeSession?.location, mainGym]
       .filter(Boolean)
       .filter(l => { const k = l.trim().toLowerCase(); if (seen.has(k)) return false; seen.add(k); return true; })
       .filter(l => !hiddenLocations.includes(l));
   })();
-  const addCustomLocation = (loc) => { const trimmed = loc?.trim(); if (trimmed && !KNOWN_GYMS.some(g => g.toLowerCase() === trimmed.toLowerCase()) && !sessions.some(s => s.location?.toLowerCase() === trimmed.toLowerCase()) && !customLocations.some(c => c.toLowerCase() === trimmed.toLowerCase())) setCustomLocations(prev => [...prev, trimmed]); };
+  const addCustomLocation = (loc) => { const trimmed = loc?.trim(); if (trimmed && !sessions.some(s => s.location?.toLowerCase() === trimmed.toLowerCase()) && !customLocations.some(c => c.toLowerCase() === trimmed.toLowerCase())) setCustomLocations(prev => [...prev, trimmed]); };
   const allGyms = ["All Gyms", ...new Set(sessions.map(s => s.location).filter(Boolean))];
 
   const goToSessionSetup = () => { setPendingLocation(mainGym || ""); setSessionStarted(false); setActiveSession({ location: mainGym || "", climbs: [], collapsedSections: { boulder: false, rope: false } }); setSessionTimer(0); setSessionActiveStart(null); setSessionPausedSec(0); setShowMoreClimbTypes(false); setScreen("session"); };
@@ -4013,7 +4014,7 @@ export default function App() {
             <div>
               <div style={{ fontSize: 16, fontWeight: 800, color: W.text, marginBottom: 6 }}>Main gym</div>
               <div style={{ fontSize: 13, color: W.textMuted, marginBottom: 16 }}>This will be the default location when you start a session.</div>
-              {[...onboardingGyms, ...KNOWN_GYMS.slice(0, 5)].filter((v, i, a) => a.indexOf(v) === i).map(g => (
+              {onboardingGyms.filter((v, i, a) => a.indexOf(v) === i).map(g => (
                 <button key={g} onClick={() => setMainGym(mainGym === g ? "" : g)} style={{ display: "block", width: "100%", padding: "13px 16px", marginBottom: 10, borderRadius: 14, border: `2px solid ${mainGym === g ? W.accent : W.border}`, background: mainGym === g ? W.accent + "22" : W.surface, color: mainGym === g ? W.accent : W.text, fontWeight: 700, fontSize: 14, cursor: "pointer", textAlign: "left" }}>📍 {g}</button>
               ))}
               {onboardingGyms.length === 0 && <div style={{ color: W.textDim, fontSize: 13, marginBottom: 12 }}>Add gyms in the previous step to select a main gym.</div>}
