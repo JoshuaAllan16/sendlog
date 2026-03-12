@@ -166,6 +166,7 @@ export default function App() {
   const [sessionTypes, setSessionTypes]             = useState(["boulder"]);
   const [showMoreClimbTypes, setShowMoreClimbTypes] = useState(false);
   const [showSentBoulders, setShowSentBoulders]     = useState(false);
+  const [showSentRope, setShowSentRope]             = useState(false);
   const [colorTheme, setColorTheme]             = useState("espresso");
   const [showEndConfirm, setShowEndConfirm]     = useState(false);
   const [showProjectPrompt, setShowProjectPrompt] = useState(false);
@@ -394,7 +395,7 @@ export default function App() {
       }
 
       const userData = {
-        profile: { displayName: displayName.trim() || username },
+        profile: { displayName: displayName.trim() || username, colorTheme },
         sessions: [],
         projects: [],
       };
@@ -1754,6 +1755,7 @@ export default function App() {
               ).map(g => (
                 <button key={g} data-sel={g === inlineGrade ? "1" : "0"} onClick={() => setInlineGrade(g)} style={{ flexShrink: 0, padding: "4px 9px", borderRadius: 7, border: `1.5px solid ${inlineGrade === g ? getGradeColor(g) : W.border}`, background: inlineGrade === g ? getGradeColor(g) + "30" : W.surface, color: inlineGrade === g ? getGradeColor(g) : W.textMuted, fontSize: 11, fontWeight: 700, cursor: "pointer" }}>{g}</button>
               ))}
+              <button onClick={() => setInlineGrade("Ungraded")} style={{ flexShrink: 0, padding: "4px 9px", borderRadius: 7, border: `1.5px solid ${inlineGrade === "Ungraded" ? W.textMuted : W.border}`, background: inlineGrade === "Ungraded" ? W.surface2 : W.surface, color: inlineGrade === "Ungraded" ? W.text : W.textMuted, fontSize: 11, fontWeight: 700, cursor: "pointer" }}>Ungraded</button>
             </div>
             <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8 }}>
               <span style={{ fontSize: 12, color: W.textMuted, fontWeight: 600 }}>Tries</span>
@@ -2138,9 +2140,18 @@ export default function App() {
             <BoulderRopeSessionCard type="rope" totalSec={activeSession.ropeTotalSec || 0} activeStart={activeSession.ropeActiveStart || null} isEnded={!!activeSession.ropeEndedAt} tick={sessionTimer} onPause={pauseRopeSession} onResume={resumeRopeSession} pausedAt={activeSession.ropePausedAt || null} collapsed={!!activeSession.collapsedSections?.rope} onToggleCollapse={() => setActiveSession(s => ({ ...s, collapsedSections: { ...(s.collapsedSections || {}), rope: !s.collapsedSections?.rope } }))} />
             {!activeSession.collapsedSections?.rope && (
               <div style={{ borderLeft: `3px solid ${W.purpleDark}44`, paddingLeft: 10, marginLeft: 2 }}>
-                {ropeClimbs.map(c => <ActiveClimbCard key={c.id} climb={c} {...cardProps} sessionCount={c.projectId ? getProjectHistory(c.projectId).length + 1 : null} />)}
+                {ropeClimbs.filter(c => !c.completed).map(c => <ActiveClimbCard key={c.id} climb={c} {...cardProps} sessionCount={c.projectId ? getProjectHistory(c.projectId).length + 1 : null} />)}
                 {selectedTypes.includes("rope") && !activeSession.ropeEndedAt && (
                   <button onClick={() => openClimbForm(null, null, "rope")} style={{ width: "100%", padding: "10px", background: W.purple, border: `2px solid ${W.purpleDark}`, borderRadius: 12, color: W.purpleDark, fontWeight: 700, fontSize: 13, cursor: "pointer", marginTop: 2 }}>+ New Rope Climb</button>
+                )}
+                {ropeClimbs.filter(c => c.completed).length > 0 && (
+                  <>
+                    <button onClick={() => setShowSentRope(v => !v)} style={{ width: "100%", display: "flex", alignItems: "center", justifyContent: "space-between", padding: "8px 10px", marginTop: 6, background: W.purple + "33", border: `1px solid ${W.purpleDark}44`, borderRadius: 10, color: W.purpleDark, fontWeight: 700, fontSize: 12, cursor: "pointer" }}>
+                      <span>✓ Sent ({ropeClimbs.filter(c => c.completed).length})</span>
+                      <span>{showSentRope ? "▲" : "▼"}</span>
+                    </button>
+                    {showSentRope && ropeClimbs.filter(c => c.completed).map(c => <ActiveClimbCard key={c.id} climb={c} {...cardProps} sessionCount={c.projectId ? getProjectHistory(c.projectId).length + 1 : null} />)}
+                  </>
                 )}
               </div>
             )}
