@@ -1901,42 +1901,105 @@ export default function App() {
         {(() => {
           const col1 = [
             { label: "Climbs Sent",   value: `${stats.sends}/${stats.total}` },
-            stats.flashes > 0 && { label: "Flashes",       value: stats.flashes },
-            stats.hardestAttempted !== "—" && { label: "Hardest Tried", value: stats.hardestAttempted },
-          ].filter(Boolean);
+            { label: "Flashes",       value: stats.flashes },
+            { label: "Hardest Tried", value: stats.hardestAttempted },
+          ];
           const col2 = [
-            { label: "Total Tries", value: stats.totalTries },
-            { label: "Avg Tries",   value: stats.avgTries },
-            stats.hardestSent !== "—" && { label: "Hardest Sent", value: stats.hardestSent, accent: true },
-          ].filter(Boolean);
+            { label: "Total Tries",  value: stats.totalTries },
+            { label: "Avg Tries",    value: stats.avgTries },
+            { label: "Hardest Sent", value: stats.hardestSent, accent: true },
+          ];
           const boulderSec = session.boulderTotalSec || 0;
           const ropeSec    = session.ropeTotalSec || 0;
           const speedSec   = stats.speedSessions.reduce((s, ss) => s + Math.max(0, Math.floor(((ss.endedAt || Date.now()) - ss.startedAt) / 1000)), 0);
-          const pieSlices  = [
-            { sec: boulderSec, color: W.greenDark,  label: "🪨" },
-            { sec: ropeSec,    color: W.purpleDark, label: "🪢" },
-            { sec: speedSec,   color: W.yellowDark, label: "⚡" },
-          ].filter(s => s.sec > 0);
-          const pieTotal = pieSlices.reduce((s, r) => s + r.sec, 0);
-          let pieAngle = -Math.PI / 2;
-          const piePaths = pieSlices.length >= 2 ? pieSlices.map(s => {
-            const a = (s.sec / pieTotal) * 2 * Math.PI;
-            const end = pieAngle + a;
-            const [r, ir, cx, cy] = [32, 18, 40, 40];
-            const x1 = cx + r*Math.cos(pieAngle), y1 = cy + r*Math.sin(pieAngle);
-            const x2 = cx + r*Math.cos(end),      y2 = cy + r*Math.sin(end);
-            const ix1 = cx + ir*Math.cos(pieAngle), iy1 = cy + ir*Math.sin(pieAngle);
-            const ix2 = cx + ir*Math.cos(end),      iy2 = cy + ir*Math.sin(end);
-            const large = a > Math.PI ? 1 : 0;
-            const path = `M ${ix1.toFixed(1)} ${iy1.toFixed(1)} L ${x1.toFixed(1)} ${y1.toFixed(1)} A ${r} ${r} 0 ${large} 1 ${x2.toFixed(1)} ${y2.toFixed(1)} L ${ix2.toFixed(1)} ${iy2.toFixed(1)} A ${ir} ${ir} 0 ${large} 0 ${ix1.toFixed(1)} ${iy1.toFixed(1)} Z`;
-            pieAngle = end;
-            return { ...s, path };
-          }) : [];
+          const hasBoulder = boulderSec > 0 || session.climbs.some(c => c.climbType !== "rope" && c.climbType !== "speed-session");
+          const hasRope    = ropeSec > 0 || session.climbs.some(c => c.climbType === "rope");
+          const hasSpeed   = speedSec > 0 || stats.speedSessions.length > 0;
+          const typeCount  = [hasBoulder, hasRope, hasSpeed].filter(Boolean).length;
+          // Shared donut builder
+          const buildPie = (slices) => {
+            const total = slices.reduce((s, r) => s + r.value, 0);
+            if (!total) return [];
+            let angle = -Math.PI / 2;
+            return slices.map(s => {
+              const a = (s.value / total) * 2 * Math.PI;
+              const end = angle + a;
+              const [r, ir, cx, cy] = [32, 18, 40, 40];
+              const x1 = cx+r*Math.cos(angle), y1 = cy+r*Math.sin(angle);
+              const x2 = cx+r*Math.cos(end),   y2 = cy+r*Math.sin(end);
+              const ix1 = cx+ir*Math.cos(angle), iy1 = cy+ir*Math.sin(angle);
+              const ix2 = cx+ir*Math.cos(end),   iy2 = cy+ir*Math.sin(end);
+              const large = a > Math.PI ? 1 : 0;
+              const path = `M ${ix1.toFixed(1)} ${iy1.toFixed(1)} L ${x1.toFixed(1)} ${y1.toFixed(1)} A ${r} ${r} 0 ${large} 1 ${x2.toFixed(1)} ${y2.toFixed(1)} L ${ix2.toFixed(1)} ${iy2.toFixed(1)} A ${ir} ${ir} 0 ${large} 0 ${ix1.toFixed(1)} ${iy1.toFixed(1)} Z`;
+              angle = end;
+              return { ...s, path, pct: Math.round((s.value / total) * 100) };
+            });
+          };
+          // Build right panel based on session type mix
+          let rightPanel = null;
+          if (typeCount >= 2) {
+            // Multi-type: time breakdown pie
+            const timeSlices = [
+              hasBoulder && boulderSec > 0 && { label: "🪨", value: boulderSec, color: W.greenDark },
+              hasRope    && ropeSec > 0    && { label: "🪢", value: ropeSec,    color: W.purpleDark },
+              hasSpeed   && speedSec > 0   && { label: "⚡", value: speedSec,   color: W.yellowDark },
+            ].filter(Boolean);
+            const paths = buildPie(timeSlices);
+            if (paths.length >= 2) rightPanel = (
+              <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 6, flexShrink: 0 }}>
+                <svg width={80} height={80} viewBox="0 0 80 80">{paths.map((s, i) => <path key={i} d={s.path} fill={s.color} />)}</svg>
+                <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
+                  {paths.map((s, i) => (
+                    <div key={i} style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                      <div style={{ width: 8, height: 8, borderRadius: 2, background: s.color, flexShrink: 0 }} />
+                      <span style={{ fontSize: 10, color: W.textDim, fontVariantNumeric: "tabular-nums" }}>{s.label} {s.pct}%</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            );
+          } else if (typeCount === 1 && hasSpeed && !hasBoulder && !hasRope) {
+            // Speed only: top times leaderboard
+            const topTimes = stats.speedSessions.flatMap(ss => ss.attempts || []).filter(a => !a.fell && a.time != null).sort((a, b) => a.time - b.time).slice(0, 5);
+            const best = topTimes[0]?.time;
+            if (topTimes.length > 0) rightPanel = (
+              <div style={{ flexShrink: 0, minWidth: 88 }}>
+                <div style={{ fontSize: 9, fontWeight: 700, color: W.textDim, textTransform: "uppercase", letterSpacing: 0.8, marginBottom: 6 }}>Top Times</div>
+                {topTimes.map((a, i) => (
+                  <div key={a.id || i} style={{ display: "flex", alignItems: "center", gap: 5, marginBottom: 4 }}>
+                    <span style={{ fontSize: 10, color: W.textDim, width: 14, flexShrink: 0 }}>{i + 1}.</span>
+                    <span style={{ fontSize: 13, fontWeight: 900, color: a.time === best ? W.yellowDark : W.text, fontVariantNumeric: "tabular-nums" }}>{a.time.toFixed(2)}s</span>
+                    {a.time === best && <span style={{ fontSize: 9, fontWeight: 800, color: W.yellowDark }}>PB</span>}
+                  </div>
+                ))}
+              </div>
+            );
+          } else if (typeCount === 1 && (hasBoulder || hasRope)) {
+            // Single climb type: grade breakdown pie
+            const gradeEntries = Object.entries(stats.gradeBreakdown).sort((a, b) => getGradeIndex(b[0], b[1].scale || "V-Scale") - getGradeIndex(a[0], a[1].scale || "V-Scale"));
+            if (gradeEntries.length >= 2) {
+              const gradeSlices = gradeEntries.map(([grade, data]) => ({ label: grade, value: data.tries, color: getGradeColor(grade) }));
+              const paths = buildPie(gradeSlices);
+              const legend = paths.slice(0, 3);
+              rightPanel = (
+                <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 6, flexShrink: 0 }}>
+                  <svg width={80} height={80} viewBox="0 0 80 80">{paths.map((s, i) => <path key={i} d={s.path} fill={s.color} />)}</svg>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
+                    {legend.map((s, i) => (
+                      <div key={i} style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                        <div style={{ width: 8, height: 8, borderRadius: 2, background: s.color, flexShrink: 0 }} />
+                        <span style={{ fontSize: 10, color: W.textDim, fontVariantNumeric: "tabular-nums" }}>{s.label} {s.pct}%</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              );
+            }
+          }
           return (
             <div style={{ padding: "12px 16px 4px" }}>
               <div style={{ fontSize: 10, fontWeight: 700, color: W.textMuted, textTransform: "uppercase", letterSpacing: 1, marginBottom: 10 }}>Stats</div>
               <div style={{ display: "flex", gap: 12, alignItems: "flex-start" }}>
-                {/* Two-column stat list */}
                 <div style={{ flex: 1, display: "grid", gridTemplateColumns: "1fr 1fr", gap: 0 }}>
                   <div style={{ borderRight: `1px solid ${W.border}`, paddingRight: 10 }}>
                     {col1.map((row, i) => (
@@ -1955,22 +2018,7 @@ export default function App() {
                     ))}
                   </div>
                 </div>
-                {/* Time breakdown pie chart */}
-                {piePaths.length >= 2 && (
-                  <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 6, flexShrink: 0 }}>
-                    <svg width={80} height={80} viewBox="0 0 80 80">
-                      {piePaths.map((s, i) => <path key={i} d={s.path} fill={s.color} />)}
-                    </svg>
-                    <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
-                      {piePaths.map((s, i) => (
-                        <div key={i} style={{ display: "flex", alignItems: "center", gap: 4 }}>
-                          <div style={{ width: 8, height: 8, borderRadius: 2, background: s.color, flexShrink: 0 }} />
-                          <span style={{ fontSize: 10, color: W.textDim, fontVariantNumeric: "tabular-nums" }}>{s.label} {Math.round(s.sec / pieTotal * 100)}%</span>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
+                {rightPanel}
               </div>
             </div>
           );
