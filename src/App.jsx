@@ -1,6 +1,9 @@
-import { useState, useRef, useEffect, createContext, useContext } from "react";
+import { useState, useRef, useEffect } from "react";
 import { createClient } from "@supabase/supabase-js";
+import { ThemeCtx, THEMES } from "./theme.js";
+import { ColorDot, TagChips, LocationDropdown, SpeedSessionCard, BoulderRopeSessionCard, ActiveClimbCard } from "./Components.jsx";
 
+// §CONSTANTS
 const GRADES = {
   "V-Scale": ["VB", "V0", "V1", "V2", "V3", "V4", "V5", "V6", "V7", "V8", "V9", "V10"],
   "YDS": ["5.6", "5.7", "5.8", "5.9", "5.10a", "5.10b", "5.10c", "5.10d", "5.11a", "5.11b", "5.11c", "5.11d", "5.12a"],
@@ -41,203 +44,9 @@ const formatDuration = (s) => `${Math.floor(s / 60)}:${(s % 60).toString().padSt
 const formatTotalTime = (s) => { const h = Math.floor(s / 3600); const m = Math.floor((s % 3600) / 60); return h > 0 ? `${h}h ${m}m` : `${m}m`; };
 const formatRestSec  = (s) => { if (s === null || s === undefined) return "—"; const m = Math.floor(s / 60), sec = Math.round(s % 60); return m > 0 ? (sec ? `${m}m ${sec}s` : `${m}m`) : `${sec}s`; };
 
-const ThemeCtx = createContext(null);
-const useTheme = () => useContext(ThemeCtx);
+// §CONTEXT — ThemeCtx, useTheme, and THEMES are imported from ./theme.js
 
-const THEMES = {
-  espresso: {
-    bg: "linear-gradient(160deg, #2c1a0c 0%, #1f1208 50%, #160c04 100%)",
-    surface: "rgba(44, 24, 8, 0.97)", surface2: "rgba(60, 34, 10, 0.92)",
-    border: "#5c3218", accent: "#f09040", accentGlow: "rgba(240,144,64,0.28)", accentDark: "#c86818",
-    text: "#f0dcc0", textMuted: "#c89060", textDim: "#8a6040",
-    gold: "#f59e0b", goldLight: "#3a2800",
-    pink: "#3d0a1c", pinkDark: "#f472b6",
-    yellow: "#2e2200", yellowDark: "#fbbf24",
-    green: "#0a2c12", greenDark: "#4ade80",
-    red: "#2e0a0a", redDark: "#f87171",
-    purple: "#1e0a3e", purpleDark: "#c084fc",
-    navBg: "#110702",
-  },
-  alpine: {
-    bg: "linear-gradient(160deg, #f0f5ea 0%, #e8f0e0 50%, #dfe9d5 100%)",
-    surface: "rgba(255, 255, 252, 0.99)", surface2: "rgba(236, 243, 228, 0.97)",
-    border: "#bfcfb0", accent: "#3a7848", accentGlow: "rgba(58,120,72,0.18)", accentDark: "#275c34",
-    text: "#1a2416", textMuted: "#4a5e42", textDim: "#8a9e84",
-    gold: "#9a6e08", goldLight: "#eee8c8",
-    pink: "#f0dce4", pinkDark: "#a01e50",
-    yellow: "#f4f0c8", yellowDark: "#806000",
-    green: "#d0eccb", greenDark: "#1e7636",
-    red: "#f0dcd8", redDark: "#9e2626",
-    purple: "#e2d4f4", purpleDark: "#58209e",
-    navBg: "#d4e2c8",
-  },
-  chalk: {
-    bg: "linear-gradient(160deg, #fef5e0 0%, #fdedc8 50%, #fce4b0 100%)",
-    surface: "rgba(255, 252, 238, 0.99)", surface2: "rgba(252, 243, 215, 0.97)",
-    border: "#e4c27a", accent: "#d85818", accentGlow: "rgba(216,88,24,0.22)", accentDark: "#b04010",
-    text: "#281408", textMuted: "#7a4c28", textDim: "#b08458",
-    gold: "#c67800", goldLight: "#feefaa",
-    pink: "#fce0ee", pinkDark: "#c02068",
-    yellow: "#fef5aa", yellowDark: "#9a6800",
-    green: "#d4f2d4", greenDark: "#1a7c38",
-    red: "#fce0d4", redDark: "#c01c14",
-    purple: "#e8d4fc", purpleDark: "#6618bc",
-    navBg: "#f6d888",
-  },
-  neon: {
-    bg: "linear-gradient(160deg, #00060f 0%, #000408 50%, #000204 100%)",
-    surface: "rgba(0, 8, 20, 0.98)", surface2: "rgba(0, 14, 32, 0.96)",
-    border: "#00304860", accent: "#00d4ff", accentGlow: "rgba(0,212,255,0.35)", accentDark: "#0090c8",
-    text: "#d8f0ff", textMuted: "#5090b0", textDim: "#204860",
-    gold: "#f59e0b", goldLight: "#001428",
-    pink: "#0c0020", pinkDark: "#f472b6",
-    yellow: "#0c1000", yellowDark: "#fbbf24",
-    green: "#001c10", greenDark: "#00e87a",
-    red: "#160008", redDark: "#ff6080",
-    purple: "#08001e", purpleDark: "#c084fc",
-    navBg: "#000204",
-  },
-  midnight: {
-    bg: "linear-gradient(160deg, #0d1525 0%, #091020 50%, #060c18 100%)",
-    surface: "rgba(10, 16, 32, 0.98)", surface2: "rgba(16, 24, 48, 0.96)",
-    border: "#243456", accent: "#7ba4d8", accentGlow: "rgba(123,164,216,0.22)", accentDark: "#4a74b0",
-    text: "#c0d0e8", textMuted: "#6880a8", textDim: "#384860",
-    gold: "#b88820", goldLight: "#181830",
-    pink: "#180d26", pinkDark: "#c870b8",
-    yellow: "#181808", yellowDark: "#c09838",
-    green: "#081a14", greenDark: "#48b878",
-    red: "#180a0a", redDark: "#c86060",
-    purple: "#100828", purpleDark: "#9070c8",
-    navBg: "#050c18",
-  },
-  ember: {
-    bg: "linear-gradient(160deg, #1a1410 0%, #120e08 50%, #0e0a06 100%)",
-    surface: "rgba(20, 14, 8, 0.98)", surface2: "rgba(30, 22, 12, 0.96)",
-    border: "#483020", accent: "#d08040", accentGlow: "rgba(208,128,64,0.25)", accentDark: "#a05820",
-    text: "#e8d4b0", textMuted: "#987050", textDim: "#584030",
-    gold: "#c09010", goldLight: "#281c04",
-    pink: "#240c14", pinkDark: "#c86880",
-    yellow: "#201800", yellowDark: "#c89820",
-    green: "#0a1c08", greenDark: "#60b050",
-    red: "#200808", redDark: "#c85848",
-    purple: "#160c28", purpleDark: "#9068b8",
-    navBg: "#0c0806",
-  },
-  abyss: {
-    bg: "linear-gradient(160deg, #000008 0%, #000205 50%, #000103 100%)",
-    surface: "rgba(0, 2, 12, 0.99)", surface2: "rgba(0, 5, 22, 0.97)",
-    border: "#0030a0", accent: "#2266ff", accentGlow: "rgba(34,102,255,0.38)", accentDark: "#0044dd",
-    text: "#b8d0ff", textMuted: "#4060a0", textDim: "#182040",
-    gold: "#f59e0b", goldLight: "#001030",
-    pink: "#0a0020", pinkDark: "#e060f0",
-    yellow: "#080800", yellowDark: "#d0b020",
-    green: "#001810", greenDark: "#40e090",
-    red: "#100008", redDark: "#ff4060",
-    purple: "#060020", purpleDark: "#8866ff",
-    navBg: "#000003",
-  },
-  forest: {
-    bg: "linear-gradient(160deg, #081a08 0%, #051005 50%, #030a03 100%)",
-    surface: "rgba(8, 20, 8, 0.99)", surface2: "rgba(12, 28, 10, 0.97)",
-    border: "#1a4018", accent: "#40d060", accentGlow: "rgba(64,208,96,0.28)", accentDark: "#28a040",
-    text: "#c0e8b0", textMuted: "#508050", textDim: "#284028",
-    gold: "#c0a020", goldLight: "#141800",
-    pink: "#200820", pinkDark: "#e06090",
-    yellow: "#181400", yellowDark: "#b8b020",
-    green: "#0a2808", greenDark: "#60d878",
-    red: "#200808", redDark: "#e05858",
-    purple: "#100820", purpleDark: "#9060d8",
-    navBg: "#030803",
-  },
-  dusk: {
-    bg: "linear-gradient(160deg, #180828 0%, #100618 50%, #0c0412 100%)",
-    surface: "rgba(20, 8, 30, 0.99)", surface2: "rgba(30, 12, 44, 0.97)",
-    border: "#502060", accent: "#d060f0", accentGlow: "rgba(208,96,240,0.30)", accentDark: "#a030c8",
-    text: "#f0c8ff", textMuted: "#9060c0", textDim: "#401860",
-    gold: "#d09020", goldLight: "#180820",
-    pink: "#200030", pinkDark: "#ff70c0",
-    yellow: "#1a0c00", yellowDark: "#d0a030",
-    green: "#081018", greenDark: "#50d0a0",
-    red: "#200010", redDark: "#f05080",
-    purple: "#0e0028", purpleDark: "#c880ff",
-    navBg: "#08040e",
-  },
-  sakura: {
-    bg: "linear-gradient(160deg, #1a0810 0%, #120508 50%, #0e0306 100%)",
-    surface: "rgba(20, 6, 12, 0.99)", surface2: "rgba(30, 10, 18, 0.97)",
-    border: "#601030", accent: "#f060a0", accentGlow: "rgba(240,96,160,0.30)", accentDark: "#c03070",
-    text: "#ffc8d8", textMuted: "#a04068", textDim: "#602040",
-    gold: "#c08020", goldLight: "#200a08",
-    pink: "#280018", pinkDark: "#ff70b8",
-    yellow: "#180c00", yellowDark: "#c09820",
-    green: "#081210", greenDark: "#50b870",
-    red: "#200810", redDark: "#ff6070",
-    purple: "#100818", purpleDark: "#a060d8",
-    navBg: "#0e0408",
-  },
-  blossom: {
-    bg: "linear-gradient(160deg, #fce8f0 0%, #fad0e4 50%, #f7b8d6 100%)",
-    surface: "rgba(255, 246, 251, 0.99)", surface2: "rgba(253, 232, 244, 0.97)",
-    border: "#f0a8cc", accent: "#c01e5e", accentGlow: "rgba(192,30,94,0.22)", accentDark: "#8c1444",
-    text: "#28081a", textMuted: "#8c2058", textDim: "#c07898",
-    gold: "#b87010", goldLight: "#ffe8d0",
-    pink: "#fcdce8", pinkDark: "#b81858",
-    yellow: "#fef5c0", yellowDark: "#906000",
-    green: "#d0f0da", greenDark: "#1c6e40",
-    red: "#fcdcdc", redDark: "#b82020",
-    purple: "#e8d0f8", purpleDark: "#5a1ca8",
-    navBg: "#f4aed0",
-  },
-  slate: {
-    bg: "linear-gradient(160deg, #1c2028 0%, #141820 50%, #101418 100%)",
-    surface: "rgba(20, 24, 32, 0.98)", surface2: "rgba(28, 34, 44, 0.96)",
-    border: "#384050", accent: "#78a0c8", accentGlow: "rgba(120,160,200,0.25)", accentDark: "#486e9e",
-    text: "#d0dcea", textMuted: "#6878a0", textDim: "#384060",
-    gold: "#c0a040", goldLight: "#181c24",
-    pink: "#201828", pinkDark: "#d87090",
-    yellow: "#181810", yellowDark: "#c0b040",
-    green: "#0c1c14", greenDark: "#58b878",
-    red: "#180c0c", redDark: "#c86060",
-    purple: "#140c28", purpleDark: "#9870d0",
-    navBg: "#0c1016",
-  },
-  crimson: {
-    bg: "linear-gradient(160deg, #1e0408 0%, #160204 50%, #100102 100%)",
-    surface: "rgba(22, 4, 6, 0.99)", surface2: "rgba(32, 8, 10, 0.97)",
-    border: "#581018", accent: "#f03050", accentGlow: "rgba(240,48,80,0.30)", accentDark: "#b01830",
-    text: "#ffccd0", textMuted: "#a04050", textDim: "#602030",
-    gold: "#c08020", goldLight: "#200a04",
-    pink: "#200010", pinkDark: "#f870a8",
-    yellow: "#181000", yellowDark: "#c09820",
-    green: "#081410", greenDark: "#50b870",
-    red: "#280808", redDark: "#ff6060",
-    purple: "#120818", purpleDark: "#a060d8",
-    navBg: "#0e0204",
-  },
-};
-
-const SAMPLE_PROJECTS = [
-  { id: 301, name: "The Sloper Problem", grade: "V4", scale: "V-Scale", comments: "Crux is a big dynamic move to sloper.", active: true, completed: false, dateAdded: new Date(Date.now() - 86400000 * 14).toISOString(), dateSent: null },
-  { id: 302, name: "Overhang Pump Fest", grade: "V5", scale: "V-Scale", comments: "Sustained overhang, pump is real.", active: true, completed: false, dateAdded: new Date(Date.now() - 86400000 * 7).toISOString(), dateSent: null },
-  { id: 303, name: "Green Crimpy Arete", grade: "V3", scale: "V-Scale", comments: "Fun arete movement.", active: false, completed: true, dateAdded: new Date(Date.now() - 86400000 * 30).toISOString(), dateSent: new Date(Date.now() - 86400000 * 5).toISOString() },
-];
-
-const SAMPLE_SESSIONS = [
-  { id: 1, date: new Date(Date.now() - 86400000 * 2).toISOString(), duration: 3720, location: "Boulder Barn", climbs: [
-    { id: 101, name: "Warm Up Slab", grade: "V2", scale: "V-Scale", tries: 1, completed: true, isProject: false, comments: "Easy flash.", photo: null, projectId: null, color: "yellow", wallTypes: ["Slab"], holdTypes: ["Jugs"] },
-    { id: 102, name: "The Sloper Problem", grade: "V4", scale: "V-Scale", tries: 5, completed: false, isProject: true, comments: "Couldn't stick crux.", photo: null, projectId: 301, color: "blue", wallTypes: ["Overhang"], holdTypes: ["Slopes", "Pinches"] },
-    { id: 103, name: "Corner Crack", grade: "V3", scale: "V-Scale", tries: 2, completed: true, isProject: false, comments: "Great beta.", photo: null, projectId: null, color: "green", wallTypes: ["Slab"], holdTypes: ["Technical"] },
-  ]},
-  { id: 2, date: new Date(Date.now() - 86400000 * 7).toISOString(), duration: 5400, location: "The Crux Gym", climbs: [
-    { id: 201, name: "Overhang Pump Fest", grade: "V5", scale: "V-Scale", tries: 7, completed: false, isProject: true, comments: "Dynamic move brutal.", photo: null, projectId: 302, color: "red", wallTypes: ["Overhang"], holdTypes: ["Jugs", "Dyno"] },
-    { id: 202, name: "Fun Compression", grade: "V3", scale: "V-Scale", tries: 3, completed: true, isProject: false, comments: "Fun movement.", photo: null, projectId: null, color: "orange", wallTypes: ["Slab"], holdTypes: ["Pinches"] },
-  ]},
-  { id: 3, date: new Date(Date.now() - 86400000 * 14).toISOString(), duration: 4200, location: "Boulder Barn", climbs: [
-    { id: 301, name: "The Sloper Problem", grade: "V4", scale: "V-Scale", tries: 3, completed: false, isProject: true, comments: "First attempt.", photo: null, projectId: 301, color: "blue", wallTypes: ["Overhang"], holdTypes: ["Slopes"] },
-    { id: 302, name: "Green Crimpy Arete", grade: "V3", scale: "V-Scale", tries: 4, completed: true, isProject: true, comments: "Finally sent it!", photo: null, projectId: 303, color: "green", wallTypes: ["Slab"], holdTypes: ["Technical", "Pinches"] },
-  ]},
-];
-
+// §STORAGE
 const KNOWN_GYMS = ["Boulder Barn", "The Crux Gym", "Movement", "Earth Treks"];
 
 // ── STORAGE HELPERS ────────────────────────────────────────
@@ -328,465 +137,11 @@ const hashPassword = (pw) => {
   return hash.toString(36);
 };
 
-// Small color dot shown next to climb name
-const ColorDot = ({ colorId, size = 12 }) => {
-  if (!colorId) return null;
-  const c = CLIMB_COLORS.find(c => c.id === colorId);
-  if (!c) return null;
-  return (
-    <div style={{
-      width: size, height: size, borderRadius: 3, flexShrink: 0,
-      background: c.hex,
-      border: c.id === "white" ? "1.5px solid #c8a882" : "1.5px solid rgba(0,0,0,0.18)",
-      display: "inline-block",
-    }} title={c.label} />
-  );
-};
+// §COMPONENTS_OUTER — TagChips, LocationDropdown, SpeedSessionCard, BoulderRopeSessionCard, ActiveClimbCard are imported from ./Components.jsx
 
-// Tag chips for wall / hold types
-const TagChips = ({ wallTypes = [], holdTypes = [] }) => {
-  const W = useTheme() || THEMES.espresso;
-  if (!wallTypes.length && !holdTypes.length) return null;
-  return (
-    <div style={{ display: "flex", gap: 4, flexWrap: "wrap", marginTop: 4 }}>
-      {wallTypes.map(t => (
-        <span key={t} style={{ background: W.purple, color: W.purpleDark, borderRadius: 5, padding: "1px 6px", fontSize: 9, fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.5 }}>{t}</span>
-      ))}
-      {holdTypes.map(t => (
-        <span key={t} style={{ background: W.surface2, color: W.textMuted, borderRadius: 5, padding: "1px 6px", fontSize: 9, fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.5 }}>{t}</span>
-      ))}
-    </div>
-  );
-};
-
-const LocationDropdown = ({ value, onChange, open, setOpen, knownLocations, onRemove }) => {
-  const W = useTheme() || THEMES.espresso;
-  const [addPopup, setAddPopup] = useState(false);
-  const [newGymInput, setNewGymInput] = useState("");
-  const [removeConfirm, setRemoveConfirm] = useState(null);
-  const handleAddConfirm = () => {
-    const trimmed = newGymInput.trim();
-    if (trimmed) onChange(trimmed);
-    setNewGymInput(""); setAddPopup(false);
-  };
-  return (
-  <div style={{ position: "relative" }} onClick={e => e.stopPropagation()}>
-    <button onClick={() => setOpen(o => !o)} style={{ width: "100%", padding: "11px 14px", background: W.surface, border: `2px solid ${open ? W.accent : W.border}`, borderRadius: open ? "12px 12px 0 0" : "12px", color: value ? W.text : W.textDim, fontSize: 14, textAlign: "left", cursor: "pointer", display: "flex", justifyContent: "space-between", alignItems: "center", fontFamily: "inherit", fontWeight: value ? 600 : 400 }}>
-      <span>📍 {value || "Select a location"}</span>
-      <span style={{ color: W.textMuted, fontSize: 12 }}>{open ? "▲" : "▼"}</span>
-    </button>
-    {open && (
-      <div style={{ position: "absolute", top: "100%", left: 0, right: 0, background: W.surface, border: `2px solid ${W.accent}`, borderTop: "none", borderRadius: "0 0 12px 12px", zIndex: 100, maxHeight: 220, overflowY: "auto", boxShadow: "0 8px 20px rgba(0,0,0,0.12)" }}>
-        {knownLocations.length === 0 && <div style={{ padding: "12px 14px", color: W.textDim, fontSize: 13 }}>No locations yet — add one below</div>}
-        {knownLocations.map(loc => (
-          <div key={loc} style={{ display: "flex", alignItems: "center", borderBottom: `1px solid ${W.border}`, background: loc === value ? W.accent + "14" : "transparent" }}>
-            <div onClick={() => { onChange(loc); setOpen(false); }} style={{ flex: 1, padding: "10px 14px", cursor: "pointer", color: loc === value ? W.accent : W.text, fontSize: 14, fontWeight: loc === value ? 700 : 400 }}>📍 {loc}{loc === value ? " ✓" : ""}</div>
-            {onRemove && (removeConfirm === loc
-              ? <div style={{ display: "flex", alignItems: "center", gap: 4, padding: "0 8px" }} onClick={e => e.stopPropagation()}>
-                  <button onClick={() => { onRemove(loc); setRemoveConfirm(null); }} style={{ background: W.redDark, border: "none", borderRadius: 6, color: "#fff", padding: "3px 8px", fontSize: 11, fontWeight: 700, cursor: "pointer" }}>Remove</button>
-                  <button onClick={() => setRemoveConfirm(null)} style={{ background: "none", border: "none", color: W.textDim, fontSize: 13, cursor: "pointer" }}>✕</button>
-                </div>
-              : <button onClick={e => { e.stopPropagation(); setRemoveConfirm(loc); }} style={{ background: "none", border: "none", padding: "0 12px", cursor: "pointer", color: W.textDim, fontSize: 16, lineHeight: 1 }}>×</button>
-            )}
-          </div>
-        ))}
-        <div onClick={() => { setOpen(false); setAddPopup(true); }} style={{ padding: "11px 14px", cursor: "pointer", color: W.accent, fontSize: 13, fontWeight: 700, borderTop: `1px solid ${W.border}`, display: "flex", alignItems: "center", gap: 6 }}>＋ Add new gym location</div>
-      </div>
-    )}
-    {addPopup && (
-      <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.55)", zIndex: 300, display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }} onClick={() => { setAddPopup(false); setNewGymInput(""); }}>
-        <div style={{ background: W.surface, borderRadius: 18, padding: "24px", width: "100%", maxWidth: 340, boxShadow: "0 20px 60px rgba(0,0,0,0.3)" }} onClick={e => e.stopPropagation()}>
-          <div style={{ fontWeight: 800, color: W.text, fontSize: 16, marginBottom: 14 }}>New Gym Location</div>
-          <input autoFocus value={newGymInput} onChange={e => setNewGymInput(e.target.value)} onKeyDown={e => e.key === "Enter" && handleAddConfirm()} placeholder="e.g. Boulder Barn" style={{ width: "100%", padding: "11px 14px", background: W.surface2, border: `2px solid ${W.accent}`, borderRadius: 10, color: W.text, fontSize: 15, boxSizing: "border-box", fontFamily: "inherit", marginBottom: 14 }} />
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
-            <button onClick={() => { setAddPopup(false); setNewGymInput(""); }} style={{ padding: "11px", background: "transparent", border: `1px solid ${W.border}`, borderRadius: 10, color: W.textMuted, cursor: "pointer", fontWeight: 600 }}>Cancel</button>
-            <button onClick={handleAddConfirm} style={{ padding: "11px", background: `linear-gradient(135deg, ${W.accent}, ${W.accentDark})`, border: "none", borderRadius: 10, color: "#fff", cursor: "pointer", fontWeight: 700 }}>Add</button>
-          </div>
-        </div>
-      </div>
-    )}
-  </div>
-  );
-};
-
-const SpeedSessionCard = ({ climb, tick, index, totalCount, onAddAttempt, onRemove, onEnd, onPause, onResume }) => {
-  const W = useTheme() || THEMES.espresso;
-  const [showForm, setShowForm] = useState(false);
-  const [timeInput, setTimeInput] = useState("");
-  const [collapsed, setCollapsed] = useState(false);
-  const isEnded = !!climb.endedAt;
-  const attempts = climb.attempts || [];
-  const lastTs = attempts.length > 0 ? attempts[attempts.length - 1].loggedAt : climb.startedAt;
-  const restSec = isEnded ? 0 : Math.max(0, Math.floor((Date.now() - lastTs) / 1000));
-  const speedTotalSec = climb.speedTotalSec || 0;
-  const speedActiveStart = climb.speedActiveStart || null;
-  const isActive = !isEnded && !!speedActiveStart;
-  const isPausedSpeed = !isEnded && !speedActiveStart;
-  const sessionDurationSec = isEnded
-    ? Math.floor((climb.endedAt - climb.startedAt) / 1000)
-    : speedTotalSec + (speedActiveStart ? Math.max(0, Math.floor((Date.now() - speedActiveStart) / 1000)) : 0);
-  const validTimes = attempts.filter(a => !a.fell && a.time != null).map(a => a.time);
-  const bestTime = validTimes.length ? Math.min(...validTimes) : null;
-  const sessionLabel = totalCount > 1 ? `Speed Session ${index + 1}` : "Speed Climb Session";
-
-  const handleAdd = (fell) => {
-    if (!fell && !timeInput) return;
-    onAddAttempt({ id: Date.now(), time: fell ? null : parseFloat(timeInput), fell, loggedAt: Date.now() });
-    setTimeInput("");
-    setShowForm(false);
-  };
-
-  return (
-    <div style={{ borderRadius: 14, border: `2px solid ${W.yellowDark}55`, marginBottom: 10, overflow: "hidden", background: W.surface }}>
-      {/* Header */}
-      <div style={{ background: W.yellow, padding: "14px" }}>
-        {/* Row 1: label + badges | × + collapse icon */}
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 6 }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 7 }}>
-            <div style={{ fontWeight: 800, color: W.yellowDark, fontSize: 18 }}>{sessionLabel}</div>
-            {isEnded    && <span style={{ background: W.yellowDark, color: W.yellow, borderRadius: 6, padding: "1px 7px", fontSize: 10, fontWeight: 800 }}>ENDED</span>}
-            {isActive   && <span style={{ background: `${W.yellowDark}33`, color: W.yellowDark, borderRadius: 6, padding: "1px 7px", fontSize: 10, fontWeight: 800 }}>ACTIVE</span>}
-            {isPausedSpeed && <span style={{ background: `${W.yellowDark}22`, color: W.yellowDark, borderRadius: 6, padding: "1px 7px", fontSize: 10, fontWeight: 800 }}>PAUSED</span>}
-          </div>
-          <div style={{ display: "flex", gap: 5, alignItems: "center" }}>
-            <button onClick={onRemove} style={{ background: "none", border: `1px solid ${W.yellowDark}44`, borderRadius: 7, color: W.yellowDark, fontSize: 14, cursor: "pointer", padding: "2px 7px", opacity: 0.7 }}>×</button>
-            <button onClick={() => setCollapsed(c => !c)} style={{ background: "none", border: `1px solid ${W.yellowDark}44`, borderRadius: 7, color: W.yellowDark, fontSize: 14, cursor: "pointer", padding: "3px 9px", lineHeight: 1 }}>
-              {collapsed ? "▼" : "▲"}
-            </button>
-          </div>
-        </div>
-        {/* Row 2: timer */}
-        <div style={{ fontSize: 48, fontWeight: 900, color: W.yellowDark, fontVariantNumeric: "tabular-nums", letterSpacing: 1, lineHeight: 1, marginBottom: 6 }}>{formatDuration(sessionDurationSec)}</div>
-        {bestTime != null && <div style={{ fontSize: 11, color: W.yellowDark, opacity: 0.85, marginBottom: 6 }}>Best: {bestTime.toFixed(2)}s · {attempts.length} attempt{attempts.length !== 1 ? "s" : ""}</div>}
-        {/* Row 3: subtitle | End + Pause/Resume */}
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", marginTop: bestTime == null ? 6 : 0 }}>
-          <div>
-            {!isEnded && attempts.length === 0 && isActive && <div style={{ fontSize: 10, color: W.yellowDark, opacity: 0.6 }}>Add your first attempt below</div>}
-            {!isEnded && isPausedSpeed && <div style={{ fontSize: 10, color: W.yellowDark, opacity: 0.6 }}>Session paused</div>}
-          </div>
-          <div style={{ display: "flex", gap: 6 }}>
-            {!isEnded && <button onClick={onEnd} style={{ background: W.yellowDark, border: "none", color: W.yellow, fontSize: 12, fontWeight: 700, cursor: "pointer", padding: "7px 14px", borderRadius: 8 }}>End</button>}
-            {!isEnded && <button onClick={isActive ? onPause : onResume} style={{ background: "none", border: `2px solid ${W.yellowDark}`, color: W.yellowDark, fontSize: 12, fontWeight: 700, cursor: "pointer", padding: "6px 12px", borderRadius: 8 }}>
-              {isActive ? "Pause" : "Resume"}
-            </button>}
-          </div>
-        </div>
-      </div>
-
-      {!collapsed && (
-        <>
-          {/* Attempts list */}
-          {attempts.length > 0 && (
-            <div style={{ padding: "6px 14px 4px" }}>
-              {attempts.map((a, i) => {
-                const prevTs = i === 0 ? climb.startedAt : attempts[i - 1].loggedAt;
-                const restBefore = Math.floor((a.loggedAt - prevTs) / 1000);
-                return (
-                  <div key={a.id}>
-                    {i > 0 && <div style={{ textAlign: "center", fontSize: 10, color: W.textDim, padding: "2px 0" }}>↕ {formatRestSec(restBefore)} rest</div>}
-                    <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 0", borderBottom: i < attempts.length - 1 ? `1px solid ${W.border}` : "none" }}>
-                      <div style={{ width: 22, height: 22, borderRadius: "50%", background: a.fell ? W.red : W.green, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, flexShrink: 0 }}>
-                        <span style={{ color: a.fell ? W.redDark : W.greenDark, fontWeight: 800 }}>{a.fell ? "✗" : "✓"}</span>
-                      </div>
-                      <div style={{ flex: 1, fontWeight: 700, color: a.fell ? W.textDim : W.text, fontSize: 15, fontVariantNumeric: "tabular-nums" }}>
-                        {a.fell ? "Fell" : `${a.time?.toFixed(2)}s`}
-                      </div>
-                      {!a.fell && bestTime != null && a.time === bestTime && (
-                        <div style={{ background: W.yellow, color: W.yellowDark, borderRadius: 6, padding: "1px 8px", fontSize: 10, fontWeight: 800 }}>PB</div>
-                      )}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-
-          {!isEnded && (
-            <>
-              <div style={{ textAlign: "center", padding: attempts.length > 0 ? "8px 14px" : "12px 14px", background: W.surface2, borderTop: attempts.length > 0 ? `1px solid ${W.border}` : "none" }}>
-                <div style={{ fontSize: 10, color: W.textDim, textTransform: "uppercase", letterSpacing: 0.8, marginBottom: 2 }}>{attempts.length === 0 ? "Ready to start" : "Resting"}</div>
-                <div style={{ fontSize: 22, fontWeight: 900, color: W.yellowDark, fontVariantNumeric: "tabular-nums", letterSpacing: 1 }}>{formatDuration(restSec)}</div>
-              </div>
-              {showForm ? (
-                <div style={{ padding: "12px 14px", borderTop: `1px solid ${W.border}` }}>
-                  <div style={{ fontSize: 12, fontWeight: 700, color: W.textMuted, marginBottom: 8 }}>Log Attempt</div>
-                  <input type="number" min="0" step="0.01" value={timeInput} onChange={e => setTimeInput(e.target.value)} placeholder="Time in seconds (e.g. 14.83)" autoFocus style={{ width: "100%", padding: "10px 12px", background: W.surface, border: `2px solid ${W.accent}`, borderRadius: 10, color: W.text, fontSize: 16, fontWeight: 800, boxSizing: "border-box", marginBottom: 10, fontFamily: "inherit" }} />
-                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8 }}>
-                    <button onClick={() => { setShowForm(false); setTimeInput(""); }} style={{ padding: "10px", background: "transparent", border: `1px solid ${W.border}`, borderRadius: 10, color: W.textMuted, fontWeight: 700, fontSize: 13, cursor: "pointer" }}>Cancel</button>
-                    <button onClick={() => handleAdd(true)} style={{ padding: "10px", background: W.red, border: `2px solid ${W.redDark}`, borderRadius: 10, color: W.redDark, fontWeight: 700, fontSize: 13, cursor: "pointer" }}>✗ Fell</button>
-                    <button onClick={() => handleAdd(false)} disabled={!timeInput} style={{ padding: "10px", background: timeInput ? W.green : W.surface2, border: `2px solid ${timeInput ? W.greenDark : W.border}`, borderRadius: 10, color: timeInput ? W.greenDark : W.textDim, fontWeight: 700, fontSize: 13, cursor: timeInput ? "pointer" : "default" }}>✓ Log</button>
-                  </div>
-                </div>
-              ) : (
-                <div style={{ padding: "10px 14px", borderTop: `1px solid ${W.border}` }}>
-                  <button onClick={() => setShowForm(true)} style={{ width: "100%", padding: "10px", background: W.yellow, border: `2px solid ${W.yellowDark}`, borderRadius: 10, color: W.yellowDark, fontWeight: 700, fontSize: 14, cursor: "pointer" }}>+ Add Attempt</button>
-                </div>
-              )}
-            </>
-          )}
-        </>
-      )}
-    </div>
-  );
-};
-
-const BoulderRopeSessionCard = ({ type, totalSec, activeStart, isEnded, tick, onPause, onResume, pausedAt, collapsed, onToggleCollapse }) => {
-  const W = useTheme() || THEMES.espresso;
-  const liveSec = !isEnded && activeStart
-    ? Math.max(0, Math.floor((Date.now() - activeStart) / 1000))
-    : 0;
-  const displaySec = (totalSec || 0) + liveSec;
-  const pausedForSec = pausedAt ? Math.max(0, Math.floor((Date.now() - pausedAt) / 1000)) : 0;
-  const isBoulder = type === "boulder";
-  const color     = isBoulder ? W.green  : W.purple;
-  const darkColor = isBoulder ? W.greenDark : W.purpleDark;
-  const label     = isBoulder ? "Boulder Session" : "Rope Session";
-  const isActive  = !isEnded && !!activeStart;
-  const isPaused  = !isEnded && !activeStart;
-  return (
-    <div style={{ borderRadius: 14, border: `2px solid ${darkColor}55`, marginBottom: 10, overflow: "hidden", background: W.surface }}>
-      <div style={{ background: color, padding: "14px" }}>
-        {/* Row 1: label + badges | collapse icon */}
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 6 }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 7 }}>
-            <div style={{ fontWeight: 800, color: darkColor, fontSize: 18 }}>{label}</div>
-            {isEnded  && <span style={{ background: darkColor, color: color, borderRadius: 6, padding: "1px 7px", fontSize: 10, fontWeight: 800 }}>ENDED</span>}
-            {isActive && <span style={{ background: `${darkColor}33`, color: darkColor, borderRadius: 6, padding: "1px 7px", fontSize: 10, fontWeight: 800 }}>ACTIVE</span>}
-            {isPaused && (totalSec || 0) > 0 && <span style={{ background: `${darkColor}22`, color: darkColor, borderRadius: 6, padding: "1px 7px", fontSize: 10, fontWeight: 800 }}>PAUSED</span>}
-          </div>
-          <button onClick={onToggleCollapse} style={{ background: "none", border: `1px solid ${darkColor}44`, borderRadius: 7, color: darkColor, fontSize: 14, cursor: "pointer", padding: "3px 9px", lineHeight: 1 }}>
-            {collapsed ? "▼" : "▲"}
-          </button>
-        </div>
-        {/* Row 2: timer */}
-        <div style={{ fontSize: 48, fontWeight: 900, color: darkColor, fontVariantNumeric: "tabular-nums", letterSpacing: 1, lineHeight: 1, marginBottom: 8 }}>{formatDuration(displaySec)}</div>
-        {/* Row 3: subtitle | pause/resume */}
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end" }}>
-          <div>
-            {isPaused && (totalSec || 0) === 0 && <div style={{ fontSize: 10, color: darkColor, opacity: 0.6 }}>Timer starts when you begin climbing</div>}
-            {isPaused && pausedForSec > 0 && <div style={{ fontSize: 10, color: darkColor, opacity: 0.65 }}>Paused {formatDuration(pausedForSec)} ago</div>}
-          </div>
-          {!isEnded && (isActive || (isPaused && (totalSec || 0) > 0)) && (
-            <button onClick={isActive ? onPause : onResume} style={{ background: darkColor, border: "none", color: color, fontSize: 12, fontWeight: 700, cursor: "pointer", padding: "7px 14px", borderRadius: 8 }}>
-              {isActive ? "Pause" : "Resume"}
-            </button>
-          )}
-        </div>
-      </div>
-    </div>
-  );
-};
-
-const ActiveClimbCard = ({ climb, onEdit, onStartClimbing, onEndAttempt, onUpdateTries, onToggleCompleted, onLogRope, onRemove, onLightbox, onPauseClimb, onResumeClimb, onStopClimb, tick, sessionCount }) => {
-  const W = useTheme() || THEMES.espresso;
-  const [confirmRemove, setConfirmRemove] = useState(false);
-  const [showRopeLog, setShowRopeLog] = useState(false);
-  const [ropeLogFalls, setRopeLogFalls] = useState(0);
-  const [ropeLogTakes, setRopeLogTakes] = useState(0);
-  const [ropeLogTopped, setRopeLogTopped] = useState(false);
-  const isFlash = climb.completed && climb.tries === 0;
-  const isRope = climb.climbType === "rope";
-  const restSec = !climb.climbingStartedAt && !climb.paused && climb.lastAttemptEndedAt
-    ? Math.max(0, Math.floor((Date.now() - climb.lastAttemptEndedAt) / 1000)) : null;
-  const showReady = restSec !== null && restSec >= 180;
-  const totalWorkedMs = !isRope ? (climb.attemptLog || []).reduce((sum, a) => sum + a.duration, 0)
-    + (climb.climbingStartedAt ? Date.now() - climb.climbingStartedAt : 0) : 0;
-
-  const handleDone = () => { onEndAttempt(climb.id); setShowRopeLog(true); setRopeLogFalls(0); setRopeLogTakes(0); setRopeLogTopped(false); };
-  const handleRopeSave = () => { onLogRope(climb.id, ropeLogFalls, ropeLogTakes, ropeLogTopped); setShowRopeLog(false); };
-
-  return (
-    <div style={{ background: W.surface, borderRadius: 14, border: `2px solid ${climb.completed ? W.greenDark : W.border}`, marginBottom: 10, overflow: "hidden" }}>
-      {/* Header */}
-      <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "12px 14px 8px" }}>
-        {climb.photo
-          ? <div onClick={() => onLightbox({ photos: [{ src: climb.photo, grade: climb.grade, name: climb.name, colorId: climb.color }], idx: 0 })} style={{ width: 44, height: 44, borderRadius: 8, overflow: "hidden", flexShrink: 0, cursor: "pointer", border: `1.5px solid ${W.border}` }}><img src={climb.photo} style={{ width: "100%", height: "100%", objectFit: "cover" }} alt="" /></div>
-          : <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 2, flexShrink: 0 }}>
-              <div style={{ width: 38, height: 38, borderRadius: 10, display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 900, fontSize: 12, background: getGradeColor(climb.grade) + "30", color: getGradeColor(climb.grade), border: `1.5px solid ${getGradeColor(climb.grade)}60` }}>{climb.grade}</div>
-            </div>
-        }
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
-            {climb.color && <ColorDot colorId={climb.color} size={11} />}
-            <span style={{ fontWeight: 700, color: W.text, fontSize: 14 }}>{climb.name || climb.grade}</span>
-            {climb.isProject && <span style={{ background: W.pink, color: W.pinkDark, borderRadius: 6, padding: "1px 6px", fontSize: 10, fontWeight: 700 }}>PROJECT</span>}
-            {isFlash && <span style={{ background: W.yellow, color: W.yellowDark, borderRadius: 6, padding: "1px 6px", fontSize: 10, fontWeight: 700 }}>⚡ FLASH</span>}
-            {isRope && climb.ropeStyle && <span style={{ background: W.purple, color: W.purpleDark, borderRadius: 6, padding: "1px 6px", fontSize: 10, fontWeight: 700 }}>{climb.ropeStyle === "top-rope" ? "🔝 TR" : "🧗 Lead"}</span>}
-          </div>
-          {!isRope && totalWorkedMs > 0 && (() => {
-            const totalAttempts = (climb.attemptLog || []).length + (climb.climbingStartedAt ? 1 : 0);
-            const timeColor = climb.completed ? W.greenDark : W.accent;
-            return (
-              <div style={{ display: "flex", alignItems: "center", gap: 4, marginTop: 3 }}>
-                <span style={{ fontSize: 13, fontWeight: 800, color: timeColor, fontVariantNumeric: "tabular-nums" }}>{formatDuration(Math.floor(totalWorkedMs / 1000))}</span>
-                <span style={{ fontSize: 11, color: W.textDim, fontWeight: 600 }}>worked</span>
-                {totalAttempts > 0 && <><span style={{ fontSize: 11, color: W.textDim }}>·</span><span style={{ fontSize: 11, color: W.textDim, fontWeight: 600 }}>{totalAttempts} {totalAttempts === 1 ? "attempt" : "attempts"}</span></>}
-                {sessionCount != null && sessionCount > 1 && <><span style={{ fontSize: 11, color: W.textDim }}>·</span><span style={{ fontSize: 11, color: W.textDim, fontWeight: 600 }}>{sessionCount} sessions</span></>}
-              </div>
-            );
-          })()}
-          {climb.comments && <div style={{ fontSize: 11, color: W.textDim, marginTop: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{climb.comments}</div>}
-          <TagChips wallTypes={climb.wallTypes} holdTypes={climb.holdTypes} />
-        </div>
-        <div style={{ display: "flex", gap: 5, flexShrink: 0 }}>
-          <button onClick={() => onEdit(climb)} style={{ background: W.surface2, border: `1px solid ${W.border}`, borderRadius: 7, padding: "4px 9px", fontSize: 11, color: W.accent, fontWeight: 700, cursor: "pointer" }}>Edit</button>
-          <button onClick={() => setConfirmRemove(true)} style={{ background: "none", border: "none", color: W.redDark, cursor: "pointer", fontSize: 16, padding: "0 2px" }}>🗑</button>
-        </div>
-      </div>
-
-      {/* Boulder action bar */}
-      {!isRope && (
-        <div style={{ display: "flex", alignItems: "center", borderTop: `1px solid ${W.border}`, background: climb.completed ? W.green + "55" : W.surface2 }}>
-          {climb.climbingStartedAt && (
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 8, padding: "8px 14px", borderRight: `1px solid ${W.border}` }}>
-              <div style={{ textAlign: "center" }}>
-                <div style={{ fontSize: 20, fontWeight: 900, color: W.text, lineHeight: 1 }}>{climb.tries}</div>
-                <div style={{ fontSize: 9, color: W.textDim, textTransform: "uppercase", letterSpacing: 0.8 }}>{climb.tries === 1 ? "fall" : "falls"}</div>
-              </div>
-              <button onClick={() => onUpdateTries(climb.id, 1)} style={{ width: 34, height: 34, borderRadius: 8, border: `1px solid ${W.border}`, background: W.surface, color: W.text, fontSize: 18, cursor: "pointer", fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center" }}>+</button>
-            </div>
-          )}
-          <button onClick={() => onToggleCompleted(climb.id)} style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 8, padding: "8px 12px", border: "none", background: "transparent", cursor: "pointer" }}>
-            <div style={{ width: 22, height: 22, borderRadius: 6, border: `2px solid ${climb.completed ? W.greenDark : W.border}`, background: climb.completed ? W.greenDark : "transparent", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-              {climb.completed && <span style={{ color: "#fff", fontSize: 13, lineHeight: 1 }}>✓</span>}
-            </div>
-            <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-start" }}>
-              <span style={{ fontSize: 13, fontWeight: 700, color: climb.completed ? W.greenDark : W.textMuted }}>{climb.completed ? "Sent!" : "Mark Sent"}</span>
-              {climb.completed && (climb.attemptLog || []).length > 0 && (
-                <span style={{ fontSize: 10, color: W.greenDark, fontWeight: 600, opacity: 0.8 }}>
-                  {formatDuration(Math.floor(climb.attemptLog[climb.attemptLog.length - 1].duration / 1000))}
-                </span>
-              )}
-            </div>
-          </button>
-        </div>
-      )}
-
-      {/* Rope attempt summary bar */}
-      {isRope && (climb.tries > 0 || climb.completed) && (
-        <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "7px 14px", borderTop: `1px solid ${W.border}`, background: climb.completed ? W.green + "55" : W.surface2 }}>
-          <div style={{ textAlign: "center" }}>
-            <div style={{ fontSize: 16, fontWeight: 900, color: W.text }}>{climb.tries}</div>
-            <div style={{ fontSize: 9, color: W.textDim, textTransform: "uppercase", letterSpacing: 0.5 }}>{climb.tries === 1 ? "attempt" : "attempts"}</div>
-          </div>
-          <div style={{ width: 1, height: 28, background: W.border }} />
-          <div style={{ textAlign: "center" }}>
-            <div style={{ fontSize: 16, fontWeight: 900, color: W.text }}>{climb.falls || 0}</div>
-            <div style={{ fontSize: 9, color: W.textDim, textTransform: "uppercase", letterSpacing: 0.5 }}>{(climb.falls || 0) === 1 ? "fall" : "falls"}</div>
-          </div>
-          {(climb.takes || 0) > 0 && <><div style={{ width: 1, height: 28, background: W.border }} /><div style={{ textAlign: "center" }}><div style={{ fontSize: 16, fontWeight: 900, color: W.text }}>{climb.takes}</div><div style={{ fontSize: 9, color: W.textDim, textTransform: "uppercase", letterSpacing: 0.5 }}>{climb.takes === 1 ? "take" : "takes"}</div></div></>}
-          {climb.completed && <><div style={{ width: 1, height: 28, background: W.border }} /><span style={{ background: W.green, color: W.greenDark, borderRadius: 6, padding: "2px 8px", fontSize: 10, fontWeight: 800 }}>✓ TOPPED</span></>}
-        </div>
-      )}
-
-      {/* Timer / rope log area */}
-      {!climb.completed && (
-        <div style={{ borderTop: `1px solid ${W.border}`, background: climb.climbingStartedAt ? (isRope ? W.purple + "33" : W.green + "44") : W.surface2 }}>
-          {showRopeLog ? (
-            <div style={{ padding: "12px 14px" }}>
-              <div style={{ fontSize: 11, fontWeight: 700, color: W.textMuted, textTransform: "uppercase", letterSpacing: 0.8, marginBottom: 8 }}>Log This Attempt</div>
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 10 }}>
-                <div>
-                  <div style={{ fontSize: 10, color: W.textDim, marginBottom: 4 }}>Falls</div>
-                  <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                    <button onClick={() => setRopeLogFalls(f => Math.max(0, f - 1))} style={{ width: 30, height: 30, borderRadius: 7, border: `1px solid ${W.border}`, background: W.surface, color: W.text, fontSize: 18, cursor: "pointer", fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center" }}>−</button>
-                    <div style={{ flex: 1, textAlign: "center", fontSize: 20, fontWeight: 900, color: W.text }}>{ropeLogFalls}</div>
-                    <button onClick={() => setRopeLogFalls(f => f + 1)} style={{ width: 30, height: 30, borderRadius: 7, border: `1px solid ${W.border}`, background: W.surface, color: W.text, fontSize: 18, cursor: "pointer", fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center" }}>+</button>
-                  </div>
-                </div>
-                <div>
-                  <div style={{ fontSize: 10, color: W.textDim, marginBottom: 4 }}>Takes</div>
-                  <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                    <button onClick={() => setRopeLogTakes(t => Math.max(0, t - 1))} style={{ width: 30, height: 30, borderRadius: 7, border: `1px solid ${W.border}`, background: W.surface, color: W.text, fontSize: 18, cursor: "pointer", fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center" }}>−</button>
-                    <div style={{ flex: 1, textAlign: "center", fontSize: 20, fontWeight: 900, color: W.text }}>{ropeLogTakes}</div>
-                    <button onClick={() => setRopeLogTakes(t => t + 1)} style={{ width: 30, height: 30, borderRadius: 7, border: `1px solid ${W.border}`, background: W.surface, color: W.text, fontSize: 18, cursor: "pointer", fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center" }}>+</button>
-                  </div>
-                </div>
-              </div>
-              <div style={{ marginBottom: 10 }}>
-                <button onClick={() => setRopeLogTopped(t => !t)} style={{ width: "100%", padding: "8px 12px", background: ropeLogTopped ? W.green : W.surface, border: `2px solid ${ropeLogTopped ? W.greenDark : W.border}`, borderRadius: 10, color: ropeLogTopped ? W.greenDark : W.textMuted, fontWeight: 700, fontSize: 13, cursor: "pointer" }}>
-                  {ropeLogTopped ? "✓ Topped!" : "Topped?"}
-                </button>
-              </div>
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
-                <button onClick={() => setShowRopeLog(false)} style={{ padding: "9px", background: "transparent", border: `1px solid ${W.border}`, borderRadius: 10, color: W.textMuted, cursor: "pointer", fontWeight: 600, fontSize: 13 }}>Cancel</button>
-                <button onClick={handleRopeSave} style={{ padding: "9px", background: W.purple, border: `2px solid ${W.purpleDark}`, borderRadius: 10, color: W.purpleDark, cursor: "pointer", fontWeight: 700, fontSize: 13 }}>Log Attempt</button>
-              </div>
-            </div>
-          ) : climb.climbingStartedAt ? (
-            <div>
-              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "8px 14px" }}>
-                <div>
-                  <div style={{ fontSize: 9, color: isRope ? W.purpleDark : W.greenDark, textTransform: "uppercase", letterSpacing: 0.8, fontWeight: 700 }}>Working on for</div>
-                  <div style={{ fontSize: 20, fontWeight: 900, color: isRope ? W.purpleDark : W.greenDark, fontVariantNumeric: "tabular-nums" }}>
-                    {formatDuration(Math.max(0, Math.floor((Date.now() - climb.climbingStartedAt) / 1000)))}
-                  </div>
-                </div>
-                {isRope
-                  ? <button onClick={handleDone} style={{ padding: "8px 16px", background: W.purple, border: `2px solid ${W.purpleDark}`, borderRadius: 10, color: W.purpleDark, fontWeight: 700, fontSize: 13, cursor: "pointer" }}>Done</button>
-                  : <button onClick={() => onStopClimb(climb.id)} style={{ padding: "6px 12px", background: W.surface, border: `1px solid ${W.border}`, borderRadius: 9, color: W.textMuted, fontWeight: 700, fontSize: 12, cursor: "pointer" }}>✕ Stop</button>
-                }
-              </div>
-              {!isRope && (climb.fallLog || []).length > 0 && (
-                <div style={{ padding: "0 14px 8px", display: "flex", gap: 5, flexWrap: "wrap" }}>
-                  {climb.fallLog.map((f, i) => (
-                    <span key={i} style={{ fontSize: 10, color: W.textDim, background: W.surface, borderRadius: 6, padding: "2px 7px", border: `1px solid ${W.border}` }}>
-                      F{i + 1} +{formatDuration(Math.floor(f.intervalMs / 1000))}
-                    </span>
-                  ))}
-                </div>
-              )}
-            </div>
-          ) : climb.paused ? (
-            <div style={{ display: "flex", alignItems: "center", padding: "10px 14px", gap: 10 }}>
-              <div style={{ flex: 1 }}>
-                <div style={{ fontSize: 9, color: W.textDim, textTransform: "uppercase", letterSpacing: 0.8, fontWeight: 700 }}>⏸ Paused</div>
-                <div style={{ fontSize: 12, color: W.textMuted, marginTop: 1 }}>Attempt tracking paused</div>
-              </div>
-              <button onClick={() => onResumeClimb(climb.id)} style={{ padding: "7px 14px", background: W.green, border: `2px solid ${W.greenDark}`, borderRadius: 10, color: W.greenDark, fontWeight: 700, fontSize: 12, cursor: "pointer" }}>▶ Resume</button>
-            </div>
-          ) : (
-            <div style={{ display: "flex", alignItems: "center", padding: "8px 14px", gap: 8 }}>
-              {restSec !== null && (
-                <div style={{ flex: 1 }}>
-                  <div style={{ fontSize: 9, color: showReady ? W.accent : W.textDim, textTransform: "uppercase", letterSpacing: 0.8, fontWeight: showReady ? 700 : 400 }}>{showReady ? "⚡ Ready?" : "Resting"}</div>
-                  <div style={{ fontSize: 16, fontWeight: 700, color: showReady ? W.accent : W.textMuted, fontVariantNumeric: "tabular-nums" }}>{formatDuration(restSec)}</div>
-                </div>
-              )}
-              {!isRope && climb.lastAttemptEndedAt && (
-                <button onClick={() => onPauseClimb(climb.id)} title="Pause attempts" style={{ padding: "6px 10px", background: W.surface, border: `1px solid ${W.border}`, borderRadius: 8, color: W.textDim, fontWeight: 700, fontSize: 12, cursor: "pointer", flexShrink: 0 }}>⏸</button>
-              )}
-              <button onClick={() => onStartClimbing(climb.id)} style={{ flex: restSec !== null ? "0 0 auto" : 1, padding: "8px 14px", background: isRope ? W.purple : W.green, border: `2px solid ${isRope ? W.purpleDark : W.greenDark}`, borderRadius: 10, color: isRope ? W.purpleDark : W.greenDark, fontWeight: 700, fontSize: 12, cursor: "pointer" }}>
-                {climb.tries === 0 ? (isRope ? "Start Attempt" : "Start Climbing") : "Start Attempt"}
-              </button>
-            </div>
-          )}
-          {(climb.attemptLog || []).length > 0 && !showRopeLog && (
-            <div style={{ padding: "0 14px 8px", display: "flex", gap: 6, flexWrap: "wrap" }}>
-              {(climb.attemptLog || []).map((a, i) => (
-                <span key={i} style={{ fontSize: 10, color: W.textDim, background: W.surface, borderRadius: 6, padding: "2px 7px", border: `1px solid ${W.border}` }}>
-                  #{i + 1} {formatDuration(Math.floor(a.duration / 1000))}
-                </span>
-              ))}
-            </div>
-          )}
-        </div>
-      )}
-
-      {confirmRemove && (
-        <div style={{ background: W.red, padding: "10px 14px", borderTop: `1px solid ${W.redDark}30`, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-          <span style={{ fontSize: 12, color: W.redDark, fontWeight: 700 }}>Remove this climb?</span>
-          <div style={{ display: "flex", gap: 8 }}>
-            <button onClick={() => setConfirmRemove(false)} style={{ padding: "5px 12px", background: "transparent", border: `1px solid ${W.border}`, borderRadius: 8, color: W.textMuted, cursor: "pointer", fontSize: 12 }}>No</button>
-            <button onClick={() => onRemove(climb.id)} style={{ padding: "5px 12px", background: W.redDark, border: "none", borderRadius: 8, color: "#fff", cursor: "pointer", fontSize: 12, fontWeight: 700 }}>Yes</button>
-          </div>
-        </div>
-      )}
-    </div>
-  );
-};
-
+// §APP_START
 export default function App() {
+  // §STATE
   // ── AUTH STATE ─────────────────────────────────────────────
   const [authScreen, setAuthScreen] = useState("loading"); // loading | login | signup | app
   const [currentUser, setCurrentUser] = useState(null);
@@ -818,7 +173,6 @@ export default function App() {
   const picRef   = useRef();
 
   const [showClimbForm, setShowClimbForm]       = useState(false);
-  const [showProjectPicker, setShowProjectPicker] = useState(false);
   const [formProjectPickerOpen, setFormProjectPickerOpen] = useState(false);
   const [editingClimbId, setEditingClimbId]     = useState(null);
   const [editingSessionId, setEditingSessionId] = useState(null);
@@ -863,164 +217,6 @@ export default function App() {
 
   const blankForm = { name: "", grade: GRADES[preferredScale]?.[2] || "V3", scale: preferredScale, isProject: false, comments: "", photo: null, color: null, wallTypes: [], holdTypes: [], climbType: "boulder", ropeStyle: "lead", speedTime: "" };
 
-  const generateInitialSessions = () => {
-    const VG  = ["VB","V0","V1","V2","V3","V4","V5","V6","V7","V8"];
-    const YDS = ["5.6","5.7","5.8","5.9","5.10a","5.10b","5.10c","5.10d","5.11a","5.11b"];
-    const BN  = ["The Arete","Corner Problem","Slab Route","Overhang Crux","Crimpy Wall","Pocket Route","Sidepull Sequence","The Bulge","Roof Section","Compression Problem","Warm Up Wall","The Sloper","Dynamic Move","Balance Slab","The Gaston","Heel Hook","Campus Crux","The Pinch","Undercling Traverse","Mantle Shelf","Green V2","Red V3","Blue Problem","Starting Moves","Exit Sequence"];
-    const RN  = ["Red 5.10","The Slab Wall","Overhang Lead","Corner Crack","Crimpy Face","Long 5.9","Warm Up Route","Technical Face","The Chimney","Juggy Overhang","Sustained Wall","Arete Route","Pumpy Traverse","Top Rope Warm","Lead Project","Blue 5.9","5.10 Corner","Face Climbing","The Roof Route","Endurance Wall"];
-    const SL  = ["Local Gym","The Crux Gym","Boulder Barn","Peak Fitness","Summit Walls"];
-    const SC  = ["red","yellow","green","orange","blue","pink","black","white"];
-    const ri  = (a, b) => Math.floor(Math.random() * (b - a + 1)) + a;
-    const rf  = (a, b) => Math.random() * (b - a) + a;
-    const pk  = a => a[ri(0, a.length - 1)];
-
-    // Grade range by months climbed
-    const vRange = mo => mo<2?[0,1]:mo<4?[0,2]:mo<7?[1,3]:mo<10?[1,4]:[2,5];
-    const rRange = mo => mo<3?[0,2]:mo<6?[1,4]:mo<9?[2,5]:[3,7];
-    const sRange = mo => mo<3?[26,44]:mo<6?[21,37]:mo<9?[17,30]:[14,26];
-
-    // Session type probability mix: boulder / rope / speed / mixed(b+r)
-    const pickType = mo => {
-      const x = Math.random();
-      const [b,r,s] = mo<2?[.92,.05,.00]:mo<4?[.76,.10,.04]:mo<7?[.62,.16,.07]:[.55,.20,.09];
-      return x<b?"boulder":x<b+r?"rope":x<b+r+s?"speed":"mixed";
-    };
-
-    let uid = 400000;
-    const nid = () => uid++;
-
-    // Build boulder climbs from timestamp t, return climbs array and end timestamp
-    const mkBoulders = (mo, t) => {
-      const climbs = [];
-      const [minG, maxG] = vRange(mo);
-      const count = ri(4, 8);
-      for (let i = 0; i < count; i++) {
-        t += ri(60, 180) * 1000;                      // walk over, chalk up, study the problem
-        const gIdx = ri(minG, maxG);
-        const grade = VG[gIdx];
-        const isHard = gIdx >= maxG - 1;
-        const tries = isHard ? ri(2, 7) : (Math.random() < 0.4 ? 1 : ri(2, 3));
-        const completed = tries === 1 ? Math.random() > 0.1 : Math.random() > (isHard ? 0.55 : 0.2);
-        const attemptLog = [];
-        for (let a = 0; a < tries; a++) {
-          const dur = ri(12, isHard ? 70 : 45) * 1000;  // 12-70s per attempt
-          attemptLog.push({ startedAt: t, duration: dur });
-          t += dur;
-          if (a < tries - 1) t += ri(90, 240) * 1000;   // 1.5-4 min rest between attempts
-        }
-        climbs.push({ id: nid(), name: pk(BN), grade, scale:"V-Scale", tries, completed,
-          isProject:false, comments:"", photo:null, projectId:null,
-          color:pk(SC), wallTypes:[pk(WALL_TYPES)], holdTypes:[pk(HOLD_TYPES)],
-          climbType:"boulder", attemptLog, loggedAt: t });
-      }
-      return { climbs, endTs: t };
-    };
-
-    // Build rope climbs from timestamp t, return climbs array and end timestamp
-    const mkRopes = (mo, t) => {
-      const climbs = [];
-      const [minG, maxG] = rRange(mo);
-      const count = ri(2, 5);
-      for (let i = 0; i < count; i++) {
-        t += ri(300, 600) * 1000;                       // 5-10 min between routes
-        const gIdx = ri(minG, maxG);
-        const grade = YDS[gIdx];
-        const isHard = gIdx >= maxG - 1;
-        const tries = isHard ? ri(2, 4) : (Math.random() < 0.5 ? 1 : 2);
-        const falls = isHard ? ri(1, tries * 2) : (tries === 1 ? 0 : ri(0, 2));
-        const takes = Math.random() > 0.55 ? ri(0, 3) : 0;
-        const completed = tries === 1 ? Math.random() > 0.3 : Math.random() > (isHard ? 0.55 : 0.3);
-        const ropeStyle = mo < 4 ? "top-rope" : (Math.random() > (mo < 7 ? 0.4 : 0.55) ? "top-rope" : "lead");
-        const attemptLog = [];
-        for (let a = 0; a < tries; a++) {
-          const dur = ri(90, isHard ? 420 : 240) * 1000; // 1.5-7 min on wall
-          attemptLog.push({ startedAt: t, duration: dur });
-          t += dur;
-          if (a < tries - 1) t += ri(300, 720) * 1000;  // 5-12 min rest between attempts
-        }
-        climbs.push({ id: nid(), name: pk(RN), grade, scale:"YDS", tries, falls, takes, completed,
-          isProject:false, comments:"", photo:null, projectId:null,
-          color:pk(SC), wallTypes:[pk(WALL_TYPES)], holdTypes:[pk(HOLD_TYPES)],
-          climbType:"rope", ropeStyle, attemptLog, loggedAt: t });
-      }
-      return { climbs, endTs: t };
-    };
-
-    // Build a speed session from timestamp t, return as array (1 speed-session climb)
-    const mkSpeed = (mo, t) => {
-      const [lo, hi] = sRange(mo);
-      const count = ri(4, 9);
-      const startedAt = t;
-      const attempts = [];
-      for (let i = 0; i < count; i++) {
-        t += (i === 0 ? ri(30, 90) : ri(120, 300)) * 1000; // 30-90s warmup or 2-5 min rest
-        const fell = Math.random() < (mo < 4 ? 0.25 : 0.15);
-        // Times improve slightly as session goes on
-        const progress = i / Math.max(count - 1, 1);
-        const time = fell ? null : parseFloat(rf(lo - progress * 2, hi - progress * 2).toFixed(2));
-        const dur = (fell ? ri(5, 18) : ri(Math.ceil(lo * 0.7), Math.ceil(hi * 0.9))) * 1000;
-        t += dur;
-        attempts.push({ id: nid(), time, fell, loggedAt: t });
-      }
-      const endedAt = t + ri(30, 120) * 1000;
-      return [{ id: nid(), climbType:"speed-session", name:"Speed Session",
-        attempts, startedAt, loggedAt: endedAt, endedAt,
-        tries:0, completed:false, grade:"⚡", scale:"Speed", wallTypes:[], holdTypes:[] }];
-    };
-
-    const sessions = [];
-    const now   = new Date();
-    const start = new Date(now);
-    start.setFullYear(start.getFullYear() - 1);
-    let d = new Date(start);
-
-    while (d < now) {
-      const mo   = (d - start) / (1000 * 60 * 60 * 24 * 30.4);
-      const isWE = d.getDay() === 0 || d.getDay() === 6;
-      if (Math.random() < (1.5 / 7) * (isWE ? 2.0 : 0.6)) {
-        const sType = pickType(mo);
-        const loc   = pk(SL);
-        const sTs   = d.getTime() + ri(8, 19) * 3600000;
-        let t = sTs + ri(5, 15) * 60 * 1000; // warm-up / arrival time
-
-        let allClimbs = [], boulderStartedAt = null, ropeStartedAt = null;
-        let boulderTotalSec = 0, ropeTotalSec = 0;
-
-        if (sType === "boulder" || sType === "mixed") {
-          boulderStartedAt = t;
-          const { climbs, endTs } = mkBoulders(mo, t);
-          allClimbs.push(...climbs);
-          boulderTotalSec = Math.round((endTs - boulderStartedAt) / 1000);
-          t = endTs;
-        }
-        if (sType === "rope" || sType === "mixed") {
-          if (sType === "mixed") t += ri(1, 5) * 60 * 1000; // transition break
-          ropeStartedAt = t;
-          const { climbs, endTs } = mkRopes(mo, t);
-          allClimbs.push(...climbs);
-          ropeTotalSec = Math.round((endTs - ropeStartedAt) / 1000);
-          t = endTs;
-        }
-        if (sType === "speed") {
-          const sc = mkSpeed(mo, t);
-          allClimbs.push(...sc);
-          t = sc[0].endedAt;
-        }
-
-        sessions.push({
-          id: nid(),
-          date: new Date(sTs).toISOString(),
-          duration: Math.round((t - sTs) / 1000),
-          location: loc,
-          climbs: allClimbs,
-          ...(boulderStartedAt != null ? { boulderStartedAt, boulderTotalSec } : {}),
-          ...(ropeStartedAt    != null ? { ropeStartedAt,  ropeTotalSec  } : {}),
-        });
-      }
-      d.setDate(d.getDate() + 1);
-    }
-    return sessions.reverse();
-  };
   const [climbForm, setClimbForm]   = useState(blankForm);
   const [photoPreview, setPhotoPreview] = useState(null);
   const [calendarDate, setCalendarDate] = useState(new Date());
@@ -1090,6 +286,7 @@ export default function App() {
   const [commentLoading, setCommentLoading]       = useState(false);
   const [commentPanelOwner, setCommentPanelOwner] = useState(null); // username of session owner
 
+  // §EFFECTS
   // ── INIT: check for existing session ──────────────────────
   useEffect(() => {
     const checkSession = async () => {
@@ -1205,6 +402,7 @@ export default function App() {
     localStorage.setItem("active:climb", JSON.stringify({ activeSession, sessionActiveStart, sessionPausedSec, sessionStarted, timerRunning, pendingLocation, lastActivityAt: Date.now() }));
   }, [activeSession, sessionActiveStart, sessionPausedSec, sessionStarted, timerRunning, pendingLocation]);
 
+  // §HANDLERS
   // ── AUTH HANDLERS ──────────────────────────────────────────
   const handleSignup = async () => {
     setAuthError("");
@@ -1461,16 +659,6 @@ export default function App() {
       }),
     };
   });
-  const endBoulderSession = () => setActiveSession(s => {
-    const now = Date.now();
-    const elapsed = s.boulderActiveStart ? Math.max(0, Math.floor((now - s.boulderActiveStart) / 1000)) : 0;
-    return { ...s, boulderTotalSec: (s.boulderTotalSec || 0) + elapsed, boulderActiveStart: null, boulderEndedAt: now };
-  });
-  const endRopeSession = () => setActiveSession(s => {
-    const now = Date.now();
-    const elapsed = s.ropeActiveStart ? Math.max(0, Math.floor((now - s.ropeActiveStart) / 1000)) : 0;
-    return { ...s, ropeTotalSec: (s.ropeTotalSec || 0) + elapsed, ropeActiveStart: null, ropeEndedAt: now };
-  });
   const pauseBoulderSession = () => setActiveSession(s => {
     const now = Date.now();
     const elapsed = s.boulderActiveStart ? Math.max(0, Math.floor((now - s.boulderActiveStart) / 1000)) : 0;
@@ -1720,12 +908,6 @@ export default function App() {
   const activeProjects = projects.filter(p => p.active && !p.completed);
   const completedProjects = projects.filter(p => p.completed);
   const retiredProjects   = projects.filter(p => !p.active && !p.completed);
-  const climbDates     = sessions.map(s => s.date);
-
-  const resolveScaleName = (scale, climbType) => {
-    if (scale !== "Custom") return scale;
-    return climbType === "rope" ? customRopeScaleName : customBoulderScaleName;
-  };
 
   const getGradeIndex = (grade, scale) => {
     if (scale === "Custom") {
@@ -2313,7 +1495,7 @@ export default function App() {
 
   const Label = ({ children }) => <div style={{ color: W.textMuted, fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: 1.2, marginBottom: 7 }}>{children}</div>;
 
-  // ── CLIMB FORM ─────────────────────────────────────────────
+  // §CLIMB_FORM
   const ClimbFormPanel = ({ onSave, onCancel, isActiveSession = false }) => {
     const type = climbForm.climbType || "boulder";
     const ropeGrades = climbForm.scale === "Custom" ? customRopeGrades : (ROPE_GRADES[climbForm.scale] || ROPE_GRADES["French"]);
@@ -2491,7 +1673,7 @@ export default function App() {
 
   // ActiveClimbCard is defined outside App() — see above export default
 
-  // ── REGULAR CLIMB ROW ──────────────────────────────────────
+  // §CLIMB_ROW
   const ClimbRow = ({ climb, onEdit, onRemove, onInlineSave }) => {
     const [confirmRemove, setConfirmRemove] = useState(false);
     const [inlineEditing, setInlineEditing] = useState(false);
@@ -2696,6 +1878,7 @@ export default function App() {
   };
 
   // ── SCREENS ────────────────────────────────────────────────
+  // §SCREEN_HOME
   const HomeScreen = () => {
     // Build combined feed: own sessions + followed users' sessions, sorted newest first
     const ownFeedItems = sessions.map(s => ({
@@ -2818,6 +2001,7 @@ export default function App() {
     );
   };
 
+  // §SCREEN_SESSION_SETUP
   const SessionSetupScreen = () => {
     const toggleType = (t) => setSessionTypes(prev => prev.includes(t) ? (prev.length > 1 ? prev.filter(x => x !== t) : prev) : [...prev, t]);
     const typeOptions = [
@@ -2859,6 +2043,7 @@ export default function App() {
     );
   };
 
+  // §SCREEN_SESSION_ACTIVE
   const SessionActiveScreen = () => {
     const selectedTypes = activeSession?.sessionTypes || ["boulder"];
     const allTypeButtons = [
@@ -3083,6 +2268,7 @@ export default function App() {
     );
   };
 
+  // §SCREEN_SESSION_DETAIL
   const SessionDetailScreen = ({ session }) => {
     const readOnly = sessionReadOnly;
     const [editingLocation, setEditingLocation] = useState(false);
@@ -3203,6 +2389,7 @@ export default function App() {
     );
   };
 
+  // §SCREEN_PROFILE
   const ProfileScreen = () => {
     const stats = getStats();
     const logbookClimbs = getLogbookClimbs();
@@ -3643,28 +2830,6 @@ export default function App() {
             </div>
           );
 
-          // Shared grade breakdown renderer
-          const renderGradeBreakdown = (gradeBreakdown) => {
-            if (!gradeBreakdown || !gradeBreakdown.length) return null;
-            const max = Math.max(...gradeBreakdown.map(g => g.count));
-            return (
-              <div style={{ background: W.surface, borderRadius: 16, padding: "16px", border: `1px solid ${W.border}`, marginBottom: 16 }}>
-                <div style={{ fontSize: 12, fontWeight: 700, color: W.textMuted, textTransform: "uppercase", letterSpacing: 1, marginBottom: 14 }}>Grade Breakdown</div>
-                {gradeBreakdown.map(({ grade, count }) => (
-                  <div key={grade} style={{ marginBottom: 10 }}>
-                    <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 3 }}>
-                      <span style={{ fontSize: 12, fontWeight: 700, color: getGradeColor(grade) }}>{grade}</span>
-                      <span style={{ fontSize: 12, color: W.textDim }}>{count} send{count !== 1 ? "s" : ""}</span>
-                    </div>
-                    <div style={{ background: W.surface2, borderRadius: 6, height: 8, overflow: "hidden" }}>
-                      <div style={{ width: `${Math.round((count / max) * 100)}%`, height: "100%", borderRadius: 6, background: getGradeColor(grade) }} />
-                    </div>
-                  </div>
-                ))}
-              </div>
-            );
-          };
-
           // Overall: bar selection → re-filter stats
           const selBucket    = statsBarSel !== null ? chartBuckets[statsBarSel] : null;
           const displayStats = selBucket ? getStats(selBucket.sessions) : stats;
@@ -3689,25 +2854,6 @@ export default function App() {
             : (GRADES[effectivePieScale] || []);
           const pieGrades = pieGradeList.filter(g => !pieHiddenGrades.includes(g));
           const pieClimbs = tfSessions.flatMap(s => s.climbs).filter(c => c.scale === effectivePieScale);
-          const pieData = (() => {
-            const raw = pieGrades.map(g => {
-              const gc = pieClimbs.filter(c => c.grade === g);
-              const value = pieStat === "attempts" ? gc.reduce((t, c) => t + c.tries, 0) : pieStat === "sends" ? gc.filter(c => c.completed).length : gc.filter(c => c.completed && c.tries === 1).length;
-              return { grade: g, value, color: getGradeColor(g) };
-            }).filter(d => d.value > 0);
-            const total = raw.reduce((s, d) => s + d.value, 0);
-            if (!total) return { slices: [], total: 0 };
-            let angle = -Math.PI / 2;
-            const slices = raw.map(d => {
-              const sweep = (d.value / total) * 2 * Math.PI;
-              const end = angle + sweep; const sa = angle; angle = end;
-              const ir = 22, cx = 50, cy = 50;
-              const mkPath = (r) => { const x1=cx+r*Math.cos(sa),y1=cy+r*Math.sin(sa),x2=cx+r*Math.cos(end),y2=cy+r*Math.sin(end),ix1=cx+ir*Math.cos(sa),iy1=cy+ir*Math.sin(sa),ix2=cx+ir*Math.cos(end),iy2=cy+ir*Math.sin(end),large=sweep>Math.PI?1:0; return `M ${ix1.toFixed(2)} ${iy1.toFixed(2)} L ${x1.toFixed(2)} ${y1.toFixed(2)} A ${r} ${r} 0 ${large} 1 ${x2.toFixed(2)} ${y2.toFixed(2)} L ${ix2.toFixed(2)} ${iy2.toFixed(2)} A ${ir} ${ir} 0 ${large} 0 ${ix1.toFixed(2)} ${iy1.toFixed(2)} Z`; };
-              return { ...d, path: mkPath(42), pathSel: mkPath(47) };
-            });
-            return { slices, total };
-          })();
-
           // ── Previous period stats (for trend arrows) ──────────
           const prevSessions = (() => {
             const cutoffs = { "2w": 14, "1m": 30, "6m": 182, "1y": 365 };
@@ -3802,16 +2948,7 @@ export default function App() {
                   const weekKeys = new Set([...dayKeys].map(weekKey));
                   // Current streak: count consecutive weeks back from current week
                   let streak = 0, best = 0, cur = 0;
-                  const nowWk = weekKey(new Date());
-                  const dt = new Date(); dt.setHours(0,0,0,0); dt.setDate(dt.getDate() - dt.getDay());
-                  for (let i = 0; i < 260; i++) {
-                    const k = dt.toISOString().slice(0, 10);
-                    if (weekKeys.has(k)) { cur++; best = Math.max(best, cur); if (i === 0 || weekKeys.has(k)) streak = cur; }
-                    else { if (i === 0) { streak = 0; } else break; }
-                    dt.setDate(dt.getDate() - 7);
-                  }
-                  // Recalculate streak properly
-                  const allWeeks = [...weekKeys].sort((a,b)=>b.localeCompare(a));
+                  // Calculate streak
                   streak = 0; cur = 0;
                   let expectedWk = new Date(); expectedWk.setHours(0,0,0,0); expectedWk.setDate(expectedWk.getDate() - expectedWk.getDay());
                   for (let i = 0; i < 260; i++) {
@@ -4087,7 +3224,6 @@ export default function App() {
                       const WC = 300, HC = 90;
                       // Map each timed attempt to an x position across the full chronological range of ALL attempts
                       const totalCount = allSpeedAttempts.length;
-                      let timedIdx = 0;
                       const pts = allSpeedAttempts.map((a, i) => {
                         if (a.fell) return null;
                         const x = totalCount > 1 ? (i / (totalCount - 1)) * WC : WC / 2;
@@ -4367,6 +3503,7 @@ export default function App() {
     );
   };
 
+  // §SCREEN_PROJECT_DETAIL
   const ProjectDetailScreen = ({ project }) => {
     const history = getProjectHistory(project.id);
     const totalTries = getProjectTotalTries(project.id);
@@ -4465,6 +3602,7 @@ export default function App() {
     );
   };
 
+  // §SCREEN_CALENDAR
   const CalendarScreen = () => {
     const year = calendarDate.getFullYear(), month = calendarDate.getMonth();
     const firstDay = new Date(year, month, 1).getDay();
@@ -4540,6 +3678,7 @@ export default function App() {
     );
   };
 
+  // §SCREEN_SESSION_SUMMARY
   const SessionSummaryScreen = ({ session }) => {
     const [showDiscard, setShowDiscard] = useState(false);
     const stats = getSessionStats(session);
@@ -4811,6 +3950,7 @@ export default function App() {
     );
   };
 
+  // §SCREEN_USER_PROFILE
   const UserProfileScreen = () => {
     if (!viewedUser) return null;
     const { username, displayName, sessions: uSessions, projects: uProjects, followersCount, followingCount, isPrivate: profileIsPrivate } = viewedUser;
@@ -4958,6 +4098,7 @@ export default function App() {
     );
   };
 
+  // §SCREEN_LEADERBOARD
   const LeaderboardScreen = () => {
     const fmtTime = (secs) => {
       const h = Math.floor(secs / 3600);
@@ -5092,6 +4233,7 @@ export default function App() {
     );
   };
 
+  // §SCREEN_SOCIAL
   const SocialScreen = () => {
     const topGrade = (climbs) => {
       if (!climbs?.length) return null;
@@ -5218,6 +4360,7 @@ export default function App() {
     );
   };
 
+  // §RENDER
   const backMap  = { sessionDetail: sessionDetailBackTo, calendar: "profile", projectDetail: "profile", userProfile: userProfileBackTo, social: "profile", leaderboard: "profile" };
   const navItems = [
     { id: "home",    label: "🏠", text: "Home" },
