@@ -1804,13 +1804,9 @@ export default function App() {
     };
     return (
       <div style={{ background: W.surface, borderRadius: 18, border: `2px solid ${W.accent}40`, marginBottom: 16, overflow: "hidden", boxShadow: `0 2px 12px ${W.accentGlow}` }}>
-        {/* Top row: date/timeago left, avatar+name right */}
+        {/* Top row: avatar+name left, date/timeago right */}
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 16px", borderBottom: `1px solid ${W.border}`, background: W.surface2 }}>
-          <div>
-            <div style={{ fontSize: 13, fontWeight: 700, color: W.textMuted }}>{formatDate(session.date)}</div>
-            <div style={{ fontSize: 11, color: W.textDim, marginTop: 1 }}>{timeAgo(session.date)}</div>
-          </div>
-          {poster && (
+          {poster ? (
             <div onClick={() => poster.username !== currentUser?.username && openUserProfile(poster.username, poster.displayName, "home")} style={{ cursor: poster.username !== currentUser?.username ? "pointer" : "default", display: "flex", alignItems: "center", gap: 10 }}>
               {poster.profilePic
                 ? <img src={poster.profilePic} style={{ width: 40, height: 40, borderRadius: 11, objectFit: "cover", flexShrink: 0 }} />
@@ -1818,18 +1814,41 @@ export default function App() {
               }
               <span style={{ fontWeight: 800, color: W.accent, fontSize: 16 }}>{poster.displayName}</span>
             </div>
-          )}
-        </div>
-        {/* Header: session time left, location right */}
-        <div style={{ padding: "14px 16px", borderBottom: `1px solid ${W.border}`, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-          <div>
-            <div style={{ fontSize: 30, fontWeight: 900, color: W.text, fontVariantNumeric: "tabular-nums", lineHeight: 1 }}>{formatDuration(session.duration)}</div>
-            <div style={{ fontSize: 10, color: W.textDim, marginTop: 4, fontWeight: 700, textTransform: "uppercase", letterSpacing: 1 }}>Session Time</div>
-          </div>
+          ) : <div />}
           <div style={{ textAlign: "right" }}>
-            <div style={{ fontWeight: 700, fontSize: 14, color: W.textMuted }}>📍 {session.location}</div>
+            <div style={{ fontSize: 13, fontWeight: 700, color: W.textMuted }}>{formatDate(session.date)}</div>
+            <div style={{ fontSize: 11, color: W.textDim, marginTop: 1 }}>{timeAgo(session.date)}</div>
           </div>
         </div>
+        {/* Header: session time left, location + type chips right */}
+        {(() => {
+          const hasBoulder = session.climbs.some(c => c.climbType !== "rope" && c.climbType !== "speed-session") || !!session.boulderStartedAt;
+          const hasRope    = session.climbs.some(c => c.climbType === "rope") || !!session.ropeStartedAt;
+          const hasSpeed   = session.climbs.some(c => c.climbType === "speed-session");
+          const typeChips  = [
+            hasBoulder && { label: "🪨 Boulder", bg: W.green,  tc: W.greenDark  },
+            hasRope    && { label: "🪢 Rope",    bg: W.purple, tc: W.purpleDark },
+            hasSpeed   && { label: "⚡ Speed",   bg: W.yellow, tc: W.yellowDark },
+          ].filter(Boolean);
+          return (
+            <div style={{ padding: "14px 16px", borderBottom: `1px solid ${W.border}`, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <div>
+                <div style={{ fontSize: 30, fontWeight: 900, color: W.text, fontVariantNumeric: "tabular-nums", lineHeight: 1 }}>{formatDuration(session.duration)}</div>
+                <div style={{ fontSize: 10, color: W.textDim, marginTop: 4, fontWeight: 700, textTransform: "uppercase", letterSpacing: 1 }}>Session Time</div>
+              </div>
+              <div style={{ textAlign: "right" }}>
+                <div style={{ fontWeight: 700, fontSize: 14, color: W.textMuted }}>📍 {session.location}</div>
+                {typeChips.length > 0 && (
+                  <div style={{ display: "flex", gap: 4, marginTop: 6, justifyContent: "flex-end", flexWrap: "wrap" }}>
+                    {typeChips.map(chip => (
+                      <span key={chip.label} style={{ background: chip.bg, color: chip.tc, borderRadius: 6, padding: "2px 7px", fontSize: 10, fontWeight: 700 }}>{chip.label}</span>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          );
+        })()}
         {/* Photo swiper */}
         {climbPhotos.length > 0 && (() => {
           const photo = climbPhotos[safeIdx];
@@ -1878,21 +1897,19 @@ export default function App() {
             </div>
           );
         })()}
-        {/* Stats row */}
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", borderBottom: `1px solid ${W.border}` }}>
-          {[{ label: "Sends", value: `${stats.sends}/${stats.total}` }, { label: "Tries", value: stats.totalTries }, { label: "Flashes", value: stats.flashes }, { label: "Avg", value: stats.avgTries }].map((s, i) => (
-            <div key={s.label} onClick={() => { setSessionReadOnly(false); setSelectedSession(session); setScreen("sessionDetail"); }} style={{ padding: "10px 6px", textAlign: "center", borderRight: i < 3 ? `1px solid ${W.border}` : "none", cursor: "pointer" }}>
-              <div style={{ fontSize: 18, fontWeight: 900, color: W.text }}>{s.value}</div>
-              <div style={{ fontSize: 10, color: W.textDim, marginTop: 1 }}>{s.label}</div>
-            </div>
-          ))}
-        </div>
-        {/* Hardest row */}
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr" }}>
-          {[{ icon: "🔺", label: "Hardest Tried", value: stats.hardestAttempted }, { icon: "✅", label: "Hardest Sent", value: stats.hardestSent }].map((s, i) => (
-            <div key={s.label} style={{ padding: "10px 8px", textAlign: "center", borderRight: i === 0 ? `1px solid ${W.border}` : "none" }}>
-              <div style={{ fontSize: 15, fontWeight: 900, color: W.accent }}>{s.value}</div>
-              <div style={{ fontSize: 10, color: W.textDim, marginTop: 1 }}>{s.icon} {s.label}</div>
+        {/* Stats list */}
+        <div style={{ padding: "4px 16px 0" }}>
+          {[
+            { label: "Climbs Sent",    value: `${stats.sends} / ${stats.total}` },
+            { label: "Total Tries",    value: stats.totalTries },
+            { label: "Flashes",        value: stats.flashes },
+            { label: "Avg Tries",      value: stats.avgTries },
+            { label: "Hardest Tried",  value: stats.hardestAttempted },
+            { label: "Hardest Sent",   value: stats.hardestSent },
+          ].map((row, i, arr) => (
+            <div key={row.label} onClick={() => { setSessionReadOnly(false); setSelectedSession(session); setScreen("sessionDetail"); }} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "9px 0", borderBottom: i < arr.length - 1 ? `1px solid ${W.border}` : "none", cursor: "pointer" }}>
+              <span style={{ fontSize: 13, color: W.textMuted, fontWeight: 600 }}>{row.label}</span>
+              <span style={{ fontSize: 14, fontWeight: 800, color: W.text }}>{row.value}</span>
             </div>
           ))}
         </div>
