@@ -361,28 +361,41 @@ const TagChips = ({ wallTypes = [], holdTypes = [] }) => {
 
 const LocationDropdown = ({ value, onChange, open, setOpen, knownLocations, onRemove }) => {
   const W = useTheme() || THEMES.espresso;
-  const filtered = value.trim()
-    ? knownLocations.filter(l => l.toLowerCase().includes(value.toLowerCase()))
-    : knownLocations;
-  const isNew = value.trim() && !knownLocations.some(l => l.toLowerCase() === value.trim().toLowerCase());
+  const [addPopup, setAddPopup] = useState(false);
+  const [newGymInput, setNewGymInput] = useState("");
+  const handleAddConfirm = () => {
+    const trimmed = newGymInput.trim();
+    if (trimmed) onChange(trimmed);
+    setNewGymInput(""); setAddPopup(false);
+  };
   return (
   <div style={{ position: "relative" }} onClick={e => e.stopPropagation()}>
-    <div style={{ display: "flex", alignItems: "center", background: W.surface, border: `2px solid ${open ? W.accent : W.border}`, borderRadius: open && filtered.length ? "12px 12px 0 0" : "12px", overflow: "hidden" }}>
-      <input value={value} onChange={e => { onChange(e.target.value); setOpen(true); }} onFocus={() => setOpen(true)} placeholder="e.g. Boulder Barn" style={{ flex: 1, padding: "11px 14px", background: "transparent", border: "none", outline: "none", color: W.text, fontSize: 14, fontFamily: "inherit" }} />
-      {isNew && (
-        <button onClick={() => { onChange(value); setOpen(false); }} style={{ background: W.accent, border: "none", padding: "0 14px", alignSelf: "stretch", cursor: "pointer", color: "#fff", fontSize: 12, fontWeight: 700, whiteSpace: "nowrap" }}>Save</button>
-      )}
-      <button onClick={() => setOpen(o => !o)} style={{ background: "none", border: "none", padding: "0 12px", cursor: "pointer", color: W.textMuted, fontSize: 14, alignSelf: "stretch" }}>{open ? "▲" : "▼"}</button>
-    </div>
-    {open && filtered.length > 0 && (
-      <div style={{ position: "absolute", top: "100%", left: 0, right: 0, background: W.surface, border: `2px solid ${W.accent}`, borderTop: "none", borderRadius: "0 0 12px 12px", zIndex: 100, maxHeight: 200, overflowY: "auto", boxShadow: "0 8px 20px rgba(0,0,0,0.12)" }}>
-        <div style={{ padding: "8px 14px 4px", fontSize: 10, fontWeight: 700, color: W.textDim, textTransform: "uppercase", letterSpacing: 1 }}>Locations</div>
-        {filtered.map(loc => (
-          <div key={loc} style={{ display: "flex", alignItems: "center", borderBottom: `1px solid ${W.border}`, background: loc === value ? W.surface2 : "transparent" }}>
-            <div onClick={() => { onChange(loc); setOpen(false); }} style={{ flex: 1, padding: "10px 14px", cursor: "pointer", color: W.text, fontSize: 14, fontWeight: loc === value ? 700 : 400 }}>📍 {loc}</div>
-            {onRemove && <button onClick={e => { e.stopPropagation(); onRemove(loc); }} style={{ background: "none", border: "none", padding: "0 12px", cursor: "pointer", color: W.textDim, fontSize: 16, lineHeight: 1 }} title="Remove location">×</button>}
+    <button onClick={() => setOpen(o => !o)} style={{ width: "100%", padding: "11px 14px", background: W.surface, border: `2px solid ${open ? W.accent : W.border}`, borderRadius: open ? "12px 12px 0 0" : "12px", color: value ? W.text : W.textDim, fontSize: 14, textAlign: "left", cursor: "pointer", display: "flex", justifyContent: "space-between", alignItems: "center", fontFamily: "inherit", fontWeight: value ? 600 : 400 }}>
+      <span>📍 {value || "Select a location"}</span>
+      <span style={{ color: W.textMuted, fontSize: 12 }}>{open ? "▲" : "▼"}</span>
+    </button>
+    {open && (
+      <div style={{ position: "absolute", top: "100%", left: 0, right: 0, background: W.surface, border: `2px solid ${W.accent}`, borderTop: "none", borderRadius: "0 0 12px 12px", zIndex: 100, maxHeight: 220, overflowY: "auto", boxShadow: "0 8px 20px rgba(0,0,0,0.12)" }}>
+        {knownLocations.length === 0 && <div style={{ padding: "12px 14px", color: W.textDim, fontSize: 13 }}>No locations yet — add one below</div>}
+        {knownLocations.map(loc => (
+          <div key={loc} style={{ display: "flex", alignItems: "center", borderBottom: `1px solid ${W.border}`, background: loc === value ? W.accent + "14" : "transparent" }}>
+            <div onClick={() => { onChange(loc); setOpen(false); }} style={{ flex: 1, padding: "10px 14px", cursor: "pointer", color: loc === value ? W.accent : W.text, fontSize: 14, fontWeight: loc === value ? 700 : 400 }}>📍 {loc}{loc === value ? " ✓" : ""}</div>
+            {onRemove && <button onClick={e => { e.stopPropagation(); onRemove(loc); }} style={{ background: "none", border: "none", padding: "0 12px", cursor: "pointer", color: W.textDim, fontSize: 16, lineHeight: 1 }}>×</button>}
           </div>
         ))}
+        <div onClick={() => { setOpen(false); setAddPopup(true); }} style={{ padding: "11px 14px", cursor: "pointer", color: W.accent, fontSize: 13, fontWeight: 700, borderTop: `1px solid ${W.border}`, display: "flex", alignItems: "center", gap: 6 }}>＋ Add new gym location</div>
+      </div>
+    )}
+    {addPopup && (
+      <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.55)", zIndex: 300, display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }} onClick={() => { setAddPopup(false); setNewGymInput(""); }}>
+        <div style={{ background: W.surface, borderRadius: 18, padding: "24px", width: "100%", maxWidth: 340, boxShadow: "0 20px 60px rgba(0,0,0,0.3)" }} onClick={e => e.stopPropagation()}>
+          <div style={{ fontWeight: 800, color: W.text, fontSize: 16, marginBottom: 14 }}>New Gym Location</div>
+          <input autoFocus value={newGymInput} onChange={e => setNewGymInput(e.target.value)} onKeyDown={e => e.key === "Enter" && handleAddConfirm()} placeholder="e.g. Boulder Barn" style={{ width: "100%", padding: "11px 14px", background: W.surface2, border: `2px solid ${W.accent}`, borderRadius: 10, color: W.text, fontSize: 15, boxSizing: "border-box", fontFamily: "inherit", marginBottom: 14 }} />
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+            <button onClick={() => { setAddPopup(false); setNewGymInput(""); }} style={{ padding: "11px", background: "transparent", border: `1px solid ${W.border}`, borderRadius: 10, color: W.textMuted, cursor: "pointer", fontWeight: 600 }}>Cancel</button>
+            <button onClick={handleAddConfirm} style={{ padding: "11px", background: `linear-gradient(135deg, ${W.accent}, ${W.accentDark})`, border: "none", borderRadius: 10, color: "#fff", cursor: "pointer", fontWeight: 700 }}>Add</button>
+          </div>
+        </div>
       </div>
     )}
   </div>
@@ -798,6 +811,7 @@ export default function App() {
 
   const [showClimbForm, setShowClimbForm]       = useState(false);
   const [showProjectPicker, setShowProjectPicker] = useState(false);
+  const [formProjectPickerOpen, setFormProjectPickerOpen] = useState(false);
   const [editingClimbId, setEditingClimbId]     = useState(null);
   const [editingSessionId, setEditingSessionId] = useState(null);
   const [preferredScale, setPreferredScale]     = useState("V-Scale");
@@ -2263,6 +2277,39 @@ export default function App() {
       <div style={{ background: W.surface2, borderRadius: 16, padding: "16px", marginBottom: 16, border: `1px solid ${W.border}` }}>
         <div style={{ fontWeight: 700, color: W.text, marginBottom: 14, fontSize: 15 }}>{title}</div>
 
+        {/* Project picker — shown at top of form when logging a new active climb */}
+        {isActiveSession && !editingClimbId && type !== "speed" && (() => {
+          const filteredProjects = activeProjects.filter(p =>
+            type === "rope" ? p.climbType === "rope" : (!p.climbType || p.climbType === "boulder")
+          );
+          const selectedProject = activeProjects.find(p => p.id === climbForm.projectId);
+          return (
+            <div style={{ background: climbForm.projectId ? W.pink : W.surface2, borderRadius: 12, marginBottom: 14, border: `1.5px solid ${climbForm.projectId ? W.pinkDark + "55" : W.border}`, overflow: "hidden" }}>
+              <div onClick={() => setFormProjectPickerOpen(o => !o)} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "11px 14px", cursor: "pointer" }}>
+                <div>
+                  <span style={{ fontWeight: 700, color: climbForm.projectId ? W.pinkDark : W.textMuted, fontSize: 13 }}>Log as Project</span>
+                  {selectedProject && <span style={{ marginLeft: 8, fontSize: 12, color: W.pinkDark, fontWeight: 700 }}>{selectedProject.name || selectedProject.grade}</span>}
+                </div>
+                <span style={{ color: W.textMuted, fontSize: 12 }}>{formProjectPickerOpen ? "▲" : "▼"}</span>
+              </div>
+              {formProjectPickerOpen && (
+                <div style={{ borderTop: `1px solid ${W.border}`, padding: "8px 12px 12px" }}>
+                  {filteredProjects.length === 0
+                    ? <div style={{ color: W.textDim, fontSize: 13, padding: "6px 0" }}>No active {type} projects yet.</div>
+                    : filteredProjects.map(p => (
+                      <div key={p.id} onClick={() => { setClimbForm(f => ({ ...f, isProject: true, projectId: p.id, name: p.name || f.name, grade: p.grade, scale: p.scale })); setFormProjectPickerOpen(false); }} style={{ display: "flex", alignItems: "center", background: climbForm.projectId === p.id ? W.pink : W.surface, borderRadius: 10, padding: "10px 12px", marginBottom: 6, border: `1.5px solid ${climbForm.projectId === p.id ? W.pinkDark : W.border}`, cursor: "pointer" }}>
+                        <span style={{ fontWeight: 800, color: getGradeColor(p.grade), fontSize: 13, minWidth: 36 }}>{p.grade}</span>
+                        {p.name && <span style={{ color: W.text, fontWeight: 600, fontSize: 13, flex: 1 }}>{p.name}</span>}
+                        {climbForm.projectId === p.id && <span style={{ color: W.pinkDark, fontSize: 14, fontWeight: 900 }}>✓</span>}
+                      </div>
+                    ))
+                  }
+                  {climbForm.projectId && <button onClick={() => { setClimbForm(f => ({ ...f, isProject: false, projectId: null })); setFormProjectPickerOpen(false); }} style={{ width: "100%", padding: "7px", background: "transparent", border: `1px solid ${W.border}`, borderRadius: 8, color: W.textMuted, cursor: "pointer", fontSize: 12, marginTop: 4 }}>Clear selection</button>}
+                </div>
+              )}
+            </div>
+          );
+        })()}
         {/* Name */}
         <Label>{type === "speed" ? "Climb Name (optional)" : "Climb Name"}</Label>
         <input value={climbForm.name} onChange={e => setClimbForm(f => ({ ...f, name: e.target.value }))} placeholder={type === "boulder" ? "e.g. The Sloper Problem" : type === "rope" ? "e.g. Red Route 6b+" : "e.g. Speed Route"} style={{ width: "100%", padding: "10px 12px", background: W.surface, border: `2px solid ${W.border}`, borderRadius: 10, color: W.text, fontSize: 14, boxSizing: "border-box", marginBottom: 12, fontFamily: "inherit" }} />
@@ -2373,8 +2420,8 @@ export default function App() {
           </div>
         )}
 
-        {/* Project toggle (boulder + rope only) */}
-        {type !== "speed" && (
+        {/* Project toggle — only shown in logbook edit mode; active session uses the picker above */}
+        {type !== "speed" && !isActiveSession && (
           <>
             <Label>Mark as Project?</Label>
             <button onClick={() => setClimbForm(f => ({ ...f, isProject: !f.isProject }))} style={{ width: "100%", padding: "9px", borderRadius: 10, border: "2px solid", borderColor: climbForm.isProject ? W.pinkDark : W.border, background: climbForm.isProject ? W.pink : W.surface, color: climbForm.isProject ? W.pinkDark : W.textDim, cursor: "pointer", fontWeight: 700, fontSize: 13, marginBottom: 12 }}>🎯 {climbForm.isProject ? "Yes — Project" : "No — Not a Project"}</button>
@@ -2408,8 +2455,16 @@ export default function App() {
     const [inlineComments, setInlineComments] = useState(climb.comments || "");
     const [inlineGrade, setInlineGrade] = useState(climb.grade || "");
     const [inlineScale, setInlineScale] = useState(climb.scale || preferredScale);
+    const [inlineFalls, setInlineFalls] = useState(climb.falls ?? climb.tries ?? 0);
+    const gradeScrollRef = useRef(null);
+    useEffect(() => {
+      if (inlineEditing && gradeScrollRef.current) {
+        const sel = gradeScrollRef.current.querySelector("[data-sel='1']");
+        if (sel) sel.scrollIntoView({ inline: "center", behavior: "instant", block: "nearest" });
+      }
+    }, [inlineEditing]);
     const handleEditClick = () => onInlineSave ? setInlineEditing(e => !e) : onEdit && onEdit(climb);
-    const handleInlineSave = () => { onInlineSave(climb.id, { name: inlineName, tries: inlineTries, completed: inlineCompleted, comments: inlineComments, grade: inlineGrade, scale: inlineScale }); setInlineEditing(false); };
+    const handleInlineSave = () => { onInlineSave(climb.id, { name: inlineName, tries: inlineTries, completed: inlineCompleted, comments: inlineComments, grade: inlineGrade, scale: inlineScale, ...(climb.climbType === "rope" ? { falls: inlineFalls } : {}) }); setInlineEditing(false); };
     return (
       <div style={{ background: W.surface, borderRadius: 12, padding: "12px 14px", border: `1px solid ${W.border}`, marginBottom: 8, borderLeft: `4px solid ${(inlineEditing ? inlineCompleted : climb.completed) ? W.greenDark : W.redDark}` }}>
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
@@ -2442,12 +2497,12 @@ export default function App() {
         {inlineEditing && (
           <div style={{ marginTop: 12, paddingTop: 12, borderTop: `1px solid ${W.border}` }}>
             <input value={inlineName} onChange={e => setInlineName(e.target.value)} placeholder="Climb name" style={{ width: "100%", padding: "8px 10px", background: W.surface2, border: `1.5px solid ${W.border}`, borderRadius: 9, color: W.text, fontSize: 13, boxSizing: "border-box", marginBottom: 8, fontFamily: "inherit" }} />
-            <div style={{ overflowX: "auto", display: "flex", gap: 4, marginBottom: 8, paddingBottom: 2 }}>
+            <div ref={gradeScrollRef} style={{ overflowX: "auto", display: "flex", gap: 4, marginBottom: 8, paddingBottom: 2 }}>
               {(climb.climbType === "rope"
                 ? (inlineScale === "Custom" ? customRopeGrades : (ROPE_GRADES[inlineScale] || ROPE_GRADES["French"]))
                 : (inlineScale === "Custom" ? customBoulderGrades : (GRADES[inlineScale] || GRADES["V-Scale"]))
               ).map(g => (
-                <button key={g} onClick={() => setInlineGrade(g)} style={{ flexShrink: 0, padding: "4px 9px", borderRadius: 7, border: `1.5px solid ${inlineGrade === g ? getGradeColor(g) : W.border}`, background: inlineGrade === g ? getGradeColor(g) + "30" : W.surface, color: inlineGrade === g ? getGradeColor(g) : W.textMuted, fontSize: 11, fontWeight: 700, cursor: "pointer" }}>{g}</button>
+                <button key={g} data-sel={g === inlineGrade ? "1" : "0"} onClick={() => setInlineGrade(g)} style={{ flexShrink: 0, padding: "4px 9px", borderRadius: 7, border: `1.5px solid ${inlineGrade === g ? getGradeColor(g) : W.border}`, background: inlineGrade === g ? getGradeColor(g) + "30" : W.surface, color: inlineGrade === g ? getGradeColor(g) : W.textMuted, fontSize: 11, fontWeight: 700, cursor: "pointer" }}>{g}</button>
               ))}
             </div>
             <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8 }}>
@@ -2457,6 +2512,14 @@ export default function App() {
               <button onClick={() => setInlineTries(t => t + 1)} style={{ width: 28, height: 28, borderRadius: 7, border: `1px solid ${W.border}`, background: W.surface, color: W.text, fontSize: 16, cursor: "pointer", fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center" }}>+</button>
               <button onClick={() => setInlineCompleted(c => !c)} style={{ marginLeft: "auto", padding: "5px 12px", borderRadius: 8, border: `2px solid ${inlineCompleted ? W.greenDark : W.border}`, background: inlineCompleted ? W.green : W.surface, color: inlineCompleted ? W.greenDark : W.textMuted, fontWeight: 700, fontSize: 12, cursor: "pointer" }}>{inlineCompleted ? "✓ Sent" : "Not Sent"}</button>
             </div>
+            {climb.climbType === "rope" && (
+              <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8 }}>
+                <span style={{ fontSize: 12, color: W.textMuted, fontWeight: 600 }}>Falls</span>
+                <button onClick={() => setInlineFalls(f => Math.max(0, f - 1))} style={{ width: 28, height: 28, borderRadius: 7, border: `1px solid ${W.border}`, background: W.surface, color: W.text, fontSize: 16, cursor: "pointer", fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center" }}>−</button>
+                <span style={{ fontSize: 16, fontWeight: 900, color: W.text, minWidth: 24, textAlign: "center" }}>{inlineFalls}</span>
+                <button onClick={() => setInlineFalls(f => f + 1)} style={{ width: 28, height: 28, borderRadius: 7, border: `1px solid ${W.border}`, background: W.surface, color: W.text, fontSize: 16, cursor: "pointer", fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center" }}>+</button>
+              </div>
+            )}
             <textarea value={inlineComments} onChange={e => setInlineComments(e.target.value)} placeholder="Notes..." style={{ width: "100%", padding: "8px 10px", background: W.surface2, border: `1.5px solid ${W.border}`, borderRadius: 9, color: W.text, fontSize: 12, resize: "none", height: 52, boxSizing: "border-box", marginBottom: 8, fontFamily: "inherit" }} />
             <div style={{ display: "flex", gap: 8 }}>
               {onEdit && <button onClick={() => { setInlineEditing(false); onEdit(climb); }} style={{ padding: "7px 12px", background: "transparent", border: `1px solid ${W.border}`, borderRadius: 9, color: W.textMuted, fontWeight: 600, fontSize: 12, cursor: "pointer" }}>Full Edit</button>}
@@ -2753,7 +2816,7 @@ export default function App() {
   const SessionActiveScreen = () => {
     const selectedTypes = activeSession?.sessionTypes || ["boulder"];
     const allTypeButtons = [
-      { type: "boulder", label: "🪨 New Boulder",        bg: W.green,  border: W.greenDark,  color: W.greenDark,  onClick: () => openClimbForm(null, null, "boulder") },
+      { type: "boulder", label: "New Boulder",        bg: W.green,  border: W.greenDark,  color: W.greenDark,  onClick: () => openClimbForm(null, null, "boulder") },
       { type: "rope",    label: "🪢 New Rope Climb",     bg: W.purple, border: W.purpleDark, color: W.purpleDark, onClick: () => openClimbForm(null, null, "rope") },
       { type: "speed",   label: "⚡ Speed Climb Session", bg: W.yellow, border: W.yellowDark, color: W.yellowDark, onClick: addSpeedSession },
     ];
@@ -2793,7 +2856,7 @@ export default function App() {
         {showClimbForm && ClimbFormPanel({ isActiveSession: true, onSave: saveClimbToActiveSession, onCancel: () => { setShowClimbForm(false); setPhotoPreview(null); setEditingClimbId(null); } })}
 
         {/* ── Boulder Section ─────────────────────────────────── */}
-        {!showClimbForm && !showProjectPicker && activeSession?.boulderStartedAt && (
+        {!showClimbForm && activeSession?.boulderStartedAt && (
           <div style={{ marginBottom: 16 }}>
             <BoulderRopeSessionCard type="boulder" totalSec={activeSession.boulderTotalSec || 0} activeStart={activeSession.boulderActiveStart || null} isEnded={!!activeSession.boulderEndedAt} tick={sessionTimer} onPause={pauseBoulderSession} onResume={resumeBoulderSession} pausedAt={activeSession.boulderPausedAt || null} collapsed={!!activeSession.collapsedSections?.boulder} onToggleCollapse={() => setActiveSession(s => ({ ...s, collapsedSections: { ...(s.collapsedSections || {}), boulder: !s.collapsedSections?.boulder } }))} />
             {!activeSession.collapsedSections?.boulder && (
@@ -2808,7 +2871,7 @@ export default function App() {
         )}
 
         {/* ── Rope Section ─────────────────────────────────────── */}
-        {!showClimbForm && !showProjectPicker && activeSession?.ropeStartedAt && (
+        {!showClimbForm && activeSession?.ropeStartedAt && (
           <div style={{ marginBottom: 16 }}>
             <BoulderRopeSessionCard type="rope" totalSec={activeSession.ropeTotalSec || 0} activeStart={activeSession.ropeActiveStart || null} isEnded={!!activeSession.ropeEndedAt} tick={sessionTimer} onPause={pauseRopeSession} onResume={resumeRopeSession} pausedAt={activeSession.ropePausedAt || null} collapsed={!!activeSession.collapsedSections?.rope} onToggleCollapse={() => setActiveSession(s => ({ ...s, collapsedSections: { ...(s.collapsedSections || {}), rope: !s.collapsedSections?.rope } }))} />
             {!activeSession.collapsedSections?.rope && (
@@ -2823,44 +2886,23 @@ export default function App() {
         )}
 
         {/* ── Speed Sessions ────────────────────────────────────── */}
-        {!showClimbForm && !showProjectPicker && speedSessions.length > 0 && (
+        {!showClimbForm && speedSessions.length > 0 && (
           <>{speedSessions.map((c, i) => <SpeedSessionCard key={c.id} climb={c} tick={sessionTimer} index={i} totalCount={speedSessions.length} onAddAttempt={a => addSpeedAttempt(c.id, a)} onRemove={() => removeSpeedSession(c.id)} onEnd={() => endSpeedSession(c.id)} onPause={() => pauseSpeedSession(c.id)} onResume={() => resumeSpeedSession(c.id)} />)}</>
         )}
 
-        {showProjectPicker && (
-          <div style={{ background: W.surface2, borderRadius: 16, padding: "16px", marginBottom: 16, border: `1px solid ${W.border}` }}>
-            <div style={{ fontWeight: 700, color: W.text, marginBottom: 4 }}>🎯 Which project?</div>
-            {activeProjects.length === 0 ? <div style={{ color: W.textDim, fontSize: 13 }}>No active projects yet.</div>
-              : activeProjects.map(p => (
-                <div key={p.id} style={{ background: W.surface, borderRadius: 12, padding: "12px 14px", marginBottom: 8, border: `1px solid ${W.border}`, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                  <div>
-                    <span style={{ fontWeight: 700, color: getGradeColor(p.grade), fontSize: 15 }}>{p.grade}</span>
-                    <span style={{ color: W.text, fontSize: 14, fontWeight: 600, marginLeft: 8 }}>{p.name}</span>
-                  </div>
-                  <button onClick={() => { const nc = { id: Date.now(), name: p.name, grade: p.grade, scale: p.scale, climbType: p.climbType || "boulder", isProject: true, comments: p.comments || "", photo: null, projectId: p.id, tries: 0, completed: false, color: null, wallTypes: [], holdTypes: [] }; setActiveSession(s => { const now = Date.now(); const tu = {}; if (nc.climbType === "boulder" && !s.boulderStartedAt) { tu.boulderStartedAt = now; tu.boulderTotalSec = 0; } if (nc.climbType === "rope" && !s.ropeStartedAt) { tu.ropeStartedAt = now; tu.ropeTotalSec = 0; } return { ...s, ...tu, climbs: [...s.climbs, nc] }; }); setShowProjectPicker(false); }} style={{ background: W.pink, border: "none", borderRadius: 8, color: W.pinkDark, padding: "6px 12px", fontWeight: 700, fontSize: 12, cursor: "pointer" }}>Add</button>
-                </div>
-              ))}
-            <button onClick={() => setShowProjectPicker(false)} style={{ width: "100%", marginTop: 8, padding: "10px", background: "transparent", border: `1px solid ${W.border}`, borderRadius: 10, color: W.textMuted, cursor: "pointer" }}>Cancel</button>
-          </div>
-        )}
-        {!showClimbForm && !showProjectPicker && (() => {
+        {!showClimbForm && (() => {
           // Buttons for types whose section isn't started yet (first climb of that type)
           const unstartedPrimary = primaryBtns.filter(b =>
             !(b.type === "boulder" && activeSession?.boulderStartedAt) &&
             !(b.type === "rope"    && activeSession?.ropeStartedAt)
           );
           const hasBottomButtons = unstartedPrimary.length > 0 || secondaryBtns.length > 0;
-          if (!hasBottomButtons) return (
-            <div style={{ marginBottom: 12, marginTop: 4 }}>
-              <button onClick={() => setShowProjectPicker(true)} style={{ width: "100%", padding: "13px", background: W.pink, border: `2px solid ${W.pinkDark}`, borderRadius: 14, color: W.pinkDark, fontWeight: 700, fontSize: 13, cursor: "pointer" }}>🎯 Log Project</button>
-            </div>
-          );
+          if (!hasBottomButtons) return null;
           return (
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 12, marginTop: 8 }}>
               {unstartedPrimary.map(b => (
                 <button key={b.type} onClick={b.onClick} style={{ padding: "13px", background: b.bg, border: `2px solid ${b.border}`, borderRadius: 14, color: b.color, fontWeight: 700, fontSize: 13, cursor: "pointer" }}>{b.label}</button>
               ))}
-              <button onClick={() => setShowProjectPicker(true)} style={{ padding: "13px", background: W.pink, border: `2px solid ${W.pinkDark}`, borderRadius: 14, color: W.pinkDark, fontWeight: 700, fontSize: 13, cursor: "pointer" }}>🎯 Log Project</button>
               {secondaryBtns.length > 0 && (
                 <button onClick={() => setShowMoreClimbTypes(v => !v)} style={{ padding: "13px", background: W.surface2, border: `2px solid ${W.border}`, borderRadius: 14, color: W.textMuted, fontWeight: 700, fontSize: 13, cursor: "pointer" }}>{showMoreClimbTypes ? "▲ Less" : "▼ See More"}</button>
               )}
@@ -2870,7 +2912,7 @@ export default function App() {
             </div>
           );
         })()}
-        {!showClimbForm && !showProjectPicker && (
+        {!showClimbForm && (
           <div style={{ marginTop: 4 }}>
             {/* Section timer status indicators */}
             {(activeSession?.boulderStartedAt || activeSession?.ropeStartedAt || speedSessions.some(s => !s.endedAt)) && (
@@ -2911,7 +2953,7 @@ export default function App() {
           // Filter out climbs already linked to a project
           const unsent = (activeSession?.climbs || []).filter(c => !c.completed && c.climbType !== "speed-session" && !c.projectId);
           // For each climb, find a similar existing project (same grade, not yet sent)
-          const findSimilar = (c) => projects.find(p => p.active && !p.completed && p.grade === c.grade && (p.name === c.name || (!p.name && !c.name)));
+          const findSimilar = (c) => c.name ? projects.find(p => p.active && !p.completed && p.grade === c.grade && p.name && p.name === c.name) : null;
           const confirmAndEnd = () => {
             const checkedIds = Object.entries(projectPromptChecked).filter(([, v]) => v).map(([id]) => id);
             if (checkedIds.length > 0) {
@@ -4474,10 +4516,22 @@ export default function App() {
     });
     return (
       <div style={{ padding: "24px 20px" }}>
-        <div style={{ textAlign: "center", marginBottom: 24 }}>
-          <div style={{ fontSize: 52, marginBottom: 8 }}>🎉</div>
-          <div style={{ fontSize: 24, fontWeight: 900, color: W.text, marginBottom: 4 }}>Session Complete!</div>
+        <div style={{ textAlign: "center", marginBottom: 16 }}>
+          <div style={{ fontSize: 44, marginBottom: 6 }}>🎉</div>
+          <div style={{ fontSize: 22, fontWeight: 900, color: W.text, marginBottom: 4 }}>Session Complete!</div>
           <div style={{ fontSize: 13, color: W.textMuted }}>📍 {session.location} · {formatDate(session.date)}</div>
+        </div>
+        <div style={{ display: "flex", gap: 8, marginBottom: 20, justifyContent: "center" }}>
+          {[
+            { label: formatDuration(session.duration), sub: "time on wall" },
+            { label: `${stats.sends}/${stats.total}`, sub: "sends" },
+            ...(stats.hardestSent !== "—" ? [{ label: stats.hardestSent, sub: "hardest sent" }] : []),
+          ].map((c, i) => (
+            <div key={i} style={{ flex: 1, background: W.surface2, borderRadius: 12, padding: "10px 6px", textAlign: "center", border: `1px solid ${W.border}` }}>
+              <div style={{ fontSize: 15, fontWeight: 900, color: W.accent }}>{c.label}</div>
+              <div style={{ fontSize: 10, color: W.textMuted, marginTop: 2, fontWeight: 600 }}>{c.sub}</div>
+            </div>
+          ))}
         </div>
         {(() => {
           const sentProjects = session.climbs.filter(c => c.isProject && c.completed);
