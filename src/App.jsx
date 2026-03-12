@@ -1804,9 +1804,13 @@ export default function App() {
     };
     return (
       <div style={{ background: W.surface, borderRadius: 18, border: `2px solid ${W.accent}40`, marginBottom: 16, overflow: "hidden", boxShadow: `0 2px 12px ${W.accentGlow}` }}>
-        {/* Posted-by row (only in feed) */}
-        {poster && (
-          <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 16px", borderBottom: `1px solid ${W.border}`, background: W.surface2 }}>
+        {/* Top row: date/timeago left, avatar+name right */}
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 16px", borderBottom: `1px solid ${W.border}`, background: W.surface2 }}>
+          <div>
+            <div style={{ fontSize: 13, fontWeight: 700, color: W.textMuted }}>{formatDate(session.date)}</div>
+            <div style={{ fontSize: 11, color: W.textDim, marginTop: 1 }}>{timeAgo(session.date)}</div>
+          </div>
+          {poster && (
             <div onClick={() => poster.username !== currentUser?.username && openUserProfile(poster.username, poster.displayName, "home")} style={{ cursor: poster.username !== currentUser?.username ? "pointer" : "default", display: "flex", alignItems: "center", gap: 10 }}>
               {poster.profilePic
                 ? <img src={poster.profilePic} style={{ width: 40, height: 40, borderRadius: 11, objectFit: "cover", flexShrink: 0 }} />
@@ -1814,18 +1818,16 @@ export default function App() {
               }
               <span style={{ fontWeight: 800, color: W.accent, fontSize: 16 }}>{poster.displayName}</span>
             </div>
-          </div>
-        )}
-        {/* Header */}
-        <div onClick={onNavigate || (() => { setSessionReadOnly(false); setSelectedSession(session); setScreen("sessionDetail"); })} style={{ padding: "14px 16px", cursor: "pointer", borderBottom: `1px solid ${W.border}`, display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+          )}
+        </div>
+        {/* Header: session time left, location right */}
+        <div style={{ padding: "14px 16px", borderBottom: `1px solid ${W.border}`, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
           <div>
-            <div style={{ fontWeight: 900, fontSize: 17, color: W.text }}>📍 {session.location}</div>
-            <div style={{ fontSize: 11, color: W.textDim, marginTop: 2 }}>⏱ {formatDuration(session.duration)}</div>
+            <div style={{ fontSize: 30, fontWeight: 900, color: W.text, fontVariantNumeric: "tabular-nums", lineHeight: 1 }}>{formatDuration(session.duration)}</div>
+            <div style={{ fontSize: 10, color: W.textDim, marginTop: 4, fontWeight: 700, textTransform: "uppercase", letterSpacing: 1 }}>Session Time</div>
           </div>
-          <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 3 }}>
-            <div style={{ fontSize: 12, color: W.textDim, fontWeight: 600 }}>{formatDate(session.date)}</div>
-            <div style={{ fontSize: 11, color: W.textDim, opacity: 0.65 }}>{timeAgo(session.date)}</div>
-            <div style={{ color: W.accent, fontSize: 13, fontWeight: 700, marginTop: 2 }}>Details ›</div>
+          <div style={{ textAlign: "right" }}>
+            <div style={{ fontWeight: 700, fontSize: 14, color: W.textMuted }}>📍 {session.location}</div>
           </div>
         </div>
         {/* Photo swiper */}
@@ -1911,6 +1913,12 @@ export default function App() {
             </button>
           </div>
         )}
+        {/* Details button — always at the very bottom */}
+        <div style={{ padding: "10px 16px", borderTop: `1px solid ${W.border}` }}>
+          <button onClick={onNavigate || (() => { setSessionReadOnly(false); setSelectedSession(session); setScreen("sessionDetail"); })} style={{ width: "100%", padding: "10px", background: W.surface2, border: `1px solid ${W.border}`, borderRadius: 10, color: W.accent, fontWeight: 700, fontSize: 14, cursor: "pointer" }}>
+            View Details ›
+          </button>
+        </div>
       </div>
     );
   };
