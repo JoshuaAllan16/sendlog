@@ -129,9 +129,10 @@ export default function App() {
   const [abandonedSession, setAbandonedSession] = useState(null);
   const [locationDropdownOpen, setLocationDropdownOpen]       = useState(false);
   const [activeLocationDropdownOpen, setActiveLocationDropdownOpen] = useState(false);
-  const timerRef = useRef(null);
-  const fileRef  = useRef();
-  const picRef   = useRef();
+  const timerRef           = useRef(null);
+  const fileRef            = useRef();
+  const picRef             = useRef();
+  const sessionInitialized = useRef(false); // prevents persist effect from clearing active:climb before checkSession reads it
 
   const [showClimbForm, setShowClimbForm]       = useState(false);
   const [formProjectPickerOpen, setFormProjectPickerOpen] = useState(false);
@@ -329,6 +330,8 @@ export default function App() {
         }
       } catch (e) {
         setAuthScreen("login");
+      } finally {
+        sessionInitialized.current = true;
       }
     };
     checkSession();
@@ -370,6 +373,7 @@ export default function App() {
   // Saves to localStorage so a page refresh doesn't lose the session.
   // Cleared on endSession / discardSession.
   useEffect(() => {
+    if (!sessionInitialized.current) return; // don't touch active:climb until checkSession has read it
     if (!sessionStarted || !activeSession) { localStorage.removeItem("active:climb"); return; }
     localStorage.setItem("active:climb", JSON.stringify({ activeSession, sessionActiveStart, sessionPausedSec, sessionStarted, timerRunning, pendingLocation, lastActivityAt: Date.now() }));
   }, [activeSession, sessionActiveStart, sessionPausedSec, sessionStarted, timerRunning, pendingLocation]);
