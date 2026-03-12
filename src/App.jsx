@@ -1778,6 +1778,18 @@ export default function App() {
   const LogbookSessionCard = ({ session, poster, onNavigate }) => {
     const stats = getSessionStats(session);
     const climbPhotos = session.climbs.filter(c => c.photo);
+    const [photoIdx, setPhotoIdx] = useState(0);
+    const safeIdx = Math.min(photoIdx, climbPhotos.length - 1);
+    const timeAgo = (dateStr) => {
+      const diff = Math.floor((Date.now() - new Date(dateStr)) / 86400000);
+      if (diff === 0) return "Today";
+      if (diff === 1) return "Yesterday";
+      if (diff < 7) return `${diff} days ago`;
+      if (diff < 14) return "1 week ago";
+      if (diff < 30) return `${Math.floor(diff / 7)} weeks ago`;
+      if (diff < 60) return "1 month ago";
+      return `${Math.floor(diff / 30)} months ago`;
+    };
     return (
       <div style={{ background: W.surface, borderRadius: 18, border: `2px solid ${W.accent}40`, marginBottom: 16, overflow: "hidden", boxShadow: `0 2px 12px ${W.accentGlow}` }}>
         {/* Posted-by row (only in feed) */}
@@ -1798,26 +1810,49 @@ export default function App() {
             <div style={{ fontWeight: 900, fontSize: 17, color: W.text }}>📍 {session.location}</div>
             <div style={{ fontSize: 11, color: W.textDim, marginTop: 2 }}>⏱ {formatDuration(session.duration)}</div>
           </div>
-          <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 5 }}>
+          <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 3 }}>
             <div style={{ fontSize: 12, color: W.textDim, fontWeight: 600 }}>{formatDate(session.date)}</div>
-            <div style={{ color: W.accent, fontSize: 13, fontWeight: 700 }}>Details ›</div>
+            <div style={{ fontSize: 11, color: W.textDim, opacity: 0.65 }}>{timeAgo(session.date)}</div>
+            <div style={{ color: W.accent, fontSize: 13, fontWeight: 700, marginTop: 2 }}>Details ›</div>
           </div>
         </div>
-        {/* Photos strip */}
-        {climbPhotos.length > 0 && (
-          <div style={{ display: "flex", gap: 6, padding: "10px 16px", overflowX: "auto", borderBottom: `1px solid ${W.border}` }}>
-            {climbPhotos.map((c, ci) => {
-              const colorHex = CLIMB_COLORS.find(cc => cc.id === c.color)?.hex;
-              return (
-                <div key={c.id} onClick={e => { e.stopPropagation(); setLightboxPhoto({ photos: climbPhotos.map(p => ({ src: p.photo, grade: p.grade, name: p.name, colorId: p.color })), idx: ci }); }} style={{ position: "relative", flexShrink: 0, cursor: "pointer" }}>
-                  <img src={c.photo} alt={c.name || c.grade} style={{ width: 110, height: 110, objectFit: "cover", borderRadius: 10, display: "block" }} />
-                  <div style={{ position: "absolute", bottom: 4, left: 4, background: getGradeColor(c.grade) + "ee", borderRadius: 5, padding: "1px 6px", fontSize: 10, fontWeight: 800, color: "#fff" }}>{c.grade}</div>
-                  {colorHex && <div style={{ position: "absolute", bottom: 4, right: 4, width: 13, height: 13, borderRadius: "50%", background: colorHex, border: "2px solid rgba(255,255,255,0.85)", boxShadow: "0 1px 3px rgba(0,0,0,0.5)" }} />}
+        {/* Photo swiper */}
+        {climbPhotos.length > 0 && (() => {
+          const photo = climbPhotos[safeIdx];
+          const colorHex = CLIMB_COLORS.find(cc => cc.id === photo.color)?.hex;
+          return (
+            <div
+              style={{ position: "relative", borderBottom: `1px solid ${W.border}` }}
+              onTouchStart={e => { e.currentTarget._swipeX = e.touches[0].clientX; }}
+              onTouchEnd={e => {
+                const dx = e.changedTouches[0].clientX - (e.currentTarget._swipeX || 0);
+                if (Math.abs(dx) > 40) setPhotoIdx(i => dx < 0 ? Math.min(i + 1, climbPhotos.length - 1) : Math.max(i - 1, 0));
+              }}
+            >
+              <img
+                src={photo.photo}
+                alt={photo.name || photo.grade}
+                onClick={e => { e.stopPropagation(); setLightboxPhoto({ photos: climbPhotos.map(p => ({ src: p.photo, grade: p.grade, name: p.name, colorId: p.color })), idx: safeIdx }); }}
+                style={{ width: "100%", height: 220, objectFit: "cover", display: "block", cursor: "pointer" }}
+              />
+              <div style={{ position: "absolute", bottom: climbPhotos.length > 1 ? 30 : 10, left: 12, display: "flex", alignItems: "center", gap: 6 }}>
+                <div style={{ background: getGradeColor(photo.grade) + "ee", borderRadius: 6, padding: "2px 8px", fontSize: 12, fontWeight: 800, color: "#fff" }}>{photo.grade}</div>
+                {colorHex && <div style={{ width: 14, height: 14, borderRadius: "50%", background: colorHex, border: "2px solid rgba(255,255,255,0.85)", boxShadow: "0 1px 3px rgba(0,0,0,0.5)" }} />}
+                {photo.name && <div style={{ background: "rgba(0,0,0,0.45)", borderRadius: 6, padding: "2px 8px", fontSize: 11, color: "rgba(255,255,255,0.9)", fontWeight: 600 }}>{photo.name}</div>}
+              </div>
+              {climbPhotos.length > 1 && (
+                <div style={{ position: "absolute", top: 10, right: 10, background: "rgba(0,0,0,0.45)", borderRadius: 10, padding: "2px 8px", fontSize: 11, color: "rgba(255,255,255,0.9)", fontWeight: 600 }}>{safeIdx + 1}/{climbPhotos.length}</div>
+              )}
+              {climbPhotos.length > 1 && (
+                <div style={{ position: "absolute", bottom: 8, left: 0, right: 0, display: "flex", justifyContent: "center", gap: 5 }}>
+                  {climbPhotos.map((_, i) => (
+                    <div key={i} onClick={e => { e.stopPropagation(); setPhotoIdx(i); }} style={{ width: i === safeIdx ? 16 : 6, height: 6, borderRadius: 3, background: i === safeIdx ? "#fff" : "rgba(255,255,255,0.4)", cursor: "pointer" }} />
+                  ))}
                 </div>
-              );
-            })}
-          </div>
-        )}
+              )}
+            </div>
+          );
+        })()}
         {/* Stats row */}
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", borderBottom: `1px solid ${W.border}` }}>
           {[{ icon: "🧗", label: "Sends", value: `${stats.sends}/${stats.total}` }, { icon: "🔁", label: "Tries", value: stats.totalTries }, { icon: "⚡", label: "Flashes", value: stats.flashes }, { icon: "📊", label: "Avg", value: stats.avgTries }].map((s, i) => (
