@@ -604,7 +604,7 @@ export default function App() {
         ...s, ...updates,
         climbs: [
           ...s.climbs.map(c => {
-            if (c.climbingStartedAt) return { ...c, climbingStartedAt: null, attemptLog: [...(c.attemptLog || []), { startedAt: c.climbingStartedAt, duration: now - c.climbingStartedAt }] };
+            if (c.climbingStartedAt) return { ...c, climbingStartedAt: null, pausedWorkedMs: 0, attemptLog: [...(c.attemptLog || []), { startedAt: c.climbingStartedAt, duration: now - c.climbingStartedAt + (c.pausedWorkedMs || 0) }] };
             if (c.climbType === "speed-session" && c.speedActiveStart && !c.endedAt) return { ...c, speedTotalSec: (c.speedTotalSec || 0) + Math.max(0, Math.floor((now - c.speedActiveStart) / 1000)), speedActiveStart: null };
             return c;
           }),
@@ -642,10 +642,10 @@ export default function App() {
     return {
       ...s, ...updates,
       climbs: s.climbs.map(c => {
-        if (c.id === climbId) return { ...c, climbingStartedAt: now };
+        if (c.id === climbId) return { ...c, climbingStartedAt: now, paused: false, pausedWorkedMs: 0 };
         if (c.climbingStartedAt && !c.completed) {
-          const dur = now - c.climbingStartedAt;
-          return { ...c, climbingStartedAt: null, attemptLog: [...(c.attemptLog || []), { startedAt: c.climbingStartedAt, duration: dur, falls: c.tries }] };
+          const dur = now - c.climbingStartedAt + (c.pausedWorkedMs || 0);
+          return { ...c, climbingStartedAt: null, pausedWorkedMs: 0, attemptLog: [...(c.attemptLog || []), { startedAt: c.climbingStartedAt, duration: dur, falls: c.tries }] };
         }
         if (c.climbType === "speed-session" && c.speedActiveStart && !c.endedAt) return { ...c, speedTotalSec: (c.speedTotalSec || 0) + Math.max(0, Math.floor((now - c.speedActiveStart) / 1000)), speedActiveStart: null };
         return c;
@@ -662,7 +662,7 @@ export default function App() {
       boulderPausedAt: now,
       climbs: s.climbs.map(c =>
         c.climbType !== "rope" && c.climbingStartedAt
-          ? { ...c, climbingStartedAt: null, attemptLog: [...(c.attemptLog || []), { startedAt: c.climbingStartedAt, duration: now - c.climbingStartedAt, falls: c.tries }] }
+          ? { ...c, climbingStartedAt: null, pausedWorkedMs: 0, attemptLog: [...(c.attemptLog || []), { startedAt: c.climbingStartedAt, duration: now - c.climbingStartedAt + (c.pausedWorkedMs || 0), falls: c.tries }] }
           : c
       ),
     };
@@ -715,10 +715,10 @@ export default function App() {
     const climb = s.climbs.find(c => c.id === id);
     if (!climb || !climb.climbingStartedAt) return s;
     const now = Date.now();
-    const duration = now - climb.climbingStartedAt;
+    const duration = now - climb.climbingStartedAt + (climb.pausedWorkedMs || 0);
     return {
       ...s,
-      climbs: s.climbs.map(c => c.id === id ? { ...c, climbingStartedAt: null, lastAttemptEndedAt: now, attemptLog: [...(c.attemptLog || []), { startedAt: c.climbingStartedAt, duration }] } : c),
+      climbs: s.climbs.map(c => c.id === id ? { ...c, climbingStartedAt: null, pausedWorkedMs: 0, lastAttemptEndedAt: now, attemptLog: [...(c.attemptLog || []), { startedAt: c.climbingStartedAt, duration }] } : c),
     };
   });
   // Commits a rope attempt: +1 try, adds falls and takes, sets topped
@@ -727,25 +727,35 @@ export default function App() {
     climbs: s.climbs.map(c => c.id === id ? { ...c, tries: (c.tries || 0) + 1, falls: (c.falls || 0) + falls, takes: (c.takes || 0) + takes, completed: topped } : c),
   }));
   // Pauses attempt tracking on a boulder climb (hides rest timer)
-  const pauseClimb = (id) => setActiveSession(s => ({
-    ...s,
-    climbs: s.climbs.map(c => c.id === id ? { ...c, paused: true } : c),
-  }));
-  // Resumes attempt tracking on a paused boulder climb
+  const pauseClimb = (id) => setActiveSession(s => {
+    const now = Date.now();
+    return {
+      ...s,
+      climbs: s.climbs.map(c => {
+        if (c.id !== id) return c;
+        if (c.climbingStartedAt) {
+          // Pause during active attempt — bank elapsed time into pausedWorkedMs
+          return { ...c, paused: true, climbingStartedAt: null, pausedWorkedMs: (c.pausedWorkedMs || 0) + (now - c.climbingStartedAt) };
+        }
+        return { ...c, paused: true };
+      }),
+    };
+  });
+  // Resumes attempt tracking on a paused boulder climb — restores timer from where it was
   const resumeClimb = (id) => setActiveSession(s => ({
     ...s,
-    climbs: s.climbs.map(c => c.id === id ? { ...c, paused: false } : c),
+    climbs: s.climbs.map(c => c.id === id ? { ...c, paused: false, climbingStartedAt: Date.now() } : c),
   }));
   // Stops the boulder climb timer without marking as sent (gave up / moving on)
   const stopBoulderClimb = (id) => setActiveSession(s => {
     const climb = s.climbs.find(c => c.id === id);
     if (!climb || !climb.climbingStartedAt) return s;
     const now = Date.now();
-    const duration = now - climb.climbingStartedAt;
+    const duration = now - climb.climbingStartedAt + (climb.pausedWorkedMs || 0);
     return {
       ...s,
       climbs: s.climbs.map(c => c.id === id
-        ? { ...c, climbingStartedAt: null, attemptLog: [...(c.attemptLog || []), { startedAt: c.climbingStartedAt, duration, falls: c.tries }] }
+        ? { ...c, climbingStartedAt: null, pausedWorkedMs: 0, attemptLog: [...(c.attemptLog || []), { startedAt: c.climbingStartedAt, duration, falls: c.tries }] }
         : c),
     };
   });
@@ -810,8 +820,8 @@ export default function App() {
     let climbUpdates = { completed: newCompleted };
     if (newCompleted && climb.climbingStartedAt) {
       const now = Date.now();
-      const duration = now - climb.climbingStartedAt;
-      climbUpdates = { ...climbUpdates, climbingStartedAt: null, sentAt: now,
+      const duration = now - climb.climbingStartedAt + (climb.pausedWorkedMs || 0);
+      climbUpdates = { ...climbUpdates, climbingStartedAt: null, pausedWorkedMs: 0, sentAt: now,
         attemptLog: [...(climb.attemptLog || []), { startedAt: climb.climbingStartedAt, duration }] };
       // Boulder section timer keeps running — don't flush it here
     }
@@ -833,7 +843,7 @@ export default function App() {
       if (existing.climbingStartedAt && activeSession) {
         const now = Date.now();
         const type = existing.climbType === "rope" ? "rope" : "boulder";
-        const duration = now - existing.climbingStartedAt;
+        const duration = now - existing.climbingStartedAt + (existing.pausedWorkedMs || 0);
         setActiveSession(s => {
           const activeStart = s[`${type}ActiveStart`];
           const elapsed = activeStart ? Math.max(0, Math.floor((now - activeStart) / 1000)) : 0;
@@ -841,7 +851,7 @@ export default function App() {
             ...s,
             [`${type}TotalSec`]: (s[`${type}TotalSec`] || 0) + elapsed,
             [`${type}ActiveStart`]: null,
-            climbs: s.climbs.map(c => c.id === existing.id ? { ...c, climbingStartedAt: null, lastAttemptEndedAt: now, attemptLog: [...(c.attemptLog || []), { startedAt: c.climbingStartedAt, duration }] } : c),
+            climbs: s.climbs.map(c => c.id === existing.id ? { ...c, climbingStartedAt: null, pausedWorkedMs: 0, lastAttemptEndedAt: now, attemptLog: [...(c.attemptLog || []), { startedAt: c.climbingStartedAt, duration }] } : c),
           };
         });
       }

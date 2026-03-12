@@ -268,7 +268,7 @@ export const ActiveClimbCard = ({ climb, onEdit, onStartClimbing, onEndAttempt, 
     ? Math.max(0, Math.floor((Date.now() - climb.lastAttemptEndedAt) / 1000)) : null;
   const showReady = restSec !== null && restSec >= 180;
   const totalWorkedMs = !isRope ? (climb.attemptLog || []).reduce((sum, a) => sum + a.duration, 0)
-    + (climb.climbingStartedAt ? Date.now() - climb.climbingStartedAt : 0) : 0;
+    + (climb.climbingStartedAt ? Date.now() - climb.climbingStartedAt + (climb.pausedWorkedMs || 0) : (climb.pausedWorkedMs || 0)) : 0;
 
   const handleDone = () => { onEndAttempt(climb.id); setShowRopeLog(true); setRopeLogFalls(0); setRopeLogTakes(0); setRopeLogTopped(false); };
   const handleRopeSave = () => { onLogRope(climb.id, ropeLogFalls, ropeLogTakes, ropeLogTopped); setShowRopeLog(false); };
@@ -312,42 +312,22 @@ export const ActiveClimbCard = ({ climb, onEdit, onStartClimbing, onEndAttempt, 
         </div>
       </div>
 
-      {/* Boulder action bar */}
-      {!isRope && (
+      {/* Boulder action bar — only shown when NOT actively climbing (timer+actions rendered in timer area when climbing) */}
+      {!isRope && !climb.climbingStartedAt && (
         <div style={{ borderTop: `1px solid ${W.border}`, background: climb.completed ? W.green + "55" : W.surface2 }}>
-          {climb.climbingStartedAt ? (
-            // Active attempt: falls (left) + Mark Sent (right)
-            <div style={{ display: "flex" }}>
-              <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 12, padding: "14px 12px", borderRight: `1px solid ${W.border}` }}>
-                <div style={{ textAlign: "center" }}>
-                  <div style={{ fontSize: 30, fontWeight: 900, color: W.text, lineHeight: 1 }}>{climb.tries}</div>
-                  <div style={{ fontSize: 10, color: W.textDim, textTransform: "uppercase", letterSpacing: 0.8 }}>{climb.tries === 1 ? "fall" : "falls"}</div>
-                </div>
-                <button onClick={() => onUpdateTries(climb.id, 1)} style={{ width: 48, height: 48, borderRadius: 12, border: `2px solid ${W.border}`, background: W.surface, color: W.text, fontSize: 26, cursor: "pointer", fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center" }}>+</button>
-              </div>
-              <button onClick={() => onToggleCompleted(climb.id)} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "14px 10px", border: "none", background: climb.completed ? W.green : "transparent", cursor: "pointer", gap: 5 }}>
-                <div style={{ width: 30, height: 30, borderRadius: 8, border: `2.5px solid ${W.greenDark}`, background: climb.completed ? W.greenDark : "transparent", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-                  {climb.completed && <span style={{ color: "#fff", fontSize: 17, lineHeight: 1 }}>✓</span>}
-                </div>
-                <span style={{ fontSize: 16, fontWeight: 800, color: W.greenDark }}>{climb.completed ? "Sent!" : "Mark Sent"}</span>
-              </button>
+          <button onClick={() => onToggleCompleted(climb.id)} style={{ width: "100%", display: "flex", alignItems: "center", justifyContent: "center", gap: 8, padding: "8px 12px", border: "none", background: "transparent", cursor: "pointer" }}>
+            <div style={{ width: 22, height: 22, borderRadius: 6, border: `2px solid ${climb.completed ? W.greenDark : W.border}`, background: climb.completed ? W.greenDark : "transparent", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+              {climb.completed && <span style={{ color: "#fff", fontSize: 13, lineHeight: 1 }}>✓</span>}
             </div>
-          ) : (
-            // Idle: standard Mark Sent button
-            <button onClick={() => onToggleCompleted(climb.id)} style={{ width: "100%", display: "flex", alignItems: "center", justifyContent: "center", gap: 8, padding: "8px 12px", border: "none", background: "transparent", cursor: "pointer" }}>
-              <div style={{ width: 22, height: 22, borderRadius: 6, border: `2px solid ${climb.completed ? W.greenDark : W.border}`, background: climb.completed ? W.greenDark : "transparent", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-                {climb.completed && <span style={{ color: "#fff", fontSize: 13, lineHeight: 1 }}>✓</span>}
-              </div>
-              <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-start" }}>
-                <span style={{ fontSize: 13, fontWeight: 700, color: climb.completed ? W.greenDark : W.textMuted }}>{climb.completed ? "Sent!" : "Mark Sent"}</span>
-                {climb.completed && (climb.attemptLog || []).length > 0 && (
-                  <span style={{ fontSize: 10, color: W.greenDark, fontWeight: 600, opacity: 0.8 }}>
-                    {formatDuration(Math.floor(climb.attemptLog[climb.attemptLog.length - 1].duration / 1000))}
-                  </span>
-                )}
-              </div>
-            </button>
-          )}
+            <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-start" }}>
+              <span style={{ fontSize: 13, fontWeight: 700, color: climb.completed ? W.greenDark : W.textMuted }}>{climb.completed ? "Sent!" : "Mark Sent"}</span>
+              {climb.completed && (climb.attemptLog || []).length > 0 && (
+                <span style={{ fontSize: 10, color: W.greenDark, fontWeight: 600, opacity: 0.8 }}>
+                  {formatDuration(Math.floor(climb.attemptLog[climb.attemptLog.length - 1].duration / 1000))}
+                </span>
+              )}
+            </div>
+          </button>
         </div>
       )}
 
@@ -404,20 +384,39 @@ export const ActiveClimbCard = ({ climb, onEdit, onStartClimbing, onEndAttempt, 
             </div>
           ) : climb.climbingStartedAt ? (
             <div>
-              <div style={{ display: "flex", alignItems: "center", padding: "12px 14px", gap: 12 }}>
+              {/* Timer + Pause row — above falls/mark sent */}
+              <div style={{ display: "flex", alignItems: "center", padding: "12px 14px", gap: 12, background: isRope ? W.purple + "33" : W.green + "44" }}>
                 <div style={{ flex: 1 }}>
-                  <div style={{ fontSize: 10, color: isRope ? W.purpleDark : W.greenDark, textTransform: "uppercase", letterSpacing: 0.8, fontWeight: 700, marginBottom: 2 }}>⏱ Working on for</div>
+                  <div style={{ fontSize: 10, color: isRope ? W.purpleDark : W.greenDark, textTransform: "uppercase", letterSpacing: 0.8, fontWeight: 700, marginBottom: 2 }}>Working on for</div>
                   <div style={{ fontSize: 34, fontWeight: 900, color: isRope ? W.purpleDark : W.greenDark, fontVariantNumeric: "tabular-nums", lineHeight: 1 }}>
-                    {formatDuration(Math.max(0, Math.floor((Date.now() - climb.climbingStartedAt) / 1000)))}
+                    {formatDuration(Math.max(0, Math.floor(((Date.now() - climb.climbingStartedAt) + (climb.pausedWorkedMs || 0)) / 1000)))}
                   </div>
                 </div>
                 {isRope
                   ? <button onClick={handleDone} style={{ padding: "10px 18px", background: W.purple, border: `2px solid ${W.purpleDark}`, borderRadius: 12, color: W.purpleDark, fontWeight: 700, fontSize: 14, cursor: "pointer" }}>Done</button>
-                  : <button onClick={() => onPauseClimb(climb.id)} style={{ padding: "10px 16px", background: W.surface, border: `2px solid ${W.border}`, borderRadius: 12, color: W.textMuted, fontWeight: 700, fontSize: 13, cursor: "pointer", display: "flex", alignItems: "center", gap: 6, flexShrink: 0 }}>⏸ Pause</button>
+                  : <button onClick={() => onPauseClimb(climb.id)} style={{ padding: "10px 16px", background: W.surface, border: `2px solid ${W.border}`, borderRadius: 12, color: W.textMuted, fontWeight: 700, fontSize: 13, cursor: "pointer", flexShrink: 0 }}>Pause</button>
                 }
               </div>
+              {/* Falls + Mark Sent row — below timer, only for boulder */}
+              {!isRope && (
+                <div style={{ display: "flex", borderTop: `1px solid ${W.border}` }}>
+                  <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 12, padding: "14px 12px", borderRight: `1px solid ${W.border}`, background: W.surface2 }}>
+                    <div style={{ textAlign: "center" }}>
+                      <div style={{ fontSize: 30, fontWeight: 900, color: W.text, lineHeight: 1 }}>{climb.tries}</div>
+                      <div style={{ fontSize: 10, color: W.textDim, textTransform: "uppercase", letterSpacing: 0.8 }}>{climb.tries === 1 ? "fall" : "falls"}</div>
+                    </div>
+                    <button onClick={() => onUpdateTries(climb.id, 1)} style={{ width: 48, height: 48, borderRadius: 12, border: `2px solid ${W.border}`, background: W.surface, color: W.text, fontSize: 26, cursor: "pointer", fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center" }}>+</button>
+                  </div>
+                  <button onClick={() => onToggleCompleted(climb.id)} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "14px 10px", border: "none", background: climb.completed ? W.green : W.surface2, cursor: "pointer", gap: 5 }}>
+                    <div style={{ width: 30, height: 30, borderRadius: 8, border: `2.5px solid ${W.greenDark}`, background: climb.completed ? W.greenDark : "transparent", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                      {climb.completed && <span style={{ color: "#fff", fontSize: 17, lineHeight: 1 }}>✓</span>}
+                    </div>
+                    <span style={{ fontSize: 16, fontWeight: 800, color: W.greenDark }}>{climb.completed ? "Sent!" : "Mark Sent"}</span>
+                  </button>
+                </div>
+              )}
               {!isRope && (climb.fallLog || []).length > 0 && (
-                <div style={{ padding: "0 14px 8px", display: "flex", gap: 5, flexWrap: "wrap" }}>
+                <div style={{ padding: "4px 14px 8px", display: "flex", gap: 5, flexWrap: "wrap" }}>
                   {climb.fallLog.map((f, i) => (
                     <span key={i} style={{ fontSize: 10, color: W.textDim, background: W.surface, borderRadius: 6, padding: "2px 7px", border: `1px solid ${W.border}` }}>
                       F{i + 1} +{formatDuration(Math.floor(f.intervalMs / 1000))}
