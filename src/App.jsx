@@ -2904,7 +2904,7 @@ export default function App() {
                 })()}
               </div>
             )}
-            <button onClick={toggleSessionTimer} style={{ width: "100%", padding: "12px", background: W.surface2, border: `2px solid ${W.border}`, borderRadius: 14, color: W.textMuted, fontWeight: 700, fontSize: 14, cursor: "pointer", marginBottom: 8 }}>{timerRunning ? "⏸ Pause Session" : "▶ Resume Session"}</button>
+            <button onClick={toggleSessionTimer} style={{ width: "100%", padding: "12px", background: W.surface2, border: `2px solid ${W.border}`, borderRadius: 14, color: W.textMuted, fontWeight: 700, fontSize: 14, cursor: "pointer", marginBottom: 8 }}>{timerRunning ? "Pause Session" : "Resume Session"}</button>
             <button onClick={() => setShowEndConfirm(true)} style={{ width: "100%", padding: "14px", background: W.surface, border: `2px solid ${W.border}`, borderRadius: 14, color: W.redDark, fontWeight: 700, fontSize: 15, cursor: "pointer" }}>End Session</button>
           </div>
         )}
@@ -5211,7 +5211,10 @@ export default function App() {
           )}
           {screen === "session" && sessionStarted ? (
             <div style={{ display: "flex", flexDirection: "column", gap: 1 }}>
-              <div style={{ fontWeight: 800, fontSize: 15, color: W.text, lineHeight: 1.2 }}>{activeSession?.location || "Session"}</div>
+              <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
+                <div style={{ fontWeight: 800, fontSize: 15, color: W.text, lineHeight: 1.2 }}>{activeSession?.location || "Session"}</div>
+                <button onClick={() => setActiveLocationDropdownOpen(o => !o)} style={{ background: "none", border: "none", color: W.textMuted, cursor: "pointer", padding: "0 2px", fontSize: 12, lineHeight: 1 }}>✏️</button>
+              </div>
               <div style={{ fontSize: 11, color: W.textMuted, fontWeight: 600 }}>{(activeSession?.climbs || []).filter(c => c.climbType !== "speed-session").length} attempts</div>
             </div>
           ) : (
@@ -5222,6 +5225,7 @@ export default function App() {
           )}
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          {screen === "session" && sessionStarted && <div style={{ fontWeight: 800, fontSize: 15, color: W.text, fontVariantNumeric: "tabular-nums" }}>{formatDuration(sessionTimer)}</div>}
           {timerRunning && screen !== "session" && <div style={{ background: W.accent, borderRadius: 20, padding: "4px 12px", color: "#fff", fontSize: 12, fontWeight: 700 }}>⏱ {formatDuration(sessionTimer)}</div>}
           {saveStatus === "saving" && <div style={{ fontSize: 11, color: W.textDim, fontWeight: 600 }}>💾</div>}
           {saveStatus === "saved" && <div style={{ fontSize: 11, color: W.greenDark, fontWeight: 600 }}>✓</div>}
@@ -5234,6 +5238,11 @@ export default function App() {
         </div>
       </div>
 
+      {screen === "session" && sessionStarted && activeLocationDropdownOpen && (
+        <div style={{ padding: "10px 20px 12px", background: W.navBg, borderBottom: `1px solid ${W.border}`, position: "sticky", top: 0, zIndex: 49 }} onClick={e => e.stopPropagation()}>
+          <LocationDropdown value={activeSession?.location || ""} onChange={v => { setActiveSession(s => ({ ...s, location: v })); addCustomLocation(v); setActiveLocationDropdownOpen(false); }} open={activeLocationDropdownOpen} setOpen={setActiveLocationDropdownOpen} knownLocations={knownLocations} onRemove={loc => setHiddenLocations(h => [...h, loc])} />
+        </div>
+      )}
       <div style={{ flex: 1, overflowY: "auto", paddingBottom: screen === "sessionSummary" ? 0 : 80 }} onClick={() => { setLocationDropdownOpen(false); setActiveLocationDropdownOpen(false); }}>
         {screen === "home"          && <HomeScreen />}
         {screen === "session"       && (sessionStarted ? <ErrorBoundary key="session-active"><ActiveSessionRenderer render={SessionActiveScreen} /></ErrorBoundary> : SessionSetupScreen())}
