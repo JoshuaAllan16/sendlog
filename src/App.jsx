@@ -447,7 +447,9 @@ export default function App() {
   useEffect(() => {
     if (!sessionInitialized.current) return; // don't touch active:climb until checkSession has read it
     if (!sessionStarted || !activeSession) { localStorage.removeItem("active:climb"); return; }
-    localStorage.setItem("active:climb", JSON.stringify({ username: currentUser?.username, activeSession, sessionActiveStart, sessionPausedSec, sessionStarted, timerRunning, pendingLocation, lastActivityAt: Date.now() }));
+    // Preserve stored username if currentUser is null (logged-out state) so restore still works after page reload
+    const savedUsername = currentUser?.username || (() => { try { return JSON.parse(localStorage.getItem("active:climb") || "{}").username; } catch (e) { return null; } })();
+    localStorage.setItem("active:climb", JSON.stringify({ username: savedUsername, activeSession, sessionActiveStart, sessionPausedSec, sessionStarted, timerRunning, pendingLocation, lastActivityAt: Date.now() }));
   }, [activeSession, sessionActiveStart, sessionPausedSec, sessionStarted, timerRunning, pendingLocation, currentUser]);
 
   // §HANDLERS
@@ -541,6 +543,16 @@ export default function App() {
       loadMyReactions(username.toLowerCase()).then(setMyReactions).catch(() => {});
       setPendingFollowRequests(safeData.profile?.pendingFollowRequests || []);
       storage.get(`followRequests:${username.toLowerCase()}`).then(r => setMyFollowRequests(r ? JSON.parse(r.value) : [])).catch(() => {});
+      // Load fields that checkSession sets but handleLogin previously missed
+      setDefaultWarmupItems(safeData.profile?.defaultWarmupItems || DEFAULT_WARMUP_ITEMS);
+      if (safeData.profile?.warmupTemplates?.length) {
+        setWarmupTemplates(safeData.profile.warmupTemplates);
+        setActiveWarmupTemplateId(safeData.profile.activeWarmupTemplateId || safeData.profile.warmupTemplates[0].id);
+      }
+      setAutoEndWarmup(safeData.profile?.autoEndWarmup !== false);
+      if (safeData.profile?.defaultWorkoutItems?.length) setDefaultWorkoutItems(safeData.profile.defaultWorkoutItems);
+      if (safeData.profile?.defaultFingerboardItems?.length) setDefaultFingerboardItems(safeData.profile.defaultFingerboardItems);
+      if (safeData.profile?.sessionTypeOrder?.length) setSessionTypeOrder(safeData.profile.sessionTypeOrder);
       setAuthScreen("app");
       // If session is still live in memory (user logged out and back in without closing browser)
       // just navigate to it directly rather than re-reading localStorage
