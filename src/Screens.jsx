@@ -209,6 +209,17 @@ export const SessionSummaryScreen = ({
             <div style={{ fontSize: 11, color: W.textMuted, marginTop: 2 }}>Boulder Pauses</div>
           </div>
         )}
+        {(session.warmupChecklist?.length > 0 || session.warmupTotalSec > 0) && (
+          <div style={{ background: W.pink, borderRadius: 14, padding: "14px", border: `1px solid ${W.border}` }}>
+            <div style={{ fontSize: 20, marginBottom: 4 }}>🔥</div>
+            <div style={{ fontSize: 20, fontWeight: 800, color: W.pinkDark }}>
+              {session.warmupChecklist?.length > 0 ? `${session.warmupChecklist.filter(i => i.checked).length}/${session.warmupChecklist.length}` : formatDuration(session.warmupTotalSec)}
+            </div>
+            <div style={{ fontSize: 11, color: W.textMuted, marginTop: 2 }}>
+              {session.warmupChecklist?.length > 0 ? `Warm Up · ${formatDuration(session.warmupTotalSec)}` : "Warm Up"}
+            </div>
+          </div>
+        )}
         {hasRestData && [
           { icon: "⏸", label: "Avg Rest", value: formatRestSec(stats.avgAttemptRest), sub: "between climbs", bg: W.surface2, tc: W.accentDark },
           { icon: "🐢", label: "Longest Rest", value: formatRestSec(stats.maxAttemptRest), sub: "single gap", bg: W.purple, tc: W.purpleDark },

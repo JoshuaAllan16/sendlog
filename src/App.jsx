@@ -177,7 +177,10 @@ export default function App() {
   const [showMoreClimbTypes, setShowMoreClimbTypes] = useState(false);
   const [showSentBoulders, setShowSentBoulders]     = useState(false);
   const [showSentRope, setShowSentRope]             = useState(false);
-  const [warmupNewItemText, setWarmupNewItemText]   = useState("");
+  const [warmupNewItemText, setWarmupNewItemText]         = useState("");
+  const [defaultWarmupItems, setDefaultWarmupItems]       = useState(DEFAULT_WARMUP_ITEMS);
+  const [showWarmupNudge, setShowWarmupNudge]             = useState(false);
+  const [warmupSettingsNewItem, setWarmupSettingsNewItem] = useState("");
   const [colorTheme, setColorTheme]             = useState("espresso");
   const [showEndConfirm, setShowEndConfirm]     = useState(false);
   const [showProjectPrompt, setShowProjectPrompt] = useState(false);
@@ -329,6 +332,7 @@ export default function App() {
           setMutedUsers(userData.profile?.mutedUsers || []);
           setNotifPrefs(userData.profile?.notifPrefs || { follows: true, sessions: true });
           setIsPrivate(userData.profile?.isPrivate || false);
+          setDefaultWarmupItems(userData.profile?.defaultWarmupItems || DEFAULT_WARMUP_ITEMS);
           storage.get(`followers:${username}`).then(r => setSocialFollowers(r ? JSON.parse(r.value) : [])).catch(() => {});
           loadNotifications(username).then(n => { setNotifications(n); setNotifCount(n.filter(x => !x.read).length); }).catch(() => {});
           loadMyReactions(username).then(setMyReactions).catch(() => {});
@@ -356,7 +360,7 @@ export default function App() {
     setSaveStatus("saving");
     saveTimeoutRef.current = setTimeout(async () => {
       const userData = {
-        profile: { displayName: editDisplayName || currentUser.displayName, preferredScale, preferredRopeScale, profilePic, customBoulderGrades, customRopeGrades, customBoulderScaleName, customRopeScaleName, hiddenLocations, customLocations, mainGym, following: socialFollowing, colorTheme, mutedUsers, notifPrefs, isPrivate, pendingFollowRequests },
+        profile: { displayName: editDisplayName || currentUser.displayName, preferredScale, preferredRopeScale, profilePic, customBoulderGrades, customRopeGrades, customBoulderScaleName, customRopeScaleName, hiddenLocations, customLocations, mainGym, following: socialFollowing, colorTheme, mutedUsers, notifPrefs, isPrivate, pendingFollowRequests, defaultWarmupItems },
         sessions,
         projects,
       };
@@ -365,7 +369,7 @@ export default function App() {
       setTimeout(() => setSaveStatus(""), 2000);
     }, 1000);
     return () => clearTimeout(saveTimeoutRef.current);
-  }, [sessions, projects, editDisplayName, preferredScale, preferredRopeScale, profilePic, customBoulderGrades, customRopeGrades, customBoulderScaleName, customRopeScaleName, hiddenLocations, customLocations, mainGym, socialFollowing, colorTheme, mutedUsers, notifPrefs, isPrivate, pendingFollowRequests]);
+  }, [sessions, projects, editDisplayName, preferredScale, preferredRopeScale, profilePic, customBoulderGrades, customRopeGrades, customBoulderScaleName, customRopeScaleName, hiddenLocations, customLocations, mainGym, socialFollowing, colorTheme, mutedUsers, notifPrefs, isPrivate, pendingFollowRequests, defaultWarmupItems]);
 
   useEffect(() => {
     if (timerRunning) {
@@ -727,7 +731,7 @@ export default function App() {
     const updates = {};
     if (s.boulderActiveStart) { updates.boulderTotalSec = (s.boulderTotalSec || 0) + Math.max(0, Math.floor((now - s.boulderActiveStart) / 1000)); updates.boulderActiveStart = null; updates.boulderPausedAt = now; }
     if (s.ropeActiveStart)    { updates.ropeTotalSec    = (s.ropeTotalSec    || 0) + Math.max(0, Math.floor((now - s.ropeActiveStart)    / 1000)); updates.ropeActiveStart    = null; updates.ropePausedAt    = now; }
-    return { ...s, ...updates, warmupStartedAt: now, warmupActiveStart: now, warmupTotalSec: 0, warmupPausedAt: null, warmupEndedAt: null, warmupChecklist: DEFAULT_WARMUP_ITEMS.map(item => ({ ...item, checked: false })) };
+    return { ...s, ...updates, warmupStartedAt: now, warmupActiveStart: now, warmupTotalSec: 0, warmupPausedAt: null, warmupEndedAt: null, warmupChecklist: defaultWarmupItems.map(item => ({ ...item, id: Date.now() + Math.random(), checked: false })) };
   });
   const pauseWarmupSession = () => setActiveSession(s => {
     const now = Date.now();
@@ -746,9 +750,10 @@ export default function App() {
     const elapsed = s.warmupActiveStart ? Math.max(0, Math.floor((now - s.warmupActiveStart) / 1000)) : 0;
     return { ...s, warmupTotalSec: (s.warmupTotalSec || 0) + elapsed, warmupActiveStart: null, warmupEndedAt: now };
   });
-  const toggleWarmupItem  = (itemId) => setActiveSession(s => ({ ...s, warmupChecklist: (s.warmupChecklist || []).map(item => item.id === itemId ? { ...item, checked: !item.checked } : item) }));
-  const addWarmupItem     = (text)   => setActiveSession(s => ({ ...s, warmupChecklist: [...(s.warmupChecklist || []), { id: Date.now(), text, checked: false }] }));
-  const removeWarmupItem  = (itemId) => setActiveSession(s => ({ ...s, warmupChecklist: (s.warmupChecklist || []).filter(item => item.id !== itemId) }));
+  const toggleWarmupItem      = (itemId) => setActiveSession(s => ({ ...s, warmupChecklist: (s.warmupChecklist || []).map(item => item.id === itemId ? { ...item, checked: !item.checked } : item) }));
+  const addWarmupItem         = (text)   => setActiveSession(s => ({ ...s, warmupChecklist: [...(s.warmupChecklist || []), { id: Date.now(), text, checked: false }] }));
+  const removeWarmupItem      = (itemId) => setActiveSession(s => ({ ...s, warmupChecklist: (s.warmupChecklist || []).filter(item => item.id !== itemId) }));
+  const completeAllWarmupItems= ()       => setActiveSession(s => ({ ...s, warmupChecklist: (s.warmupChecklist || []).map(i => ({ ...i, checked: true })) }));
 
   // Stops the per-climb timer without logging tries (used for rope "Done" button)
   // Type section timer keeps running — it only pauses when switching types or ending the section
@@ -936,6 +941,10 @@ export default function App() {
         if (newClimb.climbType === "rope"    && !s.ropeStartedAt)    { typeUpdates.ropeStartedAt    = now; typeUpdates.ropeTotalSec    = 0; }
         return { ...s, ...typeUpdates, climbs: [...s.climbs, newClimb] };
       });
+    }
+    // Show warmup nudge if first climb logged within 2 min of session start with no warmup
+    if (!editingClimbId && !activeSession?.warmupStartedAt && sessionActiveStart && Date.now() - sessionActiveStart < 120000) {
+      setShowWarmupNudge(true);
     }
     setShowClimbForm(false); setPhotoPreview(null); setEditingClimbId(null); setClimbForm(blankForm);
   };
@@ -1905,10 +1914,12 @@ export default function App() {
           const hasBoulder = session.climbs.some(c => c.climbType !== "rope" && c.climbType !== "speed-session") || !!session.boulderStartedAt;
           const hasRope    = session.climbs.some(c => c.climbType === "rope") || !!session.ropeStartedAt;
           const hasSpeed   = session.climbs.some(c => c.climbType === "speed-session");
+          const hasWarmup  = (session.warmupTotalSec || 0) > 0;
           const typeChips  = [
             hasBoulder && { label: "🪨 Boulder", bg: W.green,  tc: W.greenDark  },
             hasRope    && { label: "🪢 Rope",    bg: W.purple, tc: W.purpleDark },
             hasSpeed   && { label: "⚡ Speed",   bg: W.yellow, tc: W.yellowDark },
+            hasWarmup  && { label: `🔥 ${formatDuration(session.warmupTotalSec)}`, bg: W.pink, tc: W.pinkDark },
           ].filter(Boolean);
           return (
             <div style={{ padding: "14px 16px", borderBottom: `1px solid ${W.border}`, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
@@ -1991,11 +2002,13 @@ export default function App() {
           ];
           const boulderSec = session.boulderTotalSec || 0;
           const ropeSec    = session.ropeTotalSec || 0;
+          const warmupSec  = session.warmupTotalSec || 0;
           const speedSec   = stats.speedSessions.reduce((s, ss) => s + Math.max(0, Math.floor(((ss.endedAt || Date.now()) - ss.startedAt) / 1000)), 0);
           const hasBoulder = boulderSec > 0 || session.climbs.some(c => c.climbType !== "rope" && c.climbType !== "speed-session");
           const hasRope    = ropeSec > 0 || session.climbs.some(c => c.climbType === "rope");
           const hasSpeed   = speedSec > 0 || stats.speedSessions.length > 0;
-          const typeCount  = [hasBoulder, hasRope, hasSpeed].filter(Boolean).length;
+          const hasWarmupT = warmupSec > 0;
+          const typeCount  = [hasBoulder, hasRope, hasSpeed, hasWarmupT].filter(Boolean).length;
           // Build right panel based on session type mix
           let rightPanel = null;
           if (typeCount >= 2) {
@@ -2004,6 +2017,7 @@ export default function App() {
               hasBoulder && boulderSec > 0 && { label: "🪨 Boulder", value: boulderSec, color: W.greenDark },
               hasRope    && ropeSec > 0    && { label: "🪢 Rope",    value: ropeSec,    color: W.purpleDark },
               hasSpeed   && speedSec > 0   && { label: "⚡ Speed",   value: speedSec,   color: W.yellowDark },
+              hasWarmupT && warmupSec > 0  && { label: "🔥 Warm Up", value: warmupSec,  color: W.pinkDark },
             ].filter(Boolean);
             const paths = buildPie(timeSlices);
             if (paths.length >= 2) {
@@ -2354,6 +2368,18 @@ export default function App() {
         <div style={{ marginBottom: 18 }}>
           <LocationDropdown value={activeSession?.location || ""} onChange={v => { setActiveSession(s => ({ ...s, location: v })); addCustomLocation(v); }} open={activeLocationDropdownOpen} setOpen={setActiveLocationDropdownOpen} knownLocations={knownLocations} onRemove={loc => setHiddenLocations(h => [...h, loc])} />
         </div>
+        {/* Warmup nudge banner */}
+        {showWarmupNudge && !activeSession?.warmupStartedAt && (
+          <div style={{ background: `${W.pinkDark}22`, border: `1.5px solid ${W.pinkDark}55`, borderRadius: 12, padding: "10px 14px", marginBottom: 14, display: "flex", alignItems: "center", gap: 10 }}>
+            <span style={{ fontSize: 18 }}>🔥</span>
+            <div style={{ flex: 1 }}>
+              <div style={{ fontSize: 13, fontWeight: 700, color: W.pinkDark }}>Don't forget to warm up!</div>
+              <div style={{ fontSize: 11, color: W.textDim, marginTop: 1 }}>Starting cold increases injury risk.</div>
+            </div>
+            <button onClick={startWarmupSection} style={{ padding: "5px 10px", borderRadius: 8, border: `1px solid ${W.pinkDark}55`, background: W.pink, color: W.pinkDark, fontWeight: 700, fontSize: 11, cursor: "pointer", whiteSpace: "nowrap" }}>Start</button>
+            <button onClick={() => setShowWarmupNudge(false)} style={{ background: "transparent", border: "none", color: W.textDim, fontSize: 18, cursor: "pointer", padding: "0 2px", lineHeight: 1 }}>×</button>
+          </div>
+        )}
         {showClimbForm && ClimbFormPanel({ isActiveSession: true, onSave: saveClimbToActiveSession, onCancel: () => { setShowClimbForm(false); setPhotoPreview(null); setEditingClimbId(null); } })}
 
         {/* ── Boulder Section ─────────────────────────────────── */}
@@ -2435,7 +2461,8 @@ export default function App() {
                       ? <button onClick={pauseWarmupSession}  style={{ padding: "5px 11px", borderRadius: 8, border: `1px solid ${W.pinkDark}55`, background: W.pink, color: W.pinkDark, fontWeight: 700, fontSize: 12, cursor: "pointer" }}>⏸ Pause</button>
                       : <button onClick={resumeWarmupSession} style={{ padding: "5px 11px", borderRadius: 8, border: `1px solid ${W.pinkDark}55`, background: W.pink, color: W.pinkDark, fontWeight: 700, fontSize: 12, cursor: "pointer" }}>▶ Resume</button>
                     )}
-                    {!isEnded && <button onClick={endWarmupSection} style={{ padding: "5px 11px", borderRadius: 8, border: `1px solid ${W.pinkDark}55`, background: W.surface2, color: W.textMuted, fontWeight: 700, fontSize: 12, cursor: "pointer" }}>✓ Done</button>}
+                    {!isEnded && doneCount < checklist.length && <button onClick={completeAllWarmupItems} style={{ padding: "5px 11px", borderRadius: 8, border: `1px solid ${W.pinkDark}55`, background: W.pink, color: W.pinkDark, fontWeight: 700, fontSize: 12, cursor: "pointer" }}>✓ All</button>}
+                    {!isEnded && <button onClick={endWarmupSection} style={{ padding: "5px 11px", borderRadius: 8, border: `1px solid ${W.pinkDark}55`, background: W.surface2, color: W.textMuted, fontWeight: 700, fontSize: 12, cursor: "pointer" }}>Done</button>}
                     {isEnded && <span style={{ fontSize: 11, fontWeight: 700, color: W.pinkDark }}>✓ Complete</span>}
                   </div>
                 </div>
@@ -2681,11 +2708,13 @@ export default function App() {
           // Time breakdown pie — multi-type sessions
           const boulderSec = session.boulderTotalSec || 0;
           const ropeSec    = session.ropeTotalSec || 0;
+          const warmupSecD = session.warmupTotalSec || 0;
           const speedSec   = (session.climbs || []).filter(c => c.climbType === "speed-session").reduce((s, c) => s + Math.max(0, Math.floor(((c.endedAt || Date.now()) - c.startedAt) / 1000)), 0);
           const timeSlices = [
             boulderSec > 0 && { label: "🪨 Boulder", value: boulderSec, color: W.greenDark },
             ropeSec > 0    && { label: "🪢 Rope",    value: ropeSec,    color: W.purpleDark },
             speedSec > 0   && { label: "⚡ Speed",   value: speedSec,   color: W.yellowDark },
+            warmupSecD > 0 && { label: "🔥 Warm Up", value: warmupSecD, color: W.pinkDark },
           ].filter(Boolean);
           if (timeSlices.length < 2) return null;
           const paths = buildPie(timeSlices);
@@ -3026,6 +3055,24 @@ export default function App() {
                   )}
                 </div>
               )}
+            </div>
+
+            {/* Default Warmup Checklist */}
+            <div style={{ marginBottom: 14 }}>
+              <div style={{ fontSize: 11, fontWeight: 700, color: W.textMuted, textTransform: "uppercase", letterSpacing: 1.2, marginBottom: 8 }}>Default Warmup Checklist</div>
+              {defaultWarmupItems.map((item, i) => (
+                <div key={item.id} style={{ display: "flex", alignItems: "center", gap: 8, padding: "7px 10px", marginBottom: 5, background: W.surface2, border: `1px solid ${W.border}`, borderRadius: 9 }}>
+                  <span style={{ fontSize: 12, color: W.text, flex: 1 }}>{item.text}</span>
+                  <button onClick={() => setDefaultWarmupItems(prev => prev.filter(x => x.id !== item.id))} style={{ background: "transparent", border: "none", color: W.textDim, fontSize: 16, cursor: "pointer", lineHeight: 1, padding: "0 2px" }}>×</button>
+                </div>
+              ))}
+              <div style={{ display: "flex", gap: 6, marginTop: 4 }}>
+                <input value={warmupSettingsNewItem} onChange={e => setWarmupSettingsNewItem(e.target.value)}
+                  onKeyDown={e => { if (e.key === "Enter" && warmupSettingsNewItem.trim()) { setDefaultWarmupItems(prev => [...prev, { id: Date.now(), text: warmupSettingsNewItem.trim() }]); setWarmupSettingsNewItem(""); } }}
+                  placeholder="Add item…" style={{ flex: 1, padding: "7px 10px", borderRadius: 9, border: `1px solid ${W.border}`, background: W.surface, color: W.text, fontSize: 12, outline: "none" }} />
+                <button onClick={() => { if (warmupSettingsNewItem.trim()) { setDefaultWarmupItems(prev => [...prev, { id: Date.now(), text: warmupSettingsNewItem.trim() }]); setWarmupSettingsNewItem(""); } }} style={{ padding: "7px 12px", borderRadius: 9, border: `1px solid ${W.pinkDark}55`, background: W.pink, color: W.pinkDark, fontWeight: 700, fontSize: 13, cursor: "pointer" }}>+</button>
+              </div>
+              <button onClick={() => setDefaultWarmupItems(DEFAULT_WARMUP_ITEMS.map(i => ({ ...i })))} style={{ marginTop: 6, padding: "5px 10px", borderRadius: 8, border: `1px solid ${W.border}`, background: "transparent", color: W.textDim, fontSize: 11, cursor: "pointer" }}>Reset to defaults</button>
             </div>
 
             {/* App Theme */}
