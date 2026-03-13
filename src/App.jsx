@@ -2332,10 +2332,12 @@ export default function App() {
   const SessionSetupScreen = () => {
     const toggleType = (t) => setSessionTypes(prev => prev.includes(t) ? (prev.length > 1 ? prev.filter(x => x !== t) : prev) : [...prev, t]);
     const typeOptions = [
-      { id: "boulder", label: "Bouldering" },
-      { id: "rope",    label: "Rope Climbing" },
-      { id: "speed",   label: "Speed Climbing" },
-      { id: "warmup",  label: "Warm Up" },
+      { id: "boulder",     label: "Bouldering" },
+      { id: "rope",        label: "Rope Climbing" },
+      { id: "speed",       label: "Speed Climbing" },
+      { id: "warmup",      label: "Warm Up" },
+      { id: "workout",     label: "Workout" },
+      { id: "fingerboard", label: "Fingerboard Session" },
     ];
     return (
       <div style={{ padding: "32px 24px" }}>
@@ -2344,15 +2346,12 @@ export default function App() {
           <LocationDropdown value={pendingLocation} onChange={v => { setPendingLocation(v); addCustomLocation(v); }} open={locationDropdownOpen} setOpen={setLocationDropdownOpen} knownLocations={knownLocations} onRemove={loc => setHiddenLocations(h => [...h, loc])} />
         </div>
         <div style={{ background: W.surface, borderRadius: 18, padding: "20px", border: `1px solid ${W.border}`, marginBottom: 24 }}>
-          <div style={{ fontSize: 12, fontWeight: 700, color: W.textMuted, textTransform: "uppercase", letterSpacing: 1, marginBottom: 12 }}>What will you be doing this session</div>
+          <div style={{ fontSize: 12, fontWeight: 700, color: W.textMuted, textTransform: "uppercase", letterSpacing: 1, marginBottom: 12 }}>What will you be doing</div>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
             {typeOptions.map(opt => {
               const sel = sessionTypes.includes(opt.id);
               return (
-                <button key={opt.id} onClick={() => toggleType(opt.id)} style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 8, background: sel ? W.accent + "18" : W.surface2, border: `2px solid ${sel ? W.accent : W.border}`, borderRadius: 12, padding: "14px 10px", cursor: "pointer" }}>
-                  <div style={{ width: 16, height: 16, borderRadius: "50%", border: `2px solid ${sel ? W.accent : W.border}`, background: sel ? W.accent : "transparent", flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center" }}>
-                    {sel && <div style={{ width: 6, height: 6, borderRadius: "50%", background: "#fff" }} />}
-                  </div>
+                <button key={opt.id} onClick={() => toggleType(opt.id)} style={{ display: "flex", alignItems: "center", justifyContent: "center", background: sel ? W.accent + "18" : W.surface2, border: `2px solid ${sel ? W.accent : W.border}`, borderRadius: 12, padding: "14px 10px", cursor: "pointer" }}>
                   <span style={{ fontWeight: 700, color: sel ? W.accent : W.text, fontSize: 14 }}>{opt.label}</span>
                 </button>
               );
