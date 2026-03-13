@@ -1967,14 +1967,17 @@ export default function App() {
               rightPanel = (
                 <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 4, flexShrink: 0 }}>
                   <svg width={110} height={110} viewBox="0 0 80 80" style={{ cursor: "pointer" }}>
+                    <style>{`@keyframes pie-pulse{0%,100%{transform:scale(1)}50%{transform:scale(1.06)}}.pie-p{transform-origin:40px 40px;animation:pie-pulse 0.28s ease}`}</style>
                     {paths.map((s, i) => (
-                      <path key={i} d={s.path} fill={s.color}
+                      <path key={s.label === activeTimeLabel ? `${i}-a` : i} d={s.path} fill={s.color}
+                        className={s.label === activeTimeLabel ? "pie-p" : undefined}
                         style={{ opacity: s.label === activeTimeLabel ? 1 : 0.45, transition: "opacity 0.25s ease" }}
                         onClick={e => { e.stopPropagation(); setSelectedTimeSlice(prev => prev === s.label ? null : s.label); }} />
                     ))}
-                    {activeTimeSlice && (
-                      <text x="40" y="44" textAnchor="middle" fontSize="9" fontWeight="900" fill={W.text} pointerEvents="none">{activeTimeSlice.pct}%</text>
-                    )}
+                    <circle cx="40" cy="40" r="35" fill="none" stroke={activeTimeSlice?.color} strokeWidth="2" strokeOpacity="0.65" pointerEvents="none" />
+                    <circle cx="40" cy="40" r="17" fill="transparent" style={{ cursor: "pointer" }}
+                      onClick={e => { e.stopPropagation(); const idx = paths.findIndex(p => p.label === activeTimeLabel); setSelectedTimeSlice(paths[(idx + 1) % paths.length].label); }} />
+                    {activeTimeSlice && <text x="40" y="44" textAnchor="middle" fontSize="9" fontWeight="900" fill={W.text} pointerEvents="none">{activeTimeSlice.pct}%</text>}
                   </svg>
                   {activeTimeSlice && (
                     <div style={{ textAlign: "center" }}>
@@ -2014,16 +2017,21 @@ export default function App() {
               rightPanel = (
                 <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 4, flexShrink: 0 }}>
                   <svg width={110} height={110} viewBox="0 0 80 80" style={{ cursor: "pointer" }}>
+                    <style>{`@keyframes pie-pulse{0%,100%{transform:scale(1)}50%{transform:scale(1.06)}}.pie-p{transform-origin:40px 40px;animation:pie-pulse 0.28s ease}`}</style>
                     {paths.map((s, i) => (
-                      <path key={i} d={s.path} fill={s.color}
+                      <path key={s.label === activeLabel ? `${i}-a` : i} d={s.path} fill={s.color}
+                        className={s.label === activeLabel ? "pie-p" : undefined}
                         style={{ opacity: s.label === activeLabel ? 1 : 0.45, transition: "opacity 0.25s ease" }}
                         onClick={e => { e.stopPropagation(); setSelectedGradeSlice(prev => prev === s.label ? null : s.label); }} />
                     ))}
                     {paths.map((s, i) => {
                       const sendAngle = s.value > 0 ? ((s.completed / s.value) * (s.endAngle - s.startAngle)) : 0;
                       const arcPath = makeSendArc(s.startAngle, sendAngle);
-                      return arcPath ? <path key={`sa${i}`} d={arcPath} fill="#22c55e" pointerEvents="none" /> : null;
+                      return arcPath ? <path key={`sa${i}`} d={arcPath} fill="rgba(255,255,255,0.45)" pointerEvents="none" /> : null;
                     })}
+                    <circle cx="40" cy="40" r="35" fill="none" stroke={activeSlice?.color} strokeWidth="2" strokeOpacity="0.65" pointerEvents="none" />
+                    <circle cx="40" cy="40" r="17" fill="transparent" style={{ cursor: "pointer" }}
+                      onClick={e => { e.stopPropagation(); const idx = paths.findIndex(p => p.label === activeLabel); setSelectedGradeSlice(paths[(idx + 1) % paths.length].label); }} />
                     <text x="40" y="44" textAnchor="middle" fontSize="10" fontWeight="900" fill={W.text} pointerEvents="none">{totalTries}</text>
                   </svg>
                   {activeSlice && (
@@ -2063,29 +2071,32 @@ export default function App() {
             </div>
           );
         })()}
-        {/* Reactions + Comments — only on social feed cards */}
-        {poster && (
+        {/* Bottom row: social cards = 👍 + 💬 + Details inline; own cards = Details full-width */}
+        {poster ? (
           <div style={{ display: "flex", gap: 8, padding: "10px 16px", borderTop: `1px solid ${W.border}`, alignItems: "center" }}>
-            {["🔥", "💪", "✨"].map(emoji => {
-              const active = myReactions[session.id] === emoji;
-              const count = feedReactionCounts[session.id]?.[emoji] || 0;
+            {(() => {
+              const active = myReactions[session.id] === "👍";
+              const count = feedReactionCounts[session.id]?.["👍"] || 0;
               return (
-                <button key={emoji} onClick={e => { e.stopPropagation(); toggleReaction(session.id, emoji); }} style={{ padding: "5px 12px", borderRadius: 20, border: `1.5px solid ${active ? W.accent : W.border}`, background: active ? W.accent + "22" : "transparent", fontSize: 15, cursor: "pointer", fontWeight: active ? 700 : 400, color: active ? W.accent : W.textMuted, display: "flex", alignItems: "center", gap: 4 }}>
-                  {emoji}{count > 0 && <span style={{ fontSize: 11, fontWeight: 700 }}>{count}</span>}
+                <button onClick={e => { e.stopPropagation(); toggleReaction(session.id, "👍"); }} style={{ padding: "5px 12px", borderRadius: 20, border: `1.5px solid ${active ? W.accent : W.border}`, background: active ? W.accent + "22" : "transparent", fontSize: 15, cursor: "pointer", fontWeight: active ? 700 : 400, color: active ? W.accent : W.textMuted, display: "flex", alignItems: "center", gap: 4 }}>
+                  👍{count > 0 && <span style={{ fontSize: 11, fontWeight: 700 }}>{count}</span>}
                 </button>
               );
-            })}
-            <button onClick={e => { e.stopPropagation(); openCommentPanel(session.id, poster?.username || currentUser.username); }} style={{ marginLeft: "auto", padding: "5px 12px", borderRadius: 20, border: `1.5px solid ${W.border}`, background: "transparent", fontSize: 13, cursor: "pointer", color: W.textMuted, display: "flex", alignItems: "center", gap: 4 }}>
+            })()}
+            <button onClick={e => { e.stopPropagation(); openCommentPanel(session.id, poster?.username || currentUser.username); }} style={{ padding: "5px 12px", borderRadius: 20, border: `1.5px solid ${W.border}`, background: "transparent", fontSize: 13, cursor: "pointer", color: W.textMuted, display: "flex", alignItems: "center", gap: 4 }}>
               💬{sessionComments[session.id]?.length > 0 && <span style={{ fontSize: 11, fontWeight: 700 }}>{sessionComments[session.id].length}</span>}
+            </button>
+            <button onClick={onNavigate || (() => { setSessionReadOnly(false); setSelectedSession(session); setScreen("sessionDetail"); })} style={{ marginLeft: "auto", padding: "5px 14px", borderRadius: 20, border: `1.5px solid ${W.border}`, background: W.surface2, color: W.accent, fontWeight: 700, fontSize: 13, cursor: "pointer" }}>
+              Details ›
+            </button>
+          </div>
+        ) : (
+          <div style={{ padding: "10px 16px", borderTop: `1px solid ${W.border}` }}>
+            <button onClick={onNavigate || (() => { setSessionReadOnly(false); setSelectedSession(session); setScreen("sessionDetail"); })} style={{ width: "100%", padding: "10px", background: W.surface2, border: `1px solid ${W.border}`, borderRadius: 10, color: W.accent, fontWeight: 700, fontSize: 14, cursor: "pointer" }}>
+              View Details ›
             </button>
           </div>
         )}
-        {/* Details button — always at the very bottom */}
-        <div style={{ padding: "10px 16px", borderTop: `1px solid ${W.border}` }}>
-          <button onClick={onNavigate || (() => { setSessionReadOnly(false); setSelectedSession(session); setScreen("sessionDetail"); })} style={{ width: "100%", padding: "10px", background: W.surface2, border: `1px solid ${W.border}`, borderRadius: 10, color: W.accent, fontWeight: 700, fontSize: 14, cursor: "pointer" }}>
-            View Details ›
-          </button>
-        </div>
       </div>
     );
   };
@@ -2504,8 +2515,9 @@ export default function App() {
     const [editingLocation, setEditingLocation] = useState(false);
     const [locationVal, setLocationVal]         = useState(session.location);
     const [locDropOpen, setLocDropOpen]         = useState(false);
-    const [confirmDelete, setConfirmDelete]           = useState(false);
+    const [confirmDelete, setConfirmDelete]                        = useState(false);
     const [selectedDetailGradeSlice, setSelectedDetailGradeSlice] = useState(null);
+    const [selectedDetailTimeSlice, setSelectedDetailTimeSlice]   = useState(null);
     const stats = getSessionStats(session);
     const saveLocation = () => { setSessions(prev => prev.map(s => s.id === session.id ? { ...s, location: locationVal } : s)); setSelectedSession(s => ({ ...s, location: locationVal })); setEditingLocation(false); };
     return (
@@ -2549,6 +2561,46 @@ export default function App() {
           ))}
         </div>
         {(() => {
+          // Time breakdown pie — multi-type sessions
+          const boulderSec = session.boulderTotalSec || 0;
+          const ropeSec    = session.ropeTotalSec || 0;
+          const speedSec   = (session.climbs || []).filter(c => c.climbType === "speed-session").reduce((s, c) => s + Math.max(0, Math.floor(((c.endedAt || Date.now()) - c.startedAt) / 1000)), 0);
+          const timeSlices = [
+            boulderSec > 0 && { label: "🪨 Boulder", value: boulderSec, color: W.greenDark },
+            ropeSec > 0    && { label: "🪢 Rope",    value: ropeSec,    color: W.purpleDark },
+            speedSec > 0   && { label: "⚡ Speed",   value: speedSec,   color: W.yellowDark },
+          ].filter(Boolean);
+          if (timeSlices.length < 2) return null;
+          const paths = buildPie(timeSlices);
+          const activeTimeLabel = selectedDetailTimeSlice && paths.find(p => p.label === selectedDetailTimeSlice) ? selectedDetailTimeSlice : paths[0]?.label;
+          const activeTimeSlice = paths.find(p => p.label === activeTimeLabel) || paths[0];
+          return (
+            <div style={{ background: W.surface2, borderRadius: 16, padding: "16px", marginBottom: 16, border: `1px solid ${W.border}`, display: "flex", alignItems: "center", gap: 16 }}>
+              <svg width={110} height={110} viewBox="0 0 80 80" style={{ cursor: "pointer", flexShrink: 0 }}>
+                <style>{`@keyframes pie-pulse{0%,100%{transform:scale(1)}50%{transform:scale(1.06)}}.pie-p{transform-origin:40px 40px;animation:pie-pulse 0.28s ease}`}</style>
+                {paths.map((s, i) => (
+                  <path key={s.label === activeTimeLabel ? `${i}-a` : i} d={s.path} fill={s.color}
+                    className={s.label === activeTimeLabel ? "pie-p" : undefined}
+                    style={{ opacity: s.label === activeTimeLabel ? 1 : 0.45, transition: "opacity 0.25s ease" }}
+                    onClick={() => setSelectedDetailTimeSlice(prev => prev === s.label ? null : s.label)} />
+                ))}
+                <circle cx="40" cy="40" r="35" fill="none" stroke={activeTimeSlice?.color} strokeWidth="2" strokeOpacity="0.65" pointerEvents="none" />
+                <circle cx="40" cy="40" r="17" fill="transparent" style={{ cursor: "pointer" }}
+                  onClick={() => { const idx = paths.findIndex(p => p.label === activeTimeLabel); setSelectedDetailTimeSlice(paths[(idx + 1) % paths.length].label); }} />
+                {activeTimeSlice && <text x="40" y="44" textAnchor="middle" fontSize="9" fontWeight="900" fill={W.text} pointerEvents="none">{activeTimeSlice.pct}%</text>}
+              </svg>
+              {activeTimeSlice && (
+                <div>
+                  <div style={{ fontSize: 9, fontWeight: 700, color: W.textDim, textTransform: "uppercase", letterSpacing: 0.8, marginBottom: 4 }}>Time Breakdown</div>
+                  <div style={{ fontSize: 20, fontWeight: 900, color: activeTimeSlice.color, lineHeight: 1 }}>{activeTimeSlice.label}</div>
+                  <div style={{ fontSize: 12, color: W.textMuted, marginTop: 4 }}>{activeTimeSlice.pct}% · {formatDuration(activeTimeSlice.value)}</div>
+                  <div style={{ fontSize: 10, color: W.textDim, marginTop: 6 }}>Tap slice or center to cycle</div>
+                </div>
+              )}
+            </div>
+          );
+        })()}
+        {(() => {
           const hasBoulder = session.climbs.some(c => c.climbType !== "rope" && c.climbType !== "speed-session");
           const hasRope    = session.climbs.some(c => c.climbType === "rope");
           if (!(hasBoulder || hasRope)) return null;
@@ -2562,16 +2614,21 @@ export default function App() {
           return (
             <div style={{ background: W.surface2, borderRadius: 16, padding: "16px", marginBottom: 16, border: `1px solid ${W.border}`, display: "flex", alignItems: "center", gap: 16 }}>
               <svg width={110} height={110} viewBox="0 0 80 80" style={{ cursor: "pointer", flexShrink: 0 }}>
+                <style>{`@keyframes pie-pulse{0%,100%{transform:scale(1)}50%{transform:scale(1.06)}}.pie-p{transform-origin:40px 40px;animation:pie-pulse 0.28s ease}`}</style>
                 {paths.map((s, i) => (
-                  <path key={i} d={s.path} fill={s.color}
+                  <path key={s.label === activeLabel ? `${i}-a` : i} d={s.path} fill={s.color}
+                    className={s.label === activeLabel ? "pie-p" : undefined}
                     style={{ opacity: s.label === activeLabel ? 1 : 0.45, transition: "opacity 0.25s ease" }}
                     onClick={() => setSelectedDetailGradeSlice(prev => prev === s.label ? null : s.label)} />
                 ))}
                 {paths.map((s, i) => {
                   const sendAngle = s.value > 0 ? ((s.completed / s.value) * (s.endAngle - s.startAngle)) : 0;
                   const arcPath = makeSendArc(s.startAngle, sendAngle);
-                  return arcPath ? <path key={`sa${i}`} d={arcPath} fill="#22c55e" pointerEvents="none" /> : null;
+                  return arcPath ? <path key={`sa${i}`} d={arcPath} fill="rgba(255,255,255,0.45)" pointerEvents="none" /> : null;
                 })}
+                <circle cx="40" cy="40" r="35" fill="none" stroke={activeSlice?.color} strokeWidth="2" strokeOpacity="0.65" pointerEvents="none" />
+                <circle cx="40" cy="40" r="17" fill="transparent" style={{ cursor: "pointer" }}
+                  onClick={() => { const idx = paths.findIndex(p => p.label === activeLabel); setSelectedDetailGradeSlice(paths[(idx + 1) % paths.length].label); }} />
                 <text x="40" y="44" textAnchor="middle" fontSize="10" fontWeight="900" fill={W.text} pointerEvents="none">{totalTries}</text>
               </svg>
               {activeSlice && (
@@ -2579,7 +2636,7 @@ export default function App() {
                   <div style={{ fontSize: 9, fontWeight: 700, color: W.textDim, textTransform: "uppercase", letterSpacing: 0.8, marginBottom: 4 }}>Grade Breakdown</div>
                   <div style={{ fontSize: 20, fontWeight: 900, color: activeSlice.color, lineHeight: 1 }}>{activeSlice.label}</div>
                   <div style={{ fontSize: 12, color: W.textMuted, marginTop: 4 }}>{activeSlice.pct}% · {activeSlice.value} tries · {activeSlice.completed} sends</div>
-                  <div style={{ fontSize: 10, color: W.textDim, marginTop: 6 }}>Tap a slice to explore</div>
+                  <div style={{ fontSize: 10, color: W.textDim, marginTop: 6 }}>Tap slice or center to cycle</div>
                 </div>
               )}
             </div>
