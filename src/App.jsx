@@ -2532,12 +2532,12 @@ export default function App() {
   const SessionActiveScreen = () => {
     const selectedTypes = activeSession?.sessionTypes || ["boulder"];
     const allTypeButtons = [
-      { type: "boulder",     label: "New Boulder",             bg: W.green,   border: W.greenDark,   color: W.greenDark,   onClick: () => openClimbForm(null, null, "boulder") },
-      { type: "rope",        label: "🪢 New Rope Climb",      bg: W.purple,  border: W.purpleDark,  color: W.purpleDark,  onClick: () => openClimbForm(null, null, "rope") },
-      { type: "speed",       label: "⚡ Speed Climb Session",  bg: W.yellow,  border: W.yellowDark,  color: W.yellowDark,  onClick: addSpeedSession },
-      { type: "warmup",      label: "🔥 Start Warm Up",       bg: W.pink,    border: W.pinkDark,    color: W.pinkDark,    onClick: startWarmupSection },
-      { type: "workout",     label: "💪 Start Workout",       bg: W.accent,  border: W.accentDark,  color: W.accentDark,  onClick: startWorkoutSection },
-      { type: "fingerboard", label: "🤞 Start Fingerboard",   bg: W.yellow,  border: W.yellowDark,  color: W.yellowDark,  onClick: startFingerboardSection },
+      { type: "boulder",     label: "+ Boulder Session",       bg: W.green,   border: W.greenDark,   color: W.greenDark,   onClick: () => openClimbForm(null, null, "boulder") },
+      { type: "rope",        label: "+ Rope Climb Session",    bg: W.purple,  border: W.purpleDark,  color: W.purpleDark,  onClick: () => openClimbForm(null, null, "rope") },
+      { type: "speed",       label: "+ Speed Climb Session",   bg: W.yellow,  border: W.yellowDark,  color: W.yellowDark,  onClick: addSpeedSession },
+      { type: "warmup",      label: "+ Warm Up Session",       bg: W.pink,    border: W.pinkDark,    color: W.pinkDark,    onClick: startWarmupSection },
+      { type: "workout",     label: "+ Workout Session",       bg: W.accent,  border: W.accentDark,  color: W.accentDark,  onClick: startWorkoutSection },
+      { type: "fingerboard", label: "+ Finger Board Session",  bg: W.yellow,  border: W.yellowDark,  color: W.yellowDark,  onClick: startFingerboardSection },
     ];
     const primaryBtns   = allTypeButtons.filter(b => selectedTypes.includes(b.type)).sort((a, b) => { const ai = sessionTypeOrder.indexOf(a.type); const bi = sessionTypeOrder.indexOf(b.type); return (ai === -1 ? 999 : ai) - (bi === -1 ? 999 : bi); });
     const secondaryBtns = allTypeButtons.filter(b => !selectedTypes.includes(b.type));
