@@ -191,6 +191,7 @@ export const SessionSummaryScreen = ({
             <div style={{ flex: 1 }}>
               <div style={{ fontSize: 14, fontWeight: 800, color: allDone ? W.pinkDark : W.text }}>{allDone ? "Warmup Complete!" : `Warmup ${checkedCount}/${totalCount}`}</div>
               <div style={{ fontSize: 11, color: W.textMuted, marginTop: 2 }}>
+                {session.warmupTemplateName && <span style={{ fontWeight: 700, color: W.pinkDark, marginRight: 4 }}>{session.warmupTemplateName} ·</span>}
                 {(session.warmupTotalSec || 0) > 0 ? formatDuration(session.warmupTotalSec) + " warm-up time" : `${checkedCount} of ${totalCount} tasks done`}
               </div>
             </div>

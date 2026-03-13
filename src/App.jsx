@@ -740,8 +740,9 @@ export default function App() {
     const updates = {};
     if (s.boulderActiveStart) { updates.boulderTotalSec = (s.boulderTotalSec || 0) + Math.max(0, Math.floor((now - s.boulderActiveStart) / 1000)); updates.boulderActiveStart = null; updates.boulderPausedAt = now; }
     if (s.ropeActiveStart)    { updates.ropeTotalSec    = (s.ropeTotalSec    || 0) + Math.max(0, Math.floor((now - s.ropeActiveStart)    / 1000)); updates.ropeActiveStart    = null; updates.ropePausedAt    = now; }
-    const tplItems = (warmupTemplates.find(t => t.id === activeWarmupTemplateId) || warmupTemplates[0])?.items || defaultWarmupItems;
-    return { ...s, ...updates, warmupStartedAt: now, warmupActiveStart: now, warmupTotalSec: 0, warmupPausedAt: null, warmupEndedAt: null, warmupChecklist: tplItems.map(item => ({ ...item, id: Date.now() + Math.random(), checked: false })) };
+    const activeTpl = warmupTemplates.find(t => t.id === activeWarmupTemplateId) || warmupTemplates[0];
+    const tplItems = activeTpl?.items || defaultWarmupItems;
+    return { ...s, ...updates, warmupStartedAt: now, warmupActiveStart: now, warmupTotalSec: 0, warmupPausedAt: null, warmupEndedAt: null, warmupTemplateName: activeTpl?.name || null, warmupChecklist: tplItems.map(item => ({ ...item, id: Date.now() + Math.random(), checked: false })) };
   });
   const pauseWarmupSession = () => setActiveSession(s => {
     const now = Date.now();
@@ -2320,24 +2321,19 @@ export default function App() {
   const SessionSetupScreen = () => {
     const toggleType = (t) => setSessionTypes(prev => prev.includes(t) ? (prev.length > 1 ? prev.filter(x => x !== t) : prev) : [...prev, t]);
     const typeOptions = [
-      { id: "boulder", label: "🪨 Bouldering",    desc: "Problems, grades, send tracking" },
-      { id: "rope",    label: "🪢 Rope Climbing",  desc: "Sport, trad, top-rope, lead" },
-      { id: "speed",   label: "⚡ Speed Climbing", desc: "Timed attempts, rest tracking" },
-      { id: "warmup",  label: "🔥 Warm Up",        desc: "Guided stretches & mobility checklist" },
+      { id: "boulder", label: "Bouldering" },
+      { id: "rope",    label: "Rope Climbing" },
+      { id: "speed",   label: "Speed Climbing" },
+      { id: "warmup",  label: "Warm Up" },
     ];
     return (
       <div style={{ padding: "32px 24px" }}>
-        <div style={{ textAlign: "center", marginBottom: 32 }}>
-          <div style={{ fontSize: 48, marginBottom: 12 }}>🧗</div>
-          <h2 style={{ fontSize: 24, fontWeight: 900, color: W.text, margin: "0 0 8px" }}>Start a Session</h2>
-          <p style={{ color: W.textMuted, fontSize: 14, margin: 0 }}>Set your location, then start climbing.</p>
-        </div>
         <div style={{ background: W.surface, borderRadius: 18, padding: "20px", border: `1px solid ${W.border}`, marginBottom: 16 }}>
           <Label>Gym / Location</Label>
           <LocationDropdown value={pendingLocation} onChange={v => { setPendingLocation(v); addCustomLocation(v); }} open={locationDropdownOpen} setOpen={setLocationDropdownOpen} knownLocations={knownLocations} onRemove={loc => setHiddenLocations(h => [...h, loc])} />
         </div>
         <div style={{ background: W.surface, borderRadius: 18, padding: "20px", border: `1px solid ${W.border}`, marginBottom: 24 }}>
-          <div style={{ fontSize: 12, fontWeight: 700, color: W.textMuted, textTransform: "uppercase", letterSpacing: 1, marginBottom: 12 }}>What will this session mostly involve? (select all that apply)</div>
+          <div style={{ fontSize: 12, fontWeight: 700, color: W.textMuted, textTransform: "uppercase", letterSpacing: 1, marginBottom: 12 }}>What will you be doing this session</div>
           {typeOptions.map(opt => {
             const sel = sessionTypes.includes(opt.id);
             return (
@@ -2345,10 +2341,7 @@ export default function App() {
                 <div style={{ width: 20, height: 20, borderRadius: "50%", border: `2px solid ${sel ? W.accent : W.border}`, background: sel ? W.accent : "transparent", flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center" }}>
                   {sel && <div style={{ width: 8, height: 8, borderRadius: "50%", background: "#fff" }} />}
                 </div>
-                <div>
-                  <div style={{ fontWeight: 700, color: sel ? W.accent : W.text, fontSize: 14 }}>{opt.label}</div>
-                  <div style={{ fontSize: 11, color: W.textDim, marginTop: 1 }}>{opt.desc}</div>
-                </div>
+                <div style={{ fontWeight: 700, color: sel ? W.accent : W.text, fontSize: 14 }}>{opt.label}</div>
               </button>
             );
           })}
