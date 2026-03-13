@@ -588,15 +588,26 @@ export default function App() {
   // ── APP LOGIC ──────────────────────────────────────────────
   const knownLocations = (() => {
     const seen = new Set();
-    return [...sessions.map(s => s.location).filter(Boolean), ...customLocations, pendingLocation, activeSession?.location, mainGym]
+    // Build ordered list: mainGym first, then sessions by recency, then custom, then pending/active
+    const ordered = [mainGym, ...sessions.map(s => s.location), ...customLocations, pendingLocation, activeSession?.location]
       .filter(Boolean)
       .filter(l => { const k = l.trim().toLowerCase(); if (seen.has(k)) return false; seen.add(k); return true; })
       .filter(l => !hiddenLocations.includes(l));
+    return ordered;
   })();
   const addCustomLocation = (loc) => { const trimmed = loc?.trim(); if (trimmed && !sessions.some(s => s.location?.toLowerCase() === trimmed.toLowerCase()) && !customLocations.some(c => c.toLowerCase() === trimmed.toLowerCase())) setCustomLocations(prev => [...prev, trimmed]); };
   const allGyms = ["All Gyms", ...new Set(sessions.map(s => s.location).filter(Boolean))];
 
-  const goToSessionSetup = () => { setPendingLocation(mainGym || ""); setSessionStarted(false); setActiveSession({ location: mainGym || "", climbs: [], collapsedSections: { boulder: false, rope: false } }); setSessionTimer(0); setSessionActiveStart(null); setSessionPausedSec(0); setShowMoreClimbTypes(false); setScreen("session"); };
+  const goToSessionSetup = () => {
+    const lastSession = sessions.length > 0 ? sessions[0] : null;
+    const defaultLocation = mainGym || lastSession?.location || "";
+    const defaultTypes = lastSession?.sessionTypes?.length ? lastSession.sessionTypes : ["boulder"];
+    setPendingLocation(defaultLocation);
+    setSessionTypes(defaultTypes);
+    setSessionStarted(false);
+    setActiveSession({ location: defaultLocation, climbs: [], collapsedSections: { boulder: false, rope: false } });
+    setSessionTimer(0); setSessionActiveStart(null); setSessionPausedSec(0); setShowMoreClimbTypes(false); setScreen("session");
+  };
   const beginTimer = () => { setActiveSession(s => ({ ...s, location: pendingLocation, sessionTypes })); setSessionStarted(true); setSessionActiveStart(Date.now()); setTimerRunning(true); setShowMoreClimbTypes(false); };
   const toggleSessionTimer = () => {
     if (timerRunning) {
@@ -2334,17 +2345,19 @@ export default function App() {
         </div>
         <div style={{ background: W.surface, borderRadius: 18, padding: "20px", border: `1px solid ${W.border}`, marginBottom: 24 }}>
           <div style={{ fontSize: 12, fontWeight: 700, color: W.textMuted, textTransform: "uppercase", letterSpacing: 1, marginBottom: 12 }}>What will you be doing this session</div>
-          {typeOptions.map(opt => {
-            const sel = sessionTypes.includes(opt.id);
-            return (
-              <button key={opt.id} onClick={() => toggleType(opt.id)} style={{ display: "flex", alignItems: "center", width: "100%", background: sel ? W.accent + "18" : W.surface2, border: `2px solid ${sel ? W.accent : W.border}`, borderRadius: 12, padding: "12px 14px", marginBottom: 8, cursor: "pointer", textAlign: "left", gap: 12 }}>
-                <div style={{ width: 20, height: 20, borderRadius: "50%", border: `2px solid ${sel ? W.accent : W.border}`, background: sel ? W.accent : "transparent", flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center" }}>
-                  {sel && <div style={{ width: 8, height: 8, borderRadius: "50%", background: "#fff" }} />}
-                </div>
-                <div style={{ fontWeight: 700, color: sel ? W.accent : W.text, fontSize: 14 }}>{opt.label}</div>
-              </button>
-            );
-          })}
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+            {typeOptions.map(opt => {
+              const sel = sessionTypes.includes(opt.id);
+              return (
+                <button key={opt.id} onClick={() => toggleType(opt.id)} style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 8, background: sel ? W.accent + "18" : W.surface2, border: `2px solid ${sel ? W.accent : W.border}`, borderRadius: 12, padding: "14px 10px", cursor: "pointer" }}>
+                  <div style={{ width: 16, height: 16, borderRadius: "50%", border: `2px solid ${sel ? W.accent : W.border}`, background: sel ? W.accent : "transparent", flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                    {sel && <div style={{ width: 6, height: 6, borderRadius: "50%", background: "#fff" }} />}
+                  </div>
+                  <span style={{ fontWeight: 700, color: sel ? W.accent : W.text, fontSize: 14 }}>{opt.label}</span>
+                </button>
+              );
+            })}
+          </div>
         </div>
         <button onClick={beginTimer} style={{ width: "100%", padding: "18px", background: `linear-gradient(135deg, ${W.accent}, ${W.accentDark})`, border: "none", borderRadius: 16, color: "#fff", fontSize: 17, fontWeight: 800, cursor: "pointer", boxShadow: `0 6px 24px ${W.accentGlow}`, marginBottom: 12 }}>▶ Start Climbing</button>
         <button onClick={() => setScreen("home")} style={{ width: "100%", padding: "13px", background: "transparent", border: `1px solid ${W.border}`, borderRadius: 14, color: W.textMuted, fontSize: 14, fontWeight: 600, cursor: "pointer" }}>Cancel</button>
@@ -3150,6 +3163,11 @@ export default function App() {
                   <div style={{ display: "flex", gap: 6, marginBottom: 8 }}>
                     <input value={activeTpl.name} onChange={e => setWarmupTemplates(prev => prev.map(t => t.id === activeTpl.id ? { ...t, name: e.target.value } : t))}
                       style={{ flex: 1, padding: "6px 10px", borderRadius: 9, border: `1px solid ${W.border}`, background: W.surface, color: W.text, fontSize: 12, outline: "none" }} placeholder="Template name" />
+                    <button onClick={() => {
+                      const newId = Date.now();
+                      setWarmupTemplates(prev => [...prev, { id: newId, name: `${activeTpl.name} (copy)`, items: activeTpl.items.map(i => ({ ...i, id: Date.now() + Math.random() })) }]);
+                      setActiveWarmupTemplateId(newId);
+                    }} style={{ padding: "6px 10px", borderRadius: 9, border: `1px solid ${W.border}`, background: "transparent", color: W.textMuted, fontSize: 12, cursor: "pointer", whiteSpace: "nowrap" }}>Duplicate</button>
                     {warmupTemplates.length > 1 && (
                       <button onClick={() => {
                         const remaining = warmupTemplates.filter(t => t.id !== activeTpl.id);
