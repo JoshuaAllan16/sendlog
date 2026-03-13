@@ -849,7 +849,7 @@ export default function App() {
     if (autoEndWarmup && newList.length > 0 && newList.every(i => i.checked) && !s.warmupEndedAt) {
       const now = Date.now();
       const elapsed = s.warmupActiveStart ? Math.max(0, Math.floor((now - s.warmupActiveStart) / 1000)) : 0;
-      return { ...s, warmupChecklist: newList, warmupTotalSec: (s.warmupTotalSec || 0) + elapsed, warmupActiveStart: null, warmupEndedAt: now };
+      return { ...s, warmupChecklist: newList, warmupTotalSec: (s.warmupTotalSec || 0) + elapsed, warmupActiveStart: null, warmupEndedAt: now, collapsedSections: { ...(s.collapsedSections || {}), warmup: true } };
     }
     return { ...s, warmupChecklist: newList };
   });
@@ -860,7 +860,7 @@ export default function App() {
     if (autoEndWarmup && !s.warmupEndedAt) {
       const now = Date.now();
       const elapsed = s.warmupActiveStart ? Math.max(0, Math.floor((now - s.warmupActiveStart) / 1000)) : 0;
-      return { ...s, warmupChecklist: newList, warmupTotalSec: (s.warmupTotalSec || 0) + elapsed, warmupActiveStart: null, warmupEndedAt: now };
+      return { ...s, warmupChecklist: newList, warmupTotalSec: (s.warmupTotalSec || 0) + elapsed, warmupActiveStart: null, warmupEndedAt: now, collapsedSections: { ...(s.collapsedSections || {}), warmup: true } };
     }
     return { ...s, warmupChecklist: newList };
   });
@@ -2549,6 +2549,7 @@ export default function App() {
     };
     return (
       <div style={{ padding: "20px" }}>
+        {!showClimbForm && (<>
         <div style={{ background: `linear-gradient(135deg, ${W.accent}, ${W.accentDark})`, borderRadius: 16, padding: "16px 20px", marginBottom: 20, display: "flex", justifyContent: "space-between", alignItems: "center", boxShadow: `0 4px 16px ${W.accentGlow}` }}>
           <div>
             <div style={{ color: "rgba(255,255,255,0.75)", fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: 1 }}>Session Timer</div>
@@ -2564,8 +2565,9 @@ export default function App() {
         <div style={{ marginBottom: 18 }}>
           <LocationDropdown value={activeSession?.location || ""} onChange={v => { setActiveSession(s => ({ ...s, location: v })); addCustomLocation(v); }} open={activeLocationDropdownOpen} setOpen={setActiveLocationDropdownOpen} knownLocations={knownLocations} onRemove={loc => setHiddenLocations(h => [...h, loc])} />
         </div>
+        </>)}
         {/* Warmup nudge banner */}
-        {showWarmupNudge && !activeSession?.warmupStartedAt && (
+        {!showClimbForm && showWarmupNudge && !activeSession?.warmupStartedAt && (
           <div style={{ background: `${W.pinkDark}22`, border: `1.5px solid ${W.pinkDark}55`, borderRadius: 12, padding: "10px 14px", marginBottom: 14, display: "flex", alignItems: "center", gap: 10 }}>
             <span style={{ fontSize: 18 }}>🔥</span>
             <div style={{ flex: 1 }}>
@@ -5210,7 +5212,7 @@ export default function App() {
     )}
     <div style={{ width: "100%", minHeight: "100vh", background: W.bg, fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif", display: "flex", justifyContent: "center", zoom: 1.1 }}>
     <div style={{ width: "100%", maxWidth: 420, display: "flex", flexDirection: "column" }}>
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "14px 20px", borderBottom: `1px solid ${W.border}`, background: W.navBg }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "14px 20px", borderBottom: `1px solid ${W.border}`, background: W.navBg, position: "sticky", top: 0, zIndex: 50 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
           {(backMap[screen] || screen === "session" || screen === "sessionSummary") && (
             <button onClick={() => { if (screen === "session" && !sessionStarted) setScreen("home"); else if (screen === "sessionSummary") setShowSummaryLeaveWarn(true); else if (backMap[screen]) { setScreen(backMap[screen]); setShowClimbForm(false); if (screen === "calendar" || screen === "projectDetail") setProfileTab("stats"); if (screen === "sessionDetail") setSessionReadOnly(false); } }} style={{ background: "none", border: "none", color: W.accent, fontSize: 16, cursor: "pointer", padding: 0, marginRight: 4 }}>←</button>
