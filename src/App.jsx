@@ -708,16 +708,16 @@ export default function App() {
     });
   };
   const addSpeedAttempt = (climbId, attempt) => {
-    setActiveSession(s => ({ ...s, climbs: s.climbs.map(c => c.id === climbId ? { ...c, attempts: [...(c.attempts || []), attempt] } : c) }));
+    setActiveSession(s => ({ ...s, climbs: (s.climbs || []).map(c => c.id === climbId ? { ...c, attempts: [...(c.attempts || []), attempt] } : c) }));
   };
   const removeSpeedSession = (climbId) => {
-    setActiveSession(s => ({ ...s, climbs: s.climbs.filter(c => c.id !== climbId) }));
+    setActiveSession(s => ({ ...s, climbs: (s.climbs || []).filter(c => c.id !== climbId) }));
   };
   const endSpeedSession = (climbId) => {
-    setActiveSession(s => ({ ...s, climbs: s.climbs.map(c => c.id === climbId ? { ...c, endedAt: Date.now() } : c) }));
+    setActiveSession(s => ({ ...s, climbs: (s.climbs || []).map(c => c.id === climbId ? { ...c, endedAt: Date.now() } : c) }));
   };
   const startClimbing = (climbId) => setActiveSession(s => {
-    const climb = s.climbs.find(c => c.id === climbId);
+    const climb = (s.climbs || []).find(c => c.id === climbId);
     if (!climb) return s;
     const type = climb.climbType === "rope" ? "rope" : "boulder";
     const other = type === "boulder" ? "rope" : "boulder";
@@ -1119,26 +1119,31 @@ export default function App() {
   const toggleArr = (arr, val) => arr.includes(val) ? arr.filter(x => x !== val) : [...arr, val];
 
   const saveClimbToActiveSession = () => {
-    if (editingClimbId) {
-      setActiveSession(s => ({ ...s, climbs: (s.climbs || []).map(c => c.id === editingClimbId ? { ...c, ...climbForm, photo: photoPreview } : c) }));
-    } else {
-      const pid = climbForm.isProject ? (climbForm.projectId || Date.now() + 1) : null;
-      const speedGrade = climbForm.climbType === "speed" ? (climbForm.speedTime ? climbForm.speedTime + "s" : "—") : undefined;
-      const newClimb = { ...climbForm, photo: photoPreview, projectId: pid, id: Date.now(), loggedAt: Date.now(), tries: climbForm.climbType === "speed" ? 1 : 0, completed: climbForm.climbType === "speed" ? climbForm.completed : false, ...(speedGrade ? { grade: speedGrade, scale: "Speed" } : {}) };
-      if (newClimb.isProject && !climbForm.projectId) setProjects(prev => [...prev, { id: pid, name: newClimb.name, grade: newClimb.grade, scale: newClimb.scale, climbType: newClimb.climbType || "boulder", comments: newClimb.comments, active: true, completed: false, dateAdded: new Date().toISOString(), dateSent: null }]);
-      setActiveSession(s => {
-        const now = Date.now();
-        const typeUpdates = {};
-        if (newClimb.climbType === "boulder" && !s.boulderStartedAt) { typeUpdates.boulderStartedAt = now; typeUpdates.boulderTotalSec = 0; }
-        if (newClimb.climbType === "rope"    && !s.ropeStartedAt)    { typeUpdates.ropeStartedAt    = now; typeUpdates.ropeTotalSec    = 0; }
-        return { ...s, ...typeUpdates, climbs: [...(s.climbs || []), newClimb] };
-      });
+    try {
+      if (editingClimbId) {
+        setActiveSession(s => ({ ...s, climbs: (s.climbs || []).map(c => c.id === editingClimbId ? { ...c, ...climbForm, photo: photoPreview } : c) }));
+      } else {
+        const pid = climbForm.isProject ? (climbForm.projectId || Date.now() + 1) : null;
+        const speedGrade = climbForm.climbType === "speed" ? (climbForm.speedTime ? climbForm.speedTime + "s" : "—") : undefined;
+        const newClimb = { ...climbForm, photo: photoPreview, projectId: pid, id: Date.now(), loggedAt: Date.now(), tries: climbForm.climbType === "speed" ? 1 : 0, completed: climbForm.climbType === "speed" ? climbForm.completed : false, ...(speedGrade ? { grade: speedGrade, scale: "Speed" } : {}) };
+        if (newClimb.isProject && !climbForm.projectId) setProjects(prev => [...prev, { id: pid, name: newClimb.name, grade: newClimb.grade, scale: newClimb.scale, climbType: newClimb.climbType || "boulder", comments: newClimb.comments, active: true, completed: false, dateAdded: new Date().toISOString(), dateSent: null }]);
+        setActiveSession(s => {
+          const now = Date.now();
+          const typeUpdates = {};
+          if (newClimb.climbType === "boulder" && !s.boulderStartedAt) { typeUpdates.boulderStartedAt = now; typeUpdates.boulderTotalSec = 0; }
+          if (newClimb.climbType === "rope"    && !s.ropeStartedAt)    { typeUpdates.ropeStartedAt    = now; typeUpdates.ropeTotalSec    = 0; }
+          return { ...s, ...typeUpdates, climbs: [...(s.climbs || []), newClimb] };
+        });
+      }
+      // Show warmup nudge if first climb logged within 2 min of session start with no warmup
+      if (!editingClimbId && !activeSession?.warmupStartedAt && sessionActiveStart && Date.now() - sessionActiveStart < 120000) {
+        setShowWarmupNudge(true);
+      }
+      setShowClimbForm(false); setPhotoPreview(null); setEditingClimbId(null); setClimbForm(blankForm);
+    } catch (e) {
+      console.error("saveClimbToActiveSession error:", e);
+      setShowClimbForm(false); setPhotoPreview(null); setEditingClimbId(null); setClimbForm(blankForm);
     }
-    // Show warmup nudge if first climb logged within 2 min of session start with no warmup
-    if (!editingClimbId && !activeSession?.warmupStartedAt && sessionActiveStart && Date.now() - sessionActiveStart < 120000) {
-      setShowWarmupNudge(true);
-    }
-    setShowClimbForm(false); setPhotoPreview(null); setEditingClimbId(null); setClimbForm(blankForm);
   };
 
   const saveClimbToFinishedSession = (sessionId) => {
@@ -5063,6 +5068,7 @@ export default function App() {
   ];
 
   return (
+    <ErrorBoundary key="app-root">
     <ThemeCtx.Provider value={W}>
     {showOnboarding && (
       <div style={{ position: "fixed", inset: 0, zIndex: 10000, background: W.bg, overflowY: "auto", display: "flex", alignItems: "flex-start", justifyContent: "center" }}>
@@ -5481,5 +5487,6 @@ export default function App() {
     </div>
     </div>
     </ThemeCtx.Provider>
+    </ErrorBoundary>
   );
 }
