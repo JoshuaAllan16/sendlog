@@ -1159,7 +1159,7 @@ export default function App() {
     const totalFalls = base.reduce((a, c) => a + (c.climbType === "rope" ? (c.falls ?? c.tries) : c.tries), 0);
     const avgFalls = base.length ? (totalFalls / base.length).toFixed(1) : "—";
     const climbsByDay = {}, attemptsByDay = {}, fallsByDay = {};
-    tfSessions.forEach(s => { const day = s.date.slice(0, 10); climbsByDay[day] = (climbsByDay[day] || 0) + s.climbs.length; attemptsByDay[day] = (attemptsByDay[day] || 0) + s.climbs.reduce((t,c)=>t+c.tries,0); fallsByDay[day] = (fallsByDay[day] || 0) + s.climbs.reduce((t,c)=>t+(c.climbType==="rope"?(c.falls??c.tries):c.tries),0); });
+    tfSessions.forEach(s => { const day = s.date.slice(0, 10); const sc = s.climbs || []; climbsByDay[day] = (climbsByDay[day] || 0) + sc.length; attemptsByDay[day] = (attemptsByDay[day] || 0) + sc.reduce((t,c)=>t+c.tries,0); fallsByDay[day] = (fallsByDay[day] || 0) + sc.reduce((t,c)=>t+(c.climbType==="rope"?(c.falls??c.tries):c.tries),0); });
     const mostInDay = Object.values(climbsByDay).length ? Math.max(...Object.values(climbsByDay)) : 0;
     const mostAttemptsInDay = Object.values(attemptsByDay).length ? Math.max(...Object.values(attemptsByDay)) : 0;
     const mostFallsInDay = Object.values(fallsByDay).length ? Math.max(...Object.values(fallsByDay)) : 0;
@@ -1171,7 +1171,7 @@ export default function App() {
     // Time-between-attempts stats across all sessions
     const allRestGaps = [];
     tfSessions.forEach(s => {
-      const ts = s.climbs.map(c => c.loggedAt).filter(t => t).sort((a, b) => a - b);
+      const ts = (s.climbs || []).map(c => c.loggedAt).filter(t => t).sort((a, b) => a - b);
       for (let i = 1; i < ts.length; i++) allRestGaps.push((ts[i] - ts[i - 1]) / 1000);
     });
     const avgClimbRestSec = allRestGaps.length ? Math.round(allRestGaps.reduce((a, b) => a + b, 0) / allRestGaps.length) : null;
@@ -1183,18 +1183,18 @@ export default function App() {
       restCount++;
     }
     const avgRestDays = restCount > 0 ? (restTotal / restCount).toFixed(1) : "—";
-    const allSpeedAttempts = tfSessions.flatMap(s => s.climbs.filter(c => c.climbType === "speed-session").flatMap(ss => ss.attempts || [])).filter(a => !a.fell && a.time != null);
+    const allSpeedAttempts = tfSessions.flatMap(s => (s.climbs || []).filter(c => c.climbType === "speed-session").flatMap(ss => ss.attempts || [])).filter(a => !a.fell && a.time != null);
     const speedPB = allSpeedAttempts.length ? Math.min(...allSpeedAttempts.map(a => a.time)) : null;
     return { base, completed, flashes, flashRate, avgTries, avgFalls, bestGrade, gradeBreakdown, mostInDay, mostAttemptsInDay, mostFallsInDay, totalAttempts, totalFalls, uniqueGyms, mostGymVisits, totalTimeClimbed, sessionCount: tfSessions.length, avgRestDays, avgClimbRestSec, maxClimbRestSec, speedPB };
   };
 
-  const getProjectHistory    = (pid) => sessions.flatMap(s => s.climbs.filter(c => c.projectId === pid).map(c => ({ ...c, sessionDate: s.date, sessionLocation: s.location }))).sort((a, b) => new Date(b.sessionDate) - new Date(a.sessionDate));
+  const getProjectHistory    = (pid) => sessions.flatMap(s => (s.climbs || []).filter(c => c.projectId === pid).map(c => ({ ...c, sessionDate: s.date, sessionLocation: s.location }))).sort((a, b) => new Date(b.sessionDate) - new Date(a.sessionDate));
   const getProjectTotalTries = (pid) => getProjectHistory(pid).reduce((sum, c) => sum + c.tries, 0);
-  const getProjectTotalTimeMs = (pid) => sessions.flatMap(s => s.climbs.filter(c => c.projectId === pid)).flatMap(c => c.attemptLog || []).reduce((sum, a) => sum + (a.duration || 0), 0);
-  const getProjectPhoto = (pid) => { const c = sessions.flatMap(s => s.climbs).find(c => c.projectId === pid && c.photo); return c ? c.photo : null; };
+  const getProjectTotalTimeMs = (pid) => sessions.flatMap(s => (s.climbs || []).filter(c => c.projectId === pid)).flatMap(c => c.attemptLog || []).reduce((sum, a) => sum + (a.duration || 0), 0);
+  const getProjectPhoto = (pid) => { const c = sessions.flatMap(s => s.climbs || []).find(c => c.projectId === pid && c.photo); return c ? c.photo : null; };
 
   const getLogbookClimbs = () => {
-    let climbs = sessions.flatMap(s => s.climbs.map(c => ({ ...c, sessionDate: s.date, sessionLocation: s.location })))
+    let climbs = sessions.flatMap(s => (s.climbs || []).map(c => ({ ...c, sessionDate: s.date, sessionLocation: s.location })))
       .filter(c => {
         if (logbookFilter === "completed" && !c.completed) return false;
         if (logbookFilter === "incomplete" && c.completed) return false;
@@ -2067,15 +2067,19 @@ export default function App() {
         </div>
         {/* Header: session time left, location + type chips right */}
         {(() => {
-          const hasBoulder = session.climbs.some(c => c.climbType !== "rope" && c.climbType !== "speed-session") || !!session.boulderStartedAt;
-          const hasRope    = session.climbs.some(c => c.climbType === "rope") || !!session.ropeStartedAt;
-          const hasSpeed   = session.climbs.some(c => c.climbType === "speed-session");
-          const hasWarmup  = (session.warmupTotalSec || 0) > 0;
+          const hasBoulder    = (session.climbs || []).some(c => c.climbType !== "rope" && c.climbType !== "speed-session") || !!session.boulderStartedAt;
+          const hasRope       = (session.climbs || []).some(c => c.climbType === "rope") || !!session.ropeStartedAt;
+          const hasSpeed      = (session.climbs || []).some(c => c.climbType === "speed-session");
+          const hasWarmup     = (session.warmupTotalSec || 0) > 0;
+          const hasWorkout    = (session.workoutTotalSec || 0) > 0;
+          const hasFingerboard = (session.fingerboardTotalSec || 0) > 0;
           const typeChips  = [
-            hasBoulder && { label: "🪨 Boulder", bg: W.green,  tc: W.greenDark  },
-            hasRope    && { label: "🪢 Rope",    bg: W.purple, tc: W.purpleDark },
-            hasSpeed   && { label: "⚡ Speed",   bg: W.yellow, tc: W.yellowDark },
-            hasWarmup  && { label: `🔥 ${formatDuration(session.warmupTotalSec)}`, bg: W.pink, tc: W.pinkDark },
+            hasBoulder    && { label: "🪨 Boulder", bg: W.green,  tc: W.greenDark  },
+            hasRope       && { label: "🪢 Rope",    bg: W.purple, tc: W.purpleDark },
+            hasSpeed      && { label: "⚡ Speed",   bg: W.yellow, tc: W.yellowDark },
+            hasWarmup     && { label: `🔥 ${formatDuration(session.warmupTotalSec)}`, bg: W.pink, tc: W.pinkDark },
+            hasWorkout    && { label: `💪 ${formatDuration(session.workoutTotalSec)}`, bg: W.purple, tc: W.purpleDark },
+            hasFingerboard && { label: `🤲 ${formatDuration(session.fingerboardTotalSec)}`, bg: W.yellow, tc: W.yellowDark },
           ].filter(Boolean);
           return (
             <div style={{ padding: "14px 16px", borderBottom: `1px solid ${W.border}`, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
@@ -2492,7 +2496,7 @@ export default function App() {
       { type: "workout",     label: "💪 Start Workout",       bg: W.accent,  border: W.accentDark,  color: W.accentDark,  onClick: startWorkoutSection },
       { type: "fingerboard", label: "🤞 Start Fingerboard",   bg: W.yellow,  border: W.yellowDark,  color: W.yellowDark,  onClick: startFingerboardSection },
     ];
-    const primaryBtns   = allTypeButtons.filter(b => selectedTypes.includes(b.type));
+    const primaryBtns   = allTypeButtons.filter(b => selectedTypes.includes(b.type)).sort((a, b) => { const ai = sessionTypeOrder.indexOf(a.type); const bi = sessionTypeOrder.indexOf(b.type); return (ai === -1 ? 999 : ai) - (bi === -1 ? 999 : bi); });
     const secondaryBtns = allTypeButtons.filter(b => !selectedTypes.includes(b.type));
     const allClimbs = activeSession?.climbs || [];
     const speedSessions = allClimbs.filter(c => c.climbType === "speed-session");
@@ -3609,13 +3613,13 @@ export default function App() {
 
           // ── Per-type filtered sessions ─────────────────────────
           const boulderFilter = c => c.climbType === "boulder" || !c.climbType;
-          const boulderSessions = tfSessions.map(s => ({ ...s, climbs: s.climbs.filter(boulderFilter) })).filter(s => s.climbs.length > 0);
-          const ropeSessions    = tfSessions.map(s => ({ ...s, climbs: s.climbs.filter(c => c.climbType === "rope") })).filter(s => s.climbs.length > 0);
+          const boulderSessions = tfSessions.map(s => ({ ...s, climbs: (s.climbs || []).filter(boulderFilter) })).filter(s => s.climbs.length > 0);
+          const ropeSessions    = tfSessions.map(s => ({ ...s, climbs: (s.climbs || []).filter(c => c.climbType === "rope") })).filter(s => s.climbs.length > 0);
           const boulderStats    = getStats(boulderSessions);
           const ropeStats       = getStats(ropeSessions);
 
           // ── Speed data ─────────────────────────────────────────
-          const allSpeedSessions  = tfSessions.flatMap(s => s.climbs.filter(c => c.climbType === "speed-session"));
+          const allSpeedSessions  = tfSessions.flatMap(s => (s.climbs || []).filter(c => c.climbType === "speed-session"));
           const allSpeedAttempts  = allSpeedSessions.flatMap(ss => ss.attempts || []).sort((a, b) => a.loggedAt - b.loggedAt);
           const timedAttempts     = allSpeedAttempts.filter(a => !a.fell && a.time != null);
           const fellAttempts      = allSpeedAttempts.filter(a => a.fell);
@@ -3627,8 +3631,8 @@ export default function App() {
           const buildBuckets = (climbFilter) => {
             const now = new Date();
             const mkB = (label, ss) => {
-              const cls = ss.flatMap(s => climbFilter ? s.climbs.filter(climbFilter) : s.climbs.filter(c => c.climbType !== "speed-session"));
-              const allCls = ss.flatMap(s => s.climbs);
+              const cls = ss.flatMap(s => climbFilter ? (s.climbs || []).filter(climbFilter) : (s.climbs || []).filter(c => c.climbType !== "speed-session"));
+              const allCls = ss.flatMap(s => s.climbs || []);
               const bCls = allCls.filter(c => c.climbType === "boulder" || !c.climbType);
               const rCls = allCls.filter(c => c.climbType === "rope");
               const sCls = allCls.filter(c => c.climbType === "speed-session");
@@ -3764,13 +3768,13 @@ export default function App() {
 
           // Boulder: bar selection → filter sessions to boulder
           const boulderSelRaw = statsBarSel !== null ? boulderBuckets[statsBarSel] : null;
-          const boulderSelSessions = boulderSelRaw ? boulderSelRaw.sessions.map(s => ({ ...s, climbs: s.climbs.filter(boulderFilter) })).filter(s => s.climbs.length > 0) : null;
+          const boulderSelSessions = boulderSelRaw ? boulderSelRaw.sessions.map(s => ({ ...s, climbs: (s.climbs || []).filter(boulderFilter) })).filter(s => s.climbs.length > 0) : null;
           const boulderDisplayStats = boulderSelSessions ? getStats(boulderSelSessions) : boulderStats;
           const boulderSelLabel = boulderSelRaw ? (boulderSelRaw.label || `Point ${statsBarSel + 1}`) : null;
 
           // Rope: bar selection → filter sessions to rope
           const ropeSelRaw = statsBarSel !== null ? ropeBuckets[statsBarSel] : null;
-          const ropeSelSessions = ropeSelRaw ? ropeSelRaw.sessions.map(s => ({ ...s, climbs: s.climbs.filter(c => c.climbType === "rope") })).filter(s => s.climbs.length > 0) : null;
+          const ropeSelSessions = ropeSelRaw ? ropeSelRaw.sessions.map(s => ({ ...s, climbs: (s.climbs || []).filter(c => c.climbType === "rope") })).filter(s => s.climbs.length > 0) : null;
           const ropeDisplayStats = ropeSelSessions ? getStats(ropeSelSessions) : ropeStats;
           const ropeSelLabel = ropeSelRaw ? (ropeSelRaw.label || `Point ${statsBarSel + 1}`) : null;
 
@@ -3986,9 +3990,9 @@ export default function App() {
                   const timeSlices = makeTypePie((() => {
                     const t = { boulder: 0, rope: 0, speed: 0 };
                     tfSessions.forEach(s => {
-                      const b = s.climbs.filter(c => !c.climbType || c.climbType === "boulder").length;
-                      const r = s.climbs.filter(c => c.climbType === "rope").length;
-                      const sp = s.climbs.filter(c => c.climbType === "speed-session").length;
+                      const b = (s.climbs || []).filter(c => !c.climbType || c.climbType === "boulder").length;
+                      const r = (s.climbs || []).filter(c => c.climbType === "rope").length;
+                      const sp = (s.climbs || []).filter(c => c.climbType === "speed-session").length;
                       const ct = b + r + sp || 1;
                       t.boulder += (b / ct) * (s.duration || 0);
                       t.rope    += (r / ct) * (s.duration || 0);
@@ -4065,7 +4069,7 @@ export default function App() {
                   <>
                     {renderChart(boulderBuckets)}
                     {renderStatCards([
-                      { icon: "🧗", label: "Sends",           value: boulderDisplayStats.completed.length,               sub: boulderSelLabel || tfLabels[statsTimeFrame], bg: W.surface2, tc: W.accent,     trendPct: prevStats ? trendPct(boulderDisplayStats.completed.length, getStats(prevSessions ? prevSessions.map(s => ({ ...s, climbs: s.climbs.filter(boulderFilter) })).filter(s => s.climbs.length > 0) : []).completed.length) : null },
+                      { icon: "🧗", label: "Sends",           value: boulderDisplayStats.completed.length,               sub: boulderSelLabel || tfLabels[statsTimeFrame], bg: W.surface2, tc: W.accent,     trendPct: prevStats ? trendPct(boulderDisplayStats.completed.length, getStats(prevSessions ? prevSessions.map(s => ({ ...s, climbs: (s.climbs || []).filter(boulderFilter) })).filter(s => s.climbs.length > 0) : []).completed.length) : null },
                       { icon: "🔁", label: "Total Attempts",  value: boulderDisplayStats.totalAttempts,                  sub: boulderSelLabel || tfLabels[statsTimeFrame], bg: W.green,    tc: W.greenDark },
                       { icon: "⚡", label: "Flash Rate",      value: `${boulderDisplayStats.flashRate}%`,                sub: `${boulderDisplayStats.flashes.length} flashes`,             bg: W.yellow,   tc: W.yellowDark },
                       { icon: "🏆", label: "Best Grade",      value: boulderDisplayStats.bestGrade,                      sub: preferredScale,                              bg: W.goldLight,tc: W.yellowDark },
@@ -4549,7 +4553,7 @@ export default function App() {
                   <div key={s.id} onClick={() => { setSelectedSession(s); setScreen("sessionDetail"); }} style={{ padding: "12px 14px", borderBottom: `1px solid ${W.border}`, cursor: "pointer", display: "flex", justifyContent: "space-between", alignItems: "center", borderLeft: `4px solid ${gymColorMap[s.location] || W.gold}` }}>
                     <div>
                       <div style={{ fontWeight: 700, color: W.text, fontSize: 14 }}>{formatDate(s.date)}</div>
-                      <div style={{ fontSize: 12, color: W.textMuted }}>{s.location} · {s.climbs.length} climbs</div>
+                      <div style={{ fontSize: 12, color: W.textMuted }}>{s.location} · {(s.climbs || []).length} climbs</div>
                     </div>
                     <div style={{ color: W.textDim }}>›</div>
                   </div>

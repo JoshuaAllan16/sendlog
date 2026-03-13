@@ -200,6 +200,64 @@ export const SessionSummaryScreen = ({
         );
       })()}
       {(() => {
+        const wc = session.workoutChecklist || [];
+        const checkedCount = wc.filter(i => i.checked).length;
+        const totalCount = wc.length;
+        const hasWorkout = totalCount > 0 || (session.workoutTotalSec || 0) > 0;
+        if (!hasWorkout) return null;
+        const allDone = totalCount > 0 && checkedCount === totalCount;
+        const pct = totalCount > 0 ? checkedCount / totalCount : 1;
+        const r = 18, circ = 2 * Math.PI * r;
+        const dash = pct * circ;
+        return (
+          <div style={{ display: "flex", alignItems: "center", gap: 14, background: allDone ? W.purple : W.surface2, border: `1px solid ${allDone ? W.purpleDark + "44" : W.border}`, borderRadius: 16, padding: "12px 16px", marginBottom: 14 }}>
+            <svg width={48} height={48} viewBox="0 0 48 48">
+              <circle cx={24} cy={24} r={r} fill="none" stroke={W.border} strokeWidth={4} />
+              <circle cx={24} cy={24} r={r} fill="none" stroke={W.purpleDark} strokeWidth={4}
+                strokeDasharray={`${dash.toFixed(2)} ${circ.toFixed(2)}`}
+                strokeLinecap="round" transform="rotate(-90 24 24)" />
+              <text x={24} y={28} textAnchor="middle" fontSize={12} fontWeight={900} fill={W.purpleDark}>💪</text>
+            </svg>
+            <div style={{ flex: 1 }}>
+              <div style={{ fontSize: 14, fontWeight: 800, color: allDone ? W.purpleDark : W.text }}>{allDone ? "Workout Complete!" : `Workout ${checkedCount}/${totalCount}`}</div>
+              <div style={{ fontSize: 11, color: W.textMuted, marginTop: 2 }}>
+                {(session.workoutTotalSec || 0) > 0 ? formatDuration(session.workoutTotalSec) + " workout time" : `${checkedCount} of ${totalCount} tasks done`}
+              </div>
+            </div>
+            {allDone && <div style={{ fontSize: 22 }}>✅</div>}
+          </div>
+        );
+      })()}
+      {(() => {
+        const fc = session.fingerboardChecklist || [];
+        const checkedCount = fc.filter(i => i.checked).length;
+        const totalCount = fc.length;
+        const hasFingerboard = totalCount > 0 || (session.fingerboardTotalSec || 0) > 0;
+        if (!hasFingerboard) return null;
+        const allDone = totalCount > 0 && checkedCount === totalCount;
+        const pct = totalCount > 0 ? checkedCount / totalCount : 1;
+        const r = 18, circ = 2 * Math.PI * r;
+        const dash = pct * circ;
+        return (
+          <div style={{ display: "flex", alignItems: "center", gap: 14, background: allDone ? W.yellow : W.surface2, border: `1px solid ${allDone ? W.yellowDark + "44" : W.border}`, borderRadius: 16, padding: "12px 16px", marginBottom: 14 }}>
+            <svg width={48} height={48} viewBox="0 0 48 48">
+              <circle cx={24} cy={24} r={r} fill="none" stroke={W.border} strokeWidth={4} />
+              <circle cx={24} cy={24} r={r} fill="none" stroke={W.yellowDark} strokeWidth={4}
+                strokeDasharray={`${dash.toFixed(2)} ${circ.toFixed(2)}`}
+                strokeLinecap="round" transform="rotate(-90 24 24)" />
+              <text x={24} y={28} textAnchor="middle" fontSize={12} fontWeight={900} fill={W.yellowDark}>🤲</text>
+            </svg>
+            <div style={{ flex: 1 }}>
+              <div style={{ fontSize: 14, fontWeight: 800, color: allDone ? W.yellowDark : W.text }}>{allDone ? "Fingerboard Complete!" : `Fingerboard ${checkedCount}/${totalCount}`}</div>
+              <div style={{ fontSize: 11, color: W.textMuted, marginTop: 2 }}>
+                {(session.fingerboardTotalSec || 0) > 0 ? formatDuration(session.fingerboardTotalSec) + " fingerboard time" : `${checkedCount} of ${totalCount} tasks done`}
+              </div>
+            </div>
+            {allDone && <div style={{ fontSize: 22 }}>✅</div>}
+          </div>
+        );
+      })()}
+      {(() => {
         const sentProjects = session.climbs.filter(c => c.isProject && c.completed);
         if (!sentProjects.length) return null;
         return (
@@ -247,6 +305,28 @@ export const SessionSummaryScreen = ({
             </div>
             <div style={{ fontSize: 11, color: W.textMuted, marginTop: 2 }}>
               {session.warmupChecklist?.length > 0 ? `Warm Up · ${formatDuration(session.warmupTotalSec)}` : "Warm Up"}
+            </div>
+          </div>
+        )}
+        {(session.workoutChecklist?.length > 0 || session.workoutTotalSec > 0) && (
+          <div style={{ background: W.purple, borderRadius: 14, padding: "14px", border: `1px solid ${W.border}` }}>
+            <div style={{ fontSize: 20, marginBottom: 4 }}>💪</div>
+            <div style={{ fontSize: 20, fontWeight: 800, color: W.purpleDark }}>
+              {session.workoutChecklist?.length > 0 ? `${session.workoutChecklist.filter(i => i.checked).length}/${session.workoutChecklist.length}` : formatDuration(session.workoutTotalSec)}
+            </div>
+            <div style={{ fontSize: 11, color: W.textMuted, marginTop: 2 }}>
+              {session.workoutChecklist?.length > 0 ? `Workout · ${formatDuration(session.workoutTotalSec)}` : "Workout"}
+            </div>
+          </div>
+        )}
+        {(session.fingerboardChecklist?.length > 0 || session.fingerboardTotalSec > 0) && (
+          <div style={{ background: W.yellow, borderRadius: 14, padding: "14px", border: `1px solid ${W.border}` }}>
+            <div style={{ fontSize: 20, marginBottom: 4 }}>🤲</div>
+            <div style={{ fontSize: 20, fontWeight: 800, color: W.yellowDark }}>
+              {session.fingerboardChecklist?.length > 0 ? `${session.fingerboardChecklist.filter(i => i.checked).length}/${session.fingerboardChecklist.length}` : formatDuration(session.fingerboardTotalSec)}
+            </div>
+            <div style={{ fontSize: 11, color: W.textMuted, marginTop: 2 }}>
+              {session.fingerboardChecklist?.length > 0 ? `Fingerboard · ${formatDuration(session.fingerboardTotalSec)}` : "Fingerboard"}
             </div>
           </div>
         )}
