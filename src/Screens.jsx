@@ -170,6 +170,35 @@ export const SessionSummaryScreen = ({
         ))}
       </div>
       {(() => {
+        const wc = session.warmupChecklist || [];
+        const checkedCount = wc.filter(i => i.checked).length;
+        const totalCount = wc.length;
+        const hasWarmup = totalCount > 0 || (session.warmupTotalSec || 0) > 0;
+        if (!hasWarmup) return null;
+        const allDone = totalCount > 0 && checkedCount === totalCount;
+        const pct = totalCount > 0 ? checkedCount / totalCount : 1;
+        const r = 18, circ = 2 * Math.PI * r;
+        const dash = pct * circ;
+        return (
+          <div style={{ display: "flex", alignItems: "center", gap: 14, background: allDone ? W.pink : W.surface2, border: `1px solid ${allDone ? W.pinkDark + "44" : W.border}`, borderRadius: 16, padding: "12px 16px", marginBottom: 14 }}>
+            <svg width={48} height={48} viewBox="0 0 48 48">
+              <circle cx={24} cy={24} r={r} fill="none" stroke={W.border} strokeWidth={4} />
+              <circle cx={24} cy={24} r={r} fill="none" stroke={W.pinkDark} strokeWidth={4}
+                strokeDasharray={`${dash.toFixed(2)} ${circ.toFixed(2)}`}
+                strokeLinecap="round" transform="rotate(-90 24 24)" />
+              <text x={24} y={28} textAnchor="middle" fontSize={12} fontWeight={900} fill={W.pinkDark}>🔥</text>
+            </svg>
+            <div style={{ flex: 1 }}>
+              <div style={{ fontSize: 14, fontWeight: 800, color: allDone ? W.pinkDark : W.text }}>{allDone ? "Warmup Complete!" : `Warmup ${checkedCount}/${totalCount}`}</div>
+              <div style={{ fontSize: 11, color: W.textMuted, marginTop: 2 }}>
+                {(session.warmupTotalSec || 0) > 0 ? formatDuration(session.warmupTotalSec) + " warm-up time" : `${checkedCount} of ${totalCount} tasks done`}
+              </div>
+            </div>
+            {allDone && <div style={{ fontSize: 22 }}>✅</div>}
+          </div>
+        );
+      })()}
+      {(() => {
         const sentProjects = session.climbs.filter(c => c.isProject && c.completed);
         if (!sentProjects.length) return null;
         return (

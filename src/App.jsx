@@ -179,8 +179,11 @@ export default function App() {
   const [showSentRope, setShowSentRope]             = useState(false);
   const [warmupNewItemText, setWarmupNewItemText]         = useState("");
   const [defaultWarmupItems, setDefaultWarmupItems]       = useState(DEFAULT_WARMUP_ITEMS);
+  const [warmupTemplates, setWarmupTemplates]             = useState([{ id: 1, name: "Standard", items: DEFAULT_WARMUP_ITEMS }]);
+  const [activeWarmupTemplateId, setActiveWarmupTemplateId] = useState(1);
   const [showWarmupNudge, setShowWarmupNudge]             = useState(false);
   const [warmupSettingsNewItem, setWarmupSettingsNewItem] = useState("");
+  const [warmupTemplateNewName, setWarmupTemplateNewName] = useState("");
   const [autoEndWarmup, setAutoEndWarmup]                 = useState(true);
   const [colorTheme, setColorTheme]             = useState("espresso");
   const [showEndConfirm, setShowEndConfirm]     = useState(false);
@@ -334,6 +337,10 @@ export default function App() {
           setNotifPrefs(userData.profile?.notifPrefs || { follows: true, sessions: true });
           setIsPrivate(userData.profile?.isPrivate || false);
           setDefaultWarmupItems(userData.profile?.defaultWarmupItems || DEFAULT_WARMUP_ITEMS);
+          if (userData.profile?.warmupTemplates?.length) {
+            setWarmupTemplates(userData.profile.warmupTemplates);
+            setActiveWarmupTemplateId(userData.profile.activeWarmupTemplateId || userData.profile.warmupTemplates[0].id);
+          }
           setAutoEndWarmup(userData.profile?.autoEndWarmup !== false);
           storage.get(`followers:${username}`).then(r => setSocialFollowers(r ? JSON.parse(r.value) : [])).catch(() => {});
           loadNotifications(username).then(n => { setNotifications(n); setNotifCount(n.filter(x => !x.read).length); }).catch(() => {});
@@ -362,7 +369,7 @@ export default function App() {
     setSaveStatus("saving");
     saveTimeoutRef.current = setTimeout(async () => {
       const userData = {
-        profile: { displayName: editDisplayName || currentUser.displayName, preferredScale, preferredRopeScale, profilePic, customBoulderGrades, customRopeGrades, customBoulderScaleName, customRopeScaleName, hiddenLocations, customLocations, mainGym, following: socialFollowing, colorTheme, mutedUsers, notifPrefs, isPrivate, pendingFollowRequests, defaultWarmupItems, autoEndWarmup },
+        profile: { displayName: editDisplayName || currentUser.displayName, preferredScale, preferredRopeScale, profilePic, customBoulderGrades, customRopeGrades, customBoulderScaleName, customRopeScaleName, hiddenLocations, customLocations, mainGym, following: socialFollowing, colorTheme, mutedUsers, notifPrefs, isPrivate, pendingFollowRequests, defaultWarmupItems, autoEndWarmup, warmupTemplates, activeWarmupTemplateId },
         sessions,
         projects,
       };
@@ -371,7 +378,7 @@ export default function App() {
       setTimeout(() => setSaveStatus(""), 2000);
     }, 1000);
     return () => clearTimeout(saveTimeoutRef.current);
-  }, [sessions, projects, editDisplayName, preferredScale, preferredRopeScale, profilePic, customBoulderGrades, customRopeGrades, customBoulderScaleName, customRopeScaleName, hiddenLocations, customLocations, mainGym, socialFollowing, colorTheme, mutedUsers, notifPrefs, isPrivate, pendingFollowRequests, defaultWarmupItems, autoEndWarmup]);
+  }, [sessions, projects, editDisplayName, preferredScale, preferredRopeScale, profilePic, customBoulderGrades, customRopeGrades, customBoulderScaleName, customRopeScaleName, hiddenLocations, customLocations, mainGym, socialFollowing, colorTheme, mutedUsers, notifPrefs, isPrivate, pendingFollowRequests, defaultWarmupItems, autoEndWarmup, warmupTemplates, activeWarmupTemplateId]);
 
   useEffect(() => {
     if (timerRunning) {
@@ -733,7 +740,8 @@ export default function App() {
     const updates = {};
     if (s.boulderActiveStart) { updates.boulderTotalSec = (s.boulderTotalSec || 0) + Math.max(0, Math.floor((now - s.boulderActiveStart) / 1000)); updates.boulderActiveStart = null; updates.boulderPausedAt = now; }
     if (s.ropeActiveStart)    { updates.ropeTotalSec    = (s.ropeTotalSec    || 0) + Math.max(0, Math.floor((now - s.ropeActiveStart)    / 1000)); updates.ropeActiveStart    = null; updates.ropePausedAt    = now; }
-    return { ...s, ...updates, warmupStartedAt: now, warmupActiveStart: now, warmupTotalSec: 0, warmupPausedAt: null, warmupEndedAt: null, warmupChecklist: defaultWarmupItems.map(item => ({ ...item, id: Date.now() + Math.random(), checked: false })) };
+    const tplItems = (warmupTemplates.find(t => t.id === activeWarmupTemplateId) || warmupTemplates[0])?.items || defaultWarmupItems;
+    return { ...s, ...updates, warmupStartedAt: now, warmupActiveStart: now, warmupTotalSec: 0, warmupPausedAt: null, warmupEndedAt: null, warmupChecklist: tplItems.map(item => ({ ...item, id: Date.now() + Math.random(), checked: false })) };
   });
   const pauseWarmupSession = () => setActiveSession(s => {
     const now = Date.now();
@@ -753,7 +761,13 @@ export default function App() {
     return { ...s, warmupTotalSec: (s.warmupTotalSec || 0) + elapsed, warmupActiveStart: null, warmupEndedAt: now };
   });
   const toggleWarmupItem = (itemId) => setActiveSession(s => {
+    const currentItem = (s.warmupChecklist || []).find(i => i.id === itemId);
+    const isUnchecking = currentItem?.checked;
     const newList = (s.warmupChecklist || []).map(item => item.id === itemId ? { ...item, checked: !item.checked } : item);
+    if (isUnchecking && s.warmupEndedAt) {
+      const now = Date.now();
+      return { ...s, warmupChecklist: newList, warmupActiveStart: now, warmupEndedAt: null, warmupPausedAt: null };
+    }
     if (autoEndWarmup && newList.length > 0 && newList.every(i => i.checked) && !s.warmupEndedAt) {
       const now = Date.now();
       const elapsed = s.warmupActiveStart ? Math.max(0, Math.floor((now - s.warmupActiveStart) / 1000)) : 0;
@@ -2533,7 +2547,20 @@ export default function App() {
           );
           const hasBottomButtons = unstartedPrimary.length > 0 || secondaryBtns.length > 0;
           if (!hasBottomButtons) return null;
+          const showTplPicker = warmupTemplates.length > 1 && !activeSession?.warmupStartedAt && (selectedTypes.includes("warmup") || secondaryBtns.some(b => b.type === "warmup"));
           return (
+            <>
+            {showTplPicker && (
+              <div style={{ display: "flex", gap: 6, alignItems: "center", marginBottom: 8, flexWrap: "wrap" }}>
+                <span style={{ fontSize: 11, color: W.textDim, fontWeight: 600 }}>🔥 Warmup template:</span>
+                {warmupTemplates.map(t => (
+                  <button key={t.id} onClick={() => setActiveWarmupTemplateId(t.id)}
+                    style={{ padding: "4px 10px", borderRadius: 16, border: `1.5px solid ${t.id === activeWarmupTemplateId ? W.pinkDark : W.border}`, background: t.id === activeWarmupTemplateId ? W.pink : W.surface2, color: t.id === activeWarmupTemplateId ? W.pinkDark : W.textMuted, fontWeight: 700, fontSize: 11, cursor: "pointer" }}>
+                    {t.name}
+                  </button>
+                ))}
+              </div>
+            )}
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 12, marginTop: 8 }}>
               {unstartedPrimary.map(b => (
                 <button key={b.type} onClick={b.onClick} style={{ padding: "13px", background: b.bg, border: `2px solid ${b.border}`, borderRadius: 14, color: b.color, fontWeight: 700, fontSize: 13, cursor: "pointer" }}>{b.label}</button>
@@ -2545,6 +2572,7 @@ export default function App() {
                 <button key={b.type} onClick={b.onClick} style={{ padding: "13px", background: b.bg, border: `2px solid ${b.border}`, borderRadius: 14, color: b.color, fontWeight: 700, fontSize: 13, cursor: "pointer", opacity: 0.85 }}>{b.label}</button>
               ))}
             </div>
+            </>
           );
         })()}
         {!showClimbForm && (
@@ -3104,33 +3132,66 @@ export default function App() {
               )}
             </div>
 
-            {/* Default Warmup Checklist */}
-            <div style={{ marginBottom: 14 }}>
-              <div style={{ fontSize: 11, fontWeight: 700, color: W.textMuted, textTransform: "uppercase", letterSpacing: 1.2, marginBottom: 8 }}>Default Warmup Checklist</div>
-              {defaultWarmupItems.map((item, i) => (
-                <div key={item.id} style={{ display: "flex", alignItems: "center", gap: 6, padding: "7px 10px", marginBottom: 5, background: W.surface2, border: `1px solid ${W.border}`, borderRadius: 9 }}>
-                  <div style={{ display: "flex", flexDirection: "column", gap: 1 }}>
-                    <button onClick={() => i > 0 && setDefaultWarmupItems(prev => { const a = [...prev]; [a[i-1], a[i]] = [a[i], a[i-1]]; return a; })} style={{ background: "transparent", border: "none", color: i > 0 ? W.textDim : W.border, fontSize: 10, cursor: i > 0 ? "pointer" : "default", padding: "0 2px", lineHeight: 1 }}>▲</button>
-                    <button onClick={() => i < defaultWarmupItems.length - 1 && setDefaultWarmupItems(prev => { const a = [...prev]; [a[i], a[i+1]] = [a[i+1], a[i]]; return a; })} style={{ background: "transparent", border: "none", color: i < defaultWarmupItems.length - 1 ? W.textDim : W.border, fontSize: 10, cursor: i < defaultWarmupItems.length - 1 ? "pointer" : "default", padding: "0 2px", lineHeight: 1 }}>▼</button>
+            {/* Warmup Templates */}
+            {(() => {
+              const activeTpl = warmupTemplates.find(t => t.id === activeWarmupTemplateId) || warmupTemplates[0];
+              const updateActiveTplItems = (updater) => setWarmupTemplates(prev => prev.map(t => t.id === activeTpl.id ? { ...t, items: updater(t.items) } : t));
+              return (
+                <div style={{ marginBottom: 14 }}>
+                  <div style={{ fontSize: 11, fontWeight: 700, color: W.textMuted, textTransform: "uppercase", letterSpacing: 1.2, marginBottom: 8 }}>Warmup Templates</div>
+                  {/* Template tabs */}
+                  <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 10 }}>
+                    {warmupTemplates.map(t => (
+                      <button key={t.id} onClick={() => setActiveWarmupTemplateId(t.id)}
+                        style={{ padding: "5px 12px", borderRadius: 20, border: `1.5px solid ${t.id === activeTpl.id ? W.pinkDark : W.border}`, background: t.id === activeTpl.id ? W.pink : W.surface2, color: t.id === activeTpl.id ? W.pinkDark : W.textMuted, fontWeight: 700, fontSize: 12, cursor: "pointer" }}>
+                        {t.name}
+                      </button>
+                    ))}
+                    <button onClick={() => {
+                      const newId = Date.now();
+                      setWarmupTemplates(prev => [...prev, { id: newId, name: `Template ${prev.length + 1}`, items: [] }]);
+                      setActiveWarmupTemplateId(newId);
+                    }} style={{ padding: "5px 12px", borderRadius: 20, border: `1.5px dashed ${W.border}`, background: "transparent", color: W.textDim, fontSize: 12, cursor: "pointer" }}>+ New</button>
                   </div>
-                  <span style={{ fontSize: 12, color: W.text, flex: 1 }}>{item.text}</span>
-                  <button onClick={() => setDefaultWarmupItems(prev => prev.filter(x => x.id !== item.id))} style={{ background: "transparent", border: "none", color: W.textDim, fontSize: 16, cursor: "pointer", lineHeight: 1, padding: "0 2px" }}>×</button>
+                  {/* Template name edit + delete */}
+                  <div style={{ display: "flex", gap: 6, marginBottom: 8 }}>
+                    <input value={activeTpl.name} onChange={e => setWarmupTemplates(prev => prev.map(t => t.id === activeTpl.id ? { ...t, name: e.target.value } : t))}
+                      style={{ flex: 1, padding: "6px 10px", borderRadius: 9, border: `1px solid ${W.border}`, background: W.surface, color: W.text, fontSize: 12, outline: "none" }} placeholder="Template name" />
+                    {warmupTemplates.length > 1 && (
+                      <button onClick={() => {
+                        const remaining = warmupTemplates.filter(t => t.id !== activeTpl.id);
+                        setWarmupTemplates(remaining);
+                        setActiveWarmupTemplateId(remaining[0].id);
+                      }} style={{ padding: "6px 10px", borderRadius: 9, border: `1px solid ${W.border}`, background: "transparent", color: W.redDark, fontSize: 12, cursor: "pointer" }}>Delete</button>
+                    )}
+                  </div>
+                  {/* Items list */}
+                  {activeTpl.items.map((item, i) => (
+                    <div key={item.id} style={{ display: "flex", alignItems: "center", gap: 6, padding: "7px 10px", marginBottom: 5, background: W.surface2, border: `1px solid ${W.border}`, borderRadius: 9 }}>
+                      <div style={{ display: "flex", flexDirection: "column", gap: 1 }}>
+                        <button onClick={() => i > 0 && updateActiveTplItems(prev => { const a = [...prev]; [a[i-1], a[i]] = [a[i], a[i-1]]; return a; })} style={{ background: "transparent", border: "none", color: i > 0 ? W.textDim : W.border, fontSize: 10, cursor: i > 0 ? "pointer" : "default", padding: "0 2px", lineHeight: 1 }}>▲</button>
+                        <button onClick={() => i < activeTpl.items.length - 1 && updateActiveTplItems(prev => { const a = [...prev]; [a[i], a[i+1]] = [a[i+1], a[i]]; return a; })} style={{ background: "transparent", border: "none", color: i < activeTpl.items.length - 1 ? W.textDim : W.border, fontSize: 10, cursor: i < activeTpl.items.length - 1 ? "pointer" : "default", padding: "0 2px", lineHeight: 1 }}>▼</button>
+                      </div>
+                      <span style={{ fontSize: 12, color: W.text, flex: 1 }}>{item.text}</span>
+                      <button onClick={() => updateActiveTplItems(prev => prev.filter(x => x.id !== item.id))} style={{ background: "transparent", border: "none", color: W.textDim, fontSize: 16, cursor: "pointer", lineHeight: 1, padding: "0 2px" }}>×</button>
+                    </div>
+                  ))}
+                  <div style={{ display: "flex", gap: 6, marginTop: 4 }}>
+                    <input value={warmupSettingsNewItem} onChange={e => setWarmupSettingsNewItem(e.target.value)}
+                      onKeyDown={e => { if (e.key === "Enter" && warmupSettingsNewItem.trim()) { updateActiveTplItems(prev => [...prev, { id: Date.now(), text: warmupSettingsNewItem.trim() }]); setWarmupSettingsNewItem(""); } }}
+                      placeholder="Add item…" style={{ flex: 1, padding: "7px 10px", borderRadius: 9, border: `1px solid ${W.border}`, background: W.surface, color: W.text, fontSize: 12, outline: "none" }} />
+                    <button onClick={() => { if (warmupSettingsNewItem.trim()) { updateActiveTplItems(prev => [...prev, { id: Date.now(), text: warmupSettingsNewItem.trim() }]); setWarmupSettingsNewItem(""); } }} style={{ padding: "7px 12px", borderRadius: 9, border: `1px solid ${W.pinkDark}55`, background: W.pink, color: W.pinkDark, fontWeight: 700, fontSize: 13, cursor: "pointer" }}>+</button>
+                  </div>
+                  <button onClick={() => updateActiveTplItems(() => DEFAULT_WARMUP_ITEMS.map(i => ({ ...i })))} style={{ marginTop: 6, padding: "5px 10px", borderRadius: 8, border: `1px solid ${W.border}`, background: "transparent", color: W.textDim, fontSize: 11, cursor: "pointer" }}>Reset to defaults</button>
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: 10 }}>
+                    <span style={{ fontSize: 12, color: W.text }}>Auto-end when all tasks checked</span>
+                    <button onClick={() => setAutoEndWarmup(v => !v)} style={{ width: 42, height: 24, borderRadius: 12, border: "none", background: autoEndWarmup ? W.pinkDark : W.border, cursor: "pointer", position: "relative", flexShrink: 0, transition: "background 0.2s" }}>
+                      <div style={{ position: "absolute", top: 3, left: autoEndWarmup ? 21 : 3, width: 18, height: 18, borderRadius: "50%", background: "#fff", transition: "left 0.2s" }} />
+                    </button>
+                  </div>
                 </div>
-              ))}
-              <div style={{ display: "flex", gap: 6, marginTop: 4 }}>
-                <input value={warmupSettingsNewItem} onChange={e => setWarmupSettingsNewItem(e.target.value)}
-                  onKeyDown={e => { if (e.key === "Enter" && warmupSettingsNewItem.trim()) { setDefaultWarmupItems(prev => [...prev, { id: Date.now(), text: warmupSettingsNewItem.trim() }]); setWarmupSettingsNewItem(""); } }}
-                  placeholder="Add item…" style={{ flex: 1, padding: "7px 10px", borderRadius: 9, border: `1px solid ${W.border}`, background: W.surface, color: W.text, fontSize: 12, outline: "none" }} />
-                <button onClick={() => { if (warmupSettingsNewItem.trim()) { setDefaultWarmupItems(prev => [...prev, { id: Date.now(), text: warmupSettingsNewItem.trim() }]); setWarmupSettingsNewItem(""); } }} style={{ padding: "7px 12px", borderRadius: 9, border: `1px solid ${W.pinkDark}55`, background: W.pink, color: W.pinkDark, fontWeight: 700, fontSize: 13, cursor: "pointer" }}>+</button>
-              </div>
-              <button onClick={() => setDefaultWarmupItems(DEFAULT_WARMUP_ITEMS.map(i => ({ ...i })))} style={{ marginTop: 6, padding: "5px 10px", borderRadius: 8, border: `1px solid ${W.border}`, background: "transparent", color: W.textDim, fontSize: 11, cursor: "pointer" }}>Reset to defaults</button>
-              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: 10 }}>
-                <span style={{ fontSize: 12, color: W.text }}>Auto-end when all tasks checked</span>
-                <button onClick={() => setAutoEndWarmup(v => !v)} style={{ width: 42, height: 24, borderRadius: 12, border: "none", background: autoEndWarmup ? W.pinkDark : W.border, cursor: "pointer", position: "relative", flexShrink: 0, transition: "background 0.2s" }}>
-                  <div style={{ position: "absolute", top: 3, left: autoEndWarmup ? 21 : 3, width: 18, height: 18, borderRadius: "50%", background: "#fff", transition: "left 0.2s" }} />
-                </button>
-              </div>
-            </div>
+              );
+            })()}
 
             {/* App Theme */}
             <div style={{ marginBottom: 14 }}>

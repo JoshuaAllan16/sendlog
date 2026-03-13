@@ -398,22 +398,22 @@ export const ActiveClimbCard = ({ climb, onEdit, onStartClimbing, onEndAttempt, 
                   : <button onClick={() => onPauseClimb(climb.id)} style={{ padding: "10px 16px", background: W.surface, border: `2px solid ${W.border}`, borderRadius: 12, color: W.textMuted, fontWeight: 700, fontSize: 13, cursor: "pointer", flexShrink: 0 }}>Pause</button>
                 }
               </div>
-              {/* Falls + Mark Sent row — below timer, only for boulder */}
+              {/* Mark Sent + Falls row — below timer, only for boulder */}
               {!isRope && (
                 <div style={{ display: "flex", borderTop: `1px solid ${W.border}` }}>
-                  <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 12, padding: "14px 12px", borderRight: `1px solid ${W.border}`, background: W.surface2 }}>
-                    <div style={{ textAlign: "center" }}>
-                      <div style={{ fontSize: 30, fontWeight: 900, color: W.text, lineHeight: 1 }}>{climb.tries}</div>
-                      <div style={{ fontSize: 10, color: W.textDim, textTransform: "uppercase", letterSpacing: 0.8 }}>{climb.tries === 1 ? "fall" : "falls"}</div>
-                    </div>
-                    <button onClick={() => onUpdateTries(climb.id, 1)} style={{ width: 48, height: 48, borderRadius: 12, border: `2px solid ${W.border}`, background: W.surface, color: W.text, fontSize: 26, cursor: "pointer", fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center" }}>+</button>
-                  </div>
-                  <button onClick={() => onToggleCompleted(climb.id)} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "14px 10px", border: "none", background: climb.completed ? W.green : W.surface2, cursor: "pointer", gap: 5 }}>
+                  <button onClick={() => onToggleCompleted(climb.id)} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "14px 10px", border: "none", borderRight: `1px solid ${W.border}`, background: climb.completed ? W.green : W.surface2, cursor: "pointer", gap: 5 }}>
                     <div style={{ width: 30, height: 30, borderRadius: 8, border: `2.5px solid ${W.greenDark}`, background: climb.completed ? W.greenDark : "transparent", display: "flex", alignItems: "center", justifyContent: "center" }}>
                       {climb.completed && <span style={{ color: "#fff", fontSize: 17, lineHeight: 1 }}>✓</span>}
                     </div>
                     <span style={{ fontSize: 16, fontWeight: 800, color: W.greenDark }}>{climb.completed ? "Sent!" : "Mark Sent"}</span>
                   </button>
+                  <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 12, padding: "14px 12px", background: W.surface2 }}>
+                    <div style={{ textAlign: "center" }}>
+                      <div style={{ fontSize: 30, fontWeight: 900, color: W.text, lineHeight: 1 }}>{climb.tries}</div>
+                      <div style={{ fontSize: 10, color: W.textDim, textTransform: "uppercase", letterSpacing: 0.8 }}>{climb.tries === 1 ? "fall" : "falls"}</div>
+                    </div>
+                    <button onClick={() => onUpdateTries(climb.id, 1)} style={{ width: 56, height: 56, borderRadius: 14, border: "none", background: W.accentDark, color: "#fff", fontSize: 30, cursor: "pointer", fontWeight: 900, display: "flex", alignItems: "center", justifyContent: "center", boxShadow: `0 2px 8px ${W.accentGlow}` }}>+</button>
+                  </div>
                 </div>
               )}
               {!isRope && (climb.fallLog || []).length > 0 && (
