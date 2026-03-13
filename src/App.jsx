@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, Component } from "react";
 import { createClient } from "@supabase/supabase-js";
 import { ThemeCtx, THEMES } from "./theme.js";
 import { ColorDot, TagChips, LocationDropdown, SpeedSessionCard, BoulderRopeSessionCard, ActiveClimbCard } from "./Components.jsx";
@@ -122,6 +122,30 @@ const hashPassword = (pw) => {
 };
 
 // §COMPONENTS_OUTER — TagChips, LocationDropdown, SpeedSessionCard, BoulderRopeSessionCard, ActiveClimbCard are imported from ./Components.jsx
+
+// §ERROR_BOUNDARY
+class ErrorBoundary extends Component {
+  constructor(props) { super(props); this.state = { hasError: false }; }
+  static getDerivedStateFromError() { return { hasError: true }; }
+  componentDidCatch(error, info) { console.error("Session render error:", error, info); }
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div style={{ padding: "40px 24px", textAlign: "center" }}>
+          <div style={{ fontSize: 40, marginBottom: 12 }}>⚠️</div>
+          <div style={{ fontSize: 16, fontWeight: 800, marginBottom: 8 }}>Something went wrong</div>
+          <div style={{ fontSize: 13, color: "#888", marginBottom: 20 }}>An error occurred. Your session data is safe.</div>
+          <button onClick={() => { this.setState({ hasError: false }); window.location.reload(); }}
+            style={{ padding: "12px 24px", borderRadius: 12, border: "none", background: "#6c3a1f", color: "#fff", fontWeight: 700, fontSize: 14, cursor: "pointer" }}>
+            Reload App
+          </button>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
+function ActiveSessionRenderer({ render }) { return render(); }
 
 // §APP_START
 export default function App() {
@@ -661,7 +685,7 @@ export default function App() {
       return {
         ...s, ...updates,
         climbs: [
-          ...s.climbs.map(c => {
+          ...(s.climbs || []).map(c => {
             if (c.climbingStartedAt) return { ...c, climbingStartedAt: null, pausedWorkedMs: 0, attemptLog: [...(c.attemptLog || []), { startedAt: c.climbingStartedAt, duration: now - c.climbingStartedAt + (c.pausedWorkedMs || 0) }] };
             if (c.climbType === "speed-session" && c.speedActiveStart && !c.endedAt) return { ...c, speedTotalSec: (c.speedTotalSec || 0) + Math.max(0, Math.floor((now - c.speedActiveStart) / 1000)), speedActiveStart: null };
             return c;
@@ -699,7 +723,7 @@ export default function App() {
     // Stop any other active climb timer; pause active speed sessions
     return {
       ...s, ...updates,
-      climbs: s.climbs.map(c => {
+      climbs: (s.climbs || []).map(c => {
         if (c.id === climbId) return { ...c, climbingStartedAt: now, paused: false, pausedWorkedMs: 0 };
         if (c.climbingStartedAt && !c.completed) {
           const dur = now - c.climbingStartedAt + (c.pausedWorkedMs || 0);
@@ -718,7 +742,7 @@ export default function App() {
       boulderTotalSec: (s.boulderTotalSec || 0) + elapsed,
       boulderActiveStart: null,
       boulderPausedAt: now,
-      climbs: s.climbs.map(c =>
+      climbs: (s.climbs || []).map(c =>
         c.climbType !== "rope" && c.climbingStartedAt
           ? { ...c, climbingStartedAt: null, pausedWorkedMs: 0, attemptLog: [...(c.attemptLog || []), { startedAt: c.climbingStartedAt, duration: now - c.climbingStartedAt + (c.pausedWorkedMs || 0), falls: c.tries }] }
           : c
@@ -732,7 +756,7 @@ export default function App() {
     if (s.warmupActiveStart)      { updates.warmupTotalSec      = (s.warmupTotalSec      || 0) + Math.max(0, Math.floor((now - s.warmupActiveStart)      / 1000)); updates.warmupActiveStart      = null; updates.warmupPausedAt      = now; }
     if (s.workoutActiveStart)     { updates.workoutTotalSec     = (s.workoutTotalSec     || 0) + Math.max(0, Math.floor((now - s.workoutActiveStart)     / 1000)); updates.workoutActiveStart     = null; updates.workoutPausedAt     = now; }
     if (s.fingerboardActiveStart) { updates.fingerboardTotalSec = (s.fingerboardTotalSec || 0) + Math.max(0, Math.floor((now - s.fingerboardActiveStart) / 1000)); updates.fingerboardActiveStart = null; updates.fingerboardPausedAt = now; }
-    return { ...s, ...updates, boulderActiveStart: now, boulderPausedAt: null, climbs: s.climbs.map(c => c.climbType === "speed-session" && c.speedActiveStart && !c.endedAt ? { ...c, speedTotalSec: (c.speedTotalSec || 0) + Math.max(0, Math.floor((now - c.speedActiveStart) / 1000)), speedActiveStart: null } : c) };
+    return { ...s, ...updates, boulderActiveStart: now, boulderPausedAt: null, climbs: (s.climbs || []).map(c => c.climbType === "speed-session" && c.speedActiveStart && !c.endedAt ? { ...c, speedTotalSec: (c.speedTotalSec || 0) + Math.max(0, Math.floor((now - c.speedActiveStart) / 1000)), speedActiveStart: null } : c) };
   });
   const pauseRopeSession = () => setActiveSession(s => {
     const now = Date.now();
@@ -742,7 +766,7 @@ export default function App() {
       ropeTotalSec: (s.ropeTotalSec || 0) + elapsed,
       ropeActiveStart: null,
       ropePausedAt: now,
-      climbs: s.climbs.map(c =>
+      climbs: (s.climbs || []).map(c =>
         c.climbType === "rope" && c.climbingStartedAt
           ? { ...c, climbingStartedAt: null, lastAttemptEndedAt: null, attemptLog: [...(c.attemptLog || []), { startedAt: c.climbingStartedAt, duration: now - c.climbingStartedAt }] }
           : c
@@ -756,18 +780,18 @@ export default function App() {
     if (s.warmupActiveStart)      { updates.warmupTotalSec      = (s.warmupTotalSec      || 0) + Math.max(0, Math.floor((now - s.warmupActiveStart)      / 1000)); updates.warmupActiveStart      = null; updates.warmupPausedAt      = now; }
     if (s.workoutActiveStart)     { updates.workoutTotalSec     = (s.workoutTotalSec     || 0) + Math.max(0, Math.floor((now - s.workoutActiveStart)     / 1000)); updates.workoutActiveStart     = null; updates.workoutPausedAt     = now; }
     if (s.fingerboardActiveStart) { updates.fingerboardTotalSec = (s.fingerboardTotalSec || 0) + Math.max(0, Math.floor((now - s.fingerboardActiveStart) / 1000)); updates.fingerboardActiveStart = null; updates.fingerboardPausedAt = now; }
-    return { ...s, ...updates, ropeActiveStart: now, ropePausedAt: null, climbs: s.climbs.map(c => c.climbType === "speed-session" && c.speedActiveStart && !c.endedAt ? { ...c, speedTotalSec: (c.speedTotalSec || 0) + Math.max(0, Math.floor((now - c.speedActiveStart) / 1000)), speedActiveStart: null } : c) };
+    return { ...s, ...updates, ropeActiveStart: now, ropePausedAt: null, climbs: (s.climbs || []).map(c => c.climbType === "speed-session" && c.speedActiveStart && !c.endedAt ? { ...c, speedTotalSec: (c.speedTotalSec || 0) + Math.max(0, Math.floor((now - c.speedActiveStart) / 1000)), speedActiveStart: null } : c) };
   });
   const pauseSpeedSession = (climbId) => setActiveSession(s => {
     const now = Date.now();
-    return { ...s, climbs: s.climbs.map(c => c.id === climbId && c.speedActiveStart && !c.endedAt ? { ...c, speedTotalSec: (c.speedTotalSec || 0) + Math.max(0, Math.floor((now - c.speedActiveStart) / 1000)), speedActiveStart: null } : c) };
+    return { ...s, climbs: (s.climbs || []).map(c => c.id === climbId && c.speedActiveStart && !c.endedAt ? { ...c, speedTotalSec: (c.speedTotalSec || 0) + Math.max(0, Math.floor((now - c.speedActiveStart) / 1000)), speedActiveStart: null } : c) };
   });
   const resumeSpeedSession = (climbId) => setActiveSession(s => {
     const now = Date.now();
     const updates = {};
     if (s.boulderActiveStart) { updates.boulderTotalSec = (s.boulderTotalSec || 0) + Math.max(0, Math.floor((now - s.boulderActiveStart) / 1000)); updates.boulderActiveStart = null; updates.boulderPausedAt = now; }
     if (s.ropeActiveStart) { updates.ropeTotalSec = (s.ropeTotalSec || 0) + Math.max(0, Math.floor((now - s.ropeActiveStart) / 1000)); updates.ropeActiveStart = null; updates.ropePausedAt = now; }
-    return { ...s, ...updates, climbs: s.climbs.map(c => {
+    return { ...s, ...updates, climbs: (s.climbs || []).map(c => {
       if (c.id === climbId && !c.endedAt) return { ...c, speedActiveStart: now };
       if (c.climbType === "speed-session" && c.speedActiveStart && !c.endedAt) return { ...c, speedTotalSec: (c.speedTotalSec || 0) + Math.max(0, Math.floor((now - c.speedActiveStart) / 1000)), speedActiveStart: null };
       return c;
@@ -906,26 +930,26 @@ export default function App() {
   // Stops the per-climb timer without logging tries (used for rope "Done" button)
   // Type section timer keeps running — it only pauses when switching types or ending the section
   const endClimbAttempt = (id) => setActiveSession(s => {
-    const climb = s.climbs.find(c => c.id === id);
+    const climb = (s.climbs || []).find(c => c.id === id);
     if (!climb || !climb.climbingStartedAt) return s;
     const now = Date.now();
     const duration = now - climb.climbingStartedAt + (climb.pausedWorkedMs || 0);
     return {
       ...s,
-      climbs: s.climbs.map(c => c.id === id ? { ...c, climbingStartedAt: null, pausedWorkedMs: 0, lastAttemptEndedAt: now, attemptLog: [...(c.attemptLog || []), { startedAt: c.climbingStartedAt, duration }] } : c),
+      climbs: (s.climbs || []).map(c => c.id === id ? { ...c, climbingStartedAt: null, pausedWorkedMs: 0, lastAttemptEndedAt: now, attemptLog: [...(c.attemptLog || []), { startedAt: c.climbingStartedAt, duration }] } : c),
     };
   });
   // Commits a rope attempt: +1 try, adds falls and takes, sets topped
   const logRopeAttempt = (id, falls, takes, topped) => setActiveSession(s => ({
     ...s,
-    climbs: s.climbs.map(c => c.id === id ? { ...c, tries: (c.tries || 0) + 1, falls: (c.falls || 0) + falls, takes: (c.takes || 0) + takes, completed: topped } : c),
+    climbs: (s.climbs || []).map(c => c.id === id ? { ...c, tries: (c.tries || 0) + 1, falls: (c.falls || 0) + falls, takes: (c.takes || 0) + takes, completed: topped } : c),
   }));
   // Pauses attempt tracking on a boulder climb (hides rest timer)
   const pauseClimb = (id) => setActiveSession(s => {
     const now = Date.now();
     return {
       ...s,
-      climbs: s.climbs.map(c => {
+      climbs: (s.climbs || []).map(c => {
         if (c.id !== id) return c;
         if (c.climbingStartedAt) {
           // Pause during active attempt — bank elapsed time into pausedWorkedMs
@@ -938,17 +962,17 @@ export default function App() {
   // Resumes attempt tracking on a paused boulder climb — restores timer from where it was
   const resumeClimb = (id) => setActiveSession(s => ({
     ...s,
-    climbs: s.climbs.map(c => c.id === id ? { ...c, paused: false, climbingStartedAt: Date.now() } : c),
+    climbs: (s.climbs || []).map(c => c.id === id ? { ...c, paused: false, climbingStartedAt: Date.now() } : c),
   }));
   // Stops the boulder climb timer without marking as sent (gave up / moving on)
   const stopBoulderClimb = (id) => setActiveSession(s => {
-    const climb = s.climbs.find(c => c.id === id);
+    const climb = (s.climbs || []).find(c => c.id === id);
     if (!climb || !climb.climbingStartedAt) return s;
     const now = Date.now();
     const duration = now - climb.climbingStartedAt + (climb.pausedWorkedMs || 0);
     return {
       ...s,
-      climbs: s.climbs.map(c => c.id === id
+      climbs: (s.climbs || []).map(c => c.id === id
         ? { ...c, climbingStartedAt: null, pausedWorkedMs: 0, attemptLog: [...(c.attemptLog || []), { startedAt: c.climbingStartedAt, duration, falls: c.tries }] }
         : c),
     };
@@ -983,7 +1007,7 @@ export default function App() {
     const location = rawLoc.replace(/\b([a-z])/g, c => c.toUpperCase());
     const completed = { id: now, date: new Date().toISOString(), duration: finalDuration, location, climbs: final.climbs, boulderTotalSec: final.boulderTotalSec || 0, ropeTotalSec: final.ropeTotalSec || 0, warmupTotalSec: final.warmupTotalSec || 0, warmupChecklist: final.warmupChecklist || [], warmupTemplateName: final.warmupTemplateName || null, workoutTotalSec: final.workoutTotalSec || 0, workoutChecklist: final.workoutChecklist || [], fingerboardTotalSec: final.fingerboardTotalSec || 0, fingerboardChecklist: final.fingerboardChecklist || [], boulderStartedAt: final.boulderStartedAt, ropeStartedAt: final.ropeStartedAt, sessionTypes: final.sessionTypes || [] };
     setSessions(prev => [completed, ...prev]);
-    const sentProjectIds = final.climbs.filter(c => c.isProject && c.completed && c.projectId).map(c => c.projectId);
+    const sentProjectIds = (final.climbs || []).filter(c => c.isProject && c.completed && c.projectId).map(c => c.projectId);
     if (sentProjectIds.length > 0) {
       setProjects(prev => prev.map(p => sentProjectIds.includes(p.id) ? { ...p, completed: true, active: false, dateSent: new Date().toISOString() } : p));
     }
@@ -995,7 +1019,7 @@ export default function App() {
   const discardSession = () => {
     if (!sessionSummary) return;
     setSessions(prev => prev.filter(s => s.id !== sessionSummary.id));
-    const sentProjectIds = sessionSummary.climbs.filter(c => c.isProject && c.completed && c.projectId).map(c => c.projectId);
+    const sentProjectIds = (sessionSummary.climbs || []).filter(c => c.isProject && c.completed && c.projectId).map(c => c.projectId);
     if (sentProjectIds.length > 0) {
       setProjects(prev => prev.map(p => sentProjectIds.includes(p.id) ? { ...p, completed: false, active: true, dateSent: null } : p));
     }
@@ -1004,7 +1028,7 @@ export default function App() {
   };
 
   const updateActiveClimbTries = (id, delta) => setActiveSession(s => {
-    const climb = s.climbs.find(c => c.id === id);
+    const climb = (s.climbs || []).find(c => c.id === id);
     if (!climb) return s;
     const newTries = Math.max(0, climb.tries + delta);
     let climbUpdates = { tries: newTries };
@@ -1017,10 +1041,10 @@ export default function App() {
       climbUpdates = { ...climbUpdates, fallLog: [...(climb.fallLog || []), { at: now, intervalMs: now - lastFallAt }] };
       // climbingStartedAt stays set — timer keeps running
     }
-    return { ...s, climbs: s.climbs.map(c => c.id === id ? { ...c, ...climbUpdates } : c) };
+    return { ...s, climbs: (s.climbs || []).map(c => c.id === id ? { ...c, ...climbUpdates } : c) };
   });
   const toggleActiveClimbCompleted = (id) => setActiveSession(s => {
-    const climb = s.climbs.find(c => c.id === id);
+    const climb = (s.climbs || []).find(c => c.id === id);
     if (!climb) return s;
     const newCompleted = !climb.completed;
     let climbUpdates = { completed: newCompleted };
@@ -1031,16 +1055,16 @@ export default function App() {
         attemptLog: [...(climb.attemptLog || []), { startedAt: climb.climbingStartedAt, duration }] };
       // Boulder section timer keeps running — don't flush it here
     }
-    return { ...s, climbs: s.climbs.map(c => c.id === id ? { ...c, ...climbUpdates } : c) };
+    return { ...s, climbs: (s.climbs || []).map(c => c.id === id ? { ...c, ...climbUpdates } : c) };
   });
-  const removeClimbFromActive      = (id) => setActiveSession(s => ({ ...s, climbs: s.climbs.filter(c => c.id !== id) }));
+  const removeClimbFromActive      = (id) => setActiveSession(s => ({ ...s, climbs: (s.climbs || []).filter(c => c.id !== id) }));
   const removeClimbFromSession     = (sessionId, climbId) => {
-    setSessions(prev => prev.map(s => s.id === sessionId ? { ...s, climbs: s.climbs.filter(c => c.id !== climbId) } : s));
-    setSelectedSession(prev => ({ ...prev, climbs: prev.climbs.filter(c => c.id !== climbId) }));
+    setSessions(prev => prev.map(s => s.id === sessionId ? { ...s, climbs: (s.climbs || []).filter(c => c.id !== climbId) } : s));
+    setSelectedSession(prev => ({ ...prev, climbs: (prev.climbs || []).filter(c => c.id !== climbId) }));
   };
   const saveClimbInlineEdit = (sessionId, climbId, changes) => {
-    setSessions(prev => prev.map(s => s.id === sessionId ? { ...s, climbs: s.climbs.map(c => c.id === climbId ? { ...c, ...changes } : c) } : s));
-    setSelectedSession(prev => ({ ...prev, climbs: prev.climbs.map(c => c.id === climbId ? { ...c, ...changes } : c) }));
+    setSessions(prev => prev.map(s => s.id === sessionId ? { ...s, climbs: (s.climbs || []).map(c => c.id === climbId ? { ...c, ...changes } : c) } : s));
+    setSelectedSession(prev => ({ ...prev, climbs: (prev.climbs || []).map(c => c.id === climbId ? { ...c, ...changes } : c) }));
   };
 
   const openClimbForm = (existing = null, fromProject = null, climbType = "boulder") => {
@@ -1057,7 +1081,7 @@ export default function App() {
             ...s,
             [`${type}TotalSec`]: (s[`${type}TotalSec`] || 0) + elapsed,
             [`${type}ActiveStart`]: null,
-            climbs: s.climbs.map(c => c.id === existing.id ? { ...c, climbingStartedAt: null, pausedWorkedMs: 0, lastAttemptEndedAt: now, attemptLog: [...(c.attemptLog || []), { startedAt: c.climbingStartedAt, duration }] } : c),
+            climbs: (s.climbs || []).map(c => c.id === existing.id ? { ...c, climbingStartedAt: null, pausedWorkedMs: 0, lastAttemptEndedAt: now, attemptLog: [...(c.attemptLog || []), { startedAt: c.climbingStartedAt, duration }] } : c),
           };
         });
       }
@@ -1084,7 +1108,7 @@ export default function App() {
 
   const saveClimbToActiveSession = () => {
     if (editingClimbId) {
-      setActiveSession(s => ({ ...s, climbs: s.climbs.map(c => c.id === editingClimbId ? { ...c, ...climbForm, photo: photoPreview } : c) }));
+      setActiveSession(s => ({ ...s, climbs: (s.climbs || []).map(c => c.id === editingClimbId ? { ...c, ...climbForm, photo: photoPreview } : c) }));
     } else {
       const pid = climbForm.isProject ? (climbForm.projectId || Date.now() + 1) : null;
       const speedGrade = climbForm.climbType === "speed" ? (climbForm.speedTime ? climbForm.speedTime + "s" : "—") : undefined;
@@ -1095,7 +1119,7 @@ export default function App() {
         const typeUpdates = {};
         if (newClimb.climbType === "boulder" && !s.boulderStartedAt) { typeUpdates.boulderStartedAt = now; typeUpdates.boulderTotalSec = 0; }
         if (newClimb.climbType === "rope"    && !s.ropeStartedAt)    { typeUpdates.ropeStartedAt    = now; typeUpdates.ropeTotalSec    = 0; }
-        return { ...s, ...typeUpdates, climbs: [...s.climbs, newClimb] };
+        return { ...s, ...typeUpdates, climbs: [...(s.climbs || []), newClimb] };
       });
     }
     // Show warmup nudge if first climb logged within 2 min of session start with no warmup
@@ -1106,8 +1130,8 @@ export default function App() {
   };
 
   const saveClimbToFinishedSession = (sessionId) => {
-    setSessions(prev => prev.map(s => s.id === sessionId ? { ...s, climbs: s.climbs.map(c => c.id === editingClimbId ? { ...c, ...climbForm, photo: photoPreview } : c) } : s));
-    setSelectedSession(prev => ({ ...prev, climbs: prev.climbs.map(c => c.id === editingClimbId ? { ...c, ...climbForm, photo: photoPreview } : c) }));
+    setSessions(prev => prev.map(s => s.id === sessionId ? { ...s, climbs: (s.climbs || []).map(c => c.id === editingClimbId ? { ...c, ...climbForm, photo: photoPreview } : c) } : s));
+    setSelectedSession(prev => ({ ...prev, climbs: (prev.climbs || []).map(c => c.id === editingClimbId ? { ...c, ...climbForm, photo: photoPreview } : c) }));
     if (climbForm.isProject && climbForm.completed && climbForm.projectId) setProjects(prev => prev.map(p => p.id === climbForm.projectId ? { ...p, completed: true, active: false, dateSent: new Date().toISOString() } : p));
     setEditingClimbId(null); setEditingSessionId(null); setShowClimbForm(false);
   };
@@ -1117,7 +1141,7 @@ export default function App() {
   const updateProjectNotes   = (id, notes) => setProjects(prev => prev.map(p => p.id === id ? { ...p, notes } : p));
   const markProjectSent    = (id) => setProjects(prev => prev.map(p => p.id === id ? { ...p, completed: true, active: false, dateSent: new Date().toISOString() } : p));
 
-  const allClimbs      = sessions.flatMap(s => s.climbs);
+  const allClimbs      = sessions.flatMap(s => s.climbs || []);
   const activeProjects = projects.filter(p => p.active && !p.completed);
   const completedProjects = projects.filter(p => p.completed);
   const retiredProjects   = projects.filter(p => !p.active && !p.completed);
@@ -1210,7 +1234,7 @@ export default function App() {
   };
 
   const getSessionType = (session) => {
-    const types = new Set(session.climbs.map(c => c.climbType === "speed-session" ? "speed" : (c.climbType || "boulder")));
+    const types = new Set((session.climbs || []).map(c => c.climbType === "speed-session" ? "speed" : (c.climbType || "boulder")));
     if (types.size === 0) return "boulder";
     if (types.size === 1) return [...types][0];
     return "mixed";
@@ -1219,17 +1243,17 @@ export default function App() {
   const getFilteredSessions = () => {
     let base = logbookGymFilter === "All Gyms" ? [...sessions] : sessions.filter(s => s.location === logbookGymFilter);
     if (sessionTypeFilter !== "all") base = base.filter(s => getSessionType(s) === sessionTypeFilter);
-    if (sessionSort === "climbs-desc") return base.sort((a, b) => b.climbs.length - a.climbs.length);
-    if (sessionSort === "climbs-asc")  return base.sort((a, b) => a.climbs.length - b.climbs.length);
-    if (sessionSort === "attempts-desc") return base.sort((a, b) => b.climbs.reduce((s, c) => s + c.tries, 0) - a.climbs.reduce((s, c) => s + c.tries, 0));
-    if (sessionSort === "attempts-asc")  return base.sort((a, b) => a.climbs.reduce((s, c) => s + c.tries, 0) - b.climbs.reduce((s, c) => s + c.tries, 0));
-    if (sessionSort === "flashes-desc") return base.sort((a, b) => b.climbs.filter(c => c.completed && c.tries === 0).length - a.climbs.filter(c => c.completed && c.tries === 0).length);
-    if (sessionSort === "flashes-asc")  return base.sort((a, b) => a.climbs.filter(c => c.completed && c.tries === 0).length - b.climbs.filter(c => c.completed && c.tries === 0).length);
+    if (sessionSort === "climbs-desc") return base.sort((a, b) => (b.climbs || []).length - (a.climbs || []).length);
+    if (sessionSort === "climbs-asc")  return base.sort((a, b) => (a.climbs || []).length - (b.climbs || []).length);
+    if (sessionSort === "attempts-desc") return base.sort((a, b) => (b.climbs || []).reduce((s, c) => s + c.tries, 0) - (a.climbs || []).reduce((s, c) => s + c.tries, 0));
+    if (sessionSort === "attempts-asc")  return base.sort((a, b) => (a.climbs || []).reduce((s, c) => s + c.tries, 0) - (b.climbs || []).reduce((s, c) => s + c.tries, 0));
+    if (sessionSort === "flashes-desc") return base.sort((a, b) => (b.climbs || []).filter(c => c.completed && c.tries === 0).length - (a.climbs || []).filter(c => c.completed && c.tries === 0).length);
+    if (sessionSort === "flashes-asc")  return base.sort((a, b) => (a.climbs || []).filter(c => c.completed && c.tries === 0).length - (b.climbs || []).filter(c => c.completed && c.tries === 0).length);
     return base;
   };
 
   const getSessionStats = (session) => {
-    const climbs = session.climbs.filter(c => c.climbType !== "speed-session");
+    const climbs = (session.climbs || []).filter(c => c.climbType !== "speed-session");
     const sends = climbs.filter(c => c.completed).length;
     const total  = climbs.length;
     const totalTries = climbs.reduce((s, c) => s + c.tries, 0);
@@ -1246,7 +1270,7 @@ export default function App() {
     const avgAttemptRest = restGapsSec.length ? Math.round(restGapsSec.reduce((a, b) => a + b, 0) / restGapsSec.length) : null;
     const maxAttemptRest = restGapsSec.length ? Math.round(Math.max(...restGapsSec)) : null;
     const minAttemptRest = restGapsSec.length ? Math.round(Math.min(...restGapsSec)) : null;
-    const speedSessions = session.climbs.filter(c => c.climbType === "speed-session");
+    const speedSessions = (session.climbs || []).filter(c => c.climbType === "speed-session");
     const speedAttempts = speedSessions.flatMap(s => s.attempts || []).filter(a => !a.fell && a.time != null);
     const speedBest = speedAttempts.length ? Math.min(...speedAttempts.map(a => a.time)) : null;
     const totalPauses = climbs.filter(c => c.climbType !== "rope").reduce((s, c) => s + (c.pauseCount || 0), 0);
@@ -2026,7 +2050,7 @@ export default function App() {
 
   const LogbookSessionCard = ({ session, poster, onNavigate }) => {
     const stats = getSessionStats(session);
-    const climbPhotos = session.climbs.filter(c => c.photo);
+    const climbPhotos = (session.climbs || []).filter(c => c.photo);
     const [photoIdx, setPhotoIdx] = useState(0);
     const [photoVisible, setPhotoVisible] = useState(true);
     const [selectedGradeSlice, setSelectedGradeSlice] = useState(null);
@@ -2164,8 +2188,8 @@ export default function App() {
           const ropeSec    = session.ropeTotalSec || 0;
           const warmupSec  = session.warmupTotalSec || 0;
           const speedSec   = stats.speedSessions.reduce((s, ss) => s + Math.max(0, Math.floor(((ss.endedAt || Date.now()) - ss.startedAt) / 1000)), 0);
-          const hasBoulder = boulderSec > 0 || session.climbs.some(c => c.climbType !== "rope" && c.climbType !== "speed-session");
-          const hasRope    = ropeSec > 0 || session.climbs.some(c => c.climbType === "rope");
+          const hasBoulder = boulderSec > 0 || (session.climbs || []).some(c => c.climbType !== "rope" && c.climbType !== "speed-session");
+          const hasRope    = ropeSec > 0 || (session.climbs || []).some(c => c.climbType === "rope");
           const hasSpeed   = speedSec > 0 || stats.speedSessions.length > 0;
           const hasWarmupT = warmupSec > 0;
           const typeCount  = [hasBoulder, hasRope, hasSpeed, hasWarmupT].filter(Boolean).length;
@@ -3010,7 +3034,7 @@ export default function App() {
           </div>
         </div>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 16 }}>
-          {[{ icon: "⚡", label: "Flash Rate", value: `${stats.flashRate}%`, bg: W.yellow, tc: W.yellowDark }, { icon: "📊", label: "Avg Tries", value: stats.avgTries, bg: W.green, tc: W.greenDark }, { icon: "⚡", label: "Flashes", value: stats.flashes, bg: W.goldLight, tc: W.yellowDark }, { icon: "🎯", label: "Projects", value: session.climbs.filter(c => c.isProject).length, bg: W.pink, tc: W.pinkDark }].map(s => (
+          {[{ icon: "⚡", label: "Flash Rate", value: `${stats.flashRate}%`, bg: W.yellow, tc: W.yellowDark }, { icon: "📊", label: "Avg Tries", value: stats.avgTries, bg: W.green, tc: W.greenDark }, { icon: "⚡", label: "Flashes", value: stats.flashes, bg: W.goldLight, tc: W.yellowDark }, { icon: "🎯", label: "Projects", value: (session.climbs || []).filter(c => c.isProject).length, bg: W.pink, tc: W.pinkDark }].map(s => (
             <div key={s.label} style={{ background: s.bg, borderRadius: 12, padding: "12px 14px", border: `1px solid ${W.border}` }}>
               <div style={{ fontSize: 16 }}>{s.icon}</div>
               <div style={{ fontSize: 18, fontWeight: 800, color: s.tc, marginTop: 2 }}>{s.value}</div>
@@ -3061,8 +3085,8 @@ export default function App() {
           );
         })()}
         {(() => {
-          const hasBoulder = session.climbs.some(c => c.climbType !== "rope" && c.climbType !== "speed-session");
-          const hasRope    = session.climbs.some(c => c.climbType === "rope");
+          const hasBoulder = (session.climbs || []).some(c => c.climbType !== "rope" && c.climbType !== "speed-session");
+          const hasRope    = (session.climbs || []).some(c => c.climbType === "rope");
           if (!(hasBoulder || hasRope)) return null;
           const gradeEntries = Object.entries(stats.gradeBreakdown).sort((a, b) => b[1].tries - a[1].tries);
           if (gradeEntries.length < 2) return null;
@@ -3121,11 +3145,49 @@ export default function App() {
             ))}
           </div>
         )}
+        {session.workoutChecklist?.length > 0 && (
+          <div style={{ background: W.surface2, borderRadius: 16, padding: "16px", marginBottom: 16, border: `1px solid ${W.border}` }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
+              <div style={{ fontSize: 13, fontWeight: 800, color: W.accentDark }}>💪 Workout Checklist</div>
+              <div style={{ fontSize: 11, color: W.textDim }}>
+                {session.workoutChecklist.filter(i => i.checked).length}/{session.workoutChecklist.length} done
+                {session.workoutTotalSec > 0 && ` · ${formatDuration(session.workoutTotalSec)}`}
+              </div>
+            </div>
+            {session.workoutChecklist.map(item => (
+              <div key={item.id} style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 0", borderBottom: `1px solid ${W.border}` }}>
+                <div style={{ width: 16, height: 16, borderRadius: 4, background: item.checked ? W.accentDark : "transparent", border: `2px solid ${item.checked ? W.accentDark : W.border}`, flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                  {item.checked && <span style={{ fontSize: 9, color: "#fff", fontWeight: 900 }}>✓</span>}
+                </div>
+                <span style={{ fontSize: 12, color: item.checked ? W.accentDark : W.textMuted, textDecoration: item.checked ? "line-through" : "none" }}>{item.text}</span>
+              </div>
+            ))}
+          </div>
+        )}
+        {session.fingerboardChecklist?.length > 0 && (
+          <div style={{ background: W.surface2, borderRadius: 16, padding: "16px", marginBottom: 16, border: `1px solid ${W.border}` }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
+              <div style={{ fontSize: 13, fontWeight: 800, color: W.yellowDark }}>🤲 Fingerboard Checklist</div>
+              <div style={{ fontSize: 11, color: W.textDim }}>
+                {session.fingerboardChecklist.filter(i => i.checked).length}/{session.fingerboardChecklist.length} done
+                {session.fingerboardTotalSec > 0 && ` · ${formatDuration(session.fingerboardTotalSec)}`}
+              </div>
+            </div>
+            {session.fingerboardChecklist.map(item => (
+              <div key={item.id} style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 0", borderBottom: `1px solid ${W.border}` }}>
+                <div style={{ width: 16, height: 16, borderRadius: 4, background: item.checked ? W.yellowDark : "transparent", border: `2px solid ${item.checked ? W.yellowDark : W.border}`, flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                  {item.checked && <span style={{ fontSize: 9, color: "#fff", fontWeight: 900 }}>✓</span>}
+                </div>
+                <span style={{ fontSize: 12, color: item.checked ? W.yellowDark : W.textMuted, textDecoration: item.checked ? "line-through" : "none" }}>{item.text}</span>
+              </div>
+            ))}
+          </div>
+        )}
         <div style={{ fontSize: 13, fontWeight: 700, color: W.textMuted, textTransform: "uppercase", letterSpacing: 1, marginBottom: 10 }}>Climbs</div>
         {!readOnly && showClimbForm && editingClimbId ? (
           <ClimbFormPanel onSave={() => saveClimbToFinishedSession(session.id)} onCancel={() => { setShowClimbForm(false); setEditingClimbId(null); setEditingSessionId(null); }} />
         ) : (
-          session.climbs.map(c => (
+          (session.climbs || []).map(c => (
             <ClimbRow key={c.id} climb={c}
               onEdit={readOnly ? null : (climb => { setEditingClimbId(climb.id); setEditingSessionId(session.id); setClimbForm({ name: climb.name || "", grade: climb.grade, scale: climb.scale, tries: climb.tries, completed: climb.completed, isProject: climb.isProject, comments: climb.comments, photo: climb.photo, projectId: climb.projectId, color: climb.color || null, wallTypes: climb.wallTypes || [], holdTypes: climb.holdTypes || [] }); setPhotoPreview(climb.photo); setShowClimbForm(true); })}
               onInlineSave={readOnly ? null : (climbId, changes) => saveClimbInlineEdit(session.id, climbId, changes)}
@@ -3134,7 +3196,7 @@ export default function App() {
           ))
         )}
         {(() => {
-          const climbsWithPhotos = session.climbs.filter(c => c.photo);
+          const climbsWithPhotos = (session.climbs || []).filter(c => c.photo);
           if (!climbsWithPhotos.length) return null;
           return (
             <div style={{ marginTop: 24 }}>
@@ -5159,7 +5221,7 @@ export default function App() {
 
       <div style={{ flex: 1, overflowY: "auto", paddingBottom: screen === "sessionSummary" ? 0 : 80 }} onClick={() => { setLocationDropdownOpen(false); setActiveLocationDropdownOpen(false); }}>
         {screen === "home"          && <HomeScreen />}
-        {screen === "session"       && (sessionStarted ? SessionActiveScreen() : SessionSetupScreen())}
+        {screen === "session"       && (sessionStarted ? <ErrorBoundary key="session-active"><ActiveSessionRenderer render={SessionActiveScreen} /></ErrorBoundary> : SessionSetupScreen())}
         {screen === "social"        && SocialScreen()}
         {screen === "userProfile"   && UserProfileScreen()}
         {screen === "profile"       && ProfileScreen()}

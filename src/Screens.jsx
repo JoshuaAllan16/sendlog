@@ -258,7 +258,7 @@ export const SessionSummaryScreen = ({
         );
       })()}
       {(() => {
-        const sentProjects = session.climbs.filter(c => c.isProject && c.completed);
+        const sentProjects = (session.climbs || []).filter(c => c.isProject && c.completed);
         if (!sentProjects.length) return null;
         return (
           <div style={{ background: `linear-gradient(135deg, ${W.green}, #166534)`, borderRadius: 16, padding: "16px", marginBottom: 16, border: `1px solid ${W.greenDark}40` }}>
@@ -443,10 +443,10 @@ export const SessionSummaryScreen = ({
           </div>
         );
       })()}
-      {session.climbs.filter(c => c.climbType !== "speed-session").length > 0 && (
+      {(session.climbs || []).filter(c => c.climbType !== "speed-session").length > 0 && (
         <div style={{ background: W.surface, borderRadius: 16, padding: "16px", border: `1px solid ${W.border}`, marginBottom: 20 }}>
           <div style={{ fontSize: 11, fontWeight: 700, color: W.textMuted, textTransform: "uppercase", letterSpacing: 1, marginBottom: 10 }}>Climbs This Session</div>
-          {session.climbs.filter(c => c.climbType !== "speed-session").map(c => (
+          {(session.climbs || []).filter(c => c.climbType !== "speed-session").map(c => (
             <div key={c.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 0", borderBottom: `1px solid ${W.border}` }}>
               <div style={{ width: 36, height: 36, borderRadius: 8, display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 900, fontSize: 11, flexShrink: 0, background: getGradeColor(c.grade) + "30", color: getGradeColor(c.grade), border: `1.5px solid ${getGradeColor(c.grade)}60` }}>{c.grade}</div>
               <div style={{ flex: 1, minWidth: 0 }}>
@@ -477,7 +477,7 @@ export const SessionSummaryScreen = ({
       {/* Share session */}
       {(() => {
         const fmtDuration = (s) => { const h = Math.floor(s / 3600); const m = Math.floor((s % 3600) / 60); return h > 0 ? `${h}h ${m}m` : `${m}m`; };
-        const allClimbs = session.climbs.filter(c => c.climbType !== "speed-session");
+        const allClimbs = (session.climbs || []).filter(c => c.climbType !== "speed-session");
         const sends = allClimbs.filter(c => c.completed);
         const text = [
           `🧗 SendLog Session`,
