@@ -181,6 +181,7 @@ export default function App() {
   const [defaultWarmupItems, setDefaultWarmupItems]       = useState(DEFAULT_WARMUP_ITEMS);
   const [showWarmupNudge, setShowWarmupNudge]             = useState(false);
   const [warmupSettingsNewItem, setWarmupSettingsNewItem] = useState("");
+  const [autoEndWarmup, setAutoEndWarmup]                 = useState(true);
   const [colorTheme, setColorTheme]             = useState("espresso");
   const [showEndConfirm, setShowEndConfirm]     = useState(false);
   const [showProjectPrompt, setShowProjectPrompt] = useState(false);
@@ -333,6 +334,7 @@ export default function App() {
           setNotifPrefs(userData.profile?.notifPrefs || { follows: true, sessions: true });
           setIsPrivate(userData.profile?.isPrivate || false);
           setDefaultWarmupItems(userData.profile?.defaultWarmupItems || DEFAULT_WARMUP_ITEMS);
+          setAutoEndWarmup(userData.profile?.autoEndWarmup !== false);
           storage.get(`followers:${username}`).then(r => setSocialFollowers(r ? JSON.parse(r.value) : [])).catch(() => {});
           loadNotifications(username).then(n => { setNotifications(n); setNotifCount(n.filter(x => !x.read).length); }).catch(() => {});
           loadMyReactions(username).then(setMyReactions).catch(() => {});
@@ -360,7 +362,7 @@ export default function App() {
     setSaveStatus("saving");
     saveTimeoutRef.current = setTimeout(async () => {
       const userData = {
-        profile: { displayName: editDisplayName || currentUser.displayName, preferredScale, preferredRopeScale, profilePic, customBoulderGrades, customRopeGrades, customBoulderScaleName, customRopeScaleName, hiddenLocations, customLocations, mainGym, following: socialFollowing, colorTheme, mutedUsers, notifPrefs, isPrivate, pendingFollowRequests, defaultWarmupItems },
+        profile: { displayName: editDisplayName || currentUser.displayName, preferredScale, preferredRopeScale, profilePic, customBoulderGrades, customRopeGrades, customBoulderScaleName, customRopeScaleName, hiddenLocations, customLocations, mainGym, following: socialFollowing, colorTheme, mutedUsers, notifPrefs, isPrivate, pendingFollowRequests, defaultWarmupItems, autoEndWarmup },
         sessions,
         projects,
       };
@@ -369,7 +371,7 @@ export default function App() {
       setTimeout(() => setSaveStatus(""), 2000);
     }, 1000);
     return () => clearTimeout(saveTimeoutRef.current);
-  }, [sessions, projects, editDisplayName, preferredScale, preferredRopeScale, profilePic, customBoulderGrades, customRopeGrades, customBoulderScaleName, customRopeScaleName, hiddenLocations, customLocations, mainGym, socialFollowing, colorTheme, mutedUsers, notifPrefs, isPrivate, pendingFollowRequests, defaultWarmupItems]);
+  }, [sessions, projects, editDisplayName, preferredScale, preferredRopeScale, profilePic, customBoulderGrades, customRopeGrades, customBoulderScaleName, customRopeScaleName, hiddenLocations, customLocations, mainGym, socialFollowing, colorTheme, mutedUsers, notifPrefs, isPrivate, pendingFollowRequests, defaultWarmupItems, autoEndWarmup]);
 
   useEffect(() => {
     if (timerRunning) {
@@ -750,10 +752,26 @@ export default function App() {
     const elapsed = s.warmupActiveStart ? Math.max(0, Math.floor((now - s.warmupActiveStart) / 1000)) : 0;
     return { ...s, warmupTotalSec: (s.warmupTotalSec || 0) + elapsed, warmupActiveStart: null, warmupEndedAt: now };
   });
-  const toggleWarmupItem      = (itemId) => setActiveSession(s => ({ ...s, warmupChecklist: (s.warmupChecklist || []).map(item => item.id === itemId ? { ...item, checked: !item.checked } : item) }));
+  const toggleWarmupItem = (itemId) => setActiveSession(s => {
+    const newList = (s.warmupChecklist || []).map(item => item.id === itemId ? { ...item, checked: !item.checked } : item);
+    if (autoEndWarmup && newList.length > 0 && newList.every(i => i.checked) && !s.warmupEndedAt) {
+      const now = Date.now();
+      const elapsed = s.warmupActiveStart ? Math.max(0, Math.floor((now - s.warmupActiveStart) / 1000)) : 0;
+      return { ...s, warmupChecklist: newList, warmupTotalSec: (s.warmupTotalSec || 0) + elapsed, warmupActiveStart: null, warmupEndedAt: now };
+    }
+    return { ...s, warmupChecklist: newList };
+  });
   const addWarmupItem         = (text)   => setActiveSession(s => ({ ...s, warmupChecklist: [...(s.warmupChecklist || []), { id: Date.now(), text, checked: false }] }));
   const removeWarmupItem      = (itemId) => setActiveSession(s => ({ ...s, warmupChecklist: (s.warmupChecklist || []).filter(item => item.id !== itemId) }));
-  const completeAllWarmupItems= ()       => setActiveSession(s => ({ ...s, warmupChecklist: (s.warmupChecklist || []).map(i => ({ ...i, checked: true })) }));
+  const completeAllWarmupItems = () => setActiveSession(s => {
+    const newList = (s.warmupChecklist || []).map(i => ({ ...i, checked: true }));
+    if (autoEndWarmup && !s.warmupEndedAt) {
+      const now = Date.now();
+      const elapsed = s.warmupActiveStart ? Math.max(0, Math.floor((now - s.warmupActiveStart) / 1000)) : 0;
+      return { ...s, warmupChecklist: newList, warmupTotalSec: (s.warmupTotalSec || 0) + elapsed, warmupActiveStart: null, warmupEndedAt: now };
+    }
+    return { ...s, warmupChecklist: newList };
+  });
 
   // Stops the per-climb timer without logging tries (used for rope "Done" button)
   // Type section timer keeps running — it only pauses when switching types or ending the section
@@ -2446,33 +2464,43 @@ export default function App() {
           const doneCount = checklist.filter(i => i.checked).length;
           return (
             <div style={{ marginBottom: 16 }}>
-              {/* Header card */}
-              <div style={{ background: `linear-gradient(135deg, ${W.pinkDark}22, ${W.pinkDark}11)`, border: `2px solid ${W.pinkDark}55`, borderRadius: 14, padding: "12px 14px", marginBottom: 8 }}>
-                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
-                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                    <span style={{ fontSize: 18 }}>🔥</span>
-                    <div>
-                      <div style={{ fontWeight: 800, fontSize: 14, color: W.pinkDark }}>Warm Up</div>
-                      <div style={{ fontSize: 11, color: W.textDim, marginTop: 1 }}>{formatDuration(totalSec)} · {doneCount}/{checklist.length} done</div>
+              {/* Header card — BoulderRopeSessionCard style */}
+              <div style={{ borderRadius: 14, border: `2px solid ${W.pinkDark}55`, marginBottom: 10, overflow: "hidden", background: W.surface }}>
+                <div style={{ background: W.pink, padding: "14px" }}>
+                  {/* Row 1: label + badge + collapse */}
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 6 }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 7 }}>
+                      <div style={{ fontWeight: 800, color: W.pinkDark, fontSize: 18 }}>🔥 Warm Up</div>
+                      {isEnded  && <span style={{ background: W.pinkDark, color: W.pink, borderRadius: 6, padding: "1px 7px", fontSize: 10, fontWeight: 800 }}>DONE</span>}
+                      {isActive && <span style={{ background: `${W.pinkDark}33`, color: W.pinkDark, borderRadius: 6, padding: "1px 7px", fontSize: 10, fontWeight: 800 }}>ACTIVE</span>}
+                      {!isActive && !isEnded && totalSec > 0 && <span style={{ background: `${W.pinkDark}22`, color: W.pinkDark, borderRadius: 6, padding: "1px 7px", fontSize: 10, fontWeight: 800 }}>PAUSED</span>}
                     </div>
+                    <button onClick={() => setActiveSession(s => ({ ...s, collapsedSections: { ...(s.collapsedSections || {}), warmup: !s.collapsedSections?.warmup } }))} style={{ background: "none", border: `1px solid ${W.pinkDark}44`, borderRadius: 7, color: W.pinkDark, fontSize: 14, cursor: "pointer", padding: "3px 9px", lineHeight: 1 }}>
+                      {activeSession.collapsedSections?.warmup ? "▼" : "▲"}
+                    </button>
                   </div>
-                  <div style={{ display: "flex", gap: 6 }}>
+                  {/* Row 2: big timer */}
+                  <div style={{ fontSize: 48, fontWeight: 900, color: W.pinkDark, fontVariantNumeric: "tabular-nums", letterSpacing: 1, lineHeight: 1, marginBottom: 8 }}>{formatDuration(totalSec)}</div>
+                  {/* Row 3: progress bar + task count */}
+                  <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
+                    <div style={{ flex: 1, height: 4, borderRadius: 2, background: `${W.pinkDark}33`, overflow: "hidden" }}>
+                      <div style={{ height: "100%", width: `${checklist.length ? (doneCount / checklist.length) * 100 : 0}%`, background: W.pinkDark, borderRadius: 2, transition: "width 0.3s ease" }} />
+                    </div>
+                    <span style={{ fontSize: 11, fontWeight: 700, color: W.pinkDark, flexShrink: 0 }}>{doneCount}/{checklist.length}</span>
+                  </div>
+                  {/* Row 4: action buttons */}
+                  <div style={{ display: "flex", gap: 6, justifyContent: "flex-end" }}>
                     {!isEnded && (isActive
-                      ? <button onClick={pauseWarmupSession}  style={{ padding: "5px 11px", borderRadius: 8, border: `1px solid ${W.pinkDark}55`, background: W.pink, color: W.pinkDark, fontWeight: 700, fontSize: 12, cursor: "pointer" }}>⏸ Pause</button>
-                      : <button onClick={resumeWarmupSession} style={{ padding: "5px 11px", borderRadius: 8, border: `1px solid ${W.pinkDark}55`, background: W.pink, color: W.pinkDark, fontWeight: 700, fontSize: 12, cursor: "pointer" }}>▶ Resume</button>
+                      ? <button onClick={pauseWarmupSession}  style={{ background: W.pinkDark, border: "none", color: W.pink, fontSize: 12, fontWeight: 700, cursor: "pointer", padding: "7px 14px", borderRadius: 8 }}>Pause</button>
+                      : <button onClick={resumeWarmupSession} style={{ background: W.pinkDark, border: "none", color: W.pink, fontSize: 12, fontWeight: 700, cursor: "pointer", padding: "7px 14px", borderRadius: 8 }}>Resume</button>
                     )}
-                    {!isEnded && doneCount < checklist.length && <button onClick={completeAllWarmupItems} style={{ padding: "5px 11px", borderRadius: 8, border: `1px solid ${W.pinkDark}55`, background: W.pink, color: W.pinkDark, fontWeight: 700, fontSize: 12, cursor: "pointer" }}>✓ All</button>}
-                    {!isEnded && <button onClick={endWarmupSection} style={{ padding: "5px 11px", borderRadius: 8, border: `1px solid ${W.pinkDark}55`, background: W.surface2, color: W.textMuted, fontWeight: 700, fontSize: 12, cursor: "pointer" }}>Done</button>}
-                    {isEnded && <span style={{ fontSize: 11, fontWeight: 700, color: W.pinkDark }}>✓ Complete</span>}
+                    {!isEnded && doneCount < checklist.length && <button onClick={completeAllWarmupItems} style={{ background: `${W.pinkDark}33`, border: `1px solid ${W.pinkDark}44`, color: W.pinkDark, fontSize: 12, fontWeight: 700, cursor: "pointer", padding: "7px 14px", borderRadius: 8 }}>✓ All</button>}
+                    {!isEnded && <button onClick={endWarmupSection} style={{ background: `${W.pinkDark}22`, border: `1px solid ${W.pinkDark}44`, color: W.pinkDark, fontSize: 12, fontWeight: 700, cursor: "pointer", padding: "7px 14px", borderRadius: 8 }}>Done</button>}
                   </div>
-                </div>
-                {/* Progress bar */}
-                <div style={{ height: 4, borderRadius: 2, background: W.border, overflow: "hidden" }}>
-                  <div style={{ height: "100%", width: `${checklist.length ? (doneCount / checklist.length) * 100 : 0}%`, background: W.pinkDark, borderRadius: 2, transition: "width 0.3s ease" }} />
                 </div>
               </div>
-              {/* Checklist */}
-              <div style={{ borderLeft: `3px solid ${W.pinkDark}44`, paddingLeft: 10, marginLeft: 2 }}>
+              {/* Checklist — hidden when collapsed */}
+              {!activeSession.collapsedSections?.warmup && <div style={{ borderLeft: `3px solid ${W.pinkDark}44`, paddingLeft: 10, marginLeft: 2 }}>
                 {checklist.map(item => (
                   <div key={item.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "9px 12px", marginBottom: 6, background: item.checked ? W.pink : W.surface2, border: `1px solid ${item.checked ? W.pinkDark + "44" : W.border}`, borderRadius: 10, cursor: "pointer" }}
                     onClick={() => toggleWarmupItem(item.id)}>
@@ -2491,7 +2519,7 @@ export default function App() {
                     <button onClick={() => { if (warmupNewItemText.trim()) { addWarmupItem(warmupNewItemText.trim()); setWarmupNewItemText(""); } }} style={{ padding: "8px 14px", borderRadius: 10, border: `1px solid ${W.pinkDark}55`, background: W.pink, color: W.pinkDark, fontWeight: 700, fontSize: 13, cursor: "pointer" }}>+</button>
                   </div>
                 )}
-              </div>
+              </div>}
             </div>
           );
         })()}
@@ -2788,6 +2816,25 @@ export default function App() {
             </div>
           );
         })()}
+        {session.warmupChecklist?.length > 0 && (
+          <div style={{ background: W.surface2, borderRadius: 16, padding: "16px", marginBottom: 16, border: `1px solid ${W.border}` }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
+              <div style={{ fontSize: 13, fontWeight: 800, color: W.pinkDark }}>🔥 Warm Up Checklist</div>
+              <div style={{ fontSize: 11, color: W.textDim }}>
+                {session.warmupChecklist.filter(i => i.checked).length}/{session.warmupChecklist.length} done
+                {session.warmupTotalSec > 0 && ` · ${formatDuration(session.warmupTotalSec)}`}
+              </div>
+            </div>
+            {session.warmupChecklist.map(item => (
+              <div key={item.id} style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 0", borderBottom: `1px solid ${W.border}` }}>
+                <div style={{ width: 16, height: 16, borderRadius: 4, background: item.checked ? W.pinkDark : "transparent", border: `2px solid ${item.checked ? W.pinkDark : W.border}`, flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                  {item.checked && <span style={{ fontSize: 9, color: "#fff", fontWeight: 900 }}>✓</span>}
+                </div>
+                <span style={{ fontSize: 12, color: item.checked ? W.pinkDark : W.textMuted, textDecoration: item.checked ? "line-through" : "none" }}>{item.text}</span>
+              </div>
+            ))}
+          </div>
+        )}
         <div style={{ fontSize: 13, fontWeight: 700, color: W.textMuted, textTransform: "uppercase", letterSpacing: 1, marginBottom: 10 }}>Climbs</div>
         {!readOnly && showClimbForm && editingClimbId ? (
           <ClimbFormPanel onSave={() => saveClimbToFinishedSession(session.id)} onCancel={() => { setShowClimbForm(false); setEditingClimbId(null); setEditingSessionId(null); }} />
@@ -3061,7 +3108,11 @@ export default function App() {
             <div style={{ marginBottom: 14 }}>
               <div style={{ fontSize: 11, fontWeight: 700, color: W.textMuted, textTransform: "uppercase", letterSpacing: 1.2, marginBottom: 8 }}>Default Warmup Checklist</div>
               {defaultWarmupItems.map((item, i) => (
-                <div key={item.id} style={{ display: "flex", alignItems: "center", gap: 8, padding: "7px 10px", marginBottom: 5, background: W.surface2, border: `1px solid ${W.border}`, borderRadius: 9 }}>
+                <div key={item.id} style={{ display: "flex", alignItems: "center", gap: 6, padding: "7px 10px", marginBottom: 5, background: W.surface2, border: `1px solid ${W.border}`, borderRadius: 9 }}>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 1 }}>
+                    <button onClick={() => i > 0 && setDefaultWarmupItems(prev => { const a = [...prev]; [a[i-1], a[i]] = [a[i], a[i-1]]; return a; })} style={{ background: "transparent", border: "none", color: i > 0 ? W.textDim : W.border, fontSize: 10, cursor: i > 0 ? "pointer" : "default", padding: "0 2px", lineHeight: 1 }}>▲</button>
+                    <button onClick={() => i < defaultWarmupItems.length - 1 && setDefaultWarmupItems(prev => { const a = [...prev]; [a[i], a[i+1]] = [a[i+1], a[i]]; return a; })} style={{ background: "transparent", border: "none", color: i < defaultWarmupItems.length - 1 ? W.textDim : W.border, fontSize: 10, cursor: i < defaultWarmupItems.length - 1 ? "pointer" : "default", padding: "0 2px", lineHeight: 1 }}>▼</button>
+                  </div>
                   <span style={{ fontSize: 12, color: W.text, flex: 1 }}>{item.text}</span>
                   <button onClick={() => setDefaultWarmupItems(prev => prev.filter(x => x.id !== item.id))} style={{ background: "transparent", border: "none", color: W.textDim, fontSize: 16, cursor: "pointer", lineHeight: 1, padding: "0 2px" }}>×</button>
                 </div>
@@ -3073,6 +3124,12 @@ export default function App() {
                 <button onClick={() => { if (warmupSettingsNewItem.trim()) { setDefaultWarmupItems(prev => [...prev, { id: Date.now(), text: warmupSettingsNewItem.trim() }]); setWarmupSettingsNewItem(""); } }} style={{ padding: "7px 12px", borderRadius: 9, border: `1px solid ${W.pinkDark}55`, background: W.pink, color: W.pinkDark, fontWeight: 700, fontSize: 13, cursor: "pointer" }}>+</button>
               </div>
               <button onClick={() => setDefaultWarmupItems(DEFAULT_WARMUP_ITEMS.map(i => ({ ...i })))} style={{ marginTop: 6, padding: "5px 10px", borderRadius: 8, border: `1px solid ${W.border}`, background: "transparent", color: W.textDim, fontSize: 11, cursor: "pointer" }}>Reset to defaults</button>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: 10 }}>
+                <span style={{ fontSize: 12, color: W.text }}>Auto-end when all tasks checked</span>
+                <button onClick={() => setAutoEndWarmup(v => !v)} style={{ width: 42, height: 24, borderRadius: 12, border: "none", background: autoEndWarmup ? W.pinkDark : W.border, cursor: "pointer", position: "relative", flexShrink: 0, transition: "background 0.2s" }}>
+                  <div style={{ position: "absolute", top: 3, left: autoEndWarmup ? 21 : 3, width: 18, height: 18, borderRadius: "50%", background: "#fff", transition: "left 0.2s" }} />
+                </button>
+              </div>
             </div>
 
             {/* App Theme */}
@@ -3782,6 +3839,26 @@ export default function App() {
                 )}
               </div>
             )}
+            {/* ── Warm Up Stats ──────────────────────────────── */}
+            {(() => {
+              const warmupSessionsAll = tfSessions.filter(s => (s.warmupTotalSec || 0) > 0 || s.warmupChecklist?.length > 0);
+              if (!warmupSessionsAll.length) return null;
+              const totalWarmupSec = warmupSessionsAll.reduce((sum, s) => sum + (s.warmupTotalSec || 0), 0);
+              const avgWarmupSec = warmupSessionsAll.length ? Math.round(totalWarmupSec / warmupSessionsAll.length) : 0;
+              const checklistSessions = warmupSessionsAll.filter(s => s.warmupChecklist?.length > 0);
+              const avgCompletion = checklistSessions.length ? Math.round(checklistSessions.reduce((sum, s) => sum + (s.warmupChecklist.filter(i => i.checked).length / s.warmupChecklist.length), 0) / checklistSessions.length * 100) : null;
+              return (
+                <div style={{ marginTop: 18 }}>
+                  <div style={{ fontSize: 13, fontWeight: 800, color: W.pinkDark, marginBottom: 10 }}>🔥 Warm Up</div>
+                  {renderStatCards([
+                    { icon: "🔥", label: "Warmup Sessions",   value: warmupSessionsAll.length,         sub: tfLabels[statsTimeFrame],  bg: W.pink,    tc: W.pinkDark },
+                    { icon: "⏱", label: "Total Warmup Time", value: formatTotalTime(totalWarmupSec),   sub: "cumulative",              bg: W.surface2, tc: W.accent },
+                    { icon: "📊", label: "Avg Duration",      value: formatDuration(avgWarmupSec),      sub: "per warmup session",      bg: W.surface2, tc: W.accentDark },
+                    ...(avgCompletion !== null ? [{ icon: "✅", label: "Avg Completion", value: `${avgCompletion}%`, sub: "checklist tasks done", bg: W.green, tc: W.greenDark }] : []),
+                  ])}
+                </div>
+              );
+            })()}
           </div>
           );
         })()}
