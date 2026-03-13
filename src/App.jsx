@@ -5225,7 +5225,7 @@ export default function App() {
           )}
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-          {screen === "session" && sessionStarted && <div style={{ fontWeight: 800, fontSize: 15, color: W.text, fontVariantNumeric: "tabular-nums" }}>{formatDuration(sessionTimer)}</div>}
+          {screen === "session" && sessionStarted && <div style={{ fontWeight: 900, fontSize: 26, color: W.text, fontVariantNumeric: "tabular-nums", letterSpacing: 1, lineHeight: 1 }}>{formatDuration(sessionTimer)}</div>}
           {timerRunning && screen !== "session" && <div style={{ background: W.accent, borderRadius: 20, padding: "4px 12px", color: "#fff", fontSize: 12, fontWeight: 700 }}>⏱ {formatDuration(sessionTimer)}</div>}
           {saveStatus === "saving" && <div style={{ fontSize: 11, color: W.textDim, fontWeight: 600 }}>💾</div>}
           {saveStatus === "saved" && <div style={{ fontSize: 11, color: W.greenDark, fontWeight: 600 }}>✓</div>}
