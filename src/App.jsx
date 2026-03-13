@@ -449,7 +449,9 @@ export default function App() {
     if (!sessionStarted || !activeSession) { localStorage.removeItem("active:climb"); return; }
     // Preserve stored username if currentUser is null (logged-out state) so restore still works after page reload
     const savedUsername = currentUser?.username || (() => { try { return JSON.parse(localStorage.getItem("active:climb") || "{}").username; } catch (e) { return null; } })();
-    localStorage.setItem("active:climb", JSON.stringify({ username: savedUsername, activeSession, sessionActiveStart, sessionPausedSec, sessionStarted, timerRunning, pendingLocation, lastActivityAt: Date.now() }));
+    // Strip photos from climbs before persisting to avoid localStorage quota errors on mobile
+    const sessionForStorage = { ...activeSession, climbs: (activeSession.climbs || []).map(c => ({ ...c, photo: null })) };
+    try { localStorage.setItem("active:climb", JSON.stringify({ username: savedUsername, activeSession: sessionForStorage, sessionActiveStart, sessionPausedSec, sessionStarted, timerRunning, pendingLocation, lastActivityAt: Date.now() })); } catch (e) { console.warn("active:climb storage failed:", e); }
   }, [activeSession, sessionActiveStart, sessionPausedSec, sessionStarted, timerRunning, pendingLocation, currentUser]);
 
   // §HANDLERS
@@ -1924,7 +1926,7 @@ export default function App() {
         <div onClick={() => fileRef.current.click()} style={{ border: `2px dashed ${W.border}`, borderRadius: 10, padding: "12px", textAlign: "center", cursor: "pointer", marginBottom: 12, background: W.surface }}>
           {photoPreview ? <img src={photoPreview} alt="climb" style={{ width: "100%", borderRadius: 8, maxHeight: 140, objectFit: "cover" }} /> : <div style={{ color: W.textDim, fontSize: 13 }}>📷 Tap to upload</div>}
         </div>
-        <input ref={fileRef} type="file" accept="image/*" style={{ display: "none" }} onChange={e => { const f = e.target.files[0]; if (!f) return; const r = new FileReader(); r.onload = ev => setPhotoPreview(ev.target.result); r.readAsDataURL(f); }} />
+        <input ref={fileRef} type="file" accept="image/*" style={{ display: "none" }} onChange={e => { const f = e.target.files[0]; if (!f) return; const r = new FileReader(); r.onload = ev => { const img = new Image(); img.onload = () => { const MAX = 900; const scale = Math.min(1, MAX / Math.max(img.width, img.height)); const canvas = document.createElement("canvas"); canvas.width = Math.round(img.width * scale); canvas.height = Math.round(img.height * scale); canvas.getContext("2d").drawImage(img, 0, 0, canvas.width, canvas.height); setPhotoPreview(canvas.toDataURL("image/jpeg", 0.75)); }; img.src = ev.target.result; }; r.readAsDataURL(f); }} />
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
           <button onClick={onCancel} style={{ padding: "11px", background: "transparent", border: `1px solid ${W.border}`, borderRadius: 12, color: W.textMuted, cursor: "pointer", fontWeight: 600 }}>Cancel</button>
           <button onClick={onSave} style={{ padding: "11px", background: `linear-gradient(135deg, ${W.accent}, ${W.accentDark})`, border: "none", borderRadius: 12, color: "#fff", cursor: "pointer", fontWeight: 700 }}>Save</button>
