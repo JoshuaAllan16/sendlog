@@ -2556,23 +2556,6 @@ export default function App() {
     };
     return (
       <div style={{ padding: "20px" }}>
-        {!showClimbForm && (<>
-        <div style={{ background: `linear-gradient(135deg, ${W.accent}, ${W.accentDark})`, borderRadius: 16, padding: "16px 20px", marginBottom: 20, display: "flex", justifyContent: "space-between", alignItems: "center", boxShadow: `0 4px 16px ${W.accentGlow}` }}>
-          <div>
-            <div style={{ color: "rgba(255,255,255,0.75)", fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: 1 }}>Session Timer</div>
-            <div style={{ color: "#fff", fontSize: 32, fontWeight: 900, letterSpacing: 2 }}>{formatDuration(sessionTimer)}</div>
-            {activeSession?.location && <div style={{ color: "rgba(255,255,255,0.8)", fontSize: 12, marginTop: 2 }}>📍 {activeSession.location}</div>}
-          </div>
-          <div style={{ textAlign: "right" }}>
-            <div style={{ color: "rgba(255,255,255,0.75)", fontSize: 12, marginBottom: 4 }}>{regularSends}/{regularTotal} sent</div>
-            <button onClick={toggleSessionTimer} style={{ background: "rgba(255,255,255,0.2)", border: "none", borderRadius: 8, color: "#fff", padding: "6px 12px", cursor: "pointer", fontWeight: 700, fontSize: 12 }}>{timerRunning ? "⏸ Pause" : "▶ Resume"}</button>
-          </div>
-        </div>
-        <Label>Gym / Location</Label>
-        <div style={{ marginBottom: 18 }}>
-          <LocationDropdown value={activeSession?.location || ""} onChange={v => { setActiveSession(s => ({ ...s, location: v })); addCustomLocation(v); }} open={activeLocationDropdownOpen} setOpen={setActiveLocationDropdownOpen} knownLocations={knownLocations} onRemove={loc => setHiddenLocations(h => [...h, loc])} />
-        </div>
-        </>)}
         {/* Warmup nudge banner */}
         {!showClimbForm && showWarmupNudge && !activeSession?.warmupStartedAt && (
           <div style={{ background: `${W.pinkDark}22`, border: `1.5px solid ${W.pinkDark}55`, borderRadius: 12, padding: "10px 14px", marginBottom: 14, display: "flex", alignItems: "center", gap: 10 }}>
@@ -2595,7 +2578,7 @@ export default function App() {
               <div style={{ borderLeft: `3px solid ${W.greenDark}44`, paddingLeft: 10, marginLeft: 2 }}>
                 {boulderClimbs.filter(c => !c.completed).map(c => <ActiveClimbCard key={c.id} climb={c} {...cardProps} sessionCount={c.projectId ? getProjectHistory(c.projectId).length + 1 : null} />)}
                 {selectedTypes.includes("boulder") && !activeSession.boulderEndedAt && (
-                  <button onClick={() => openClimbForm(null, null, "boulder")} style={{ width: "100%", padding: "10px", background: W.green, border: `2px solid ${W.greenDark}`, borderRadius: 12, color: W.greenDark, fontWeight: 700, fontSize: 13, cursor: "pointer", marginTop: 2 }}>+ New Boulder</button>
+                  <button onClick={() => openClimbForm(null, null, "boulder")} style={{ width: "100%", padding: "10px", background: W.green, border: `2px solid ${W.greenDark}`, borderRadius: 12, color: W.greenDark, fontWeight: 700, fontSize: 13, cursor: "pointer", marginTop: 2 }}>+ Boulder Climb</button>
                 )}
                 {boulderClimbs.filter(c => c.completed).length > 0 && (
                   <>
@@ -2619,7 +2602,7 @@ export default function App() {
               <div style={{ borderLeft: `3px solid ${W.purpleDark}44`, paddingLeft: 10, marginLeft: 2 }}>
                 {ropeClimbs.filter(c => !c.completed).map(c => <ActiveClimbCard key={c.id} climb={c} {...cardProps} sessionCount={c.projectId ? getProjectHistory(c.projectId).length + 1 : null} />)}
                 {selectedTypes.includes("rope") && !activeSession.ropeEndedAt && (
-                  <button onClick={() => openClimbForm(null, null, "rope")} style={{ width: "100%", padding: "10px", background: W.purple, border: `2px solid ${W.purpleDark}`, borderRadius: 12, color: W.purpleDark, fontWeight: 700, fontSize: 13, cursor: "pointer", marginTop: 2 }}>+ New Rope Climb</button>
+                  <button onClick={() => openClimbForm(null, null, "rope")} style={{ width: "100%", padding: "10px", background: W.purple, border: `2px solid ${W.purpleDark}`, borderRadius: 12, color: W.purpleDark, fontWeight: 700, fontSize: 13, cursor: "pointer", marginTop: 2 }}>+ Rope Climb</button>
                 )}
                 {ropeClimbs.filter(c => c.completed).length > 0 && (
                   <>
@@ -2921,7 +2904,8 @@ export default function App() {
                 })()}
               </div>
             )}
-            <button onClick={() => setShowEndConfirm(true)} style={{ width: "100%", padding: "14px", background: W.surface, border: `2px solid ${W.border}`, borderRadius: 14, color: W.redDark, fontWeight: 700, fontSize: 15, cursor: "pointer" }}>⏹ End Session</button>
+            <button onClick={toggleSessionTimer} style={{ width: "100%", padding: "12px", background: W.surface2, border: `2px solid ${W.border}`, borderRadius: 14, color: W.textMuted, fontWeight: 700, fontSize: 14, cursor: "pointer", marginBottom: 8 }}>{timerRunning ? "⏸ Pause Session" : "▶ Resume Session"}</button>
+            <button onClick={() => setShowEndConfirm(true)} style={{ width: "100%", padding: "14px", background: W.surface, border: `2px solid ${W.border}`, borderRadius: 14, color: W.redDark, fontWeight: 700, fontSize: 15, cursor: "pointer" }}>End Session</button>
           </div>
         )}
         {showProjectPrompt && (() => {
@@ -5225,11 +5209,20 @@ export default function App() {
           {(backMap[screen] || screen === "session" || screen === "sessionSummary") && (
             <button onClick={() => { if (screen === "session" && !sessionStarted) setScreen("home"); else if (screen === "sessionSummary") setShowSummaryLeaveWarn(true); else if (backMap[screen]) { setScreen(backMap[screen]); setShowClimbForm(false); if (screen === "calendar" || screen === "projectDetail") setProfileTab("stats"); if (screen === "sessionDetail") setSessionReadOnly(false); } }} style={{ background: "none", border: "none", color: W.accent, fontSize: 16, cursor: "pointer", padding: 0, marginRight: 4 }}>←</button>
           )}
-          <span style={{ fontSize: 20 }}>🧗</span>
-          <span style={{ fontWeight: 800, fontSize: 18, color: W.text }}>SendLog</span>
+          {screen === "session" && sessionStarted ? (
+            <div style={{ display: "flex", flexDirection: "column", gap: 1 }}>
+              <div style={{ fontWeight: 800, fontSize: 15, color: W.text, lineHeight: 1.2 }}>{activeSession?.location || "Session"}</div>
+              <div style={{ fontSize: 11, color: W.textMuted, fontWeight: 600 }}>{(activeSession?.climbs || []).filter(c => c.climbType !== "speed-session").length} attempts</div>
+            </div>
+          ) : (
+            <>
+              <span style={{ fontSize: 20 }}>🧗</span>
+              <span style={{ fontWeight: 800, fontSize: 18, color: W.text }}>SendLog</span>
+            </>
+          )}
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-          {timerRunning && <div style={{ background: W.accent, borderRadius: 20, padding: "4px 12px", color: "#fff", fontSize: 12, fontWeight: 700 }}>⏱ {formatDuration(sessionTimer)}</div>}
+          {timerRunning && screen !== "session" && <div style={{ background: W.accent, borderRadius: 20, padding: "4px 12px", color: "#fff", fontSize: 12, fontWeight: 700 }}>⏱ {formatDuration(sessionTimer)}</div>}
           {saveStatus === "saving" && <div style={{ fontSize: 11, color: W.textDim, fontWeight: 600 }}>💾</div>}
           {saveStatus === "saved" && <div style={{ fontSize: 11, color: W.greenDark, fontWeight: 600 }}>✓</div>}
           {screen === "home" && (
