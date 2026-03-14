@@ -251,6 +251,9 @@ export default function App() {
   const [gymSets, setGymSets] = useState({});
   const [selectedSetClimb, setSelectedSetClimb] = useState(null);
   const [boulderQuickPanel, setBoulderQuickPanel] = useState(null); // null | "projects" | "set"
+  const [quickPanelSelected, setQuickPanelSelected] = useState([]); // array of selected item IDs
+  const [pendingDupeClimb, setPendingDupeClimb] = useState(null);
+  const [dupeNewName, setDupeNewName] = useState("");
   const [calendarDate, setCalendarDate] = useState(new Date());
 
   const [logbookFilter, setLogbookFilter]   = useState("all");
@@ -319,6 +322,13 @@ export default function App() {
   const [commentPanelOwner, setCommentPanelOwner] = useState(null); // username of session owner
 
   // §EFFECTS
+  // Prevent background scroll when any full-screen popup is open
+  useEffect(() => {
+    const locked = !!(boulderQuickPanel || pendingDupeClimb || selectedSetClimb);
+    document.body.style.overflow = locked ? "hidden" : "";
+    return () => { document.body.style.overflow = ""; };
+  }, [boulderQuickPanel, pendingDupeClimb, selectedSetClimb]);
+
   // ── SHARED: restore active:climb from localStorage ─────────
   // Called from both checkSession (auto-login) and handleLogin (manual login after logout/close).
   const tryRestoreClimbSession = (loginUsername) => {
@@ -1134,6 +1144,21 @@ export default function App() {
       if (editingClimbId) {
         setActiveSession(s => ({ ...s, climbs: (s.climbs || []).map(c => c.id === editingClimbId ? { ...c, ...climbForm, photo: photoPreview } : c) }));
       } else {
+        // Duplicate detection: warn if same name + grade + color already exists in set or projects
+        if (!climbForm.setClimbId && (climbForm.climbType === "boulder" || climbForm.climbType === "rope")) {
+          const location = activeSession?.location;
+          const inSet = location ? (gymSets[location] || []).filter(sc => !sc.removed).some(sc =>
+            sc.grade === climbForm.grade && (sc.color || null) === (climbForm.color || null) && (sc.name || "") === (climbForm.name || "")
+          ) : false;
+          const inProjects = activeProjects.some(p =>
+            p.grade === climbForm.grade && (p.name || "") === (climbForm.name || "")
+          );
+          if (inSet || inProjects) {
+            setPendingDupeClimb({ form: climbForm, photo: photoPreview });
+            setDupeNewName(climbForm.name || "");
+            return;
+          }
+        }
         const pid = climbForm.isProject ? (climbForm.projectId || Date.now() + 1) : null;
         const speedGrade = climbForm.climbType === "speed" ? (climbForm.speedTime ? climbForm.speedTime + "s" : "—") : undefined;
         // Gym set tracking: link to existing set climb or create a new one
@@ -5475,7 +5500,7 @@ export default function App() {
     </div>
     </div>
 
-    {/* Quick-add popup: Projects / Current Set */}
+    {/* Quick-add popup: Projects / Current Set — multi-select */}
     {boulderQuickPanel && (() => {
       const isProjects = boulderQuickPanel === "projects";
       const location = activeSession?.location;
@@ -5486,23 +5511,37 @@ export default function App() {
       const title = isProjects ? "🎯 Boulder Projects" : `Current Set · ${location || "No gym"}`;
       const accentColor = isProjects ? W.pinkDark : W.accent;
       const accentBg = isProjects ? W.pink : W.accent + "22";
+      const selCount = quickPanelSelected.length;
+      const close = () => { setBoulderQuickPanel(null); setQuickPanelSelected([]); };
+      const toggleSel = (id) => setQuickPanelSelected(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
+      const addSelected = () => {
+        const items = sorted.filter(item => quickPanelSelected.includes(item.id));
+        items.forEach(item => quickAddToSession(isProjects
+          ? { name: item.name, grade: item.grade, scale: item.scale, climbType: "boulder", isProject: true, projectId: item.id }
+          : { name: item.name, grade: item.grade, scale: item.scale, color: item.color, wallTypes: item.wallTypes, holdTypes: item.holdTypes, climbType: "boulder", setClimbId: item.id }
+        ));
+      };
       return (
-        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.6)", zIndex: 400, display: "flex", alignItems: "flex-end", justifyContent: "center" }} onClick={() => setBoulderQuickPanel(null)}>
+        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.6)", zIndex: 400, display: "flex", alignItems: "flex-end", justifyContent: "center" }} onClick={close}>
           <div style={{ background: W.bg, borderRadius: "20px 20px 0 0", width: "100%", maxWidth: 480, maxHeight: "75vh", display: "flex", flexDirection: "column", border: `1px solid ${W.border}` }} onClick={e => e.stopPropagation()}>
             <div style={{ padding: "18px 20px 12px", borderBottom: `1px solid ${W.border}`, display: "flex", justifyContent: "space-between", alignItems: "center", flexShrink: 0 }}>
               <div style={{ fontWeight: 800, fontSize: 16, color: W.text }}>{title}</div>
-              <button onClick={() => setBoulderQuickPanel(null)} style={{ background: "none", border: "none", fontSize: 20, color: W.textMuted, cursor: "pointer", lineHeight: 1 }}>✕</button>
+              <button onClick={close} style={{ background: "none", border: "none", fontSize: 20, color: W.textMuted, cursor: "pointer", lineHeight: 1 }}>✕</button>
             </div>
-            <div style={{ overflowY: "auto", flex: 1, padding: "8px 16px 24px" }}>
+            <div style={{ overflowY: "auto", flex: 1, padding: "8px 16px 4px" }}>
               {sorted.length === 0 ? (
                 <div style={{ color: W.textDim, fontSize: 13, padding: "20px 0", textAlign: "center" }}>
                   {isProjects ? "No active boulder projects yet." : !location ? "No gym selected for this session." : `No climbs currently set at ${location}.`}
                 </div>
               ) : sorted.map(item => {
                 const gc = getGradeColor(item.grade);
+                const sel = quickPanelSelected.includes(item.id);
                 return (
-                  <div key={item.id} onClick={() => quickAddToSession(isProjects ? { name: item.name, grade: item.grade, scale: item.scale, climbType: "boulder", isProject: true, projectId: item.id } : { name: item.name, grade: item.grade, scale: item.scale, color: item.color, wallTypes: item.wallTypes, holdTypes: item.holdTypes, climbType: "boulder", setClimbId: item.id })} style={{ display: "flex", alignItems: "center", gap: 12, padding: "12px 0", borderBottom: `1px solid ${W.border}`, cursor: "pointer" }}>
-                    <div style={{ width: 42, height: 42, borderRadius: 10, display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 900, fontSize: 13, background: gc + "30", color: gc, border: `1.5px solid ${gc}60`, flexShrink: 0 }}>{item.grade}</div>
+                  <div key={item.id} onClick={() => toggleSel(item.id)} style={{ display: "flex", alignItems: "center", gap: 12, padding: "12px 0", borderBottom: `1px solid ${W.border}`, cursor: "pointer", background: sel ? accentBg : "transparent", margin: "0 -16px", padding: "12px 16px" }}>
+                    <div style={{ width: 26, height: 26, borderRadius: 8, border: `2px solid ${sel ? accentColor : W.border}`, background: sel ? accentColor : "transparent", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                      {sel && <span style={{ color: "#fff", fontSize: 14, fontWeight: 900 }}>✓</span>}
+                    </div>
+                    <div style={{ width: 40, height: 40, borderRadius: 10, display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 900, fontSize: 13, background: gc + "30", color: gc, border: `1.5px solid ${gc}60`, flexShrink: 0 }}>{item.grade}</div>
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
                         {!isProjects && item.color && <ColorDot colorId={item.color} size={10} />}
@@ -5510,15 +5549,54 @@ export default function App() {
                       </div>
                       <div style={{ fontSize: 11, color: W.textMuted, marginTop: 2 }}>{item.grade} · {item.scale}</div>
                     </div>
-                    <div style={{ padding: "7px 14px", borderRadius: 10, border: `1.5px solid ${accentColor}`, background: accentBg, color: accentColor, fontWeight: 700, fontSize: 12, flexShrink: 0 }}>Add</div>
                   </div>
                 );
               })}
+            </div>
+            <div style={{ padding: "12px 16px 28px", borderTop: `1px solid ${W.border}`, flexShrink: 0 }}>
+              <button onClick={selCount > 0 ? addSelected : undefined} disabled={selCount === 0} style={{ width: "100%", padding: "14px", borderRadius: 14, border: "none", background: selCount > 0 ? `linear-gradient(135deg, ${accentColor}, ${accentColor}cc)` : W.surface2, color: selCount > 0 ? "#fff" : W.textDim, fontWeight: 800, fontSize: 15, cursor: selCount > 0 ? "pointer" : "default" }}>
+                {selCount === 0 ? "Select climbs above" : `Add ${selCount} Climb${selCount !== 1 ? "s" : ""} to Session`}
+              </button>
             </div>
           </div>
         </div>
       );
     })()}
+
+    {/* Duplicate climb name prompt */}
+    {pendingDupeClimb && (
+      <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.6)", zIndex: 500, display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }}>
+        <div style={{ background: W.bg, borderRadius: 20, padding: "24px 20px", width: "100%", maxWidth: 360, border: `1px solid ${W.border}` }}>
+          <div style={{ fontSize: 22, textAlign: "center", marginBottom: 8 }}>⚠️</div>
+          <div style={{ fontWeight: 800, fontSize: 16, color: W.text, textAlign: "center", marginBottom: 8 }}>This looks like a duplicate</div>
+          <div style={{ fontSize: 13, color: W.textMuted, textAlign: "center", marginBottom: 20 }}>A climb with the same grade, color, and name already exists in the current set or your projects. Give this one a unique name to tell them apart.</div>
+          <div style={{ fontSize: 11, fontWeight: 700, color: W.textMuted, marginBottom: 6, textTransform: "uppercase", letterSpacing: 1 }}>Climb Name</div>
+          <input autoFocus value={dupeNewName} onChange={e => setDupeNewName(e.target.value)} placeholder="e.g. Left Wall Crimp Problem" style={{ width: "100%", padding: "10px 12px", background: W.surface, border: `2px solid ${W.accent}`, borderRadius: 10, color: W.text, fontSize: 14, boxSizing: "border-box", marginBottom: 16, fontFamily: "inherit" }} />
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+            <button onClick={() => { setPendingDupeClimb(null); }} style={{ padding: "11px", borderRadius: 12, border: `1px solid ${W.border}`, background: "transparent", color: W.textMuted, fontWeight: 600, fontSize: 13, cursor: "pointer" }}>Cancel</button>
+            <button onClick={() => {
+              const { form, photo } = pendingDupeClimb;
+              setClimbForm(f => ({ ...f, ...form, name: dupeNewName }));
+              setPhotoPreview(photo);
+              setPendingDupeClimb(null);
+              // Re-trigger save on next tick with updated name in form — set a flag instead
+              // Directly save with the renamed form:
+              const pid = form.isProject ? (form.projectId || Date.now() + 1) : null;
+              const location = activeSession?.location;
+              let setClimbId = null;
+              if (location && (form.climbType === "boulder" || form.climbType === "rope")) {
+                setClimbId = Date.now() + 2;
+                const newSetClimb = { id: setClimbId, name: dupeNewName, grade: form.grade, scale: form.scale, color: form.color, wallTypes: form.wallTypes, holdTypes: form.holdTypes, setDate: new Date().toISOString(), location, removed: false, removedDate: null };
+                setGymSets(prev => ({ ...prev, [location]: [...(prev[location] || []), newSetClimb] }));
+              }
+              const newClimb = { ...form, name: dupeNewName, photo, projectId: pid, id: Date.now(), loggedAt: Date.now(), tries: 0, completed: false, ...(setClimbId ? { setClimbId } : {}) };
+              setActiveSession(s => { const now = Date.now(); const typeUpdates = {}; if (newClimb.climbType === "boulder" && !s.boulderStartedAt) { typeUpdates.boulderStartedAt = now; typeUpdates.boulderTotalSec = 0; } return { ...s, ...typeUpdates, climbs: [...(s.climbs || []), newClimb] }; });
+              setShowClimbForm(false); setPhotoPreview(null); setEditingClimbId(null); setClimbForm(blankForm);
+            }} disabled={!dupeNewName.trim()} style={{ padding: "11px", borderRadius: 12, border: "none", background: dupeNewName.trim() ? `linear-gradient(135deg, ${W.accent}, ${W.accentDark})` : W.surface2, color: dupeNewName.trim() ? "#fff" : W.textDim, fontWeight: 700, fontSize: 13, cursor: dupeNewName.trim() ? "pointer" : "default" }}>Save with New Name</button>
+          </div>
+        </div>
+      </div>
+    )}
 
     {/* Gym Set Climb Stats Modal */}
     {selectedSetClimb && (() => {
