@@ -211,6 +211,7 @@ export default function App() {
   const [lightboxPhoto, setLightboxPhoto]           = useState(null); // { photos:[{src,grade,name,colorId}], idx }
   const [feedPage, setFeedPage]                     = useState(1);
   const [logbookPage, setLogbookPage]               = useState(1);
+  const [logbookClimbPage, setLogbookClimbPage]     = useState(1);
   const [sessionTypes, setSessionTypes]             = useState(["boulder"]);
   const [showMoreClimbTypes, setShowMoreClimbTypes] = useState(false);
   const [showSentBoulders, setShowSentBoulders]     = useState(false);
@@ -246,6 +247,7 @@ export default function App() {
   const [climbForm, setClimbForm]   = useState(blankForm);
   const [photoPreview, setPhotoPreview] = useState(null);
   const [showBoulderScalePicker, setShowBoulderScalePicker] = useState(false);
+  const [showRopeScalePicker, setShowRopeScalePicker] = useState(false);
   const [calendarDate, setCalendarDate] = useState(new Date());
 
   const [logbookFilter, setLogbookFilter]   = useState("all");
@@ -1830,15 +1832,23 @@ export default function App() {
           <>
             {showBoulderScalePicker && (
               <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", zIndex: 300, display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }} onClick={() => setShowBoulderScalePicker(false)}>
-                <div style={{ background: W.surface, borderRadius: 18, padding: "20px", width: "100%", maxWidth: 340, border: `1px solid ${W.border}` }} onClick={e => e.stopPropagation()}>
+                <div style={{ background: W.surface, borderRadius: 18, padding: "20px", width: "100%", maxWidth: 340, border: `1px solid ${W.border}`, maxHeight: "80vh", overflowY: "auto" }} onClick={e => e.stopPropagation()}>
                   <div style={{ fontWeight: 800, fontSize: 16, color: W.text, marginBottom: 14 }}>Grading Scheme</div>
                   {[...Object.keys(GRADES), "Custom"].map(s => (
-                    <button key={s} onClick={() => { const gl = s === "Custom" ? customBoulderGrades : (GRADES[s] || []); setClimbForm(f => ({ ...f, scale: s, grade: gl[0] || f.grade })); setShowBoulderScalePicker(false); }} style={{ width: "100%", padding: "12px 16px", marginBottom: 8, borderRadius: 12, border: `2px solid ${climbForm.scale === s ? W.accent : W.border}`, background: climbForm.scale === s ? W.accent + "18" : W.surface2, color: climbForm.scale === s ? W.accent : W.text, fontWeight: 700, fontSize: 14, cursor: "pointer", textAlign: "left" }}>
+                    <button key={s} onClick={() => { const gl = s === "Custom" ? customBoulderGrades : (GRADES[s] || []); setClimbForm(f => ({ ...f, scale: s, grade: gl[0] || f.grade })); if (s !== "Custom") setShowBoulderScalePicker(false); }} style={{ width: "100%", padding: "12px 16px", marginBottom: 8, borderRadius: 12, border: `2px solid ${climbForm.scale === s ? W.accent : W.border}`, background: climbForm.scale === s ? W.accent + "18" : W.surface2, color: climbForm.scale === s ? W.accent : W.text, fontWeight: 700, fontSize: 14, cursor: "pointer", textAlign: "left" }}>
                       {s === "Custom" ? customBoulderScaleName : s}
                       {climbForm.scale === s && <span style={{ float: "right", color: W.accent }}>✓</span>}
                     </button>
                   ))}
-                  <button onClick={() => setShowBoulderScalePicker(false)} style={{ width: "100%", padding: "11px", borderRadius: 12, border: `1px solid ${W.border}`, background: "transparent", color: W.textMuted, fontWeight: 600, fontSize: 13, cursor: "pointer", marginTop: 4 }}>Close</button>
+                  {climbForm.scale === "Custom" && (
+                    <div style={{ marginTop: 4, paddingTop: 12, borderTop: `1px solid ${W.border}` }}>
+                      <div style={{ fontSize: 11, fontWeight: 700, color: W.textMuted, marginBottom: 6, textTransform: "uppercase", letterSpacing: 1 }}>Scale Name</div>
+                      <input value={customBoulderScaleName === "Custom" ? "" : customBoulderScaleName} onChange={e => setCustomBoulderScaleName(e.target.value || "Custom")} placeholder="e.g. Gym Scale" style={{ width: "100%", padding: "8px 10px", background: W.surface2, border: `1px solid ${W.border}`, borderRadius: 8, color: W.text, fontSize: 13, fontFamily: "inherit", boxSizing: "border-box", marginBottom: 10 }} />
+                      <div style={{ fontSize: 11, fontWeight: 700, color: W.textMuted, marginBottom: 6, textTransform: "uppercase", letterSpacing: 1 }}>Grades (comma-separated)</div>
+                      <input value={customBoulderGrades.join(", ")} onChange={e => { const g = e.target.value.split(",").map(x => x.trim()).filter(Boolean); setCustomBoulderGrades(g); setCustomBoulderInput(e.target.value); if (g.length) setClimbForm(f => ({ ...f, grade: g[0] })); }} placeholder="e.g. Easy, Medium, Hard" style={{ width: "100%", padding: "8px 10px", background: W.surface2, border: `1px solid ${W.border}`, borderRadius: 8, color: W.text, fontSize: 13, fontFamily: "inherit", boxSizing: "border-box" }} />
+                    </div>
+                  )}
+                  <button onClick={() => setShowBoulderScalePicker(false)} style={{ width: "100%", padding: "11px", borderRadius: 12, border: `1px solid ${W.border}`, background: "transparent", color: W.textMuted, fontWeight: 600, fontSize: 13, cursor: "pointer", marginTop: 12 }}>Close</button>
                 </div>
               </div>
             )}
@@ -1869,11 +1879,33 @@ export default function App() {
         {/* Rope: scale, grade, style (top rope/lead) */}
         {type === "rope" && (
           <>
-            <Label>Scale</Label>
-            <div style={{ display: "flex", gap: 8, marginBottom: 12, flexWrap: "wrap" }}>
-              {[...Object.keys(ROPE_GRADES), "Custom"].map(s => (
-                <button key={s} onClick={() => { const gl = s === "Custom" ? customRopeGrades : (ROPE_GRADES[s] || []); setClimbForm(f => ({ ...f, scale: s, grade: gl[Math.floor(gl.length / 2)] || gl[0] || f.grade })); }} style={{ flex: 1, padding: "9px", borderRadius: 10, border: "2px solid", borderColor: climbForm.scale === s ? W.accent : W.border, background: climbForm.scale === s ? W.accent + "22" : W.surface, color: climbForm.scale === s ? W.accent : W.textDim, cursor: "pointer", fontWeight: 700, fontSize: 13 }}>{s === "Custom" ? customRopeScaleName : s}</button>
-              ))}
+            {showRopeScalePicker && (
+              <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", zIndex: 300, display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }} onClick={() => setShowRopeScalePicker(false)}>
+                <div style={{ background: W.surface, borderRadius: 18, padding: "20px", width: "100%", maxWidth: 340, border: `1px solid ${W.border}`, maxHeight: "80vh", overflowY: "auto" }} onClick={e => e.stopPropagation()}>
+                  <div style={{ fontWeight: 800, fontSize: 16, color: W.text, marginBottom: 14 }}>Grading Scheme</div>
+                  {[...Object.keys(ROPE_GRADES), "Custom"].map(s => (
+                    <button key={s} onClick={() => { const gl = s === "Custom" ? customRopeGrades : (ROPE_GRADES[s] || []); setClimbForm(f => ({ ...f, scale: s, grade: gl[Math.floor(gl.length / 2)] || gl[0] || f.grade })); if (s !== "Custom") setShowRopeScalePicker(false); }} style={{ width: "100%", padding: "12px 16px", marginBottom: 8, borderRadius: 12, border: `2px solid ${climbForm.scale === s ? W.accent : W.border}`, background: climbForm.scale === s ? W.accent + "18" : W.surface2, color: climbForm.scale === s ? W.accent : W.text, fontWeight: 700, fontSize: 14, cursor: "pointer", textAlign: "left" }}>
+                      {s === "Custom" ? customRopeScaleName : s}
+                      {climbForm.scale === s && <span style={{ float: "right", color: W.accent }}>✓</span>}
+                    </button>
+                  ))}
+                  {climbForm.scale === "Custom" && (
+                    <div style={{ marginTop: 4, paddingTop: 12, borderTop: `1px solid ${W.border}` }}>
+                      <div style={{ fontSize: 11, fontWeight: 700, color: W.textMuted, marginBottom: 6, textTransform: "uppercase", letterSpacing: 1 }}>Scale Name</div>
+                      <input value={customRopeScaleName === "Custom" ? "" : customRopeScaleName} onChange={e => setCustomRopeScaleName(e.target.value || "Custom")} placeholder="e.g. Gym Routes" style={{ width: "100%", padding: "8px 10px", background: W.surface2, border: `1px solid ${W.border}`, borderRadius: 8, color: W.text, fontSize: 13, fontFamily: "inherit", boxSizing: "border-box", marginBottom: 10 }} />
+                      <div style={{ fontSize: 11, fontWeight: 700, color: W.textMuted, marginBottom: 6, textTransform: "uppercase", letterSpacing: 1 }}>Grades (comma-separated)</div>
+                      <input value={customRopeGrades.join(", ")} onChange={e => { const g = e.target.value.split(",").map(x => x.trim()).filter(Boolean); setCustomRopeGrades(g); if (g.length) setClimbForm(f => ({ ...f, grade: g[0] })); }} placeholder="e.g. 5.8, 5.9, 5.10a" style={{ width: "100%", padding: "8px 10px", background: W.surface2, border: `1px solid ${W.border}`, borderRadius: 8, color: W.text, fontSize: 13, fontFamily: "inherit", boxSizing: "border-box" }} />
+                    </div>
+                  )}
+                  <button onClick={() => setShowRopeScalePicker(false)} style={{ width: "100%", padding: "11px", borderRadius: 12, border: `1px solid ${W.border}`, background: "transparent", color: W.textMuted, fontWeight: 600, fontSize: 13, cursor: "pointer", marginTop: 12 }}>Close</button>
+                </div>
+              </div>
+            )}
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 7 }}>
+              <div style={{ color: W.textMuted, fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: 1.2 }}>Grade</div>
+              <button onClick={() => setShowRopeScalePicker(true)} style={{ display: "flex", alignItems: "center", gap: 4, background: "none", border: `1px solid ${W.border}`, borderRadius: 8, padding: "3px 8px", cursor: "pointer", color: W.textMuted, fontSize: 11, fontWeight: 700 }}>
+                {climbForm.scale === "Custom" ? customRopeScaleName : climbForm.scale} ✏️
+              </button>
             </div>
             <Label>Grade</Label>
             <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 12 }}>
@@ -1936,7 +1968,7 @@ export default function App() {
         )}
 
         {isActiveSession && !editingClimbId && type !== "speed" && !climbForm.projectId && (
-          <button onClick={() => setClimbForm(f => ({ ...f, isProject: !f.isProject }))} style={{ width: "100%", padding: "10px", borderRadius: 12, border: `2px solid ${climbForm.isProject ? W.pinkDark : W.border}`, background: climbForm.isProject ? W.pink : W.surface, color: climbForm.isProject ? W.pinkDark : W.textMuted, cursor: "pointer", fontWeight: 700, fontSize: 13, marginBottom: 12 }}>🎯 {climbForm.isProject ? "Marked as New Project ✓" : "Mark as New Project"}</button>
+          <button onClick={() => setClimbForm(f => { const toggled = !f.isProject; return { ...f, isProject: toggled, name: toggled && !f.name ? `${f.grade} Project` : f.name }; })} style={{ width: "100%", padding: "10px", borderRadius: 12, border: `2px solid ${climbForm.isProject ? W.pinkDark : W.border}`, background: climbForm.isProject ? W.pink : W.surface, color: climbForm.isProject ? W.pinkDark : W.textMuted, cursor: "pointer", fontWeight: 700, fontSize: 13, marginBottom: 12 }}>🎯 {climbForm.isProject ? "Marked as New Project ✓" : "Mark as New Project"}</button>
         )}
         <Label>Comments</Label>
         <textarea value={climbForm.comments} onChange={e => setClimbForm(f => ({ ...f, comments: e.target.value }))} placeholder="Beta, notes..." style={{ width: "100%", padding: "10px 12px", background: W.surface, border: `2px solid ${W.border}`, borderRadius: 10, color: W.text, fontSize: 13, resize: "none", height: 70, boxSizing: "border-box", marginBottom: 12, fontFamily: "inherit" }} />
@@ -4323,10 +4355,23 @@ export default function App() {
               <>
                 <div style={{ fontSize: 12, color: W.textMuted, marginBottom: 12, fontWeight: 600 }}>{logbookClimbs.length} climb{logbookClimbs.length !== 1 ? "s" : ""} found</div>
                 {logbookClimbs.length === 0 ? <div style={{ textAlign: "center", color: W.textDim, padding: "30px 0" }}>No climbs match your filters.</div>
-                  : logbookClimbs.map((c, i) => {
-                    const showHeader = logbookSort === "date" && (i === 0 || logbookClimbs[i - 1].sessionDate !== c.sessionDate);
-                    return (<div key={`${c.id}-${i}`}>{showHeader && <div style={{ fontSize: 12, fontWeight: 700, color: W.textMuted, marginBottom: 6, marginTop: i > 0 ? 14 : 0 }}>📍 {c.sessionLocation} · {formatDate(c.sessionDate)}</div>}<ClimbRow climb={c} /></div>);
-                  })}
+                  : (() => {
+                      const visible = logbookClimbs.slice(0, logbookClimbPage * 20);
+                      const hasMore = logbookClimbs.length > visible.length;
+                      return (
+                        <>
+                          {visible.map((c, i) => {
+                            const showHeader = logbookSort === "date" && (i === 0 || logbookClimbs[i - 1].sessionDate !== c.sessionDate);
+                            return (<div key={`${c.id}-${i}`}>{showHeader && <div style={{ fontSize: 12, fontWeight: 700, color: W.textMuted, marginBottom: 6, marginTop: i > 0 ? 14 : 0 }}>📍 {c.sessionLocation} · {formatDate(c.sessionDate)}</div>}<ClimbRow climb={c} /></div>);
+                          })}
+                          {hasMore && (
+                            <button onClick={() => setLogbookClimbPage(p => p + 1)} style={{ width: "100%", padding: "13px", background: "transparent", border: `1px solid ${W.border}`, borderRadius: 14, color: W.textMuted, fontSize: 14, fontWeight: 600, cursor: "pointer", marginBottom: 8 }}>
+                              Load more ({logbookClimbs.length - visible.length} remaining)
+                            </button>
+                          )}
+                        </>
+                      );
+                    })()}
               </>
             )}
             {logbookView === "sessions" && (
