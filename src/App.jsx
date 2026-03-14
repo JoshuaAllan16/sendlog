@@ -310,6 +310,10 @@ export default function App() {
   const [routineImportError, setRoutineImportError] = useState("");
   const [showImportRoutine, setShowImportRoutine]   = useState(false);
   const [routineRestTimer, setRoutineRestTimer]     = useState(null); // { itemId, endsAt }
+  const [routinePreview, setRoutinePreview]         = useState(null); // { type, id }
+  const [collapsedRoutineSections, setCollapsedRoutineSections] = useState({});
+  const [routineListSearch, setRoutineListSearch]   = useState("");
+  const [swipedRoutineCard, setSwipedRoutineCard]   = useState(null); // { type, id }
   const [sessionTypeOrder, setSessionTypeOrder]               = useState(["boulder","rope","speed","warmup","workout","fingerboard"]);
   const [colorTheme, setColorTheme]             = useState("espresso");
   const [showEndConfirm, setShowEndConfirm]     = useState(false);
@@ -3818,66 +3822,140 @@ export default function App() {
         );
       }
 
+      // ── Preview view ──────────────────────────────────────────
+      if (routinePreview) {
+        const src = routinePreview.type === "warmup" ? warmupTemplates : routinePreview.type === "workout" ? workoutRoutines : fingerboardRoutines;
+        const routine = src.find(r => r.id === routinePreview.id);
+        if (!routine) { setRoutinePreview(null); return null; }
+        const accentColor = routine.color || W.accent;
+        return (
+          <div>
+            <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 16 }}>
+              <button onClick={() => setRoutinePreview(null)} style={{ background: W.surface2, border: `1px solid ${W.border}`, borderRadius: 10, padding: "8px 12px", color: W.textDim, fontWeight: 700, cursor: "pointer", fontSize: 14 }}>← Back</button>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontWeight: 800, fontSize: 17, color: W.text }}>{routine.name}</div>
+                {routine.description && <div style={{ fontSize: 12, color: W.textMuted, marginTop: 1 }}>{routine.description}</div>}
+              </div>
+              <button onClick={() => { setRoutinePreview(null); openEditor("edit", routinePreview.type, routine.id); }} style={{ background: W.surface2, border: `1px solid ${W.border}`, borderRadius: 10, padding: "8px 12px", color: W.textDim, fontWeight: 700, cursor: "pointer", fontSize: 13 }}>Edit</button>
+            </div>
+            {routine.notes && <div style={{ background: W.surface2, borderRadius: 10, padding: "10px 12px", marginBottom: 14, fontSize: 12, color: W.textMuted, borderLeft: `3px solid ${accentColor}` }}>{routine.notes}</div>}
+            <div style={{ fontWeight: 700, fontSize: 12, color: W.textMuted, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 10 }}>Tasks ({(routine.items || []).length})</div>
+            {(routine.items || []).length === 0 && <div style={{ color: W.textDim, fontSize: 13, textAlign: "center", padding: "20px 0" }}>No tasks in this routine yet.</div>}
+            {(routine.items || []).map((item, i) => (
+              <div key={item.id} style={{ display: "flex", alignItems: "center", gap: 10, background: W.surface, border: `1px solid ${W.border}`, borderRadius: 10, padding: "10px 12px", marginBottom: 6 }}>
+                <div style={{ width: 20, height: 20, borderRadius: 6, border: `2px solid ${W.border}`, flexShrink: 0 }} />
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: 13, color: W.text }}>{item.text}</div>
+                  {item.detail && <div style={{ fontSize: 11, color: W.textMuted, marginTop: 2 }}>{item.detail}</div>}
+                </div>
+                {item.restDuration > 0 && <span style={{ fontSize: 10, color: W.textMuted, background: W.surface2, borderRadius: 5, padding: "2px 6px", flexShrink: 0 }}>{item.restDuration}s rest</span>}
+              </div>
+            ))}
+            {routine.weeklyGoal > 0 && (
+              <div style={{ marginTop: 14, background: W.surface, border: `1px solid ${W.border}`, borderRadius: 10, padding: "10px 12px" }}>
+                <div style={{ fontSize: 11, color: W.textMuted }}>Weekly goal: <span style={{ color: W.text, fontWeight: 700 }}>{routine.weeklyGoal}× / week</span></div>
+              </div>
+            )}
+          </div>
+        );
+      }
+
       // ── Routines list ─────────────────────────────────────────
+      const sections = [
+        { sectionLabel: "🧘 Warmup", type: "warmup", typeRoutines: warmupTemplates, activeId: activeWarmupTemplateId, setActive: (id) => { setActiveWarmupTemplateId(id); const r = warmupTemplates.find(r => r.id === id); if (r) setDefaultWarmupItems(r.items); } },
+        { sectionLabel: "💪 Workout", type: "workout", typeRoutines: workoutRoutines, activeId: activeWorkoutRoutineId, setActive: (id) => { setActiveWorkoutRoutineId(id); const r = workoutRoutines.find(r => r.id === id); if (r) setDefaultWorkoutItems(r.items); } },
+        { sectionLabel: "🤙 Fingerboard", type: "fingerboard", typeRoutines: fingerboardRoutines, activeId: activeFingerboardRoutineId, setActive: (id) => { setActiveFingerboardRoutineId(id); const r = fingerboardRoutines.find(r => r.id === id); if (r) setDefaultFingerboardItems(r.items); } },
+      ];
+      const searchLower = routineListSearch.toLowerCase();
+      const totalCount = sections.reduce((t, s) => t + s.typeRoutines.length, 0);
       return (
         <div>
-          <div style={{ display: "flex", gap: 8, marginBottom: 16 }}>
+          <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
             <button onClick={() => setShowAddRoutineTypePicker(true)} style={{ flex: 1, padding: "11px", background: `linear-gradient(135deg, ${W.accent}, ${W.accentDark})`, border: "none", borderRadius: 12, color: "#fff", fontWeight: 800, fontSize: 13, cursor: "pointer" }}>+ Add Routine</button>
             <button onClick={() => setShowImportRoutine(true)} style={{ padding: "11px 14px", background: W.surface2, border: `1px solid ${W.border}`, borderRadius: 12, color: W.textMuted, fontWeight: 700, fontSize: 13, cursor: "pointer" }}>Import</button>
           </div>
-          {[
-            { sectionLabel: "🧘 Warmup", type: "warmup", typeRoutines: warmupTemplates, activeId: activeWarmupTemplateId, setActive: (id) => { setActiveWarmupTemplateId(id); const r = warmupTemplates.find(r => r.id === id); if (r) setDefaultWarmupItems(r.items); }, quickStart: (id) => { setActiveWarmupTemplateId(id); const r = warmupTemplates.find(r => r.id === id); if (r) setDefaultWarmupItems(r.items); setScreen("home"); } },
-            { sectionLabel: "💪 Workout", type: "workout", typeRoutines: workoutRoutines, activeId: activeWorkoutRoutineId, setActive: (id) => { setActiveWorkoutRoutineId(id); const r = workoutRoutines.find(r => r.id === id); if (r) setDefaultWorkoutItems(r.items); }, quickStart: (id) => { setActiveWorkoutRoutineId(id); const r = workoutRoutines.find(r => r.id === id); if (r) setDefaultWorkoutItems(r.items); setScreen("home"); } },
-            { sectionLabel: "🤙 Fingerboard", type: "fingerboard", typeRoutines: fingerboardRoutines, activeId: activeFingerboardRoutineId, setActive: (id) => { setActiveFingerboardRoutineId(id); const r = fingerboardRoutines.find(r => r.id === id); if (r) setDefaultFingerboardItems(r.items); }, quickStart: (id) => { setActiveFingerboardRoutineId(id); const r = fingerboardRoutines.find(r => r.id === id); if (r) setDefaultFingerboardItems(r.items); setScreen("home"); } },
-          ].map(({ sectionLabel, type, typeRoutines, activeId, setActive, quickStart }) => (
-            <div key={type} style={{ marginBottom: 22 }}>
-              <div style={{ fontWeight: 800, fontSize: 12, color: W.textMuted, textTransform: "uppercase", letterSpacing: 1, marginBottom: 10 }}>{sectionLabel}</div>
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
-                {typeRoutines.map((routine, ri) => {
-                  const usageSessions = getUsage(type, routine);
-                  const lastUsed = usageSessions.length > 0 ? usageSessions.sort((a,b) => new Date(b.date) - new Date(a.date))[0] : null;
-                  const streak = getStreak(usageSessions, routine.weeklyGoal);
-                  const today = new Date(); today.setHours(0,0,0,0);
-                  const dow = today.getDay();
-                  const weekStart = new Date(today); weekStart.setDate(today.getDate() - dow);
-                  const thisWeekCount = usageSessions.filter(s => new Date(s.date) >= weekStart).length;
-                  const accentColor = routine.color || W.accent;
-                  return (
-                    <div key={routine.id} onClick={() => openEditor("edit", type, routine.id)} style={{ background: W.surface, border: `1.5px solid ${routine.id === activeId ? accentColor : W.border}`, borderRadius: 14, padding: "12px", cursor: "pointer", borderLeft: routine.color ? `4px solid ${routine.color}` : undefined, display: "flex", flexDirection: "column", gap: 6 }}>
-                      <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 4 }}>
-                        <span style={{ fontWeight: 800, fontSize: 13, color: W.text, lineHeight: 1.2, flex: 1 }}>{routine.name}</span>
-                        {routine.id === activeId && <span style={{ background: accentColor, color: "#fff", borderRadius: 5, padding: "1px 5px", fontSize: 9, fontWeight: 700, flexShrink: 0 }}>Active</span>}
-                      </div>
-                      {routine.description && <div style={{ fontSize: 11, color: W.textMuted, lineHeight: 1.3 }}>{routine.description}</div>}
-                      <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginTop: 2 }}>
-                        <span style={{ fontSize: 10, color: W.textDim, background: W.surface2, borderRadius: 4, padding: "1px 5px" }}>{(routine.items || []).length} tasks</span>
-                        {usageSessions.length > 0 && <span style={{ fontSize: 10, color: W.textDim, background: W.surface2, borderRadius: 4, padding: "1px 5px" }}>{usageSessions.length} uses</span>}
-                        {streak > 0 && <span style={{ fontSize: 10, color: W.accent, background: W.surface2, borderRadius: 4, padding: "1px 5px" }}>🔥 {streak}wk</span>}
-                      </div>
-                      {lastUsed && <div style={{ fontSize: 10, color: W.textDim }}>Last: {formatDate(lastUsed.date)}</div>}
-                      {routine.weeklyGoal > 0 && (
-                        <div>
-                          <div style={{ fontSize: 10, color: thisWeekCount >= routine.weeklyGoal ? W.accent : W.textDim, marginBottom: 3 }}>{thisWeekCount}/{routine.weeklyGoal} this week</div>
-                          <div style={{ height: 3, borderRadius: 2, background: W.surface2, overflow: "hidden" }}>
-                            <div style={{ height: "100%", width: `${Math.min(100, (thisWeekCount / routine.weeklyGoal) * 100)}%`, background: thisWeekCount >= routine.weeklyGoal ? W.accent : `${W.accent}88`, borderRadius: 2 }} />
+          {totalCount > 3 && (
+            <div style={{ marginBottom: 14 }}>
+              <input value={routineListSearch} onChange={e => setRoutineListSearch(e.target.value)} placeholder="Search routines…" style={{ width: "100%", boxSizing: "border-box", padding: "9px 12px", borderRadius: 10, border: `1px solid ${W.border}`, background: W.surface, color: W.text, fontSize: 13, outline: "none" }} />
+            </div>
+          )}
+          {sections.map(({ sectionLabel, type, typeRoutines, activeId, setActive }) => {
+            const filtered = routineListSearch ? typeRoutines.filter(r => r.name.toLowerCase().includes(searchLower) || (r.description || "").toLowerCase().includes(searchLower)) : typeRoutines;
+            if (filtered.length === 0) return null;
+            const isCollapsed = !!collapsedRoutineSections[type];
+            return (
+              <div key={type} style={{ marginBottom: 22 }}>
+                <div onClick={() => setCollapsedRoutineSections(prev => ({ ...prev, [type]: !prev[type] }))} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", cursor: "pointer", marginBottom: 10, userSelect: "none" }}>
+                  <div style={{ fontWeight: 800, fontSize: 12, color: W.textMuted, textTransform: "uppercase", letterSpacing: 1 }}>{sectionLabel} <span style={{ fontWeight: 500, opacity: 0.7 }}>({filtered.length})</span></div>
+                  <span style={{ color: W.textDim, fontSize: 12 }}>{isCollapsed ? "▼" : "▲"}</span>
+                </div>
+                {!isCollapsed && (
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+                    {filtered.map((routine) => {
+                      const usageSessions = getUsage(type, routine);
+                      const lastUsed = usageSessions.length > 0 ? usageSessions.sort((a,b) => new Date(b.date) - new Date(a.date))[0] : null;
+                      const streak = getStreak(usageSessions, routine.weeklyGoal);
+                      const today = new Date(); today.setHours(0,0,0,0);
+                      const weekStart = new Date(today); weekStart.setDate(today.getDate() - today.getDay());
+                      const thisWeekCount = usageSessions.filter(s => new Date(s.date) >= weekStart).length;
+                      const accentColor = routine.color || W.accent;
+                      const isSwiped = swipedRoutineCard?.type === type && swipedRoutineCard?.id === routine.id;
+                      return (
+                        <div key={routine.id} style={{ position: "relative", borderRadius: 14, overflow: "hidden" }}>
+                          {/* Swipe-reveal delete background */}
+                          <div style={{ position: "absolute", inset: 0, background: W.redDark, display: "flex", alignItems: "center", justifyContent: "flex-end", paddingRight: 16, borderRadius: 14 }}>
+                            <button onClick={e => { e.stopPropagation();
+                              const src2 = type === "warmup" ? warmupTemplates : type === "workout" ? workoutRoutines : fingerboardRoutines;
+                              if (src2.length <= 1) { setSwipedRoutineCard(null); return; }
+                              if (type === "warmup") { setWarmupTemplates(prev => prev.filter(t => t.id !== routine.id)); if (activeWarmupTemplateId === routine.id) { const r = warmupTemplates.find(t => t.id !== routine.id); if (r) { setActiveWarmupTemplateId(r.id); setDefaultWarmupItems(r.items); } } }
+                              else if (type === "workout") { setWorkoutRoutines(prev => prev.filter(t => t.id !== routine.id)); if (activeWorkoutRoutineId === routine.id) { const r = workoutRoutines.find(t => t.id !== routine.id); if (r) { setActiveWorkoutRoutineId(r.id); setDefaultWorkoutItems(r.items); } } }
+                              else { setFingerboardRoutines(prev => prev.filter(t => t.id !== routine.id)); if (activeFingerboardRoutineId === routine.id) { const r = fingerboardRoutines.find(t => t.id !== routine.id); if (r) { setActiveFingerboardRoutineId(r.id); setDefaultFingerboardItems(r.items); } } }
+                              setSwipedRoutineCard(null);
+                            }} style={{ background: "none", border: "none", color: "#fff", fontWeight: 800, fontSize: 13, cursor: "pointer" }}>Delete</button>
+                          </div>
+                          {/* Card */}
+                          <div
+                            style={{ background: W.surface, border: `1.5px solid ${routine.id === activeId ? accentColor : W.border}`, borderRadius: 14, padding: "12px", cursor: "pointer", borderLeft: routine.color ? `4px solid ${routine.color}` : undefined, display: "flex", flexDirection: "column", gap: 6, transform: isSwiped ? "translateX(-80px)" : "translateX(0)", transition: "transform 0.2s ease", position: "relative" }}
+                            onClick={() => { if (isSwiped) { setSwipedRoutineCard(null); return; } setRoutinePreview({ type, id: routine.id }); }}
+                            onTouchStart={e => { e._touchStartX = e.touches[0].clientX; }}
+                            onTouchEnd={e => { const dx = e.changedTouches[0].clientX - (e._touchStartX || 0); if (dx < -40) setSwipedRoutineCard({ type, id: routine.id }); else if (dx > 20) setSwipedRoutineCard(null); }}
+                          >
+                            <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 4 }}>
+                              <span style={{ fontWeight: 800, fontSize: 13, color: W.text, lineHeight: 1.2, flex: 1 }}>{routine.name}</span>
+                              {routine.id === activeId && <span style={{ background: accentColor, color: "#fff", borderRadius: 5, padding: "1px 5px", fontSize: 9, fontWeight: 700, flexShrink: 0 }}>Active</span>}
+                            </div>
+                            {routine.description && <div style={{ fontSize: 11, color: W.textMuted, lineHeight: 1.3 }}>{routine.description}</div>}
+                            <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginTop: 2 }}>
+                              <span style={{ fontSize: 10, color: W.textDim, background: W.surface2, borderRadius: 4, padding: "1px 5px" }}>{(routine.items || []).length} tasks</span>
+                              {usageSessions.length > 0 && <span style={{ fontSize: 10, color: W.textDim, background: W.surface2, borderRadius: 4, padding: "1px 5px" }}>{usageSessions.length} uses</span>}
+                              {streak > 0 && <span style={{ fontSize: 10, color: W.accent, background: W.surface2, borderRadius: 4, padding: "1px 5px" }}>🔥 {streak}wk</span>}
+                            </div>
+                            {lastUsed && <div style={{ fontSize: 10, color: W.textDim }}>Last: {formatDate(lastUsed.date)}</div>}
+                            {routine.weeklyGoal > 0 && (
+                              <div>
+                                <div style={{ fontSize: 10, color: thisWeekCount >= routine.weeklyGoal ? W.accent : W.textDim, marginBottom: 3 }}>{thisWeekCount}/{routine.weeklyGoal} this week</div>
+                                <div style={{ height: 3, borderRadius: 2, background: W.surface2, overflow: "hidden" }}>
+                                  <div style={{ height: "100%", width: `${Math.min(100, (thisWeekCount / routine.weeklyGoal) * 100)}%`, background: thisWeekCount >= routine.weeklyGoal ? W.accent : `${W.accent}88`, borderRadius: 2 }} />
+                                </div>
+                              </div>
+                            )}
+                            {routine.id !== activeId && (
+                              <button onClick={e => { e.stopPropagation(); setActive(routine.id); }} style={{ marginTop: 4, width: "100%", background: W.surface2, border: `1px solid ${W.border}`, borderRadius: 8, padding: "5px 0", fontSize: 11, color: W.textMuted, fontWeight: 700, cursor: "pointer" }}>Set Active</button>
+                            )}
                           </div>
                         </div>
-                      )}
-                      <div style={{ display: "flex", gap: 5, marginTop: 4 }} onClick={e => e.stopPropagation()}>
-                        <button onClick={e => { e.stopPropagation(); quickStart(routine.id); }} style={{ flex: 1, background: W.accent, border: "none", borderRadius: 8, padding: "5px 0", fontSize: 11, color: "#fff", fontWeight: 700, cursor: "pointer" }}>▶ Start</button>
-                        {routine.id !== activeId && <button onClick={e => { e.stopPropagation(); setActive(routine.id); }} style={{ flex: 1, background: W.surface2, border: `1px solid ${W.border}`, borderRadius: 8, padding: "5px 0", fontSize: 11, color: W.textMuted, fontWeight: 700, cursor: "pointer" }}>Set Active</button>}
-                      </div>
-                    </div>
-                  );
-                })}
+                      );
+                    })}
+                  </div>
+                )}
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       );
     };
 
-    if (routineEditor || showAddRoutineTypePicker || showImportRoutine || routineShareModal) {
+    if (routineEditor || showAddRoutineTypePicker || showImportRoutine || routineShareModal || routinePreview) {
       return (
         <div style={{ padding: "24px 20px" }}>
           {renderRoutinesPanel()}
