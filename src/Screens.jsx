@@ -130,6 +130,7 @@ export const SessionSummaryScreen = ({
   showSummaryLeaveWarn,
   setShowSummaryLeaveWarn,
   updateSessionNotes,
+  recentSessions,
 }) => {
   const W = useTheme();
   const [showDiscard, setShowDiscard] = useState(false);
@@ -563,6 +564,46 @@ export const SessionSummaryScreen = ({
             </div>
             <div style={{ fontSize: 12, color: W.textMuted, marginBottom: 10 }}>by all-time climbing time{myRank > 1 ? ` · ${leader.displayName} leads` : " · You're on top!"}</div>
             <button onClick={goToLeaderboard} style={{ padding: "8px 20px", background: `linear-gradient(135deg, ${W.accent}, ${W.accentDark})`, border: "none", borderRadius: 10, color: "#fff", fontSize: 13, fontWeight: 700, cursor: "pointer" }}>View Leaderboard</button>
+          </div>
+        );
+      })()}
+      {/* vs last 5 sessions comparison */}
+      {recentSessions && recentSessions.length >= 2 && !isPureFitness && (() => {
+        const recent = recentSessions.map(s => getSessionStats(s));
+        const avgSends    = recent.reduce((t, s) => t + s.sends, 0) / recent.length;
+        const avgTotal    = recent.reduce((t, s) => t + s.total, 0) / recent.length;
+        const avgDur      = recentSessions.reduce((t, s) => t + (s.duration || 0), 0) / recentSessions.length;
+        const avgFlashes  = recent.reduce((t, s) => t + s.flashes, 0) / recent.length;
+        const avgSendRate = avgTotal > 0 ? (avgSends / avgTotal) * 100 : 0;
+        const thisSendRate = stats.total > 0 ? (stats.sends / stats.total) * 100 : 0;
+        const diff = (val, avg, fmt, higherBetter = true) => {
+          const d = val - avg;
+          if (Math.abs(d) < 0.05) return { label: fmt(val), note: "avg", color: W.textMuted };
+          const better = higherBetter ? d > 0 : d < 0;
+          return { label: fmt(val), note: `${d > 0 ? "+" : ""}${fmt(d)} vs avg`, color: better ? W.greenDark : W.redDark };
+        };
+        const fmtRound = v => Math.round(v).toString();
+        const fmtPct   = v => `${Math.round(v)}%`;
+        const fmtDur   = v => formatDuration(Math.abs(Math.round(v)));
+        const rows = [
+          { label: "Climbs", ...diff(stats.total, avgTotal, fmtRound) },
+          { label: "Sends",  ...diff(stats.sends, avgSends, fmtRound) },
+          { label: "Send rate", ...diff(thisSendRate, avgSendRate, fmtPct) },
+          { label: "Duration",  ...diff(session.duration || 0, avgDur, fmtDur) },
+          { label: "Flashes",   ...diff(stats.flashes, avgFlashes, fmtRound) },
+        ];
+        return (
+          <div style={{ background: W.surface, border: `1px solid ${W.border}`, borderRadius: 16, padding: "16px", marginBottom: 16 }}>
+            <div style={{ fontSize: 11, fontWeight: 700, color: W.textMuted, textTransform: "uppercase", letterSpacing: 1, marginBottom: 10 }}>vs last {recentSessions.length} sessions</div>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+              {rows.map(r => (
+                <div key={r.label} style={{ background: W.surface2, borderRadius: 10, padding: "10px 12px" }}>
+                  <div style={{ fontSize: 9, fontWeight: 700, color: W.textDim, textTransform: "uppercase", letterSpacing: 0.8, marginBottom: 2 }}>{r.label}</div>
+                  <div style={{ fontSize: 18, fontWeight: 900, color: r.color, lineHeight: 1 }}>{r.label === "Duration" ? formatDuration(session.duration || 0) : r.label === "Send rate" ? fmtPct(thisSendRate) : r.label === "Climbs" ? stats.total : r.label === "Sends" ? stats.sends : stats.flashes}</div>
+                  <div style={{ fontSize: 10, color: r.color, fontWeight: 600, marginTop: 2 }}>{r.note}</div>
+                </div>
+              ))}
+            </div>
           </div>
         );
       })()}

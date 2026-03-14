@@ -315,6 +315,8 @@ export default function App() {
   const [fitnessNewExerciseName, setFitnessNewExerciseName] = useState("");
   const [fitnessNewItemTexts, setFitnessNewItemTexts]       = useState({}); // { [sectionId]: string }
   const [fitnessDragIdx, setFitnessDragIdx]                 = useState(null);
+  const [sessionSetupClimbingOpen, setSessionSetupClimbingOpen] = useState(true);
+  const [sessionSetupFitnessOpen, setSessionSetupFitnessOpen]   = useState(false);
   const [routinePreview, setRoutinePreview]         = useState(null); // { type, id }
   const [collapsedRoutineSections, setCollapsedRoutineSections] = useState({});
   const [routineListSearch, setRoutineListSearch]   = useState("");
@@ -1229,6 +1231,16 @@ export default function App() {
     });
   };
 
+  const updateFitnessBlockNote = (sectionId, note) => setActiveSession(s => ({
+    ...s,
+    fitnessSections: (s.fitnessSections || []).map(sec => sec.id === sectionId ? { ...sec, note } : sec),
+  }));
+
+  const updateFitnessBlockResult = (sectionId, result) => setActiveSession(s => ({
+    ...s,
+    fitnessSections: (s.fitnessSections || []).map(sec => sec.id === sectionId ? { ...sec, result } : sec),
+  }));
+
   // Stops the per-climb timer without logging tries (used for rope "Done" button)
   // Type section timer keeps running — it only pauses when switching types or ending the section
   const endClimbAttempt = (id) => setActiveSession(s => {
@@ -1261,11 +1273,18 @@ export default function App() {
       }),
     };
   });
-  // Resumes attempt tracking on a paused boulder climb — restores timer from where it was
-  const resumeClimb = (id) => setActiveSession(s => ({
-    ...s,
-    climbs: (s.climbs || []).map(c => c.id === id ? { ...c, paused: false, climbingStartedAt: Date.now() } : c),
-  }));
+  // Resumes attempt tracking on a paused boulder climb — pauses any other currently active climb
+  const resumeClimb = (id) => setActiveSession(s => {
+    const now = Date.now();
+    return {
+      ...s,
+      climbs: (s.climbs || []).map(c => {
+        if (c.id === id) return { ...c, paused: false, climbingStartedAt: now };
+        if (c.climbingStartedAt) return { ...c, paused: true, climbingStartedAt: null, pausedWorkedMs: (c.pausedWorkedMs || 0) + (now - c.climbingStartedAt), pauseCount: (c.pauseCount || 0) + 1 };
+        return c;
+      }),
+    };
+  });
   // Stops the boulder climb timer without marking as sent (gave up / moving on)
   const stopBoulderClimb = (id) => setActiveSession(s => {
     const climb = (s.climbs || []).find(c => c.id === id);
@@ -2854,20 +2873,38 @@ export default function App() {
   // §SCREEN_SESSION_SETUP
   const SessionSetupScreen = () => {
     const toggleType = (t) => setSessionTypes(prev => prev.includes(t) ? (prev.length > 1 ? prev.filter(x => x !== t) : prev) : [...prev, t]);
-    const allTypeOptions = [
-      { id: "boulder",     label: "Bouldering" },
-      { id: "rope",        label: "Rope Climbing" },
-      { id: "speed",       label: "Speed Climbing" },
-      { id: "warmup",      label: "Warm Up" },
-      { id: "workout",     label: "Workout" },
-      { id: "fingerboard", label: "Fingerboard Session" },
-      { id: "fitness", label: "Fitness" },
+    const climbingOpts = [
+      { id: "boulder",     label: "Bouldering",   icon: "🪨" },
+      { id: "rope",        label: "Rope",          icon: "🪢" },
+      { id: "speed",       label: "Speed",         icon: "⚡" },
     ];
-    const typeOptions = [...allTypeOptions].sort((a, b) => {
-      const ai = sessionTypeOrder.indexOf(a.id);
-      const bi = sessionTypeOrder.indexOf(b.id);
-      return (ai === -1 ? 999 : ai) - (bi === -1 ? 999 : bi);
-    });
+    const trainingOpts = [
+      { id: "warmup",      label: "Warm Up",       icon: "🔥" },
+      { id: "workout",     label: "Workout",       icon: "💪" },
+      { id: "fingerboard", label: "Fingerboard",   icon: "🤲" },
+      { id: "fitness",     label: "Exercises",     icon: "🏋️" },
+    ];
+    const hasClimbing = sessionTypes.some(t => ["boulder","rope","speed"].includes(t));
+    const hasTraining = sessionTypes.some(t => ["warmup","workout","fingerboard","fitness"].includes(t));
+    const SubBtn = ({ opt }) => {
+      const sel = sessionTypes.includes(opt.id);
+      return (
+        <button onClick={() => toggleType(opt.id)} style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 4, background: sel ? W.accent + "18" : W.surface2, border: `2px solid ${sel ? W.accent : W.border}`, borderRadius: 12, padding: "12px 8px", cursor: "pointer" }}>
+          <span style={{ fontSize: 20 }}>{opt.icon}</span>
+          <span style={{ fontWeight: 700, color: sel ? W.accent : W.text, fontSize: 12 }}>{opt.label}</span>
+        </button>
+      );
+    };
+    const CategoryBtn = ({ label, icon, isOpen, hasSelection, onToggle }) => (
+      <button onClick={onToggle} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", width: "100%", background: hasSelection ? W.accent + "14" : W.surface2, border: `2px solid ${hasSelection ? W.accent : W.border}`, borderRadius: 12, padding: "14px 16px", cursor: "pointer", marginBottom: isOpen ? 10 : 0 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          <span style={{ fontSize: 22 }}>{icon}</span>
+          <span style={{ fontWeight: 800, fontSize: 15, color: hasSelection ? W.accent : W.text }}>{label}</span>
+          {hasSelection && <span style={{ fontSize: 10, background: W.accent, color: "#fff", borderRadius: 6, padding: "1px 6px", fontWeight: 700 }}>✓</span>}
+        </div>
+        <span style={{ fontSize: 14, color: W.textDim }}>{isOpen ? "▲" : "▼"}</span>
+      </button>
+    );
     return (
       <div style={{ padding: "32px 24px" }}>
         <div style={{ background: W.surface, borderRadius: 18, padding: "20px", border: `1px solid ${W.border}`, marginBottom: 16 }}>
@@ -2876,15 +2913,21 @@ export default function App() {
         </div>
         <div style={{ background: W.surface, borderRadius: 18, padding: "20px", border: `1px solid ${W.border}`, marginBottom: 24 }}>
           <div style={{ fontSize: 12, fontWeight: 700, color: W.textMuted, textTransform: "uppercase", letterSpacing: 1, marginBottom: 12 }}>What will you be doing</div>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
-            {typeOptions.map(opt => {
-              const sel = sessionTypes.includes(opt.id);
-              return (
-                <button key={opt.id} onClick={() => toggleType(opt.id)} style={{ display: "flex", alignItems: "center", justifyContent: "center", background: sel ? W.accent + "18" : W.surface2, border: `2px solid ${sel ? W.accent : W.border}`, borderRadius: 12, padding: "14px 10px", cursor: "pointer" }}>
-                  <span style={{ fontWeight: 700, color: sel ? W.accent : W.text, fontSize: 14 }}>{opt.label}</span>
-                </button>
-              );
-            })}
+          <div style={{ marginBottom: 10 }}>
+            <CategoryBtn label="Climbing" icon="🧗" isOpen={sessionSetupClimbingOpen} hasSelection={hasClimbing} onToggle={() => setSessionSetupClimbingOpen(o => !o)} />
+            {sessionSetupClimbingOpen && (
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8 }}>
+                {climbingOpts.map(opt => <SubBtn key={opt.id} opt={opt} />)}
+              </div>
+            )}
+          </div>
+          <div>
+            <CategoryBtn label="Training" icon="🏋️" isOpen={sessionSetupFitnessOpen} hasSelection={hasTraining} onToggle={() => setSessionSetupFitnessOpen(o => !o)} />
+            {sessionSetupFitnessOpen && (
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+                {trainingOpts.map(opt => <SubBtn key={opt.id} opt={opt} />)}
+              </div>
+            )}
           </div>
         </div>
         <button onClick={beginTimer} style={{ width: "100%", padding: "18px", background: `linear-gradient(135deg, ${W.accent}, ${W.accentDark})`, border: "none", borderRadius: 16, color: "#fff", fontSize: 17, fontWeight: 800, cursor: "pointer", boxShadow: `0 6px 24px ${W.accentGlow}` }}>Start Session</button>
@@ -3385,6 +3428,11 @@ export default function App() {
                       {item.restDuration > 0 && <span style={{ fontSize: 10, color: W.textMuted, fontWeight: 600 }}>{item.restDuration}s rest</span>}
                     </div>
                   ))}
+                  {/* Result + Note fields */}
+                  <div style={{ display: "flex", gap: 6, marginTop: 4, marginBottom: 4 }}>
+                    <input value={section.result || ""} onChange={e => updateFitnessBlockResult(section.id, e.target.value)} placeholder="Result (e.g. 3×10, 90s, 12 reps)…" style={{ flex: 1, padding: "7px 10px", borderRadius: 9, border: `1px solid ${orangeColor}44`, background: W.surface, color: W.text, fontSize: 12, outline: "none" }} />
+                  </div>
+                  <input value={section.note || ""} onChange={e => updateFitnessBlockNote(section.id, e.target.value)} placeholder="Notes (weight, intensity, observations)…" style={{ width: "100%", boxSizing: "border-box", padding: "7px 10px", borderRadius: 9, border: `1px solid ${W.border}`, background: W.surface, color: W.text, fontSize: 12, outline: "none", marginBottom: 4 }} />
                 </div>
               )}
             </div>
@@ -4667,12 +4715,22 @@ export default function App() {
           const fingerboardByRoutine = {};
           fingerboardSessions.forEach(s => { const k = s.fingerboardRoutineName || "Unknown"; fingerboardByRoutine[k] = (fingerboardByRoutine[k] || 0) + 1; });
           const fitnessByBlock = {};
-          fitnessSessions.forEach(s => (s.fitnessSections || []).forEach(sec => { fitnessByBlock[sec.name] = (fitnessByBlock[sec.name] || 0) + 1; }));
+          const fitnessBestResult = {}; // { [blockName]: { result, date, numeric } }
+          fitnessSessions.forEach(s => (s.fitnessSections || []).forEach(sec => {
+            fitnessByBlock[sec.name] = (fitnessByBlock[sec.name] || 0) + 1;
+            if (sec.result) {
+              const num = parseFloat(sec.result);
+              const prev = fitnessBestResult[sec.name];
+              if (!prev || (isFinite(num) && (!isFinite(parseFloat(prev.result)) || num > parseFloat(prev.result)))) {
+                fitnessBestResult[sec.name] = { result: sec.result, date: s.date?.slice(0,10) };
+              }
+            }
+          }));
           const fitnessAllTasks  = fitnessSessions.reduce((t, s) => t + (s.fitnessSections || []).reduce((a, sec) => a + (sec.items || []).length, 0), 0);
           const fitnessDoneTasks = fitnessSessions.reduce((t, s) => t + (s.fitnessSections || []).reduce((a, sec) => a + (sec.items || []).filter(i => i.checked).length, 0), 0);
           const fitnessCompletionRate = fitnessAllTasks > 0 ? `${Math.round((fitnessDoneTasks / fitnessAllTasks) * 100)}%` : null;
 
-          const StatCard = ({ emoji, label, count, totalSec, byRoutine, accent, secondValue, secondLabel, thirdValue, thirdLabel }) => (
+          const StatCard = ({ emoji, label, count, totalSec, byRoutine, accent, secondValue, secondLabel, thirdValue, thirdLabel, bestResult }) => (
             <div style={{ background: W.surface, border: `1px solid ${W.border}`, borderRadius: 16, padding: "16px", marginBottom: 10 }}>
               <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10 }}>
                 <span style={{ fontSize: 22 }}>{emoji}</span>
@@ -4696,8 +4754,11 @@ export default function App() {
               </div>
               {Object.entries(byRoutine).sort((a,b) => b[1]-a[1]).map(([name, cnt]) => (
                 <div key={name} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "4px 0", borderTop: `1px solid ${W.border}` }}>
-                  <span style={{ fontSize: 12, color: W.textDim }}>{name}</span>
-                  <span style={{ fontSize: 12, fontWeight: 700, color: accent || W.accent }}>{cnt}×</span>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <span style={{ fontSize: 12, color: W.textDim }}>{name}</span>
+                    {bestResult?.[name] && <span style={{ fontSize: 10, color: accent || W.accent, fontWeight: 700, marginLeft: 6 }}>🏆 {bestResult[name].result}</span>}
+                  </div>
+                  <span style={{ fontSize: 12, fontWeight: 700, color: accent || W.accent, flexShrink: 0 }}>{cnt}×</span>
                 </div>
               ))}
             </div>
@@ -4751,7 +4812,7 @@ export default function App() {
                 const maxSec = Math.max(...chartPts.map(p => p.avgSec), 1);
                 return (
                   <>
-                    <StatCard emoji="🏋️" label="Fitness" count={fitnessSessions.length} totalSec={0} byRoutine={fitnessByBlock} accent="#f97316" secondValue={fitnessSessions.reduce((t, s) => t + (s.fitnessSections || []).length, 0)} secondLabel="total blocks" thirdValue={fitnessCompletionRate} thirdLabel="task completion" />
+                    <StatCard emoji="🏋️" label="Fitness" count={fitnessSessions.length} totalSec={0} byRoutine={fitnessByBlock} accent="#f97316" secondValue={fitnessSessions.reduce((t, s) => t + (s.fitnessSections || []).length, 0)} secondLabel="total blocks" thirdValue={fitnessCompletionRate} thirdLabel="task completion" bestResult={fitnessBestResult} />
                     {chartPts.length >= 2 && (
                       <div style={{ background: W.surface, border: `1px solid ${W.border}`, borderRadius: 16, padding: "16px", marginBottom: 10 }}>
                         <div style={{ fontWeight: 800, fontSize: 13, color: W.text, marginBottom: 10 }}>🏋️ Avg block duration</div>
@@ -6425,6 +6486,7 @@ export default function App() {
           showSummaryLeaveWarn={showSummaryLeaveWarn}
           setShowSummaryLeaveWarn={setShowSummaryLeaveWarn}
           updateSessionNotes={updateSessionNotes}
+          recentSessions={sessions.filter(s => s.id !== sessionSummary.id).slice(0, 5)}
         />}
       </div>
 
