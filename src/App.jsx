@@ -2359,15 +2359,26 @@ export default function App() {
             );
           } else if (climbTypeCount === 1 && (hasBoulder || hasRope)) {
             // Single climb type (even with warmup/workout/fingerboard): grade breakdown pie
-            const gradeEntries = Object.entries(stats.gradeBreakdown).sort((a, b) => b[1].tries - a[1].tries);
-            if (gradeEntries.length >= 2) {
-              const gradeSlices = gradeEntries.map(([grade, data]) => ({ label: grade, value: data.tries, completed: data.completed || 0, color: getGradeColor(grade) }));
+            // Color palette for custom/unknown grades — cycles through distinct hues
+            const CUSTOM_PALETTE = ["#4ade80","#fde047","#fb923c","#ef4444","#c084fc","#38bdf8","#f472b6","#a3e635","#f87171","#818cf8","#34d399","#fbbf24"];
+            const gradeColorForPie = (grade, scale) => {
+              const known = GRADE_COLORS[grade];
+              if (known) return known;
+              const list = customBoulderGrades.length ? customBoulderGrades : customRopeGrades;
+              const idx = list.indexOf(grade);
+              if (idx >= 0) return CUSTOM_PALETTE[idx % CUSTOM_PALETTE.length];
+              let hash = 0; for (let i = 0; i < grade.length; i++) hash = (hash * 31 + grade.charCodeAt(i)) & 0xffff;
+              return CUSTOM_PALETTE[hash % CUSTOM_PALETTE.length];
+            };
+            // Use `attempted` (climb count) not `tries` (falls) — avoids zero-total when climbs are all flashed
+            const gradeEntries = Object.entries(stats.gradeBreakdown).sort((a, b) => b[1].attempted - a[1].attempted);
+            if (gradeEntries.length >= 1) {
+              const gradeSlices = gradeEntries.map(([grade, data]) => ({ label: grade, value: data.attempted, completed: data.completed || 0, color: gradeColorForPie(grade, data.scale) }));
               const paths = buildPie(gradeSlices);
-              const totalTries = paths[0]?.total || 0;
-              // default to largest slice (index 0); null = deselected → show largest
+              const totalClimbs = paths[0]?.total || 0;
               const activeLabel = selectedGradeSlice && paths.find(p => p.label === selectedGradeSlice) ? selectedGradeSlice : paths[0]?.label;
               const activeSlice = paths.find(p => p.label === activeLabel) || paths[0];
-              rightPanel = (
+              if (paths.length >= 1) rightPanel = (
                 <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 4, flexShrink: 0 }}>
                   <svg width={110} height={110} viewBox="0 0 80 80" style={{ cursor: "pointer" }}>
                     <style>{`@keyframes pie-pulse{0%,100%{transform:scale(1)}50%{transform:scale(1.06)}}.pie-p{transform-origin:40px 40px;animation:pie-pulse 0.28s ease}`}</style>
@@ -2383,14 +2394,14 @@ export default function App() {
                       return arcPath ? <path key={`sa${i}`} d={arcPath} fill="rgba(255,255,255,0.45)" pointerEvents="none" /> : null;
                     })}
                     <circle cx="40" cy="40" r="35" fill="none" stroke={activeSlice?.color} strokeWidth="2" strokeOpacity="0.65" pointerEvents="none" />
-                    <circle cx="40" cy="40" r="17" fill="transparent" style={{ cursor: "pointer" }}
-                      onClick={e => { e.stopPropagation(); const idx = paths.findIndex(p => p.label === activeLabel); setSelectedGradeSlice(paths[(idx + 1) % paths.length].label); }} />
-                    <text x="40" y="44" textAnchor="middle" fontSize="10" fontWeight="900" fill={W.text} pointerEvents="none">{totalTries}</text>
+                    {paths.length > 1 && <circle cx="40" cy="40" r="17" fill="transparent" style={{ cursor: "pointer" }}
+                      onClick={e => { e.stopPropagation(); const idx = paths.findIndex(p => p.label === activeLabel); setSelectedGradeSlice(paths[(idx + 1) % paths.length].label); }} />}
+                    <text x="40" y="44" textAnchor="middle" fontSize="10" fontWeight="900" fill={W.text} pointerEvents="none">{totalClimbs}</text>
                   </svg>
                   {activeSlice && (
                     <div style={{ textAlign: "center" }}>
                       <div style={{ fontSize: 13, fontWeight: 900, color: activeSlice.color, lineHeight: 1 }}>{activeSlice.label}</div>
-                      <div style={{ fontSize: 10, color: W.textDim, marginTop: 2 }}>{activeSlice.pct}% · {activeSlice.value} tries · {activeSlice.completed} sends</div>
+                      <div style={{ fontSize: 10, color: W.textDim, marginTop: 2 }}>{activeSlice.pct}% · {activeSlice.value} climb{activeSlice.value !== 1 ? "s" : ""} · {activeSlice.completed} sent</div>
                     </div>
                   )}
                 </div>
