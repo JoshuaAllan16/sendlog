@@ -205,7 +205,15 @@ export default function App() {
   const [showAccountPanel, setShowAccountPanel] = useState(false);
   const [homeGymDropOpen, setHomeGymDropOpen]   = useState(false);
   const [confirmLogout, setConfirmLogout]       = useState(false);
+  const [confirmDeleteAccount, setConfirmDeleteAccount] = useState(false);
+  const [deleteAccountInput, setDeleteAccountInput] = useState("");
   const [notifPrefsOpen, setNotifPrefsOpen]       = useState(false);
+  const [settingsGradingOpen, setSettingsGradingOpen] = useState(false);
+  const [settingsSessionTypeOpen, setSettingsSessionTypeOpen] = useState(false);
+  const [settingsWarmupOpen, setSettingsWarmupOpen] = useState(false);
+  const [settingsWorkoutOpen, setSettingsWorkoutOpen] = useState(false);
+  const [settingsFingerboardOpen, setSettingsFingerboardOpen] = useState(false);
+  const [deleteSetConfirm, setDeleteSetConfirm] = useState(false);
   const [followRequestsOpen, setFollowRequestsOpen] = useState(false);
   const [profileNotifsOpen, setProfileNotifsOpen]   = useState(false);
   const [lightboxPhoto, setLightboxPhoto]           = useState(null); // { photos:[{src,grade,name,colorId}], idx }
@@ -644,6 +652,17 @@ export default function App() {
     setCustomBoulderInput("");
     setCustomRopeInput("");
     setAuthScreen("login");
+  };
+
+  const handleDeleteAccount = async () => {
+    if (!currentUser) return;
+    try {
+      const accounts = await loadAccountIndex();
+      delete accounts[currentUser.username];
+      await saveAccountIndex(accounts);
+      await storage.delete(`user:${currentUser.username}`);
+    } catch (e) {}
+    await handleLogout();
   };
 
   const handleProfilePicUpload = (e) => {
@@ -1097,7 +1116,7 @@ export default function App() {
   const removeClimbFromActive      = (id) => setActiveSession(s => ({ ...s, climbs: (s.climbs || []).filter(c => c.id !== id) }));
   const climbAgain = (climb) => {
     const newId = Date.now();
-    const fresh = { ...climb, id: newId, loggedAt: newId, tries: 0, falls: 0, takes: 0, completed: false, climbingStartedAt: null, lastAttemptEndedAt: null, attemptLog: [], fallLog: [], pausedWorkedMs: 0, paused: false };
+    const fresh = { ...climb, id: newId, loggedAt: newId, tries: 0, falls: 0, takes: 0, completed: false, climbingStartedAt: null, lastAttemptEndedAt: null, attemptLog: [], fallLog: [], pausedWorkedMs: 0, paused: false, climbGroupId: climb.climbGroupId || climb.id };
     setActiveSession(s => {
       const climbs = s.climbs || [];
       const idx = climbs.findIndex(c => c.id === climb.id);
@@ -2612,6 +2631,20 @@ export default function App() {
     const ropeClimbs    = allClimbs.filter(c => c.climbType === "rope");
     const regularSends = allClimbs.filter(c => c.climbType !== "speed-session" && c.completed).length;
     const regularTotal = allClimbs.filter(c => c.climbType !== "speed-session").length;
+    // Compute lap numbers: climbs sharing a climbGroupId or setClimbId get numbered 1,2,3…
+    const lapNumbers = {};
+    const grouped = {};
+    allClimbs.forEach(c => {
+      const key = c.climbGroupId ? `g_${c.climbGroupId}` : c.setClimbId ? `s_${c.setClimbId}` : null;
+      if (!key) return;
+      if (!grouped[key]) grouped[key] = [];
+      grouped[key].push(c);
+    });
+    Object.values(grouped).forEach(group => {
+      if (group.length <= 1) return;
+      group.sort((a, b) => (a.loggedAt || 0) - (b.loggedAt || 0));
+      group.forEach((c, i) => { lapNumbers[c.id] = i + 1; });
+    });
     // Shared props passed to every ActiveClimbCard
     const cardProps = {
       onEdit: openClimbForm, onStartClimbing: startClimbing, onEndAttempt: endClimbAttempt,
@@ -2641,7 +2674,7 @@ export default function App() {
             <BoulderRopeSessionCard type="boulder" totalSec={activeSession.boulderTotalSec || 0} activeStart={activeSession.boulderActiveStart || null} isEnded={!!activeSession.boulderEndedAt} tick={sessionTimer} onPause={pauseBoulderSession} onResume={resumeBoulderSession} pausedAt={activeSession.boulderPausedAt || null} collapsed={!!activeSession.collapsedSections?.boulder} onToggleCollapse={() => setActiveSession(s => ({ ...s, collapsedSections: { ...(s.collapsedSections || {}), boulder: !s.collapsedSections?.boulder } }))} />
             {!activeSession.collapsedSections?.boulder && (
               <div style={{ borderLeft: `3px solid ${W.greenDark}44`, paddingLeft: 10, marginLeft: 2 }}>
-                {boulderClimbs.filter(c => !c.completed).map(c => <ActiveClimbCard key={c.id} climb={c} {...cardProps} sessionCount={c.projectId ? getProjectHistory(c.projectId).length + 1 : null} />)}
+                {boulderClimbs.filter(c => !c.completed).map(c => <ActiveClimbCard key={c.id} climb={c} {...cardProps} sessionCount={c.projectId ? getProjectHistory(c.projectId).length + 1 : null} lapNumber={lapNumbers[c.id] || null} />)}
                 {selectedTypes.includes("boulder") && !activeSession.boulderEndedAt && (
                   <button onClick={() => openClimbForm(null, null, "boulder")} style={{ width: "100%", padding: "10px", background: W.green, border: `2px solid ${W.greenDark}`, borderRadius: 12, color: W.greenDark, fontWeight: 700, fontSize: 13, cursor: "pointer", marginTop: 2 }}>+ Boulder Climb</button>
                 )}
@@ -2651,7 +2684,7 @@ export default function App() {
                       <span>✓ Sent ({boulderClimbs.filter(c => c.completed).length})</span>
                       <span>{showSentBoulders ? "▲" : "▼"}</span>
                     </button>
-                    {showSentBoulders && boulderClimbs.filter(c => c.completed).map(c => <ActiveClimbCard key={c.id} climb={c} {...cardProps} sessionCount={c.projectId ? getProjectHistory(c.projectId).length + 1 : null} />)}
+                    {showSentBoulders && boulderClimbs.filter(c => c.completed).map(c => <ActiveClimbCard key={c.id} climb={c} {...cardProps} sessionCount={c.projectId ? getProjectHistory(c.projectId).length + 1 : null} lapNumber={lapNumbers[c.id] || null} />)}
                   </>
                 )}
               </div>
@@ -2665,7 +2698,7 @@ export default function App() {
             <BoulderRopeSessionCard type="rope" totalSec={activeSession.ropeTotalSec || 0} activeStart={activeSession.ropeActiveStart || null} isEnded={!!activeSession.ropeEndedAt} tick={sessionTimer} onPause={pauseRopeSession} onResume={resumeRopeSession} pausedAt={activeSession.ropePausedAt || null} collapsed={!!activeSession.collapsedSections?.rope} onToggleCollapse={() => setActiveSession(s => ({ ...s, collapsedSections: { ...(s.collapsedSections || {}), rope: !s.collapsedSections?.rope } }))} />
             {!activeSession.collapsedSections?.rope && (
               <div style={{ borderLeft: `3px solid ${W.purpleDark}44`, paddingLeft: 10, marginLeft: 2 }}>
-                {ropeClimbs.filter(c => !c.completed).map(c => <ActiveClimbCard key={c.id} climb={c} {...cardProps} sessionCount={c.projectId ? getProjectHistory(c.projectId).length + 1 : null} />)}
+                {ropeClimbs.filter(c => !c.completed).map(c => <ActiveClimbCard key={c.id} climb={c} {...cardProps} sessionCount={c.projectId ? getProjectHistory(c.projectId).length + 1 : null} lapNumber={lapNumbers[c.id] || null} />)}
                 {selectedTypes.includes("rope") && !activeSession.ropeEndedAt && (
                   <button onClick={() => openClimbForm(null, null, "rope")} style={{ width: "100%", padding: "10px", background: W.purple, border: `2px solid ${W.purpleDark}`, borderRadius: 12, color: W.purpleDark, fontWeight: 700, fontSize: 13, cursor: "pointer", marginTop: 2 }}>+ Rope Climb</button>
                 )}
@@ -2675,7 +2708,7 @@ export default function App() {
                       <span>✓ Sent ({ropeClimbs.filter(c => c.completed).length})</span>
                       <span>{showSentRope ? "▲" : "▼"}</span>
                     </button>
-                    {showSentRope && ropeClimbs.filter(c => c.completed).map(c => <ActiveClimbCard key={c.id} climb={c} {...cardProps} sessionCount={c.projectId ? getProjectHistory(c.projectId).length + 1 : null} />)}
+                    {showSentRope && ropeClimbs.filter(c => c.completed).map(c => <ActiveClimbCard key={c.id} climb={c} {...cardProps} sessionCount={c.projectId ? getProjectHistory(c.projectId).length + 1 : null} lapNumber={lapNumbers[c.id] || null} />)}
                   </>
                 )}
               </div>
@@ -3408,95 +3441,76 @@ export default function App() {
               <input ref={picRef} type="file" accept="image/*" style={{ display: "none" }} onChange={handleProfilePicUpload} />
             </div>
 
-            {/* Boulder grading */}
-            <div style={{ marginBottom: 14 }}>
-              <div style={{ fontSize: 11, fontWeight: 700, color: W.textMuted, textTransform: "uppercase", letterSpacing: 1.2, marginBottom: 8 }}>Boulder Grading</div>
-              <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-                {["V-Scale", "French", "Custom"].map(s => (
-                  <button key={s} onClick={() => setPreferredScale(s)} style={{ padding: "6px 12px", borderRadius: 16, border: "2px solid", borderColor: preferredScale === s ? W.accent : W.border, background: preferredScale === s ? W.accent + "22" : W.surface2, color: preferredScale === s ? W.accent : W.textDim, cursor: "pointer", fontSize: 12, fontWeight: preferredScale === s ? 700 : 500 }}>{s === "Custom" ? customBoulderScaleName : s}</button>
-                ))}
-              </div>
-              {preferredScale === "Custom" && (
-                <div style={{ marginTop: 10 }}>
-                  <div style={{ fontSize: 11, color: W.textMuted, marginBottom: 4 }}>Scale name</div>
-                  <input
-                    value={customBoulderScaleName}
-                    onChange={e => setCustomBoulderScaleName(e.target.value)}
-                    placeholder="e.g. Gym Grades"
-                    style={{ width: "100%", boxSizing: "border-box", padding: "8px 10px", background: W.surface2, border: `1px solid ${W.accent}`, borderRadius: 10, color: W.text, fontSize: 13, fontFamily: "inherit", marginBottom: 8 }}
-                  />
-                  <div style={{ fontSize: 11, color: W.textMuted, marginBottom: 4 }}>Grades (easiest → hardest, one per line or comma-separated)</div>
-                  <textarea
-                    value={customBoulderInput}
-                    onChange={e => setCustomBoulderInput(e.target.value)}
-                    onBlur={e => { const parsed = e.target.value.split(/[\n,]+/).map(x => x.trim()).filter(Boolean); setCustomBoulderGrades(parsed); setCustomBoulderInput(parsed.join(", ")); }}
-                    placeholder={"Easy\nMedium\nHard\nVery Hard"}
-                    rows={3}
-                    style={{ width: "100%", boxSizing: "border-box", background: W.surface2, border: `1px solid ${W.border}`, borderRadius: 10, padding: "8px 10px", color: W.text, fontSize: 12, resize: "vertical", fontFamily: "inherit" }}
-                  />
-                  {customBoulderGrades.length > 0 && (
-                    <div style={{ display: "flex", gap: 4, flexWrap: "wrap", marginTop: 6 }}>
-                      {customBoulderGrades.map((g, i) => (
-                        <span key={i} style={{ background: W.accent + "22", color: W.accent, borderRadius: 8, padding: "2px 8px", fontSize: 11, fontWeight: 600 }}>{g}</span>
+            {/* Grading (collapsible) */}
+            <div style={{ marginBottom: 14, border: `1px solid ${W.border}`, borderRadius: 10, overflow: "hidden" }}>
+              <button onClick={() => setSettingsGradingOpen(o => !o)} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", width: "100%", background: W.surface2, border: "none", padding: "10px 12px", cursor: "pointer" }}>
+                <span style={{ fontSize: 13, fontWeight: 700, color: W.text }}>Grading Schemes</span>
+                <span style={{ fontSize: 12, color: W.textDim }}>{settingsGradingOpen ? "▲" : "▼"}</span>
+              </button>
+              {settingsGradingOpen && (
+                <div style={{ padding: "12px", borderTop: `1px solid ${W.border}` }}>
+                  {/* Boulder grading */}
+                  <div style={{ marginBottom: 14 }}>
+                    <div style={{ fontSize: 11, fontWeight: 700, color: W.textMuted, textTransform: "uppercase", letterSpacing: 1.2, marginBottom: 8 }}>Boulder Grading</div>
+                    <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                      {["V-Scale", "French", "Custom"].map(s => (
+                        <button key={s} onClick={() => setPreferredScale(s)} style={{ padding: "6px 12px", borderRadius: 16, border: "2px solid", borderColor: preferredScale === s ? W.accent : W.border, background: preferredScale === s ? W.accent + "22" : W.surface2, color: preferredScale === s ? W.accent : W.textDim, cursor: "pointer", fontSize: 12, fontWeight: preferredScale === s ? 700 : 500 }}>{s === "Custom" ? customBoulderScaleName : s}</button>
                       ))}
                     </div>
-                  )}
-                </div>
-              )}
-            </div>
-
-            {/* Rope grading */}
-            <div style={{ marginBottom: 14 }}>
-              <div style={{ fontSize: 11, fontWeight: 700, color: W.textMuted, textTransform: "uppercase", letterSpacing: 1.2, marginBottom: 8 }}>Rope Grading</div>
-              <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-                {["YDS", "French", "Custom"].map(s => (
-                  <button key={s} onClick={() => setPreferredRopeScale(s)} style={{ padding: "6px 12px", borderRadius: 16, border: "2px solid", borderColor: preferredRopeScale === s ? W.accent : W.border, background: preferredRopeScale === s ? W.accent + "22" : W.surface2, color: preferredRopeScale === s ? W.accent : W.textDim, cursor: "pointer", fontSize: 12, fontWeight: preferredRopeScale === s ? 700 : 500 }}>{s === "Custom" ? customRopeScaleName : s}</button>
-                ))}
-              </div>
-              {preferredRopeScale === "Custom" && (
-                <div style={{ marginTop: 10 }}>
-                  <div style={{ fontSize: 11, color: W.textMuted, marginBottom: 4 }}>Scale name</div>
-                  <input
-                    value={customRopeScaleName}
-                    onChange={e => setCustomRopeScaleName(e.target.value)}
-                    placeholder="e.g. Local Wall Grades"
-                    style={{ width: "100%", boxSizing: "border-box", padding: "8px 10px", background: W.surface2, border: `1px solid ${W.accent}`, borderRadius: 10, color: W.text, fontSize: 13, fontFamily: "inherit", marginBottom: 8 }}
-                  />
-                  <div style={{ fontSize: 11, color: W.textMuted, marginBottom: 4 }}>Grades (easiest → hardest, one per line or comma-separated)</div>
-                  <textarea
-                    value={customRopeInput}
-                    onChange={e => setCustomRopeInput(e.target.value)}
-                    onBlur={e => { const parsed = e.target.value.split(/[\n,]+/).map(x => x.trim()).filter(Boolean); setCustomRopeGrades(parsed); setCustomRopeInput(parsed.join(", ")); }}
-                    placeholder={"Easy\nMedium\nHard\nProject"}
-                    rows={3}
-                    style={{ width: "100%", boxSizing: "border-box", background: W.surface2, border: `1px solid ${W.border}`, borderRadius: 10, padding: "8px 10px", color: W.text, fontSize: 12, resize: "vertical", fontFamily: "inherit" }}
-                  />
-                  {customRopeGrades.length > 0 && (
-                    <div style={{ display: "flex", gap: 4, flexWrap: "wrap", marginTop: 6 }}>
-                      {customRopeGrades.map((g, i) => (
-                        <span key={i} style={{ background: W.accent + "22", color: W.accent, borderRadius: 8, padding: "2px 8px", fontSize: 11, fontWeight: 600 }}>{g}</span>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
-
-            {/* Session Type Order */}
-            <div style={{ marginBottom: 14 }}>
-              <div style={{ fontSize: 11, fontWeight: 700, color: W.textMuted, textTransform: "uppercase", letterSpacing: 1.2, marginBottom: 8 }}>Session Type Order</div>
-              {sessionTypeOrder.map((typeId, i) => {
-                const labels = { boulder: "Bouldering", rope: "Rope Climbing", speed: "Speed Climbing", warmup: "Warm Up", workout: "Workout", fingerboard: "Fingerboard Session" };
-                return (
-                  <div key={typeId} style={{ display: "flex", alignItems: "center", gap: 6, padding: "7px 10px", marginBottom: 5, background: W.surface2, border: `1px solid ${W.border}`, borderRadius: 9 }}>
-                    <div style={{ display: "flex", flexDirection: "column", gap: 1 }}>
-                      <button onClick={() => i > 0 && setSessionTypeOrder(prev => { const a = [...prev]; [a[i-1], a[i]] = [a[i], a[i-1]]; return a; })} style={{ background: "transparent", border: "none", color: i > 0 ? W.textDim : W.border, fontSize: 10, cursor: i > 0 ? "pointer" : "default", padding: "0 2px", lineHeight: 1 }}>▲</button>
-                      <button onClick={() => i < sessionTypeOrder.length - 1 && setSessionTypeOrder(prev => { const a = [...prev]; [a[i], a[i+1]] = [a[i+1], a[i]]; return a; })} style={{ background: "transparent", border: "none", color: i < sessionTypeOrder.length - 1 ? W.textDim : W.border, fontSize: 10, cursor: i < sessionTypeOrder.length - 1 ? "pointer" : "default", padding: "0 2px", lineHeight: 1 }}>▼</button>
-                    </div>
-                    <span style={{ fontSize: 12, color: W.text, flex: 1 }}>{labels[typeId] || typeId}</span>
+                    {preferredScale === "Custom" && (
+                      <div style={{ marginTop: 10 }}>
+                        <div style={{ fontSize: 11, color: W.textMuted, marginBottom: 4 }}>Scale name</div>
+                        <input value={customBoulderScaleName} onChange={e => setCustomBoulderScaleName(e.target.value)} placeholder="e.g. Gym Grades" style={{ width: "100%", boxSizing: "border-box", padding: "8px 10px", background: W.surface2, border: `1px solid ${W.accent}`, borderRadius: 10, color: W.text, fontSize: 13, fontFamily: "inherit", marginBottom: 8 }} />
+                        <div style={{ fontSize: 11, color: W.textMuted, marginBottom: 4 }}>Grades (easiest → hardest, one per line or comma-separated)</div>
+                        <textarea value={customBoulderInput} onChange={e => setCustomBoulderInput(e.target.value)} onBlur={e => { const parsed = e.target.value.split(/[\n,]+/).map(x => x.trim()).filter(Boolean); setCustomBoulderGrades(parsed); setCustomBoulderInput(parsed.join(", ")); }} placeholder={"Easy\nMedium\nHard\nVery Hard"} rows={3} style={{ width: "100%", boxSizing: "border-box", background: W.surface2, border: `1px solid ${W.border}`, borderRadius: 10, padding: "8px 10px", color: W.text, fontSize: 12, resize: "vertical", fontFamily: "inherit" }} />
+                        {customBoulderGrades.length > 0 && <div style={{ display: "flex", gap: 4, flexWrap: "wrap", marginTop: 6 }}>{customBoulderGrades.map((g, i) => <span key={i} style={{ background: W.accent + "22", color: W.accent, borderRadius: 8, padding: "2px 8px", fontSize: 11, fontWeight: 600 }}>{g}</span>)}</div>}
+                      </div>
+                    )}
                   </div>
-                );
-              })}
+                  {/* Rope grading */}
+                  <div>
+                    <div style={{ fontSize: 11, fontWeight: 700, color: W.textMuted, textTransform: "uppercase", letterSpacing: 1.2, marginBottom: 8 }}>Rope Grading</div>
+                    <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                      {["YDS", "French", "Custom"].map(s => (
+                        <button key={s} onClick={() => setPreferredRopeScale(s)} style={{ padding: "6px 12px", borderRadius: 16, border: "2px solid", borderColor: preferredRopeScale === s ? W.accent : W.border, background: preferredRopeScale === s ? W.accent + "22" : W.surface2, color: preferredRopeScale === s ? W.accent : W.textDim, cursor: "pointer", fontSize: 12, fontWeight: preferredRopeScale === s ? 700 : 500 }}>{s === "Custom" ? customRopeScaleName : s}</button>
+                      ))}
+                    </div>
+                    {preferredRopeScale === "Custom" && (
+                      <div style={{ marginTop: 10 }}>
+                        <div style={{ fontSize: 11, color: W.textMuted, marginBottom: 4 }}>Scale name</div>
+                        <input value={customRopeScaleName} onChange={e => setCustomRopeScaleName(e.target.value)} placeholder="e.g. Local Wall Grades" style={{ width: "100%", boxSizing: "border-box", padding: "8px 10px", background: W.surface2, border: `1px solid ${W.accent}`, borderRadius: 10, color: W.text, fontSize: 13, fontFamily: "inherit", marginBottom: 8 }} />
+                        <div style={{ fontSize: 11, color: W.textMuted, marginBottom: 4 }}>Grades (easiest → hardest, one per line or comma-separated)</div>
+                        <textarea value={customRopeInput} onChange={e => setCustomRopeInput(e.target.value)} onBlur={e => { const parsed = e.target.value.split(/[\n,]+/).map(x => x.trim()).filter(Boolean); setCustomRopeGrades(parsed); setCustomRopeInput(parsed.join(", ")); }} placeholder={"Easy\nMedium\nHard\nProject"} rows={3} style={{ width: "100%", boxSizing: "border-box", background: W.surface2, border: `1px solid ${W.border}`, borderRadius: 10, padding: "8px 10px", color: W.text, fontSize: 12, resize: "vertical", fontFamily: "inherit" }} />
+                        {customRopeGrades.length > 0 && <div style={{ display: "flex", gap: 4, flexWrap: "wrap", marginTop: 6 }}>{customRopeGrades.map((g, i) => <span key={i} style={{ background: W.accent + "22", color: W.accent, borderRadius: 8, padding: "2px 8px", fontSize: 11, fontWeight: 600 }}>{g}</span>)}</div>}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Session Type Order (collapsible) */}
+            <div style={{ marginBottom: 14, border: `1px solid ${W.border}`, borderRadius: 10, overflow: "hidden" }}>
+              <button onClick={() => setSettingsSessionTypeOpen(o => !o)} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", width: "100%", background: W.surface2, border: "none", padding: "10px 12px", cursor: "pointer" }}>
+                <span style={{ fontSize: 13, fontWeight: 700, color: W.text }}>Session Type Order</span>
+                <span style={{ fontSize: 12, color: W.textDim }}>{settingsSessionTypeOpen ? "▲" : "▼"}</span>
+              </button>
+              {settingsSessionTypeOpen && (
+                <div style={{ padding: "10px 12px", borderTop: `1px solid ${W.border}` }}>
+                  {sessionTypeOrder.map((typeId, i) => {
+                    const labels = { boulder: "Bouldering", rope: "Rope Climbing", speed: "Speed Climbing", warmup: "Warm Up", workout: "Workout", fingerboard: "Fingerboard Session" };
+                    return (
+                      <div key={typeId} style={{ display: "flex", alignItems: "center", gap: 6, padding: "7px 10px", marginBottom: 5, background: W.surface, border: `1px solid ${W.border}`, borderRadius: 9 }}>
+                        <div style={{ display: "flex", flexDirection: "column", gap: 1 }}>
+                          <button onClick={() => i > 0 && setSessionTypeOrder(prev => { const a = [...prev]; [a[i-1], a[i]] = [a[i], a[i-1]]; return a; })} style={{ background: "transparent", border: "none", color: i > 0 ? W.textDim : W.border, fontSize: 10, cursor: i > 0 ? "pointer" : "default", padding: "0 2px", lineHeight: 1 }}>▲</button>
+                          <button onClick={() => i < sessionTypeOrder.length - 1 && setSessionTypeOrder(prev => { const a = [...prev]; [a[i], a[i+1]] = [a[i+1], a[i]]; return a; })} style={{ background: "transparent", border: "none", color: i < sessionTypeOrder.length - 1 ? W.textDim : W.border, fontSize: 10, cursor: i < sessionTypeOrder.length - 1 ? "pointer" : "default", padding: "0 2px", lineHeight: 1 }}>▼</button>
+                        </div>
+                        <span style={{ fontSize: 12, color: W.text, flex: 1 }}>{labels[typeId] || typeId}</span>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
             </div>
 
             {/* Gym Set Stale Alert */}
@@ -3510,13 +3524,18 @@ export default function App() {
               </div>
             </div>
 
-            {/* Warmup Templates */}
+            {/* Warmup Templates (collapsible) */}
             {(() => {
               const activeTpl = warmupTemplates.find(t => t.id === activeWarmupTemplateId) || warmupTemplates[0];
               const updateActiveTplItems = (updater) => setWarmupTemplates(prev => prev.map(t => t.id === activeTpl.id ? { ...t, items: updater(t.items) } : t));
               return (
-                <div style={{ marginBottom: 14 }}>
-                  <div style={{ fontSize: 11, fontWeight: 700, color: W.textMuted, textTransform: "uppercase", letterSpacing: 1.2, marginBottom: 8 }}>Warmup Templates</div>
+                <div style={{ marginBottom: 14, border: `1px solid ${W.border}`, borderRadius: 10, overflow: "hidden" }}>
+                  <button onClick={() => setSettingsWarmupOpen(o => !o)} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", width: "100%", background: W.surface2, border: "none", padding: "10px 12px", cursor: "pointer" }}>
+                    <span style={{ fontSize: 13, fontWeight: 700, color: W.text }}>Warmup Templates</span>
+                    <span style={{ fontSize: 12, color: W.textDim }}>{settingsWarmupOpen ? "▲" : "▼"}</span>
+                  </button>
+                  {settingsWarmupOpen && <div style={{ padding: "10px 12px", borderTop: `1px solid ${W.border}` }}>
+                  <div style={{ fontSize: 11, fontWeight: 700, color: W.textMuted, textTransform: "uppercase", letterSpacing: 1.2, marginBottom: 8, display: "none" }}>Warmup Templates</div>
                   {/* Template tabs */}
                   <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 10 }}>
                     {warmupTemplates.map(t => (
@@ -3572,52 +3591,63 @@ export default function App() {
                       <div style={{ position: "absolute", top: 3, left: autoEndWarmup ? 21 : 3, width: 18, height: 18, borderRadius: "50%", background: "#fff", transition: "left 0.2s" }} />
                     </button>
                   </div>
+                  </div>}
                 </div>
               );
             })()}
 
-            {/* Default Workout Checklist */}
-            <div style={{ marginBottom: 14 }}>
-              <div style={{ fontSize: 11, fontWeight: 700, color: W.textMuted, textTransform: "uppercase", letterSpacing: 1.2, marginBottom: 8 }}>Default Workout Checklist</div>
-              {defaultWorkoutItems.map((item, i) => (
-                <div key={item.id} style={{ display: "flex", alignItems: "center", gap: 6, padding: "7px 10px", marginBottom: 5, background: W.surface2, border: `1px solid ${W.border}`, borderRadius: 9 }}>
-                  <div style={{ display: "flex", flexDirection: "column", gap: 1 }}>
-                    <button onClick={() => i > 0 && setDefaultWorkoutItems(prev => { const a = [...prev]; [a[i-1], a[i]] = [a[i], a[i-1]]; return a; })} style={{ background: "transparent", border: "none", color: i > 0 ? W.textDim : W.border, fontSize: 10, cursor: i > 0 ? "pointer" : "default", padding: "0 2px", lineHeight: 1 }}>▲</button>
-                    <button onClick={() => i < defaultWorkoutItems.length - 1 && setDefaultWorkoutItems(prev => { const a = [...prev]; [a[i], a[i+1]] = [a[i+1], a[i]]; return a; })} style={{ background: "transparent", border: "none", color: i < defaultWorkoutItems.length - 1 ? W.textDim : W.border, fontSize: 10, cursor: i < defaultWorkoutItems.length - 1 ? "pointer" : "default", padding: "0 2px", lineHeight: 1 }}>▼</button>
+            {/* Default Workout Checklist (collapsible) */}
+            <div style={{ marginBottom: 14, border: `1px solid ${W.border}`, borderRadius: 10, overflow: "hidden" }}>
+              <button onClick={() => setSettingsWorkoutOpen(o => !o)} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", width: "100%", background: W.surface2, border: "none", padding: "10px 12px", cursor: "pointer" }}>
+                <span style={{ fontSize: 13, fontWeight: 700, color: W.text }}>Default Workout Checklist</span>
+                <span style={{ fontSize: 12, color: W.textDim }}>{settingsWorkoutOpen ? "▲" : "▼"}</span>
+              </button>
+              {settingsWorkoutOpen && (
+                <div style={{ padding: "10px 12px", borderTop: `1px solid ${W.border}` }}>
+                  {defaultWorkoutItems.map((item, i) => (
+                    <div key={item.id} style={{ display: "flex", alignItems: "center", gap: 6, padding: "7px 10px", marginBottom: 5, background: W.surface, border: `1px solid ${W.border}`, borderRadius: 9 }}>
+                      <div style={{ display: "flex", flexDirection: "column", gap: 1 }}>
+                        <button onClick={() => i > 0 && setDefaultWorkoutItems(prev => { const a = [...prev]; [a[i-1], a[i]] = [a[i], a[i-1]]; return a; })} style={{ background: "transparent", border: "none", color: i > 0 ? W.textDim : W.border, fontSize: 10, cursor: i > 0 ? "pointer" : "default", padding: "0 2px", lineHeight: 1 }}>▲</button>
+                        <button onClick={() => i < defaultWorkoutItems.length - 1 && setDefaultWorkoutItems(prev => { const a = [...prev]; [a[i], a[i+1]] = [a[i+1], a[i]]; return a; })} style={{ background: "transparent", border: "none", color: i < defaultWorkoutItems.length - 1 ? W.textDim : W.border, fontSize: 10, cursor: i < defaultWorkoutItems.length - 1 ? "pointer" : "default", padding: "0 2px", lineHeight: 1 }}>▼</button>
+                      </div>
+                      <span style={{ fontSize: 12, color: W.text, flex: 1 }}>{item.text}</span>
+                      <button onClick={() => setDefaultWorkoutItems(prev => prev.filter(x => x.id !== item.id))} style={{ background: "transparent", border: "none", color: W.textDim, fontSize: 16, cursor: "pointer", lineHeight: 1, padding: "0 2px" }}>×</button>
+                    </div>
+                  ))}
+                  <div style={{ display: "flex", gap: 6, marginTop: 4 }}>
+                    <input value={workoutSettingsNewItem} onChange={e => setWorkoutSettingsNewItem(e.target.value)} onKeyDown={e => { if (e.key === "Enter" && workoutSettingsNewItem.trim()) { setDefaultWorkoutItems(prev => [...prev, { id: Date.now(), text: workoutSettingsNewItem.trim() }]); setWorkoutSettingsNewItem(""); } }} placeholder="Add exercise…" style={{ flex: 1, padding: "7px 10px", borderRadius: 9, border: `1px solid ${W.border}`, background: W.surface, color: W.text, fontSize: 12, outline: "none" }} />
+                    <button onClick={() => { if (workoutSettingsNewItem.trim()) { setDefaultWorkoutItems(prev => [...prev, { id: Date.now(), text: workoutSettingsNewItem.trim() }]); setWorkoutSettingsNewItem(""); } }} style={{ padding: "7px 12px", borderRadius: 9, border: `1px solid ${W.accentDark}55`, background: W.accent + "22", color: W.accentDark, fontWeight: 700, fontSize: 13, cursor: "pointer" }}>+</button>
                   </div>
-                  <span style={{ fontSize: 12, color: W.text, flex: 1 }}>{item.text}</span>
-                  <button onClick={() => setDefaultWorkoutItems(prev => prev.filter(x => x.id !== item.id))} style={{ background: "transparent", border: "none", color: W.textDim, fontSize: 16, cursor: "pointer", lineHeight: 1, padding: "0 2px" }}>×</button>
+                  <button onClick={() => setDefaultWorkoutItems(DEFAULT_WORKOUT_ITEMS.map(i => ({ ...i })))} style={{ marginTop: 6, padding: "5px 10px", borderRadius: 8, border: `1px solid ${W.border}`, background: "transparent", color: W.textDim, fontSize: 11, cursor: "pointer" }}>Reset to defaults</button>
                 </div>
-              ))}
-              <div style={{ display: "flex", gap: 6, marginTop: 4 }}>
-                <input value={workoutSettingsNewItem} onChange={e => setWorkoutSettingsNewItem(e.target.value)}
-                  onKeyDown={e => { if (e.key === "Enter" && workoutSettingsNewItem.trim()) { setDefaultWorkoutItems(prev => [...prev, { id: Date.now(), text: workoutSettingsNewItem.trim() }]); setWorkoutSettingsNewItem(""); } }}
-                  placeholder="Add exercise…" style={{ flex: 1, padding: "7px 10px", borderRadius: 9, border: `1px solid ${W.border}`, background: W.surface, color: W.text, fontSize: 12, outline: "none" }} />
-                <button onClick={() => { if (workoutSettingsNewItem.trim()) { setDefaultWorkoutItems(prev => [...prev, { id: Date.now(), text: workoutSettingsNewItem.trim() }]); setWorkoutSettingsNewItem(""); } }} style={{ padding: "7px 12px", borderRadius: 9, border: `1px solid ${W.accentDark}55`, background: W.accent + "22", color: W.accentDark, fontWeight: 700, fontSize: 13, cursor: "pointer" }}>+</button>
-              </div>
-              <button onClick={() => setDefaultWorkoutItems(DEFAULT_WORKOUT_ITEMS.map(i => ({ ...i })))} style={{ marginTop: 6, padding: "5px 10px", borderRadius: 8, border: `1px solid ${W.border}`, background: "transparent", color: W.textDim, fontSize: 11, cursor: "pointer" }}>Reset to defaults</button>
+              )}
             </div>
 
-            {/* Default Fingerboard Checklist */}
-            <div style={{ marginBottom: 14 }}>
-              <div style={{ fontSize: 11, fontWeight: 700, color: W.textMuted, textTransform: "uppercase", letterSpacing: 1.2, marginBottom: 8 }}>Default Fingerboard Checklist</div>
-              {defaultFingerboardItems.map((item, i) => (
-                <div key={item.id} style={{ display: "flex", alignItems: "center", gap: 6, padding: "7px 10px", marginBottom: 5, background: W.surface2, border: `1px solid ${W.border}`, borderRadius: 9 }}>
-                  <div style={{ display: "flex", flexDirection: "column", gap: 1 }}>
-                    <button onClick={() => i > 0 && setDefaultFingerboardItems(prev => { const a = [...prev]; [a[i-1], a[i]] = [a[i], a[i-1]]; return a; })} style={{ background: "transparent", border: "none", color: i > 0 ? W.textDim : W.border, fontSize: 10, cursor: i > 0 ? "pointer" : "default", padding: "0 2px", lineHeight: 1 }}>▲</button>
-                    <button onClick={() => i < defaultFingerboardItems.length - 1 && setDefaultFingerboardItems(prev => { const a = [...prev]; [a[i], a[i+1]] = [a[i+1], a[i]]; return a; })} style={{ background: "transparent", border: "none", color: i < defaultFingerboardItems.length - 1 ? W.textDim : W.border, fontSize: 10, cursor: i < defaultFingerboardItems.length - 1 ? "pointer" : "default", padding: "0 2px", lineHeight: 1 }}>▼</button>
+            {/* Default Fingerboard Checklist (collapsible) */}
+            <div style={{ marginBottom: 14, border: `1px solid ${W.border}`, borderRadius: 10, overflow: "hidden" }}>
+              <button onClick={() => setSettingsFingerboardOpen(o => !o)} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", width: "100%", background: W.surface2, border: "none", padding: "10px 12px", cursor: "pointer" }}>
+                <span style={{ fontSize: 13, fontWeight: 700, color: W.text }}>Default Fingerboard Checklist</span>
+                <span style={{ fontSize: 12, color: W.textDim }}>{settingsFingerboardOpen ? "▲" : "▼"}</span>
+              </button>
+              {settingsFingerboardOpen && (
+                <div style={{ padding: "10px 12px", borderTop: `1px solid ${W.border}` }}>
+                  {defaultFingerboardItems.map((item, i) => (
+                    <div key={item.id} style={{ display: "flex", alignItems: "center", gap: 6, padding: "7px 10px", marginBottom: 5, background: W.surface, border: `1px solid ${W.border}`, borderRadius: 9 }}>
+                      <div style={{ display: "flex", flexDirection: "column", gap: 1 }}>
+                        <button onClick={() => i > 0 && setDefaultFingerboardItems(prev => { const a = [...prev]; [a[i-1], a[i]] = [a[i], a[i-1]]; return a; })} style={{ background: "transparent", border: "none", color: i > 0 ? W.textDim : W.border, fontSize: 10, cursor: i > 0 ? "pointer" : "default", padding: "0 2px", lineHeight: 1 }}>▲</button>
+                        <button onClick={() => i < defaultFingerboardItems.length - 1 && setDefaultFingerboardItems(prev => { const a = [...prev]; [a[i], a[i+1]] = [a[i+1], a[i]]; return a; })} style={{ background: "transparent", border: "none", color: i < defaultFingerboardItems.length - 1 ? W.textDim : W.border, fontSize: 10, cursor: i < defaultFingerboardItems.length - 1 ? "pointer" : "default", padding: "0 2px", lineHeight: 1 }}>▼</button>
+                      </div>
+                      <span style={{ fontSize: 12, color: W.text, flex: 1 }}>{item.text}</span>
+                      <button onClick={() => setDefaultFingerboardItems(prev => prev.filter(x => x.id !== item.id))} style={{ background: "transparent", border: "none", color: W.textDim, fontSize: 16, cursor: "pointer", lineHeight: 1, padding: "0 2px" }}>×</button>
+                    </div>
+                  ))}
+                  <div style={{ display: "flex", gap: 6, marginTop: 4 }}>
+                    <input value={fingerboardSettingsNewItem} onChange={e => setFingerboardSettingsNewItem(e.target.value)} onKeyDown={e => { if (e.key === "Enter" && fingerboardSettingsNewItem.trim()) { setDefaultFingerboardItems(prev => [...prev, { id: Date.now(), text: fingerboardSettingsNewItem.trim() }]); setFingerboardSettingsNewItem(""); } }} placeholder="Add protocol…" style={{ flex: 1, padding: "7px 10px", borderRadius: 9, border: `1px solid ${W.border}`, background: W.surface, color: W.text, fontSize: 12, outline: "none" }} />
+                    <button onClick={() => { if (fingerboardSettingsNewItem.trim()) { setDefaultFingerboardItems(prev => [...prev, { id: Date.now(), text: fingerboardSettingsNewItem.trim() }]); setFingerboardSettingsNewItem(""); } }} style={{ padding: "7px 12px", borderRadius: 9, border: `1px solid ${W.yellowDark}55`, background: W.yellow, color: W.yellowDark, fontWeight: 700, fontSize: 13, cursor: "pointer" }}>+</button>
                   </div>
-                  <span style={{ fontSize: 12, color: W.text, flex: 1 }}>{item.text}</span>
-                  <button onClick={() => setDefaultFingerboardItems(prev => prev.filter(x => x.id !== item.id))} style={{ background: "transparent", border: "none", color: W.textDim, fontSize: 16, cursor: "pointer", lineHeight: 1, padding: "0 2px" }}>×</button>
+                  <button onClick={() => setDefaultFingerboardItems(DEFAULT_FINGERBOARD_ITEMS.map(i => ({ ...i })))} style={{ marginTop: 6, padding: "5px 10px", borderRadius: 8, border: `1px solid ${W.border}`, background: "transparent", color: W.textDim, fontSize: 11, cursor: "pointer" }}>Reset to defaults</button>
                 </div>
-              ))}
-              <div style={{ display: "flex", gap: 6, marginTop: 4 }}>
-                <input value={fingerboardSettingsNewItem} onChange={e => setFingerboardSettingsNewItem(e.target.value)}
-                  onKeyDown={e => { if (e.key === "Enter" && fingerboardSettingsNewItem.trim()) { setDefaultFingerboardItems(prev => [...prev, { id: Date.now(), text: fingerboardSettingsNewItem.trim() }]); setFingerboardSettingsNewItem(""); } }}
-                  placeholder="Add protocol…" style={{ flex: 1, padding: "7px 10px", borderRadius: 9, border: `1px solid ${W.border}`, background: W.surface, color: W.text, fontSize: 12, outline: "none" }} />
-                <button onClick={() => { if (fingerboardSettingsNewItem.trim()) { setDefaultFingerboardItems(prev => [...prev, { id: Date.now(), text: fingerboardSettingsNewItem.trim() }]); setFingerboardSettingsNewItem(""); } }} style={{ padding: "7px 12px", borderRadius: 9, border: `1px solid ${W.yellowDark}55`, background: W.yellow, color: W.yellowDark, fontWeight: 700, fontSize: 13, cursor: "pointer" }}>+</button>
-              </div>
-              <button onClick={() => setDefaultFingerboardItems(DEFAULT_FINGERBOARD_ITEMS.map(i => ({ ...i })))} style={{ marginTop: 6, padding: "5px 10px", borderRadius: 8, border: `1px solid ${W.border}`, background: "transparent", color: W.textDim, fontSize: 11, cursor: "pointer" }}>Reset to defaults</button>
+              )}
             </div>
 
             {/* App Theme */}
@@ -3692,12 +3722,23 @@ export default function App() {
               </div>
             )}
             {!confirmLogout
-              ? <button onClick={() => setConfirmLogout(true)} style={{ width: "100%", padding: "11px", background: W.red, border: `1px solid ${W.redDark}`, borderRadius: 12, color: W.redDark, fontWeight: 700, fontSize: 13, cursor: "pointer" }}>Sign Out</button>
-              : <div style={{ background: W.red, borderRadius: 12, padding: "14px", border: `1px solid ${W.redDark}` }}>
+              ? <button onClick={() => setConfirmLogout(true)} style={{ width: "100%", padding: "11px", background: W.red, border: `1px solid ${W.redDark}`, borderRadius: 12, color: W.redDark, fontWeight: 700, fontSize: 13, cursor: "pointer", marginBottom: 8 }}>Sign Out</button>
+              : <div style={{ background: W.red, borderRadius: 12, padding: "14px", border: `1px solid ${W.redDark}`, marginBottom: 8 }}>
                   <div style={{ fontSize: 13, fontWeight: 700, color: W.redDark, marginBottom: 10 }}>Sign out of @{currentUser?.username}?</div>
                   <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
                     <button onClick={() => setConfirmLogout(false)} style={{ padding: "9px", background: "transparent", border: `1px solid ${W.border}`, borderRadius: 10, color: W.textMuted, cursor: "pointer", fontWeight: 600 }}>Cancel</button>
                     <button onClick={handleLogout} style={{ padding: "9px", background: W.redDark, border: "none", borderRadius: 10, color: "#fff", cursor: "pointer", fontWeight: 700 }}>Sign Out</button>
+                  </div>
+                </div>}
+            {!confirmDeleteAccount
+              ? <button onClick={() => { setConfirmDeleteAccount(true); setDeleteAccountInput(""); }} style={{ width: "100%", padding: "11px", background: "transparent", border: `1px solid ${W.redDark}55`, borderRadius: 12, color: W.redDark, fontWeight: 700, fontSize: 13, cursor: "pointer", opacity: 0.7 }}>Delete Account</button>
+              : <div style={{ background: W.red, borderRadius: 12, padding: "14px", border: `1px solid ${W.redDark}` }}>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: W.redDark, marginBottom: 4 }}>This will permanently delete all your data.</div>
+                  <div style={{ fontSize: 12, color: W.redDark, opacity: 0.8, marginBottom: 10 }}>Type your username to confirm:</div>
+                  <input value={deleteAccountInput} onChange={e => setDeleteAccountInput(e.target.value)} placeholder={currentUser?.username} style={{ width: "100%", boxSizing: "border-box", padding: "9px 12px", background: W.surface, border: `1.5px solid ${W.redDark}`, borderRadius: 10, color: W.text, fontSize: 13, fontFamily: "inherit", marginBottom: 10 }} />
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+                    <button onClick={() => setConfirmDeleteAccount(false)} style={{ padding: "9px", background: "transparent", border: `1px solid ${W.border}`, borderRadius: 10, color: W.textMuted, cursor: "pointer", fontWeight: 600 }}>Cancel</button>
+                    <button onClick={handleDeleteAccount} disabled={deleteAccountInput !== currentUser?.username} style={{ padding: "9px", background: deleteAccountInput === currentUser?.username ? W.redDark : W.border, border: "none", borderRadius: 10, color: "#fff", cursor: deleteAccountInput === currentUser?.username ? "pointer" : "default", fontWeight: 700, opacity: deleteAccountInput === currentUser?.username ? 1 : 0.5 }}>Delete Forever</button>
                   </div>
                 </div>}
           </div>
@@ -4489,7 +4530,7 @@ export default function App() {
                                   {ageLabel && <span style={{ marginLeft: "auto", fontSize: 10, color: isStale ? "#b45309" : W.textMuted, fontWeight: 700, whiteSpace: "nowrap" }}>{ageLabel}</span>}
                                 </div>
                                 <div style={{ fontSize: 11, color: W.textMuted, marginTop: 2 }}>
-                                  {entrySessionCount} session{entrySessionCount !== 1 ? "s" : ""} · {entryAttempts.length} lap{entryAttempts.length !== 1 ? "s" : ""} · {entrySends} send{entrySends !== 1 ? "s" : ""}
+                                  {entrySessionCount} session{entrySessionCount !== 1 ? "s" : ""} · {entryAttempts.length} lap{entryAttempts.length !== 1 ? "s" : ""} · {entrySends} send{entrySends !== 1 ? "s" : ""}{entryAttempts.length > 0 ? ` · ${Math.round((entrySends / entryAttempts.length) * 100)}%` : ""}
                                 </div>
                               </div>
                               <span style={{ color: W.textMuted, fontSize: 16 }}>›</span>
@@ -5708,7 +5749,7 @@ export default function App() {
       const sendRate = allAttempts.length ? Math.round((sends / allAttempts.length) * 100) : 0;
       const setDate = setEntry?.setDate ? new Date(setEntry.setDate).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : null;
       return (
-        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.6)", zIndex: 400, display: "flex", alignItems: "flex-end", justifyContent: "center" }} onClick={() => setSelectedSetClimb(null)}>
+        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.6)", zIndex: 400, display: "flex", alignItems: "flex-end", justifyContent: "center" }} onClick={() => { setSelectedSetClimb(null); setDeleteSetConfirm(false); }}>
           <div style={{ background: W.bg, borderRadius: "20px 20px 0 0", padding: "24px 20px 36px", width: "100%", maxWidth: 480, border: `1px solid ${W.border}` }} onClick={e => e.stopPropagation()}>
             {/* Header */}
             <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 18 }}>
@@ -5745,9 +5786,21 @@ export default function App() {
                     Remove from Wall
                   </button>
                 ) : (
-                  <button onClick={() => { setGymSets(prev => { const loc = setEntry.location; return { ...prev, [loc]: (prev[loc] || []).map(e => e.id === setEntry.id ? { ...e, removed: false, removedDate: null } : e) }; }); setSelectedSetClimb(null); }} style={{ width: "100%", padding: "13px", background: W.surface2, border: `1px solid ${W.border}`, borderRadius: 14, color: W.textMuted, fontWeight: 700, fontSize: 14, cursor: "pointer", marginBottom: 10 }}>
-                    Put Back on Wall
-                  </button>
+                  <>
+                    <button onClick={() => { setGymSets(prev => { const loc = setEntry.location; return { ...prev, [loc]: (prev[loc] || []).map(e => e.id === setEntry.id ? { ...e, removed: false, removedDate: null } : e) }; }); setSelectedSetClimb(null); }} style={{ width: "100%", padding: "13px", background: W.surface2, border: `1px solid ${W.border}`, borderRadius: 14, color: W.textMuted, fontWeight: 700, fontSize: 14, cursor: "pointer", marginBottom: 8 }}>
+                      Put Back on Wall
+                    </button>
+                    {!deleteSetConfirm
+                      ? <button onClick={() => setDeleteSetConfirm(true)} style={{ width: "100%", padding: "11px", background: "transparent", border: "1px solid #f87171", borderRadius: 14, color: "#b91c1c", fontWeight: 700, fontSize: 13, cursor: "pointer", marginBottom: 10, opacity: 0.8 }}>Delete Permanently</button>
+                      : <div style={{ background: "#fca5a5", borderRadius: 14, padding: "12px", marginBottom: 10, border: "1px solid #f87171" }}>
+                          <div style={{ fontSize: 13, fontWeight: 700, color: "#b91c1c", marginBottom: 8 }}>Delete this climb and all its history?</div>
+                          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+                            <button onClick={() => setDeleteSetConfirm(false)} style={{ padding: "9px", background: "transparent", border: `1px solid ${W.border}`, borderRadius: 10, color: W.textMuted, cursor: "pointer", fontWeight: 600 }}>Cancel</button>
+                            <button onClick={() => { setGymSets(prev => { const loc = setEntry.location; return { ...prev, [loc]: (prev[loc] || []).filter(e => e.id !== setEntry.id) }; }); setSelectedSetClimb(null); setDeleteSetConfirm(false); }} style={{ padding: "9px", background: "#b91c1c", border: "none", borderRadius: 10, color: "#fff", cursor: "pointer", fontWeight: 700 }}>Delete Forever</button>
+                          </div>
+                        </div>
+                    }
+                  </>
                 )}
               </>
             ) : (
@@ -5760,7 +5813,7 @@ export default function App() {
                 ))}
               </div>
             )}
-            <button onClick={() => setSelectedSetClimb(null)} style={{ width: "100%", padding: "11px", background: "transparent", border: `1px solid ${W.border}`, borderRadius: 14, color: W.textMuted, fontWeight: 600, fontSize: 13, cursor: "pointer" }}>Close</button>
+            <button onClick={() => { setSelectedSetClimb(null); setDeleteSetConfirm(false); }} style={{ width: "100%", padding: "11px", background: "transparent", border: `1px solid ${W.border}`, borderRadius: 14, color: W.textMuted, fontWeight: 600, fontSize: 13, cursor: "pointer" }}>Close</button>
           </div>
         </div>
       );
