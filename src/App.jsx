@@ -665,6 +665,17 @@ export default function App() {
     await handleLogout();
   };
 
+  const handleExportData = () => {
+    const data = { exportedAt: new Date().toISOString(), username: currentUser?.username, sessions, projects, gymSets };
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `sendlog-${currentUser?.username}-${new Date().toISOString().slice(0,10)}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
   const handleProfilePicUpload = (e) => {
     const file = e.target.files[0];
     if (!file) return;
@@ -1061,7 +1072,7 @@ export default function App() {
     const finalDuration = sessionActiveStart ? Math.floor((now - sessionActiveStart) / 1000) + sessionPausedSec : sessionPausedSec;
     const rawLoc = (final.location || pendingLocation || "Unknown Gym").trim();
     const location = rawLoc.replace(/\b([a-z])/g, c => c.toUpperCase());
-    const completed = { id: now, date: new Date().toISOString(), duration: finalDuration, location, climbs: final.climbs, boulderTotalSec: final.boulderTotalSec || 0, ropeTotalSec: final.ropeTotalSec || 0, warmupTotalSec: final.warmupTotalSec || 0, warmupChecklist: final.warmupChecklist || [], warmupTemplateName: final.warmupTemplateName || null, workoutTotalSec: final.workoutTotalSec || 0, workoutChecklist: final.workoutChecklist || [], fingerboardTotalSec: final.fingerboardTotalSec || 0, fingerboardChecklist: final.fingerboardChecklist || [], boulderStartedAt: final.boulderStartedAt, ropeStartedAt: final.ropeStartedAt, sessionTypes: final.sessionTypes || [] };
+    const completed = { id: now, date: new Date().toISOString(), duration: finalDuration, location, climbs: final.climbs, boulderTotalSec: final.boulderTotalSec || 0, ropeTotalSec: final.ropeTotalSec || 0, warmupTotalSec: final.warmupTotalSec || 0, warmupChecklist: final.warmupChecklist || [], warmupTemplateName: final.warmupTemplateName || null, workoutTotalSec: final.workoutTotalSec || 0, workoutChecklist: final.workoutChecklist || [], fingerboardTotalSec: final.fingerboardTotalSec || 0, fingerboardChecklist: final.fingerboardChecklist || [], boulderStartedAt: final.boulderStartedAt, ropeStartedAt: final.ropeStartedAt, sessionTypes: final.sessionTypes || [], notes: final.notes || null };
     setSessions(prev => [completed, ...prev]);
     const sentProjectIds = (final.climbs || []).filter(c => c.isProject && c.completed && c.projectId).map(c => c.projectId);
     if (sentProjectIds.length > 0) {
@@ -1072,6 +1083,7 @@ export default function App() {
     localStorage.removeItem("active:climb");
   };
   const deleteSession = (id) => { setSessions(prev => prev.filter(s => s.id !== id)); setScreen("profile"); setProfileTab("logbook"); };
+  const updateSessionNotes = (id, notes) => setSessions(prev => prev.map(s => s.id === id ? { ...s, notes } : s));
   const discardSession = () => {
     if (!sessionSummary) return;
     setSessions(prev => prev.filter(s => s.id !== sessionSummary.id));
@@ -2280,6 +2292,11 @@ export default function App() {
             </div>
           );
         })()}
+        {session.notes && (
+          <div style={{ padding: "10px 16px", borderBottom: `1px solid ${W.border}`, fontSize: 13, color: W.textMuted, fontStyle: "italic", lineHeight: 1.5 }}>
+            "{session.notes}"
+          </div>
+        )}
         {/* Photo swiper */}
         {climbPhotos.length > 0 && (() => {
           const photo = climbPhotos[safeIdx];
@@ -2959,6 +2976,18 @@ export default function App() {
             </>
           );
         })()}
+        {!showClimbForm && (
+          <div style={{ marginTop: 16, marginBottom: 4 }}>
+            <div style={{ fontSize: 11, fontWeight: 700, color: W.textMuted, textTransform: "uppercase", letterSpacing: 1.2, marginBottom: 6 }}>Session Notes</div>
+            <textarea
+              value={activeSession?.notes || ""}
+              onChange={e => setActiveSession(s => ({ ...s, notes: e.target.value }))}
+              placeholder="How did it go? Conditions, goals, observations…"
+              rows={3}
+              style={{ width: "100%", boxSizing: "border-box", padding: "10px 12px", background: W.surface2, border: `1px solid ${W.border}`, borderRadius: 12, color: W.text, fontSize: 13, fontFamily: "inherit", resize: "vertical", outline: "none" }}
+            />
+          </div>
+        )}
         {!showClimbForm && (
           <div style={{ marginTop: 4 }}>
             <button onClick={toggleSessionTimer} style={{ width: "100%", padding: "12px", background: W.surface2, border: `2px solid ${W.border}`, borderRadius: 14, color: W.textMuted, fontWeight: 700, fontSize: 22, cursor: "pointer", marginBottom: 8 }}>{timerRunning ? "⏸" : "▶"}</button>
@@ -3721,6 +3750,7 @@ export default function App() {
                 {saveStatus === "saving" ? "💾 Saving…" : saveStatus === "saved" ? "✓ All changes saved" : "⚠️ Save failed — check connection"}
               </div>
             )}
+            <button onClick={handleExportData} style={{ width: "100%", padding: "11px", background: W.surface2, border: `1px solid ${W.border}`, borderRadius: 12, color: W.textMuted, fontWeight: 700, fontSize: 13, cursor: "pointer", marginBottom: 8 }}>Export My Data (JSON)</button>
             {!confirmLogout
               ? <button onClick={() => setConfirmLogout(true)} style={{ width: "100%", padding: "11px", background: W.red, border: `1px solid ${W.redDark}`, borderRadius: 12, color: W.redDark, fontWeight: 700, fontSize: 13, cursor: "pointer", marginBottom: 8 }}>Sign Out</button>
               : <div style={{ background: W.red, borderRadius: 12, padding: "14px", border: `1px solid ${W.redDark}`, marginBottom: 8 }}>
@@ -5394,6 +5424,7 @@ export default function App() {
           discardSession={discardSession}
           showSummaryLeaveWarn={showSummaryLeaveWarn}
           setShowSummaryLeaveWarn={setShowSummaryLeaveWarn}
+          updateSessionNotes={updateSessionNotes}
         />}
       </div>
 

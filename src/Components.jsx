@@ -322,7 +322,7 @@ export const ActiveClimbCard = ({ climb, onEdit, onStartClimbing, onEndAttempt, 
               {climb.completed && <span style={{ color: "#fff", fontSize: 13, lineHeight: 1 }}>✓</span>}
             </div>
             <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-start" }}>
-              <span style={{ fontSize: 13, fontWeight: 700, color: climb.completed ? W.greenDark : W.textMuted }}>{climb.completed ? "Sent!" : "Mark Sent"}</span>
+              <span style={{ fontSize: 13, fontWeight: 700, color: climb.completed ? W.greenDark : W.textMuted }}>{climb.completed ? (lapNumber > 1 ? `Lap ${lapNumber} sent` : "Sent!") : "Mark Sent"}</span>
               {climb.completed && (climb.attemptLog || []).length > 0 && (
                 <span style={{ fontSize: 10, color: W.greenDark, fontWeight: 600, opacity: 0.8 }}>
                   {formatDuration(Math.floor(climb.attemptLog[climb.attemptLog.length - 1].duration / 1000))}
@@ -406,7 +406,7 @@ export const ActiveClimbCard = ({ climb, onEdit, onStartClimbing, onEndAttempt, 
                     <div style={{ width: 30, height: 30, borderRadius: 8, border: `2.5px solid ${W.greenDark}`, background: climb.completed ? W.greenDark : "transparent", display: "flex", alignItems: "center", justifyContent: "center" }}>
                       {climb.completed && <span style={{ color: "#fff", fontSize: 17, lineHeight: 1 }}>✓</span>}
                     </div>
-                    <span style={{ fontSize: 16, fontWeight: 800, color: W.greenDark }}>{climb.completed ? "Sent!" : "Mark Sent"}</span>
+                    <span style={{ fontSize: 16, fontWeight: 800, color: W.greenDark }}>{climb.completed ? (lapNumber > 1 ? `Lap ${lapNumber} sent` : "Sent!") : "Mark Sent"}</span>
                   </button>
                   <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 12, padding: "14px 12px", background: W.surface2 }}>
                     <div style={{ textAlign: "center" }}>

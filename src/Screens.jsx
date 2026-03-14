@@ -129,9 +129,11 @@ export const SessionSummaryScreen = ({
   discardSession,
   showSummaryLeaveWarn,
   setShowSummaryLeaveWarn,
+  updateSessionNotes,
 }) => {
   const W = useTheme();
   const [showDiscard, setShowDiscard] = useState(false);
+  const [notes, setNotes] = useState(session.notes || "");
   const stats = getSessionStats(session);
   const hasRestData = stats.avgAttemptRest !== null;
   const gradeEntries = Object.entries(stats.gradeBreakdown).sort((a, b) => getGradeIndex(b[0], b[1].scale || "V-Scale") - getGradeIndex(a[0], a[1].scale || "V-Scale"));
@@ -512,6 +514,16 @@ export const SessionSummaryScreen = ({
           </div>
         );
       })()}
+      <div style={{ marginBottom: 16 }}>
+        <div style={{ fontSize: 11, fontWeight: 700, color: W.textMuted, textTransform: "uppercase", letterSpacing: 1.2, marginBottom: 8 }}>Session Notes</div>
+        <textarea
+          value={notes}
+          onChange={e => { setNotes(e.target.value); updateSessionNotes(session.id, e.target.value); }}
+          placeholder="How did it go? Conditions, goals, observations…"
+          rows={3}
+          style={{ width: "100%", boxSizing: "border-box", padding: "10px 12px", background: W.surface2, border: `1px solid ${W.border}`, borderRadius: 12, color: W.text, fontSize: 13, fontFamily: "inherit", resize: "vertical", outline: "none" }}
+        />
+      </div>
       <button onClick={() => { setSessionSummary(null); setScreen("home"); }} style={{ width: "100%", padding: "15px", background: `linear-gradient(135deg, ${W.accent}, ${W.accentDark})`, border: "none", borderRadius: 14, color: "#fff", fontWeight: 800, fontSize: 16, cursor: "pointer", boxShadow: `0 4px 16px ${W.accentGlow}`, marginBottom: 10 }}>Save Session</button>
       {showDiscard
         ? (
