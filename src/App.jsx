@@ -3,7 +3,7 @@ import { createClient } from "@supabase/supabase-js";
 import { ThemeCtx, THEMES } from "./theme.js";
 import { ColorDot, TagChips, LocationDropdown, SpeedSessionCard, BoulderRopeSessionCard, ActiveClimbCard } from "./Components.jsx";
 import { ProjectDetailScreen, SessionSummaryScreen } from "./Screens.jsx";
-import { GRADES, ROPE_GRADES, CLIMB_COLORS, WALL_TYPES, HOLD_TYPES, getGradeColor, formatDate, formatDuration, formatTotalTime, formatRestSec } from "./constants.js";
+import { GRADES, ROPE_GRADES, GRADE_COLORS, CLIMB_COLORS, WALL_TYPES, HOLD_TYPES, getGradeColor, formatDate, formatDuration, formatTotalTime, formatRestSec } from "./constants.js";
 
 // §CONSTANTS — all constants and utils are in ./constants.js
 // §CONTEXT — ThemeCtx, useTheme, and THEMES are imported from ./theme.js
