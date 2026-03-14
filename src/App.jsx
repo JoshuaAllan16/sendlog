@@ -3712,26 +3712,6 @@ export default function App() {
               <div style={{ fontSize: 11, fontWeight: 700, color: W.textMuted, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 6 }}>Description (optional)</div>
               <input value={routineEditorDesc} onChange={e => setRoutineEditorDesc(e.target.value)} placeholder="Short description" style={{ width: "100%", boxSizing: "border-box", padding: "10px 12px", borderRadius: 10, border: `1px solid ${W.border}`, background: W.surface, color: W.text, fontSize: 14, outline: "none" }} />
             </div>
-            <div style={{ marginBottom: 10 }}>
-              <div style={{ fontSize: 11, fontWeight: 700, color: W.textMuted, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 6 }}>Notes (optional)</div>
-              <textarea value={routineEditor.notes || ""} onChange={e => setRoutineEditor(re => ({ ...re, notes: e.target.value }))} placeholder="Rest intervals, equipment, cues…" rows={2} style={{ width: "100%", boxSizing: "border-box", padding: "10px 12px", borderRadius: 10, border: `1px solid ${W.border}`, background: W.surface, color: W.text, fontSize: 13, fontFamily: "inherit", resize: "vertical", outline: "none" }} />
-            </div>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 12 }}>
-              <div>
-                <div style={{ fontSize: 11, fontWeight: 700, color: W.textMuted, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 6 }}>Color tag</div>
-                <div style={{ display: "flex", gap: 5, flexWrap: "wrap" }}>
-                  <button onClick={() => setRoutineEditor(re => ({ ...re, color: "" }))} style={{ width: 22, height: 22, borderRadius: 6, background: W.surface2, border: `2px solid ${!routineEditor.color ? W.accent : W.border}`, cursor: "pointer" }} />
-                  {ROUTINE_COLORS.map(c => <button key={c} onClick={() => setRoutineEditor(re => ({ ...re, color: c }))} style={{ width: 22, height: 22, borderRadius: 6, background: c, border: `2px solid ${routineEditor.color === c ? "#fff" : "transparent"}`, cursor: "pointer", outline: routineEditor.color === c ? `2px solid ${c}` : "none" }} />)}
-                </div>
-              </div>
-              <div>
-                <div style={{ fontSize: 11, fontWeight: 700, color: W.textMuted, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 6 }}>Weekly goal</div>
-                <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                  <input type="number" min="0" max="7" value={routineEditor.weeklyGoal || ""} onChange={e => setRoutineEditor(re => ({ ...re, weeklyGoal: e.target.value }))} placeholder="0" style={{ width: 50, padding: "8px 10px", borderRadius: 8, border: `1px solid ${W.border}`, background: W.surface, color: W.text, fontSize: 14, outline: "none", textAlign: "center" }} />
-                  <span style={{ fontSize: 12, color: W.textMuted }}>× / week</span>
-                </div>
-              </div>
-            </div>
             {ps.length > 0 && (
               <div style={{ marginBottom: 12 }}>
                 <button onClick={() => setRoutineEditorShowPresets(o => !o)} style={{ padding: "8px 14px", background: W.surface2, border: `1px solid ${W.border}`, borderRadius: 10, color: W.textMuted, fontWeight: 700, fontSize: 12, cursor: "pointer" }}>
@@ -3789,6 +3769,26 @@ export default function App() {
             <div style={{ display: "flex", gap: 8, marginTop: 6, marginBottom: 16 }}>
               <input value={routineEditorNewItem} onChange={e => setRoutineEditorNewItem(e.target.value)} onKeyDown={e => { if (e.key === "Enter") addNewTask(); }} placeholder="Add task…" style={{ flex: 1, padding: "9px 12px", borderRadius: 10, border: `1px solid ${W.border}`, background: W.surface, color: W.text, fontSize: 13, outline: "none" }} />
               <button onClick={addNewTask} style={{ padding: "9px 16px", background: W.accent, borderRadius: 10, border: "none", color: "#fff", fontWeight: 700, fontSize: 14, cursor: "pointer" }}>+</button>
+            </div>
+            <div style={{ marginBottom: 10 }}>
+              <div style={{ fontSize: 11, fontWeight: 700, color: W.textMuted, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 6 }}>Notes (optional)</div>
+              <textarea value={routineEditor.notes || ""} onChange={e => setRoutineEditor(re => ({ ...re, notes: e.target.value }))} placeholder="Rest intervals, equipment, cues…" rows={2} style={{ width: "100%", boxSizing: "border-box", padding: "10px 12px", borderRadius: 10, border: `1px solid ${W.border}`, background: W.surface, color: W.text, fontSize: 13, fontFamily: "inherit", resize: "vertical", outline: "none" }} />
+            </div>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 12 }}>
+              <div>
+                <div style={{ fontSize: 11, fontWeight: 700, color: W.textMuted, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 6 }}>Color tag</div>
+                <div style={{ display: "flex", gap: 5, flexWrap: "wrap" }}>
+                  <button onClick={() => setRoutineEditor(re => ({ ...re, color: "" }))} style={{ width: 22, height: 22, borderRadius: 6, background: W.surface2, border: `2px solid ${!routineEditor.color ? W.accent : W.border}`, cursor: "pointer" }} />
+                  {ROUTINE_COLORS.map(c => <button key={c} onClick={() => setRoutineEditor(re => ({ ...re, color: c }))} style={{ width: 22, height: 22, borderRadius: 6, background: c, border: `2px solid ${routineEditor.color === c ? "#fff" : "transparent"}`, cursor: "pointer", outline: routineEditor.color === c ? `2px solid ${c}` : "none" }} />)}
+                </div>
+              </div>
+              <div>
+                <div style={{ fontSize: 11, fontWeight: 700, color: W.textMuted, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 6 }}>Weekly goal</div>
+                <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                  <input type="number" min="0" max="7" value={routineEditor.weeklyGoal || ""} onChange={e => setRoutineEditor(re => ({ ...re, weeklyGoal: e.target.value }))} placeholder="0" style={{ width: 50, padding: "8px 10px", borderRadius: 8, border: `1px solid ${W.border}`, background: W.surface, color: W.text, fontSize: 14, outline: "none", textAlign: "center" }} />
+                  <span style={{ fontSize: 12, color: W.textMuted }}>× / week</span>
+                </div>
+              </div>
             </div>
             <div style={{ display: "flex", gap: 8 }}>
               <button onClick={saveEditor} style={{ flex: 1, padding: "13px", background: `linear-gradient(135deg, ${W.accent}, ${W.accentDark})`, border: "none", borderRadius: 12, color: "#fff", fontWeight: 800, fontSize: 14, cursor: "pointer" }}>Save Routine</button>
@@ -3862,12 +3862,13 @@ export default function App() {
 
       // ── Routines list ─────────────────────────────────────────
       const sections = [
-        { sectionLabel: "🧘 Warmup", type: "warmup", typeRoutines: warmupTemplates, activeId: activeWarmupTemplateId, setActive: (id) => { setActiveWarmupTemplateId(id); const r = warmupTemplates.find(r => r.id === id); if (r) setDefaultWarmupItems(r.items); } },
-        { sectionLabel: "💪 Workout", type: "workout", typeRoutines: workoutRoutines, activeId: activeWorkoutRoutineId, setActive: (id) => { setActiveWorkoutRoutineId(id); const r = workoutRoutines.find(r => r.id === id); if (r) setDefaultWorkoutItems(r.items); } },
-        { sectionLabel: "🤙 Fingerboard", type: "fingerboard", typeRoutines: fingerboardRoutines, activeId: activeFingerboardRoutineId, setActive: (id) => { setActiveFingerboardRoutineId(id); const r = fingerboardRoutines.find(r => r.id === id); if (r) setDefaultFingerboardItems(r.items); } },
+        { sectionLabel: "🧘 Warmup", type: "warmup", typeRoutines: warmupTemplates, emptyLabel: "warmup" },
+        { sectionLabel: "💪 Workout", type: "workout", typeRoutines: workoutRoutines, emptyLabel: "workout" },
+        { sectionLabel: "🤙 Fingerboard", type: "fingerboard", typeRoutines: fingerboardRoutines, emptyLabel: "fingerboard" },
       ];
       const searchLower = routineListSearch.toLowerCase();
       const totalCount = sections.reduce((t, s) => t + s.typeRoutines.length, 0);
+      let longPressTimer = null;
       return (
         <div>
           <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
@@ -3879,9 +3880,8 @@ export default function App() {
               <input value={routineListSearch} onChange={e => setRoutineListSearch(e.target.value)} placeholder="Search routines…" style={{ width: "100%", boxSizing: "border-box", padding: "9px 12px", borderRadius: 10, border: `1px solid ${W.border}`, background: W.surface, color: W.text, fontSize: 13, outline: "none" }} />
             </div>
           )}
-          {sections.map(({ sectionLabel, type, typeRoutines, activeId, setActive }) => {
+          {sections.map(({ sectionLabel, type, typeRoutines, emptyLabel }) => {
             const filtered = routineListSearch ? typeRoutines.filter(r => r.name.toLowerCase().includes(searchLower) || (r.description || "").toLowerCase().includes(searchLower)) : typeRoutines;
-            if (filtered.length === 0) return null;
             const isCollapsed = !!collapsedRoutineSections[type];
             return (
               <div key={type} style={{ marginBottom: 22 }}>
@@ -3889,7 +3889,18 @@ export default function App() {
                   <div style={{ fontWeight: 800, fontSize: 12, color: W.textMuted, textTransform: "uppercase", letterSpacing: 1 }}>{sectionLabel} <span style={{ fontWeight: 500, opacity: 0.7 }}>({filtered.length})</span></div>
                   <span style={{ color: W.textDim, fontSize: 12 }}>{isCollapsed ? "▼" : "▲"}</span>
                 </div>
-                {!isCollapsed && (
+                {!isCollapsed && filtered.length === 0 && (
+                  <div style={{ textAlign: "center", padding: "18px 0" }}>
+                    {routineListSearch
+                      ? <div style={{ fontSize: 13, color: W.textDim }}>No {emptyLabel} routines match your search.</div>
+                      : <div>
+                          <div style={{ fontSize: 13, color: W.textDim, marginBottom: 10 }}>No {emptyLabel} routines yet.</div>
+                          <button onClick={() => { openEditor("new", type, null); }} style={{ padding: "8px 16px", background: W.surface2, border: `1px solid ${W.border}`, borderRadius: 10, color: W.textMuted, fontWeight: 700, fontSize: 12, cursor: "pointer" }}>+ Add {emptyLabel} routine</button>
+                        </div>
+                    }
+                  </div>
+                )}
+                {!isCollapsed && filtered.length > 0 && (
                   <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
                     {filtered.map((routine) => {
                       const usageSessions = getUsage(type, routine);
@@ -3898,7 +3909,6 @@ export default function App() {
                       const today = new Date(); today.setHours(0,0,0,0);
                       const weekStart = new Date(today); weekStart.setDate(today.getDate() - today.getDay());
                       const thisWeekCount = usageSessions.filter(s => new Date(s.date) >= weekStart).length;
-                      const accentColor = routine.color || W.accent;
                       const isSwiped = swipedRoutineCard?.type === type && swipedRoutineCard?.id === routine.id;
                       return (
                         <div key={routine.id} style={{ position: "relative", borderRadius: 14, overflow: "hidden" }}>
@@ -3907,23 +3917,31 @@ export default function App() {
                             <button onClick={e => { e.stopPropagation();
                               const src2 = type === "warmup" ? warmupTemplates : type === "workout" ? workoutRoutines : fingerboardRoutines;
                               if (src2.length <= 1) { setSwipedRoutineCard(null); return; }
-                              if (type === "warmup") { setWarmupTemplates(prev => prev.filter(t => t.id !== routine.id)); if (activeWarmupTemplateId === routine.id) { const r = warmupTemplates.find(t => t.id !== routine.id); if (r) { setActiveWarmupTemplateId(r.id); setDefaultWarmupItems(r.items); } } }
-                              else if (type === "workout") { setWorkoutRoutines(prev => prev.filter(t => t.id !== routine.id)); if (activeWorkoutRoutineId === routine.id) { const r = workoutRoutines.find(t => t.id !== routine.id); if (r) { setActiveWorkoutRoutineId(r.id); setDefaultWorkoutItems(r.items); } } }
-                              else { setFingerboardRoutines(prev => prev.filter(t => t.id !== routine.id)); if (activeFingerboardRoutineId === routine.id) { const r = fingerboardRoutines.find(t => t.id !== routine.id); if (r) { setActiveFingerboardRoutineId(r.id); setDefaultFingerboardItems(r.items); } } }
+                              if (type === "warmup") setWarmupTemplates(prev => prev.filter(t => t.id !== routine.id));
+                              else if (type === "workout") setWorkoutRoutines(prev => prev.filter(t => t.id !== routine.id));
+                              else setFingerboardRoutines(prev => prev.filter(t => t.id !== routine.id));
                               setSwipedRoutineCard(null);
                             }} style={{ background: "none", border: "none", color: "#fff", fontWeight: 800, fontSize: 13, cursor: "pointer" }}>Delete</button>
                           </div>
-                          {/* Card */}
+                          {/* Card — color accent via inset box-shadow to avoid overflow:hidden clipping */}
                           <div
-                            style={{ background: W.surface, border: `1.5px solid ${routine.id === activeId ? accentColor : W.border}`, borderRadius: 14, padding: "12px", cursor: "pointer", borderLeft: routine.color ? `4px solid ${routine.color}` : undefined, display: "flex", flexDirection: "column", gap: 6, transform: isSwiped ? "translateX(-80px)" : "translateX(0)", transition: "transform 0.2s ease", position: "relative" }}
+                            style={{ background: W.surface, border: `1.5px solid ${W.border}`, borderRadius: 14, padding: "12px", paddingLeft: routine.color ? 14 : 12, cursor: "pointer", boxShadow: routine.color ? `inset 4px 0 0 0 ${routine.color}` : undefined, display: "flex", flexDirection: "column", gap: 6, transform: isSwiped ? "translateX(-80px)" : "translateX(0)", transition: "transform 0.2s ease", position: "relative" }}
                             onClick={() => { if (isSwiped) { setSwipedRoutineCard(null); return; } setRoutinePreview({ type, id: routine.id }); }}
-                            onTouchStart={e => { e._touchStartX = e.touches[0].clientX; }}
-                            onTouchEnd={e => { const dx = e.changedTouches[0].clientX - (e._touchStartX || 0); if (dx < -40) setSwipedRoutineCard({ type, id: routine.id }); else if (dx > 20) setSwipedRoutineCard(null); }}
+                            onTouchStart={e => {
+                              e.currentTarget._touchStartX = e.touches[0].clientX;
+                              longPressTimer = setTimeout(() => { longPressTimer = null; openEditor("edit", type, routine.id); }, 600);
+                            }}
+                            onTouchMove={() => { clearTimeout(longPressTimer); longPressTimer = null; }}
+                            onTouchEnd={e => {
+                              clearTimeout(longPressTimer);
+                              if (longPressTimer === null) return; // long press already fired
+                              longPressTimer = null;
+                              const dx = e.changedTouches[0].clientX - (e.currentTarget._touchStartX || 0);
+                              if (dx < -40) setSwipedRoutineCard({ type, id: routine.id });
+                              else if (dx > 20) setSwipedRoutineCard(null);
+                            }}
                           >
-                            <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 4 }}>
-                              <span style={{ fontWeight: 800, fontSize: 13, color: W.text, lineHeight: 1.2, flex: 1 }}>{routine.name}</span>
-                              {routine.id === activeId && <span style={{ background: accentColor, color: "#fff", borderRadius: 5, padding: "1px 5px", fontSize: 9, fontWeight: 700, flexShrink: 0 }}>Active</span>}
-                            </div>
+                            <span style={{ fontWeight: 800, fontSize: 13, color: W.text, lineHeight: 1.2 }}>{routine.name}</span>
                             {routine.description && <div style={{ fontSize: 11, color: W.textMuted, lineHeight: 1.3 }}>{routine.description}</div>}
                             <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginTop: 2 }}>
                               <span style={{ fontSize: 10, color: W.textDim, background: W.surface2, borderRadius: 4, padding: "1px 5px" }}>{(routine.items || []).length} tasks</span>
@@ -3938,9 +3956,6 @@ export default function App() {
                                   <div style={{ height: "100%", width: `${Math.min(100, (thisWeekCount / routine.weeklyGoal) * 100)}%`, background: thisWeekCount >= routine.weeklyGoal ? W.accent : `${W.accent}88`, borderRadius: 2 }} />
                                 </div>
                               </div>
-                            )}
-                            {routine.id !== activeId && (
-                              <button onClick={e => { e.stopPropagation(); setActive(routine.id); }} style={{ marginTop: 4, width: "100%", background: W.surface2, border: `1px solid ${W.border}`, borderRadius: 8, padding: "5px 0", fontSize: 11, color: W.textMuted, fontWeight: 700, cursor: "pointer" }}>Set Active</button>
                             )}
                           </div>
                         </div>
