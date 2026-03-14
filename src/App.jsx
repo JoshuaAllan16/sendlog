@@ -31,6 +31,58 @@ const DEFAULT_FINGERBOARD_ITEMS = [
   { id: 4, text: "Pinch: 3×(10s on / 5s off)" },
 ];
 
+const WARMUP_PRESETS = [
+  { name: "Standard", description: "Full-body warmup for a climbing session", items: DEFAULT_WARMUP_ITEMS },
+  { name: "Quick Warmup", description: "10-minute fast prep", items: [
+    { id: 1, text: "Wrist & finger stretches" },
+    { id: 2, text: "Arm circles" },
+    { id: 3, text: "Easy footwork traversing" },
+  ]},
+  { name: "Thorough Warmup", description: "Complete mobility & activation", items: [
+    { id: 1, text: "Foam roll upper back & lats" },
+    { id: 2, text: "Wrist & finger stretches" },
+    { id: 3, text: "Shoulder circles & pendulums" },
+    { id: 4, text: "Hip flexors & leg swings" },
+    { id: 5, text: "Core activation" },
+    { id: 6, text: "Easy footwork / slab traversing" },
+    { id: 7, text: "V0–V1 problems (focus on feet)" },
+    { id: 8, text: "V1–V2 problems" },
+  ]},
+];
+
+const WORKOUT_PRESETS = [
+  { name: "Standard Strength", description: "Balanced pull + push + core", items: DEFAULT_WORKOUT_ITEMS },
+  { name: "Upper Body Focus", description: "Pulling power and shoulders", items: [
+    { id: 1, text: "Pull-ups: 4×6 (weighted if possible)" },
+    { id: 2, text: "Lock-offs: 3×5s each arm" },
+    { id: 3, text: "Shoulder press: 3×10" },
+    { id: 4, text: "Face pulls: 3×15" },
+    { id: 5, text: "Bicep curls: 3×12" },
+  ]},
+  { name: "Core Stability", description: "Core, balance, and body tension", items: [
+    { id: 1, text: "Hollow body hold: 3×20s" },
+    { id: 2, text: "Dead bug: 3×10 each side" },
+    { id: 3, text: "Plank: 3×45s" },
+    { id: 4, text: "L-sit: 3×10s" },
+    { id: 5, text: "Side plank: 2×30s each" },
+  ]},
+];
+
+const FINGERBOARD_PRESETS = [
+  { name: "Standard", description: "Crimp + open hand protocol", items: DEFAULT_FINGERBOARD_ITEMS },
+  { name: "Beginner Protocol", description: "Introduction to hangboarding", items: [
+    { id: 1, text: "Open hand: 3×(7s on / 3s off) — comfortable edge" },
+    { id: 2, text: "Jug hang: 2×20s" },
+    { id: 3, text: "Rest 3 min between sets" },
+  ]},
+  { name: "Max Strength", description: "Heavy loads, longer rest periods", items: [
+    { id: 1, text: "Half crimp: 5×(10s on / 3 min rest) — add weight" },
+    { id: 2, text: "3-finger drag: 5×(10s on / 3 min rest)" },
+    { id: 3, text: "Open hand: 4×(10s on / 3 min rest)" },
+    { id: 4, text: "Pinch: 3×(12s on / 2 min rest)" },
+  ]},
+];
+
 // §STORAGE
 
 // ── STORAGE HELPERS ────────────────────────────────────────
@@ -238,6 +290,17 @@ export default function App() {
   const [fingerboardNewItemText, setFingerboardNewItemText]   = useState("");
   const [defaultFingerboardItems, setDefaultFingerboardItems] = useState(DEFAULT_FINGERBOARD_ITEMS);
   const [fingerboardSettingsNewItem, setFingerboardSettingsNewItem] = useState("");
+  const [workoutRoutines, setWorkoutRoutines]                 = useState([{ id: 1, name: "Standard Workout", description: "Upper body + core strength", items: DEFAULT_WORKOUT_ITEMS }]);
+  const [fingerboardRoutines, setFingerboardRoutines]         = useState([{ id: 1, name: "Standard Fingerboard", description: "Crimp and open hand training", items: DEFAULT_FINGERBOARD_ITEMS }]);
+  const [activeWorkoutRoutineId, setActiveWorkoutRoutineId]   = useState(1);
+  const [activeFingerboardRoutineId, setActiveFingerboardRoutineId] = useState(1);
+  const [routineEditor, setRoutineEditor]                     = useState(null);
+  const [routineEditorName, setRoutineEditorName]             = useState("");
+  const [routineEditorDesc, setRoutineEditorDesc]             = useState("");
+  const [routineEditorItems, setRoutineEditorItems]           = useState([]);
+  const [routineEditorNewItem, setRoutineEditorNewItem]       = useState("");
+  const [routineEditorShowPresets, setRoutineEditorShowPresets] = useState(false);
+  const [showAddRoutineTypePicker, setShowAddRoutineTypePicker] = useState(false);
   const [sessionTypeOrder, setSessionTypeOrder]               = useState(["boulder","rope","speed","warmup","workout","fingerboard"]);
   const [colorTheme, setColorTheme]             = useState("espresso");
   const [showEndConfirm, setShowEndConfirm]     = useState(false);
@@ -418,8 +481,26 @@ export default function App() {
           }
           setAutoEndWarmup(userData.profile?.autoEndWarmup !== false);
           if (userData.profile?.gymSetStaleWeeks != null) setGymSetStaleWeeks(userData.profile.gymSetStaleWeeks);
-          if (userData.profile?.defaultWorkoutItems?.length) setDefaultWorkoutItems(userData.profile.defaultWorkoutItems);
-          if (userData.profile?.defaultFingerboardItems?.length) setDefaultFingerboardItems(userData.profile.defaultFingerboardItems);
+          if (userData.profile?.workoutRoutines?.length) {
+            setWorkoutRoutines(userData.profile.workoutRoutines);
+            if (userData.profile?.activeWorkoutRoutineId) setActiveWorkoutRoutineId(userData.profile.activeWorkoutRoutineId);
+            const activeWR = userData.profile.workoutRoutines.find(r => r.id === (userData.profile.activeWorkoutRoutineId || 1));
+            if (activeWR) setDefaultWorkoutItems(activeWR.items);
+            else if (userData.profile?.defaultWorkoutItems?.length) setDefaultWorkoutItems(userData.profile.defaultWorkoutItems);
+          } else if (userData.profile?.defaultWorkoutItems?.length) {
+            setDefaultWorkoutItems(userData.profile.defaultWorkoutItems);
+            setWorkoutRoutines([{ id: 1, name: "Standard Workout", description: "Upper body + core strength", items: userData.profile.defaultWorkoutItems }]);
+          }
+          if (userData.profile?.fingerboardRoutines?.length) {
+            setFingerboardRoutines(userData.profile.fingerboardRoutines);
+            if (userData.profile?.activeFingerboardRoutineId) setActiveFingerboardRoutineId(userData.profile.activeFingerboardRoutineId);
+            const activeFR = userData.profile.fingerboardRoutines.find(r => r.id === (userData.profile.activeFingerboardRoutineId || 1));
+            if (activeFR) setDefaultFingerboardItems(activeFR.items);
+            else if (userData.profile?.defaultFingerboardItems?.length) setDefaultFingerboardItems(userData.profile.defaultFingerboardItems);
+          } else if (userData.profile?.defaultFingerboardItems?.length) {
+            setDefaultFingerboardItems(userData.profile.defaultFingerboardItems);
+            setFingerboardRoutines([{ id: 1, name: "Standard Fingerboard", description: "Crimp and open hand training", items: userData.profile.defaultFingerboardItems }]);
+          }
           if (userData.profile?.sessionTypeOrder?.length) setSessionTypeOrder(userData.profile.sessionTypeOrder);
           storage.get(`followers:${username}`).then(r => setSocialFollowers(r ? JSON.parse(r.value) : [])).catch(() => {});
           loadNotifications(username).then(n => { setNotifications(n); setNotifCount(n.filter(x => !x.read).length); }).catch(() => {});
@@ -448,7 +529,7 @@ export default function App() {
     setSaveStatus("saving");
     saveTimeoutRef.current = setTimeout(async () => {
       const userData = {
-        profile: { displayName: editDisplayName || currentUser.displayName, preferredScale, preferredRopeScale, profilePic, customBoulderGrades, customRopeGrades, customBoulderScaleName, customRopeScaleName, hiddenLocations, customLocations, mainGym, following: socialFollowing, colorTheme, mutedUsers, notifPrefs, isPrivate, pendingFollowRequests, defaultWarmupItems, autoEndWarmup, warmupTemplates, activeWarmupTemplateId, defaultWorkoutItems, defaultFingerboardItems, sessionTypeOrder, gymSetStaleWeeks },
+        profile: { displayName: editDisplayName || currentUser.displayName, preferredScale, preferredRopeScale, profilePic, customBoulderGrades, customRopeGrades, customBoulderScaleName, customRopeScaleName, hiddenLocations, customLocations, mainGym, following: socialFollowing, colorTheme, mutedUsers, notifPrefs, isPrivate, pendingFollowRequests, defaultWarmupItems, autoEndWarmup, warmupTemplates, activeWarmupTemplateId, defaultWorkoutItems, defaultFingerboardItems, workoutRoutines, fingerboardRoutines, activeWorkoutRoutineId, activeFingerboardRoutineId, sessionTypeOrder, gymSetStaleWeeks },
         sessions,
         projects,
         gymSets,
@@ -458,7 +539,7 @@ export default function App() {
       setTimeout(() => setSaveStatus(""), 2000);
     }, 1000);
     return () => clearTimeout(saveTimeoutRef.current);
-  }, [sessions, projects, gymSets, editDisplayName, preferredScale, preferredRopeScale, profilePic, customBoulderGrades, customRopeGrades, customBoulderScaleName, customRopeScaleName, hiddenLocations, customLocations, mainGym, socialFollowing, colorTheme, mutedUsers, notifPrefs, isPrivate, pendingFollowRequests, defaultWarmupItems, autoEndWarmup, warmupTemplates, activeWarmupTemplateId, defaultWorkoutItems, defaultFingerboardItems, sessionTypeOrder, gymSetStaleWeeks]);
+  }, [sessions, projects, gymSets, editDisplayName, preferredScale, preferredRopeScale, profilePic, customBoulderGrades, customRopeGrades, customBoulderScaleName, customRopeScaleName, hiddenLocations, customLocations, mainGym, socialFollowing, colorTheme, mutedUsers, notifPrefs, isPrivate, pendingFollowRequests, defaultWarmupItems, autoEndWarmup, warmupTemplates, activeWarmupTemplateId, defaultWorkoutItems, defaultFingerboardItems, workoutRoutines, fingerboardRoutines, activeWorkoutRoutineId, activeFingerboardRoutineId, sessionTypeOrder, gymSetStaleWeeks]);
 
   useEffect(() => {
     if (timerRunning) {
@@ -584,8 +665,26 @@ export default function App() {
         setActiveWarmupTemplateId(safeData.profile.activeWarmupTemplateId || safeData.profile.warmupTemplates[0].id);
       }
       setAutoEndWarmup(safeData.profile?.autoEndWarmup !== false);
-      if (safeData.profile?.defaultWorkoutItems?.length) setDefaultWorkoutItems(safeData.profile.defaultWorkoutItems);
-      if (safeData.profile?.defaultFingerboardItems?.length) setDefaultFingerboardItems(safeData.profile.defaultFingerboardItems);
+      if (safeData.profile?.workoutRoutines?.length) {
+        setWorkoutRoutines(safeData.profile.workoutRoutines);
+        if (safeData.profile?.activeWorkoutRoutineId) setActiveWorkoutRoutineId(safeData.profile.activeWorkoutRoutineId);
+        const activeWR = safeData.profile.workoutRoutines.find(r => r.id === (safeData.profile.activeWorkoutRoutineId || 1));
+        if (activeWR) setDefaultWorkoutItems(activeWR.items);
+        else if (safeData.profile?.defaultWorkoutItems?.length) setDefaultWorkoutItems(safeData.profile.defaultWorkoutItems);
+      } else if (safeData.profile?.defaultWorkoutItems?.length) {
+        setDefaultWorkoutItems(safeData.profile.defaultWorkoutItems);
+        setWorkoutRoutines([{ id: 1, name: "Standard Workout", description: "Upper body + core strength", items: safeData.profile.defaultWorkoutItems }]);
+      }
+      if (safeData.profile?.fingerboardRoutines?.length) {
+        setFingerboardRoutines(safeData.profile.fingerboardRoutines);
+        if (safeData.profile?.activeFingerboardRoutineId) setActiveFingerboardRoutineId(safeData.profile.activeFingerboardRoutineId);
+        const activeFR = safeData.profile.fingerboardRoutines.find(r => r.id === (safeData.profile.activeFingerboardRoutineId || 1));
+        if (activeFR) setDefaultFingerboardItems(activeFR.items);
+        else if (safeData.profile?.defaultFingerboardItems?.length) setDefaultFingerboardItems(safeData.profile.defaultFingerboardItems);
+      } else if (safeData.profile?.defaultFingerboardItems?.length) {
+        setDefaultFingerboardItems(safeData.profile.defaultFingerboardItems);
+        setFingerboardRoutines([{ id: 1, name: "Standard Fingerboard", description: "Crimp and open hand training", items: safeData.profile.defaultFingerboardItems }]);
+      }
       if (safeData.profile?.sessionTypeOrder?.length) setSessionTypeOrder(safeData.profile.sessionTypeOrder);
       setGymSets(safeData.gymSets || {});
       setAuthScreen("app");
@@ -3840,46 +3939,216 @@ export default function App() {
           );
         })()}
 
-        {profileTab === "training" && trainingSubTab === "routines" && (
-          <div>
-            <div style={{ marginBottom: 18 }}>
-              <div style={{ fontWeight: 800, fontSize: 14, color: W.text, marginBottom: 10 }}>🧘 Warmup Templates</div>
-              {warmupTemplates.map(tpl => (
-                <div key={tpl.id} style={{ background: W.surface, border: `1px solid ${W.border}`, borderRadius: 14, padding: "12px 14px", marginBottom: 8 }}>
-                  <div style={{ fontWeight: 700, fontSize: 13, color: W.text, marginBottom: 8 }}>{tpl.name}</div>
-                  {(tpl.items || []).map((item, i) => (
-                    <div key={item.id} style={{ display: "flex", alignItems: "center", gap: 8, paddingTop: i > 0 ? 6 : 0 }}>
-                      <span style={{ width: 18, height: 18, borderRadius: 5, border: `1.5px solid ${W.border}`, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }} />
-                      <span style={{ fontSize: 13, color: W.textDim }}>{item.text}</span>
+        {profileTab === "training" && trainingSubTab === "routines" && (() => {
+          const typeLabel = { warmup: "Warmup", workout: "Workout", fingerboard: "Fingerboard" };
+          const presets = { warmup: WARMUP_PRESETS, workout: WORKOUT_PRESETS, fingerboard: FINGERBOARD_PRESETS };
+
+          const openEditor = (mode, type, id) => {
+            let routine = null;
+            if (mode === "edit") {
+              const src = type === "warmup" ? warmupTemplates : type === "workout" ? workoutRoutines : fingerboardRoutines;
+              routine = src.find(r => r.id === id);
+            }
+            setRoutineEditorName(routine?.name || "");
+            setRoutineEditorDesc(routine?.description || "");
+            setRoutineEditorItems(routine?.items ? routine.items.map(i => ({ ...i })) : []);
+            setRoutineEditorNewItem("");
+            setRoutineEditorShowPresets(false);
+            setRoutineEditor({ mode, type, id: id || null });
+          };
+
+          const saveEditor = () => {
+            const items = routineEditorItems;
+            const name = routineEditorName.trim() || "Untitled";
+            const description = routineEditorDesc.trim();
+            if (routineEditor.type === "warmup") {
+              if (routineEditor.mode === "new") {
+                const newId = Date.now();
+                setWarmupTemplates(prev => [...prev, { id: newId, name, description, items }]);
+              } else {
+                setWarmupTemplates(prev => prev.map(t => t.id === routineEditor.id ? { ...t, name, description, items } : t));
+                if (routineEditor.id === activeWarmupTemplateId) setDefaultWarmupItems(items);
+              }
+            } else if (routineEditor.type === "workout") {
+              if (routineEditor.mode === "new") {
+                const newId = Date.now();
+                setWorkoutRoutines(prev => [...prev, { id: newId, name, description, items }]);
+              } else {
+                setWorkoutRoutines(prev => prev.map(t => t.id === routineEditor.id ? { ...t, name, description, items } : t));
+                if (routineEditor.id === activeWorkoutRoutineId) setDefaultWorkoutItems(items);
+              }
+            } else {
+              if (routineEditor.mode === "new") {
+                const newId = Date.now();
+                setFingerboardRoutines(prev => [...prev, { id: newId, name, description, items }]);
+              } else {
+                setFingerboardRoutines(prev => prev.map(t => t.id === routineEditor.id ? { ...t, name, description, items } : t));
+                if (routineEditor.id === activeFingerboardRoutineId) setDefaultFingerboardItems(items);
+              }
+            }
+            setRoutineEditor(null);
+          };
+
+          const deleteRoutine = () => {
+            if (routineEditor.type === "warmup") {
+              if (warmupTemplates.length <= 1) return;
+              setWarmupTemplates(prev => prev.filter(t => t.id !== routineEditor.id));
+              if (activeWarmupTemplateId === routineEditor.id) {
+                const remaining = warmupTemplates.filter(t => t.id !== routineEditor.id);
+                setActiveWarmupTemplateId(remaining[0]?.id);
+                setDefaultWarmupItems(remaining[0]?.items || []);
+              }
+            } else if (routineEditor.type === "workout") {
+              if (workoutRoutines.length <= 1) return;
+              setWorkoutRoutines(prev => prev.filter(t => t.id !== routineEditor.id));
+              if (activeWorkoutRoutineId === routineEditor.id) {
+                const remaining = workoutRoutines.filter(t => t.id !== routineEditor.id);
+                setActiveWorkoutRoutineId(remaining[0]?.id);
+                setDefaultWorkoutItems(remaining[0]?.items || []);
+              }
+            } else {
+              if (fingerboardRoutines.length <= 1) return;
+              setFingerboardRoutines(prev => prev.filter(t => t.id !== routineEditor.id));
+              if (activeFingerboardRoutineId === routineEditor.id) {
+                const remaining = fingerboardRoutines.filter(t => t.id !== routineEditor.id);
+                setActiveFingerboardRoutineId(remaining[0]?.id);
+                setDefaultFingerboardItems(remaining[0]?.items || []);
+              }
+            }
+            setRoutineEditor(null);
+          };
+
+          const loadPreset = (preset) => {
+            setRoutineEditorName(preset.name);
+            setRoutineEditorDesc(preset.description);
+            setRoutineEditorItems(preset.items.map(i => ({ ...i, id: Date.now() + Math.random() })));
+            setRoutineEditorShowPresets(false);
+          };
+
+          // ── Editor view ──────────────────────────────────────────
+          if (routineEditor) {
+            const ps = presets[routineEditor.type] || [];
+            return (
+              <div>
+                <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 18 }}>
+                  <button onClick={() => setRoutineEditor(null)} style={{ background: W.surface2, border: `1px solid ${W.border}`, borderRadius: 10, padding: "8px 12px", color: W.textDim, fontWeight: 700, cursor: "pointer", fontSize: 14 }}>← Back</button>
+                  <div style={{ fontWeight: 800, fontSize: 16, color: W.text }}>
+                    {routineEditor.mode === "new" ? `New ${typeLabel[routineEditor.type]}` : "Edit Routine"}
+                  </div>
+                </div>
+                <div style={{ marginBottom: 12 }}>
+                  <div style={{ fontSize: 11, fontWeight: 700, color: W.textMuted, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 6 }}>Name</div>
+                  <input value={routineEditorName} onChange={e => setRoutineEditorName(e.target.value)} placeholder="Routine name" style={{ width: "100%", boxSizing: "border-box", padding: "10px 12px", borderRadius: 10, border: `1px solid ${W.border}`, background: W.surface, color: W.text, fontSize: 14, outline: "none" }} />
+                </div>
+                <div style={{ marginBottom: 14 }}>
+                  <div style={{ fontSize: 11, fontWeight: 700, color: W.textMuted, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 6 }}>Description (optional)</div>
+                  <input value={routineEditorDesc} onChange={e => setRoutineEditorDesc(e.target.value)} placeholder="Short description" style={{ width: "100%", boxSizing: "border-box", padding: "10px 12px", borderRadius: 10, border: `1px solid ${W.border}`, background: W.surface, color: W.text, fontSize: 14, outline: "none" }} />
+                </div>
+                {ps.length > 0 && (
+                  <div style={{ marginBottom: 14 }}>
+                    <button onClick={() => setRoutineEditorShowPresets(o => !o)} style={{ padding: "8px 14px", background: W.surface2, border: `1px solid ${W.border}`, borderRadius: 10, color: W.textMuted, fontWeight: 700, fontSize: 12, cursor: "pointer" }}>
+                      {routineEditorShowPresets ? "▲ Hide presets" : "⚡ Load preset"}
+                    </button>
+                    {routineEditorShowPresets && (
+                      <div style={{ marginTop: 8, display: "flex", flexDirection: "column", gap: 6 }}>
+                        {ps.map(p => (
+                          <button key={p.name} onClick={() => loadPreset(p)} style={{ textAlign: "left", padding: "10px 14px", background: W.surface, border: `1px solid ${W.border}`, borderRadius: 12, cursor: "pointer" }}>
+                            <div style={{ fontWeight: 700, fontSize: 13, color: W.text }}>{p.name}</div>
+                            <div style={{ fontSize: 11, color: W.textMuted, marginTop: 2 }}>{p.description} · {p.items.length} tasks</div>
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+                <div style={{ fontWeight: 800, fontSize: 14, color: W.text, marginBottom: 8 }}>Tasks ({routineEditorItems.length})</div>
+                {routineEditorItems.length === 0 && (
+                  <div style={{ color: W.textDim, fontSize: 13, padding: "12px 0", textAlign: "center" }}>No tasks yet. Add one below or load a preset.</div>
+                )}
+                {routineEditorItems.map((item, i) => (
+                  <div key={item.id} style={{ display: "flex", alignItems: "center", gap: 6, background: W.surface, border: `1px solid ${W.border}`, borderRadius: 10, padding: "8px 10px", marginBottom: 6 }}>
+                    <div style={{ display: "flex", flexDirection: "column", gap: 1 }}>
+                      <button onClick={() => i > 0 && setRoutineEditorItems(prev => { const a = [...prev]; [a[i-1], a[i]] = [a[i], a[i-1]]; return a; })} style={{ background: "none", border: "none", color: i > 0 ? W.textDim : W.border, cursor: i > 0 ? "pointer" : "default", fontSize: 10, lineHeight: 1, padding: "1px 2px" }}>▲</button>
+                      <button onClick={() => i < routineEditorItems.length - 1 && setRoutineEditorItems(prev => { const a = [...prev]; [a[i], a[i+1]] = [a[i+1], a[i]]; return a; })} style={{ background: "none", border: "none", color: i < routineEditorItems.length - 1 ? W.textDim : W.border, cursor: i < routineEditorItems.length - 1 ? "pointer" : "default", fontSize: 10, lineHeight: 1, padding: "1px 2px" }}>▼</button>
+                    </div>
+                    <span style={{ flex: 1, fontSize: 13, color: W.textDim }}>{item.text}</span>
+                    <button onClick={() => setRoutineEditorItems(prev => prev.filter((_, j) => j !== i))} style={{ background: "none", border: "none", color: W.redDark, fontSize: 14, cursor: "pointer", padding: "2px 4px", fontWeight: 700 }}>✕</button>
+                  </div>
+                ))}
+                <div style={{ display: "flex", gap: 8, marginTop: 6, marginBottom: 20 }}>
+                  <input value={routineEditorNewItem} onChange={e => setRoutineEditorNewItem(e.target.value)} onKeyDown={e => { if (e.key === "Enter" && routineEditorNewItem.trim()) { setRoutineEditorItems(prev => [...prev, { id: Date.now(), text: routineEditorNewItem.trim() }]); setRoutineEditorNewItem(""); }}} placeholder="Add task..." style={{ flex: 1, padding: "9px 12px", borderRadius: 10, border: `1px solid ${W.border}`, background: W.surface, color: W.text, fontSize: 13, outline: "none" }} />
+                  <button onClick={() => { if (!routineEditorNewItem.trim()) return; setRoutineEditorItems(prev => [...prev, { id: Date.now(), text: routineEditorNewItem.trim() }]); setRoutineEditorNewItem(""); }} style={{ padding: "9px 16px", background: W.accent, borderRadius: 10, border: "none", color: "#fff", fontWeight: 700, fontSize: 14, cursor: "pointer" }}>+</button>
+                </div>
+                <div style={{ display: "flex", gap: 8 }}>
+                  <button onClick={saveEditor} style={{ flex: 1, padding: "13px", background: `linear-gradient(135deg, ${W.accent}, ${W.accentDark})`, border: "none", borderRadius: 12, color: "#fff", fontWeight: 800, fontSize: 14, cursor: "pointer" }}>Save Routine</button>
+                  {routineEditor.mode === "edit" && (
+                    <button onClick={deleteRoutine} style={{ padding: "13px 18px", background: W.surface, border: `1px solid ${W.border}`, borderRadius: 12, color: W.redDark, fontWeight: 700, fontSize: 13, cursor: "pointer" }}>Delete</button>
+                  )}
+                </div>
+              </div>
+            );
+          }
+
+          // ── Type picker ──────────────────────────────────────────
+          if (showAddRoutineTypePicker) {
+            return (
+              <div>
+                <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 20 }}>
+                  <button onClick={() => setShowAddRoutineTypePicker(false)} style={{ background: W.surface2, border: `1px solid ${W.border}`, borderRadius: 10, padding: "8px 12px", color: W.textDim, fontWeight: 700, cursor: "pointer", fontSize: 14 }}>← Back</button>
+                  <div style={{ fontWeight: 800, fontSize: 16, color: W.text }}>Choose Type</div>
+                </div>
+                {[
+                  { type: "warmup", emoji: "🧘", label: "Warmup", desc: "Mobility, activation, and easy climbing prep" },
+                  { type: "workout", emoji: "💪", label: "Workout", desc: "Strength and conditioning exercises" },
+                  { type: "fingerboard", emoji: "🤙", label: "Fingerboard", desc: "Hangboard protocols and finger training" },
+                ].map(opt => (
+                  <div key={opt.type} onClick={() => { setShowAddRoutineTypePicker(false); openEditor("new", opt.type, null); }} style={{ display: "flex", alignItems: "center", gap: 14, background: W.surface, border: `1px solid ${W.border}`, borderRadius: 16, padding: "16px 18px", marginBottom: 10, cursor: "pointer" }}>
+                    <span style={{ fontSize: 28 }}>{opt.emoji}</span>
+                    <div>
+                      <div style={{ fontWeight: 800, fontSize: 15, color: W.text }}>{opt.label}</div>
+                      <div style={{ fontSize: 12, color: W.textMuted, marginTop: 2 }}>{opt.desc}</div>
+                    </div>
+                    <span style={{ marginLeft: "auto", color: W.textMuted, fontSize: 20 }}>›</span>
+                  </div>
+                ))}
+              </div>
+            );
+          }
+
+          // ── Routines list ────────────────────────────────────────
+          return (
+            <div>
+              <button onClick={() => setShowAddRoutineTypePicker(true)} style={{ width: "100%", padding: "12px", background: `linear-gradient(135deg, ${W.accent}, ${W.accentDark})`, border: "none", borderRadius: 14, color: "#fff", fontWeight: 800, fontSize: 14, cursor: "pointer", marginBottom: 18 }}>+ Add Routine</button>
+              {[
+                { sectionLabel: "🧘 Warmup", type: "warmup", typeRoutines: warmupTemplates, activeId: activeWarmupTemplateId, setActive: (id) => { setActiveWarmupTemplateId(id); const r = warmupTemplates.find(r => r.id === id); if (r) setDefaultWarmupItems(r.items); } },
+                { sectionLabel: "💪 Workout", type: "workout", typeRoutines: workoutRoutines, activeId: activeWorkoutRoutineId, setActive: (id) => { setActiveWorkoutRoutineId(id); const r = workoutRoutines.find(r => r.id === id); if (r) setDefaultWorkoutItems(r.items); } },
+                { sectionLabel: "🤙 Fingerboard", type: "fingerboard", typeRoutines: fingerboardRoutines, activeId: activeFingerboardRoutineId, setActive: (id) => { setActiveFingerboardRoutineId(id); const r = fingerboardRoutines.find(r => r.id === id); if (r) setDefaultFingerboardItems(r.items); } },
+              ].map(({ sectionLabel, type, typeRoutines, activeId, setActive }) => (
+                <div key={type} style={{ marginBottom: 22 }}>
+                  <div style={{ fontWeight: 800, fontSize: 12, color: W.textMuted, textTransform: "uppercase", letterSpacing: 1, marginBottom: 10 }}>{sectionLabel}</div>
+                  {typeRoutines.map(routine => (
+                    <div key={routine.id} onClick={() => openEditor("edit", type, routine.id)} style={{ background: W.surface, border: `1px solid ${routine.id === activeId ? W.accent : W.border}`, borderRadius: 14, padding: "14px 16px", marginBottom: 8, cursor: "pointer", display: "flex", alignItems: "center", gap: 12 }}>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                          <span style={{ fontWeight: 800, fontSize: 14, color: W.text }}>{routine.name}</span>
+                          {routine.id === activeId && <span style={{ background: W.accent, color: "#fff", borderRadius: 6, padding: "1px 7px", fontSize: 10, fontWeight: 700 }}>Active</span>}
+                        </div>
+                        {routine.description && <div style={{ fontSize: 12, color: W.textMuted, marginTop: 2 }}>{routine.description}</div>}
+                        <div style={{ fontSize: 11, color: W.textDim, marginTop: 4 }}>{(routine.items || []).length} task{(routine.items || []).length !== 1 ? "s" : ""}</div>
+                      </div>
+                      <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 6 }}>
+                        {routine.id !== activeId && (
+                          <button onClick={e => { e.stopPropagation(); setActive(routine.id); }} style={{ background: W.surface2, border: `1px solid ${W.border}`, borderRadius: 8, padding: "4px 10px", fontSize: 11, color: W.textMuted, fontWeight: 700, cursor: "pointer", whiteSpace: "nowrap" }}>Set Active</button>
+                        )}
+                        <span style={{ color: W.textMuted, fontSize: 18 }}>›</span>
+                      </div>
                     </div>
                   ))}
                 </div>
               ))}
             </div>
-            <div style={{ marginBottom: 18 }}>
-              <div style={{ fontWeight: 800, fontSize: 14, color: W.text, marginBottom: 10 }}>💪 Workout Checklist</div>
-              <div style={{ background: W.surface, border: `1px solid ${W.border}`, borderRadius: 14, padding: "12px 14px" }}>
-                {defaultWorkoutItems.map((item, i) => (
-                  <div key={item.id} style={{ display: "flex", alignItems: "center", gap: 8, paddingTop: i > 0 ? 6 : 0 }}>
-                    <span style={{ width: 18, height: 18, borderRadius: 5, border: `1.5px solid ${W.border}`, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }} />
-                    <span style={{ fontSize: 13, color: W.textDim }}>{item.text}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-            <div style={{ marginBottom: 18 }}>
-              <div style={{ fontWeight: 800, fontSize: 14, color: W.text, marginBottom: 10 }}>🤙 Fingerboard Checklist</div>
-              <div style={{ background: W.surface, border: `1px solid ${W.border}`, borderRadius: 14, padding: "12px 14px" }}>
-                {defaultFingerboardItems.map((item, i) => (
-                  <div key={item.id} style={{ display: "flex", alignItems: "center", gap: 8, paddingTop: i > 0 ? 6 : 0 }}>
-                    <span style={{ width: 18, height: 18, borderRadius: 5, border: `1.5px solid ${W.border}`, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }} />
-                    <span style={{ fontSize: 13, color: W.textDim }}>{item.text}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-        )}
+          );
+        })()}
 
         {profileTab === "stats" && (() => {
           const tfLabels = { "2w": "Past 2 Weeks", "1m": "Past Month", "6m": "Past 6 Months", "1y": "Past Year", "all": "All Time" };
