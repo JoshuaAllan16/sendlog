@@ -250,6 +250,7 @@ export default function App() {
   const [showRopeScalePicker, setShowRopeScalePicker] = useState(false);
   const [gymSets, setGymSets] = useState({});
   const [selectedSetClimb, setSelectedSetClimb] = useState(null);
+  const [boulderQuickPanel, setBoulderQuickPanel] = useState(null); // null | "projects" | "set"
   const [calendarDate, setCalendarDate] = useState(new Date());
 
   const [logbookFilter, setLogbookFilter]   = useState("all");
@@ -1784,39 +1785,61 @@ export default function App() {
       <div style={{ background: W.surface2, borderRadius: 16, padding: "16px", marginBottom: 16, border: `1px solid ${W.border}` }}>
         <div style={{ fontWeight: 700, color: W.text, marginBottom: 14, fontSize: 15 }}>{title}</div>
 
-        {/* Project picker — shown at top of form when logging a new active climb */}
-        {isActiveSession && !editingClimbId && type !== "speed" && (() => {
-          const filteredProjects = activeProjects.filter(p =>
-            type === "rope" ? p.climbType === "rope" : (!p.climbType || p.climbType === "boulder")
-          );
-          const selectedProject = activeProjects.find(p => p.id === climbForm.projectId);
-          return (
-            <div style={{ background: climbForm.projectId ? W.pink : W.surface2, borderRadius: 12, marginBottom: 14, border: `1.5px solid ${climbForm.projectId ? W.pinkDark + "55" : W.border}`, overflow: "hidden" }}>
-              <div onClick={() => setFormProjectPickerOpen(o => !o)} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "11px 14px", cursor: "pointer" }}>
-                <div>
-                  <span style={{ fontWeight: 700, color: climbForm.projectId ? W.pinkDark : W.textMuted, fontSize: 13 }}>Climb a Project</span>
-                  {selectedProject && <span style={{ marginLeft: 8, fontSize: 12, color: W.pinkDark, fontWeight: 700 }}>{selectedProject.name || selectedProject.grade}</span>}
-                </div>
-                <span style={{ color: W.textMuted, fontSize: 12 }}>{formProjectPickerOpen ? "▲" : "▼"}</span>
-              </div>
-              {formProjectPickerOpen && (
-                <div style={{ borderTop: `1px solid ${W.border}`, padding: "8px 12px 12px" }}>
-                  {filteredProjects.length === 0
-                    ? <div style={{ color: W.textDim, fontSize: 13, padding: "6px 0" }}>No active {type} projects yet.</div>
-                    : filteredProjects.map(p => (
-                      <div key={p.id} onClick={() => { setClimbForm(f => ({ ...f, isProject: true, projectId: p.id, name: p.name || f.name, grade: p.grade, scale: p.scale })); setFormProjectPickerOpen(false); }} style={{ display: "flex", alignItems: "center", background: climbForm.projectId === p.id ? W.pink : W.surface, borderRadius: 10, padding: "10px 12px", marginBottom: 6, border: `1.5px solid ${climbForm.projectId === p.id ? W.pinkDark : W.border}`, cursor: "pointer" }}>
-                        <span style={{ fontWeight: 800, color: getGradeColor(p.grade), fontSize: 13, minWidth: 36 }}>{p.grade}</span>
-                        {p.name && <span style={{ color: W.text, fontWeight: 600, fontSize: 13, flex: 1 }}>{p.name}</span>}
-                        {climbForm.projectId === p.id && <span style={{ color: W.pinkDark, fontSize: 14, fontWeight: 900 }}>✓</span>}
+        {/* Quick-add panel: Projects + Current Set tabs */}
+        {isActiveSession && !editingClimbId && type === "boulder" && (
+          <div style={{ marginBottom: 14 }}>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: boulderQuickPanel ? 10 : 0 }}>
+              <button onClick={() => setBoulderQuickPanel(p => p === "projects" ? null : "projects")} style={{ padding: "9px", borderRadius: 12, border: `2px solid ${boulderQuickPanel === "projects" ? W.pinkDark : W.border}`, background: boulderQuickPanel === "projects" ? W.pink : W.surface, color: boulderQuickPanel === "projects" ? W.pinkDark : W.textMuted, fontWeight: 700, fontSize: 13, cursor: "pointer" }}>🎯 Projects</button>
+              <button onClick={() => setBoulderQuickPanel(p => p === "set" ? null : "set")} style={{ padding: "9px", borderRadius: 12, border: `2px solid ${boulderQuickPanel === "set" ? W.accent : W.border}`, background: boulderQuickPanel === "set" ? W.accent + "22" : W.surface, color: boulderQuickPanel === "set" ? W.accent : W.textMuted, fontWeight: 700, fontSize: 13, cursor: "pointer" }}>Current Set</button>
+            </div>
+            {boulderQuickPanel === "projects" && (() => {
+              const boulderProjects = activeProjects.filter(p => !p.climbType || p.climbType === "boulder");
+              return (
+                <div style={{ background: W.surface, borderRadius: 12, border: `1px solid ${W.border}`, padding: "8px 10px" }}>
+                  {boulderProjects.length === 0
+                    ? <div style={{ color: W.textDim, fontSize: 13, padding: "8px 4px" }}>No active boulder projects yet.</div>
+                    : boulderProjects.map(p => (
+                      <div key={p.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "9px 6px", borderBottom: `1px solid ${W.border}` }}>
+                        <div style={{ width: 36, height: 36, borderRadius: 9, display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 900, fontSize: 12, background: getGradeColor(p.grade) + "30", color: getGradeColor(p.grade), border: `1.5px solid ${getGradeColor(p.grade)}60`, flexShrink: 0 }}>{p.grade}</div>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ fontWeight: 700, color: W.text, fontSize: 13, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{p.name || p.grade}</div>
+                          <div style={{ fontSize: 11, color: W.textMuted }}>{p.grade} · {p.scale}</div>
+                        </div>
+                        <button onClick={() => { setClimbForm(f => ({ ...f, isProject: true, projectId: p.id, name: p.name || f.name, grade: p.grade, scale: p.scale })); setBoulderQuickPanel(null); }} style={{ padding: "6px 12px", borderRadius: 10, border: `1.5px solid ${W.pinkDark}`, background: W.pink, color: W.pinkDark, fontWeight: 700, fontSize: 12, cursor: "pointer", flexShrink: 0 }}>Add to Session</button>
                       </div>
                     ))
                   }
-                  {climbForm.projectId && <button onClick={() => { setClimbForm(f => ({ ...f, isProject: false, projectId: null })); setFormProjectPickerOpen(false); }} style={{ width: "100%", padding: "7px", background: "transparent", border: `1px solid ${W.border}`, borderRadius: 8, color: W.textMuted, cursor: "pointer", fontSize: 12, marginTop: 4 }}>Clear selection</button>}
                 </div>
-              )}
-            </div>
-          );
-        })()}
+              );
+            })()}
+            {boulderQuickPanel === "set" && (() => {
+              const location = activeSession?.location;
+              const setClimbs = location ? (gymSets[location] || []).filter(c => !c.removed) : [];
+              return (
+                <div style={{ background: W.surface, borderRadius: 12, border: `1px solid ${W.border}`, padding: "8px 10px" }}>
+                  {!location
+                    ? <div style={{ color: W.textDim, fontSize: 13, padding: "8px 4px" }}>No gym selected for this session.</div>
+                    : setClimbs.length === 0
+                    ? <div style={{ color: W.textDim, fontSize: 13, padding: "8px 4px" }}>No climbs currently set at {location}.</div>
+                    : setClimbs.map(sc => (
+                      <div key={sc.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "9px 6px", borderBottom: `1px solid ${W.border}` }}>
+                        <div style={{ width: 36, height: 36, borderRadius: 9, display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 900, fontSize: 12, background: getGradeColor(sc.grade) + "30", color: getGradeColor(sc.grade), border: `1.5px solid ${getGradeColor(sc.grade)}60`, flexShrink: 0 }}>{sc.grade}</div>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
+                            {sc.color && <ColorDot colorId={sc.color} size={10} />}
+                            <span style={{ fontWeight: 700, color: W.text, fontSize: 13, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{sc.name || sc.grade}</span>
+                          </div>
+                          <div style={{ fontSize: 11, color: W.textMuted }}>{sc.grade} · {sc.scale}</div>
+                        </div>
+                        <button onClick={() => { setClimbForm(f => ({ ...f, name: sc.name || "", grade: sc.grade, scale: sc.scale, color: sc.color, wallTypes: sc.wallTypes || [], holdTypes: sc.holdTypes || [], setClimbId: sc.id })); setBoulderQuickPanel(null); }} style={{ padding: "6px 12px", borderRadius: 10, border: `1.5px solid ${W.accent}`, background: W.accent + "22", color: W.accent, fontWeight: 700, fontSize: 12, cursor: "pointer", flexShrink: 0 }}>Add to Session</button>
+                      </div>
+                    ))
+                  }
+                </div>
+              );
+            })()}
+          </div>
+        )}
         {/* Name */}
         <Label>{type === "speed" ? "Climb Name (optional)" : "Climb Name"}</Label>
         <input value={climbForm.name} onChange={e => setClimbForm(f => ({ ...f, name: e.target.value }))} placeholder={type === "boulder" ? "e.g. The Sloper Problem" : type === "rope" ? "e.g. Red Route 6b+" : "e.g. Speed Route"} style={{ width: "100%", padding: "10px 12px", background: W.surface, border: `2px solid ${W.border}`, borderRadius: 10, color: W.text, fontSize: 14, boxSizing: "border-box", marginBottom: 12, fontFamily: "inherit" }} />
@@ -1843,19 +1866,6 @@ export default function App() {
         {/* Boulder: grade (with inline scale picker), wall type, hold types */}
         {type === "boulder" && (
           <>
-            {/* Currently-set climbs picker for this gym */}
-            {isActiveSession && !editingClimbId && activeSession?.location && (gymSets[activeSession.location] || []).filter(c => !c.removed).length > 0 && (
-              <div style={{ marginBottom: 14 }}>
-                <div style={{ color: W.textMuted, fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: 1.2, marginBottom: 6 }}>Currently Set at {activeSession.location}</div>
-                <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
-                  {(gymSets[activeSession.location] || []).filter(c => !c.removed).map(sc => (
-                    <button key={sc.id} onClick={() => setClimbForm(f => f.setClimbId === sc.id ? { ...f, setClimbId: null } : { ...f, name: sc.name || "", grade: sc.grade, scale: sc.scale, color: sc.color, wallTypes: sc.wallTypes || [], holdTypes: sc.holdTypes || [], setClimbId: sc.id })} style={{ padding: "5px 11px", borderRadius: 14, border: `2px solid ${climbForm.setClimbId === sc.id ? W.accent : W.border}`, background: climbForm.setClimbId === sc.id ? W.accent + "22" : W.surface2, color: climbForm.setClimbId === sc.id ? W.accent : W.textDim, cursor: "pointer", fontWeight: 700, fontSize: 12, display: "flex", alignItems: "center", gap: 5 }}>
-                      {sc.color && <ColorDot colorId={sc.color} size={9} />}{sc.grade}{sc.name ? ` · ${sc.name}` : ""}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )}
             {showBoulderScalePicker && (
               <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", zIndex: 300, display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }} onClick={() => setShowBoulderScalePicker(false)}>
                 <div style={{ background: W.surface, borderRadius: 18, padding: "20px", width: "100%", maxWidth: 340, border: `1px solid ${W.border}`, maxHeight: "80vh", overflowY: "auto" }} onClick={e => e.stopPropagation()}>
