@@ -249,6 +249,8 @@ export default function App() {
   const [projActiveCollapsed, setProjActiveCollapsed] = useState(false);
   const [projSentCollapsed, setProjSentCollapsed]     = useState(false);
   const [projRetiredCollapsed, setProjRetiredCollapsed] = useState(false);
+  const [climbingSubTab, setClimbingSubTab] = useState("logbook");
+  const [trainingSubTab, setTrainingSubTab] = useState("overview");
 
   const blankForm = { name: "", grade: GRADES[preferredScale]?.[2] || "V3", scale: preferredScale, isProject: false, comments: "", photo: null, color: null, wallTypes: [], holdTypes: [], climbType: "boulder", ropeStyle: "lead", speedTime: "", setClimbId: null };
 
@@ -1082,7 +1084,7 @@ export default function App() {
     setTimerRunning(false); setSessionActiveStart(null); setSessionPausedSec(0); setActiveSession(null); setSessionTimer(0); setSessionStarted(false); setPendingLocation(""); setShowEndConfirm(false); setScreen("sessionSummary");
     localStorage.removeItem("active:climb");
   };
-  const deleteSession = (id) => { setSessions(prev => prev.filter(s => s.id !== id)); setScreen("profile"); setProfileTab("logbook"); };
+  const deleteSession = (id) => { setSessions(prev => prev.filter(s => s.id !== id)); setScreen("profile"); setProfileTab("climbing"); setClimbingSubTab("logbook"); };
   const updateSessionNotes = (id, notes) => setSessions(prev => prev.map(s => s.id === id ? { ...s, notes } : s));
   const discardSession = () => {
     if (!sessionSummary) return;
@@ -3096,7 +3098,7 @@ export default function App() {
     return (
       <div style={{ padding: "24px 20px" }}>
         {!readOnly && (
-          <button onClick={() => { setScreen("profile"); setProfileTab("logbook"); }} style={{ width: "100%", padding: "14px", background: `linear-gradient(135deg, ${W.accent}, ${W.accentDark})`, border: "none", borderRadius: 14, color: "#fff", fontWeight: 800, fontSize: 15, cursor: "pointer", marginBottom: 16, boxShadow: `0 4px 16px ${W.accentGlow}` }}>Save Session</button>
+          <button onClick={() => { setScreen("profile"); setProfileTab("climbing"); setClimbingSubTab("logbook"); }} style={{ width: "100%", padding: "14px", background: `linear-gradient(135deg, ${W.accent}, ${W.accentDark})`, border: "none", borderRadius: 14, color: "#fff", fontWeight: 800, fontSize: 15, cursor: "pointer", marginBottom: 16, boxShadow: `0 4px 16px ${W.accentGlow}` }}>Save Session</button>
         )}
         {readOnly && (
           <div style={{ background: W.surface2, borderRadius: 12, padding: "8px 14px", marginBottom: 14, border: `1px solid ${W.border}`, display: "flex", alignItems: "center", gap: 8 }}>
@@ -3775,11 +3777,109 @@ export default function App() {
           </div>
         )}
 
-        <div style={{ display: "flex", background: W.surface2, borderRadius: 14, padding: 5, marginBottom: 22, border: `1px solid ${W.border}` }}>
-          {[{ id: "stats", label: "Stats" }, { id: "logbook", label: "Logbook" }, { id: "projects", label: "Projects" }].map(tab => (
+        <div style={{ display: "flex", background: W.surface2, borderRadius: 14, padding: 5, marginBottom: 10, border: `1px solid ${W.border}` }}>
+          {[{ id: "stats", label: "Stats" }, { id: "climbing", label: "Climbing" }, { id: "training", label: "Training" }].map(tab => (
             <button key={tab.id} onClick={() => setProfileTab(tab.id)} style={{ flex: 1, padding: "12px 4px", borderRadius: 10, border: "none", background: profileTab === tab.id ? `linear-gradient(135deg, ${W.accent}, ${W.accentDark})` : "transparent", color: profileTab === tab.id ? "#fff" : W.textDim, fontWeight: 800, fontSize: 15, cursor: "pointer" }}>{tab.label}</button>
           ))}
         </div>
+
+        {profileTab === "climbing" && (
+          <div style={{ display: "flex", background: W.surface2, borderRadius: 10, padding: 3, marginBottom: 18, border: `1px solid ${W.border}` }}>
+            {[{ id: "logbook", label: "Logbook" }, { id: "sets", label: "Sets" }, { id: "projects", label: "Projects" }].map(tab => (
+              <button key={tab.id} onClick={() => setClimbingSubTab(tab.id)} style={{ flex: 1, padding: "8px 4px", borderRadius: 8, border: "none", background: climbingSubTab === tab.id ? `linear-gradient(135deg, ${W.accent}, ${W.accentDark})` : "transparent", color: climbingSubTab === tab.id ? "#fff" : W.textDim, fontWeight: 700, fontSize: 13, cursor: "pointer" }}>{tab.label}</button>
+            ))}
+          </div>
+        )}
+
+        {profileTab === "training" && (
+          <div style={{ display: "flex", background: W.surface2, borderRadius: 10, padding: 3, marginBottom: 18, border: `1px solid ${W.border}` }}>
+            {[{ id: "overview", label: "Overview" }, { id: "routines", label: "Routines" }].map(tab => (
+              <button key={tab.id} onClick={() => setTrainingSubTab(tab.id)} style={{ flex: 1, padding: "8px 4px", borderRadius: 8, border: "none", background: trainingSubTab === tab.id ? `linear-gradient(135deg, ${W.accent}, ${W.accentDark})` : "transparent", color: trainingSubTab === tab.id ? "#fff" : W.textDim, fontWeight: 700, fontSize: 13, cursor: "pointer" }}>{tab.label}</button>
+            ))}
+          </div>
+        )}
+
+        {profileTab === "training" && trainingSubTab === "overview" && (() => {
+          const warmupSessions = sessions.filter(s => (s.warmupTotalSec || 0) > 0);
+          const workoutSessions = sessions.filter(s => (s.workoutTotalSec || 0) > 0);
+          const fingerboardSessions = sessions.filter(s => (s.fingerboardTotalSec || 0) > 0);
+          const totalWarmupSec = warmupSessions.reduce((sum, s) => sum + (s.warmupTotalSec || 0), 0);
+          const totalWorkoutSec = workoutSessions.reduce((sum, s) => sum + (s.workoutTotalSec || 0), 0);
+          const totalFingerboardSec = fingerboardSessions.reduce((sum, s) => sum + (s.fingerboardTotalSec || 0), 0);
+          const StatCard = ({ emoji, label, count, totalSec }) => (
+            <div style={{ background: W.surface, border: `1px solid ${W.border}`, borderRadius: 16, padding: "16px", marginBottom: 10 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10 }}>
+                <span style={{ fontSize: 22 }}>{emoji}</span>
+                <span style={{ fontWeight: 800, fontSize: 15, color: W.text }}>{label}</span>
+              </div>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+                <div style={{ background: W.surface2, borderRadius: 10, padding: "10px 12px" }}>
+                  <div style={{ fontSize: 20, fontWeight: 800, color: W.accent }}>{count}</div>
+                  <div style={{ fontSize: 11, color: W.textMuted, fontWeight: 600 }}>sessions</div>
+                </div>
+                <div style={{ background: W.surface2, borderRadius: 10, padding: "10px 12px" }}>
+                  <div style={{ fontSize: 20, fontWeight: 800, color: W.accent }}>{formatDuration(totalSec)}</div>
+                  <div style={{ fontSize: 11, color: W.textMuted, fontWeight: 600 }}>total time</div>
+                </div>
+              </div>
+            </div>
+          );
+          if (warmupSessions.length === 0 && workoutSessions.length === 0 && fingerboardSessions.length === 0) return (
+            <div style={{ textAlign: "center", color: W.textDim, padding: "40px 20px" }}>
+              <div style={{ fontSize: 32, marginBottom: 10 }}>🏋️</div>
+              <div style={{ fontSize: 15, fontWeight: 700, color: W.text, marginBottom: 6 }}>No training data yet</div>
+              <div style={{ fontSize: 13 }}>Use the warmup, workout, or fingerboard sections during a session to track training time.</div>
+            </div>
+          );
+          return (
+            <div>
+              {warmupSessions.length > 0 && <StatCard emoji="🧘" label="Warmup" count={warmupSessions.length} totalSec={totalWarmupSec} />}
+              {workoutSessions.length > 0 && <StatCard emoji="💪" label="Workout" count={workoutSessions.length} totalSec={totalWorkoutSec} />}
+              {fingerboardSessions.length > 0 && <StatCard emoji="🤙" label="Fingerboard" count={fingerboardSessions.length} totalSec={totalFingerboardSec} />}
+            </div>
+          );
+        })()}
+
+        {profileTab === "training" && trainingSubTab === "routines" && (
+          <div>
+            <div style={{ marginBottom: 18 }}>
+              <div style={{ fontWeight: 800, fontSize: 14, color: W.text, marginBottom: 10 }}>🧘 Warmup Templates</div>
+              {warmupTemplates.map(tpl => (
+                <div key={tpl.id} style={{ background: W.surface, border: `1px solid ${W.border}`, borderRadius: 14, padding: "12px 14px", marginBottom: 8 }}>
+                  <div style={{ fontWeight: 700, fontSize: 13, color: W.text, marginBottom: 8 }}>{tpl.name}</div>
+                  {(tpl.items || []).map((item, i) => (
+                    <div key={item.id} style={{ display: "flex", alignItems: "center", gap: 8, paddingTop: i > 0 ? 6 : 0 }}>
+                      <span style={{ width: 18, height: 18, borderRadius: 5, border: `1.5px solid ${W.border}`, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }} />
+                      <span style={{ fontSize: 13, color: W.textDim }}>{item.text}</span>
+                    </div>
+                  ))}
+                </div>
+              ))}
+            </div>
+            <div style={{ marginBottom: 18 }}>
+              <div style={{ fontWeight: 800, fontSize: 14, color: W.text, marginBottom: 10 }}>💪 Workout Checklist</div>
+              <div style={{ background: W.surface, border: `1px solid ${W.border}`, borderRadius: 14, padding: "12px 14px" }}>
+                {defaultWorkoutItems.map((item, i) => (
+                  <div key={item.id} style={{ display: "flex", alignItems: "center", gap: 8, paddingTop: i > 0 ? 6 : 0 }}>
+                    <span style={{ width: 18, height: 18, borderRadius: 5, border: `1.5px solid ${W.border}`, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }} />
+                    <span style={{ fontSize: 13, color: W.textDim }}>{item.text}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+            <div style={{ marginBottom: 18 }}>
+              <div style={{ fontWeight: 800, fontSize: 14, color: W.text, marginBottom: 10 }}>🤙 Fingerboard Checklist</div>
+              <div style={{ background: W.surface, border: `1px solid ${W.border}`, borderRadius: 14, padding: "12px 14px" }}>
+                {defaultFingerboardItems.map((item, i) => (
+                  <div key={item.id} style={{ display: "flex", alignItems: "center", gap: 8, paddingTop: i > 0 ? 6 : 0 }}>
+                    <span style={{ width: 18, height: 18, borderRadius: 5, border: `1.5px solid ${W.border}`, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }} />
+                    <span style={{ fontSize: 13, color: W.textDim }}>{item.text}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
 
         {profileTab === "stats" && (() => {
           const tfLabels = { "2w": "Past 2 Weeks", "1m": "Past Month", "6m": "Past 6 Months", "1y": "Past Year", "all": "All Time" };
@@ -4412,14 +4512,14 @@ export default function App() {
           );
         })()}
 
-        {profileTab === "logbook" && (
+        {profileTab === "climbing" && climbingSubTab === "logbook" && (
           <div>
             <div style={{ display: "flex", background: W.surface2, borderRadius: 10, padding: 3, marginBottom: 14, border: `1px solid ${W.border}` }}>
-              {[{ id: "climbs", label: "By Climb" }, { id: "sessions", label: "By Session" }, { id: "gymSets", label: "Gym Sets" }].map(v => (
+              {[{ id: "climbs", label: "By Climb" }, { id: "sessions", label: "By Session" }].map(v => (
                 <button key={v.id} onClick={() => setLogbookView(v.id)} style={{ flex: 1, padding: "8px", borderRadius: 8, border: "none", background: logbookView === v.id ? `linear-gradient(135deg, ${W.accent}, ${W.accentDark})` : "transparent", color: logbookView === v.id ? "#fff" : W.textDim, fontWeight: 700, fontSize: 12, cursor: "pointer" }}>{v.label}</button>
               ))}
             </div>
-            {logbookView !== "gymSets" && <div style={{ marginBottom: 14 }}>
+            <div style={{ marginBottom: 14 }}>
               <button onClick={() => setLogbookFiltersOpen(o => !o)} style={{ width: "100%", padding: "11px 14px", background: W.surface2, border: `1px solid ${W.border}`, borderRadius: logbookFiltersOpen ? "12px 12px 0 0" : "12px", cursor: "pointer", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 8 }}><span>🔽</span><span style={{ fontWeight: 700, color: W.text, fontSize: 13 }}>Filters</span>{(logbookView === "climbs" ? hasClimbFilters : hasSessionFilters) && <span style={{ background: W.accent, color: "#fff", borderRadius: 20, padding: "2px 8px", fontSize: 10, fontWeight: 700 }}>Active</span>}</div>
                 <span style={{ color: W.textMuted, fontSize: 16 }}>⌄</span>
@@ -4476,7 +4576,7 @@ export default function App() {
                   )}
                 </div>
               )}
-            </div>}
+            </div>
             {logbookView === "climbs" && (
               <>
                 <div style={{ fontSize: 12, color: W.textMuted, marginBottom: 12, fontWeight: 600 }}>{logbookClimbs.length} climb{logbookClimbs.length !== 1 ? "s" : ""} found</div>
@@ -4520,81 +4620,82 @@ export default function App() {
                     })()}
               </>
             )}
-            {logbookView === "gymSets" && (() => {
-              const locations = Object.keys(gymSets).filter(loc => (gymSets[loc] || []).length > 0);
-              if (locations.length === 0) return (
-                <div style={{ textAlign: "center", color: W.textDim, padding: "40px 20px" }}>
-                  <div style={{ fontSize: 32, marginBottom: 10 }}>🏟️</div>
-                  <div style={{ fontSize: 15, fontWeight: 700, color: W.text, marginBottom: 6 }}>No gym sets yet</div>
-                  <div style={{ fontSize: 13 }}>Climbs you log during sessions are automatically tracked here by gym.</div>
-                </div>
-              );
-              return (
-                <div>
-                  {locations.map(loc => {
-                    const allEntries = gymSets[loc] || [];
-                    const active = allEntries.filter(e => !e.removed).sort((a, b) => new Date(b.setDate) - new Date(a.setDate));
-                    const removed = allEntries.filter(e => e.removed);
-                    const showRemoved = gymSetShowRemoved[loc];
-                    return (
-                      <div key={loc} style={{ marginBottom: 22 }}>
-                        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
-                          <div style={{ fontWeight: 800, fontSize: 15, color: W.text }}>📍 {loc}</div>
-                          <div style={{ fontSize: 11, color: W.textMuted, fontWeight: 600 }}>{active.length} on wall</div>
-                        </div>
-                        {active.length === 0 && <div style={{ color: W.textDim, fontSize: 13, textAlign: "center", padding: "12px 0" }}>No active climbs</div>}
-                        {active.map(entry => {
-                          const entryAttempts = sessions.flatMap(s => (s.climbs || []).filter(c => c.setClimbId === entry.id));
-                          const entrySends = entryAttempts.filter(c => c.completed).length;
-                          const entrySessionCount = new Set(sessions.filter(s => (s.climbs || []).some(c => c.setClimbId === entry.id)).map(s => s.id)).size;
-                          const daysOnWall = entry.setDate ? Math.floor((Date.now() - new Date(entry.setDate)) / 86400000) : null;
-                          const ageLabel = daysOnWall === null ? null : daysOnWall === 0 ? "Set today" : daysOnWall === 1 ? "1 day on wall" : daysOnWall < 7 ? `${daysOnWall} days on wall` : daysOnWall < 14 ? "1 week on wall" : `${Math.floor(daysOnWall / 7)} weeks on wall`;
-                          const isStale = daysOnWall !== null && daysOnWall >= gymSetStaleWeeks * 7;
-                          return (
-                            <div key={entry.id} onClick={() => setSelectedSetClimb(entry)} style={{ background: isStale ? "#78350f18" : W.surface, border: `1px solid ${isStale ? "#b45309" : W.border}`, borderRadius: 14, padding: "12px 14px", marginBottom: 8, cursor: "pointer", display: "flex", alignItems: "center", gap: 12 }}>
-                              <div style={{ width: 44, height: 44, borderRadius: 10, display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 900, fontSize: 13, background: getGradeColor(entry.grade) + "30", color: getGradeColor(entry.grade), border: `1.5px solid ${getGradeColor(entry.grade)}60`, flexShrink: 0 }}>{entry.grade}</div>
-                              <div style={{ flex: 1, minWidth: 0 }}>
-                                <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                                  {entry.color && <ColorDot colorId={entry.color} size={9} />}
-                                  <div style={{ fontWeight: 700, fontSize: 14, color: W.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{entry.name || entry.grade}</div>
-                                  {ageLabel && <span style={{ marginLeft: "auto", fontSize: 10, color: isStale ? "#b45309" : W.textMuted, fontWeight: 700, whiteSpace: "nowrap" }}>{ageLabel}</span>}
-                                </div>
-                                <div style={{ fontSize: 11, color: W.textMuted, marginTop: 2 }}>
-                                  {entrySessionCount} session{entrySessionCount !== 1 ? "s" : ""} · {entryAttempts.length} lap{entryAttempts.length !== 1 ? "s" : ""} · {entrySends} send{entrySends !== 1 ? "s" : ""}{entryAttempts.length > 0 ? ` · ${Math.round((entrySends / entryAttempts.length) * 100)}%` : ""}
-                                </div>
-                              </div>
-                              <span style={{ color: W.textMuted, fontSize: 16 }}>›</span>
-                            </div>
-                          );
-                        })}
-                        {removed.length > 0 && (
-                          <button onClick={() => setGymSetShowRemoved(p => ({ ...p, [loc]: !showRemoved }))} style={{ width: "100%", padding: "8px", background: "transparent", border: `1px solid ${W.border}`, borderRadius: 10, color: W.textMuted, fontSize: 12, fontWeight: 600, cursor: "pointer", marginTop: 4, marginBottom: showRemoved ? 8 : 0 }}>
-                            {showRemoved ? `Hide removed` : `Show ${removed.length} removed`}
-                          </button>
-                        )}
-                        {showRemoved && removed.map(entry => (
-                          <div key={entry.id} onClick={() => setSelectedSetClimb(entry)} style={{ background: W.surface2, border: `1px solid ${W.border}`, borderRadius: 14, padding: "12px 14px", marginBottom: 8, cursor: "pointer", display: "flex", alignItems: "center", gap: 12, opacity: 0.55 }}>
-                            <div style={{ width: 44, height: 44, borderRadius: 10, display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 900, fontSize: 13, background: W.surface2, color: W.textMuted, border: `1.5px solid ${W.border}`, flexShrink: 0 }}>{entry.grade}</div>
-                            <div style={{ flex: 1, minWidth: 0 }}>
-                              <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                                {entry.color && <ColorDot colorId={entry.color} size={9} />}
-                                <div style={{ fontWeight: 700, fontSize: 14, color: W.textMuted, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{entry.name || entry.grade}</div>
-                              </div>
-                              <div style={{ fontSize: 11, color: W.textMuted, marginTop: 2 }}>Removed from wall</div>
-                            </div>
-                            <span style={{ color: W.textMuted, fontSize: 16 }}>›</span>
-                          </div>
-                        ))}
-                      </div>
-                    );
-                  })}
-                </div>
-              );
-            })()}
           </div>
         )}
 
-        {profileTab === "projects" && (() => {
+        {profileTab === "climbing" && climbingSubTab === "sets" && (() => {
+          const locations = Object.keys(gymSets).filter(loc => (gymSets[loc] || []).length > 0);
+          if (locations.length === 0) return (
+            <div style={{ textAlign: "center", color: W.textDim, padding: "40px 20px" }}>
+              <div style={{ fontSize: 32, marginBottom: 10 }}>🏟️</div>
+              <div style={{ fontSize: 15, fontWeight: 700, color: W.text, marginBottom: 6 }}>No gym sets yet</div>
+              <div style={{ fontSize: 13 }}>Climbs you log during sessions are automatically tracked here by gym.</div>
+            </div>
+          );
+          return (
+            <div>
+              {locations.map(loc => {
+                const allEntries = gymSets[loc] || [];
+                const active = allEntries.filter(e => !e.removed).sort((a, b) => new Date(b.setDate) - new Date(a.setDate));
+                const removed = allEntries.filter(e => e.removed);
+                const showRemoved = gymSetShowRemoved[loc];
+                return (
+                  <div key={loc} style={{ marginBottom: 22 }}>
+                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
+                      <div style={{ fontWeight: 800, fontSize: 15, color: W.text }}>📍 {loc}</div>
+                      <div style={{ fontSize: 11, color: W.textMuted, fontWeight: 600 }}>{active.length} on wall</div>
+                    </div>
+                    {active.length === 0 && <div style={{ color: W.textDim, fontSize: 13, textAlign: "center", padding: "12px 0" }}>No active climbs</div>}
+                    {active.map(entry => {
+                      const entryAttempts = sessions.flatMap(s => (s.climbs || []).filter(c => c.setClimbId === entry.id));
+                      const entrySends = entryAttempts.filter(c => c.completed).length;
+                      const entrySessionCount = new Set(sessions.filter(s => (s.climbs || []).some(c => c.setClimbId === entry.id)).map(s => s.id)).size;
+                      const daysOnWall = entry.setDate ? Math.floor((Date.now() - new Date(entry.setDate)) / 86400000) : null;
+                      const ageLabel = daysOnWall === null ? null : daysOnWall === 0 ? "Set today" : daysOnWall === 1 ? "1 day on wall" : daysOnWall < 7 ? `${daysOnWall} days on wall` : daysOnWall < 14 ? "1 week on wall" : `${Math.floor(daysOnWall / 7)} weeks on wall`;
+                      const isStale = daysOnWall !== null && daysOnWall >= gymSetStaleWeeks * 7;
+                      return (
+                        <div key={entry.id} onClick={() => setSelectedSetClimb(entry)} style={{ background: isStale ? "#78350f18" : W.surface, border: `1px solid ${isStale ? "#b45309" : W.border}`, borderRadius: 14, padding: "12px 14px", marginBottom: 8, cursor: "pointer", display: "flex", alignItems: "center", gap: 12 }}>
+                          <div style={{ width: 44, height: 44, borderRadius: 10, display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 900, fontSize: 13, background: getGradeColor(entry.grade) + "30", color: getGradeColor(entry.grade), border: `1.5px solid ${getGradeColor(entry.grade)}60`, flexShrink: 0 }}>{entry.grade}</div>
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                              {entry.color && <ColorDot colorId={entry.color} size={9} />}
+                              <div style={{ fontWeight: 700, fontSize: 14, color: W.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{entry.name || entry.grade}</div>
+                              {ageLabel && <span style={{ marginLeft: "auto", fontSize: 10, color: isStale ? "#b45309" : W.textMuted, fontWeight: 700, whiteSpace: "nowrap" }}>{ageLabel}</span>}
+                            </div>
+                            <div style={{ fontSize: 11, color: W.textMuted, marginTop: 2 }}>
+                              {entrySessionCount} session{entrySessionCount !== 1 ? "s" : ""} · {entryAttempts.length} lap{entryAttempts.length !== 1 ? "s" : ""} · {entrySends} send{entrySends !== 1 ? "s" : ""}{entryAttempts.length > 0 ? ` · ${Math.round((entrySends / entryAttempts.length) * 100)}%` : ""}
+                            </div>
+                          </div>
+                          <span style={{ color: W.textMuted, fontSize: 16 }}>›</span>
+                        </div>
+                      );
+                    })}
+                    {removed.length > 0 && (
+                      <button onClick={() => setGymSetShowRemoved(p => ({ ...p, [loc]: !showRemoved }))} style={{ width: "100%", padding: "8px", background: "transparent", border: `1px solid ${W.border}`, borderRadius: 10, color: W.textMuted, fontSize: 12, fontWeight: 600, cursor: "pointer", marginTop: 4, marginBottom: showRemoved ? 8 : 0 }}>
+                        {showRemoved ? `Hide removed` : `Show ${removed.length} removed`}
+                      </button>
+                    )}
+                    {showRemoved && removed.map(entry => (
+                      <div key={entry.id} onClick={() => setSelectedSetClimb(entry)} style={{ background: W.surface2, border: `1px solid ${W.border}`, borderRadius: 14, padding: "12px 14px", marginBottom: 8, cursor: "pointer", display: "flex", alignItems: "center", gap: 12, opacity: 0.55 }}>
+                        <div style={{ width: 44, height: 44, borderRadius: 10, display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 900, fontSize: 13, background: W.surface2, color: W.textMuted, border: `1.5px solid ${W.border}`, flexShrink: 0 }}>{entry.grade}</div>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                            {entry.color && <ColorDot colorId={entry.color} size={9} />}
+                            <div style={{ fontWeight: 700, fontSize: 14, color: W.textMuted, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{entry.name || entry.grade}</div>
+                          </div>
+                          <div style={{ fontSize: 11, color: W.textMuted, marginTop: 2 }}>Removed from wall</div>
+                        </div>
+                        <span style={{ color: W.textMuted, fontSize: 16 }}>›</span>
+                      </div>
+                    ))}
+                  </div>
+                );
+              })}
+            </div>
+          );
+        })()}
+
+        {profileTab === "climbing" && climbingSubTab === "projects" && (() => {
           const ropeScaleKeys = Object.keys(ROPE_GRADES);
           const inferType = p => p.climbType || (ropeScaleKeys.includes(p.scale) ? "rope" : "boulder");
           const filterFn = p => projectTypeFilter === "all" || inferType(p) === projectTypeFilter;
