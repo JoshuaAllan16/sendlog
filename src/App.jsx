@@ -2874,60 +2874,73 @@ export default function App() {
   const SessionSetupScreen = () => {
     const toggleType = (t) => setSessionTypes(prev => prev.includes(t) ? (prev.length > 1 ? prev.filter(x => x !== t) : prev) : [...prev, t]);
     const climbingOpts = [
-      { id: "boulder",     label: "Bouldering" },
-      { id: "rope",        label: "Rope" },
-      { id: "speed",       label: "Speed" },
+      { id: "boulder", label: "Bouldering" },
+      { id: "rope",    label: "Rope" },
+      { id: "speed",   label: "Speed" },
     ];
     const trainingOpts = [
       { id: "warmup",      label: "Warm Up" },
       { id: "workout",     label: "Workout" },
       { id: "fingerboard", label: "Fingerboard" },
     ];
+    const tab = sessionSetupClimbingOpen ? "climbing" : sessionSetupFitnessOpen ? "training" : null;
+    const setTab = (t) => {
+      setSessionSetupClimbingOpen(t === "climbing");
+      setSessionSetupFitnessOpen(t === "training");
+    };
     const hasClimbing = sessionTypes.some(t => ["boulder","rope","speed"].includes(t));
     const hasTraining = sessionTypes.some(t => ["warmup","workout","fingerboard","fitness"].includes(t));
-    const openClimbing = () => { setSessionSetupClimbingOpen(true); setSessionSetupFitnessOpen(false); };
-    const openTraining = () => { setSessionSetupFitnessOpen(true); setSessionSetupClimbingOpen(false); };
-    const isClimbingOpen = sessionSetupClimbingOpen && !sessionSetupFitnessOpen || sessionSetupClimbingOpen;
+    const activeOpts = tab === "climbing" ? climbingOpts : tab === "training" ? trainingOpts : [];
     return (
-      <div style={{ padding: "32px 24px" }}>
-        <div style={{ background: W.surface, borderRadius: 18, padding: "20px", border: `1px solid ${W.border}`, marginBottom: 16 }}>
+      <div style={{ padding: "32px 20px" }}>
+        {/* Location */}
+        <div style={{ background: W.surface, borderRadius: 18, padding: "18px 20px", border: `1px solid ${W.border}`, marginBottom: 16 }}>
           <Label>Gym / Location</Label>
           <LocationDropdown value={pendingLocation} onChange={v => { setPendingLocation(v); addCustomLocation(v); }} open={locationDropdownOpen} setOpen={setLocationDropdownOpen} knownLocations={knownLocations} onRemove={loc => setHiddenLocations(h => [...h, loc])} />
         </div>
-        <div style={{ background: W.surface, borderRadius: 18, padding: "20px", border: `1px solid ${W.border}`, marginBottom: 24 }}>
-          <div style={{ fontSize: 12, fontWeight: 700, color: W.textMuted, textTransform: "uppercase", letterSpacing: 1, marginBottom: 12 }}>What will you be doing</div>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
-            {/* Climbing column */}
-            <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-              <button onClick={() => { setSessionSetupClimbingOpen(o => !o); setSessionSetupFitnessOpen(false); }} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", background: hasClimbing ? W.accent + "18" : W.surface2, border: `2px solid ${hasClimbing ? W.accent : W.border}`, borderRadius: 12, padding: "12px 14px", cursor: "pointer" }}>
-                <span style={{ fontWeight: 800, fontSize: 14, color: hasClimbing ? W.accent : W.text }}>Climbing</span>
-                <span style={{ fontSize: 12, color: W.textDim }}>{sessionSetupClimbingOpen ? "▲" : "▼"}</span>
-              </button>
-              {sessionSetupClimbingOpen && climbingOpts.map(opt => {
-                const sel = sessionTypes.includes(opt.id);
-                return (
-                  <button key={opt.id} onClick={() => toggleType(opt.id)} style={{ padding: "11px 14px", background: sel ? W.accent + "18" : W.surface2, border: `2px solid ${sel ? W.accent : W.border}`, borderRadius: 10, cursor: "pointer", textAlign: "left" }}>
-                    <span style={{ fontWeight: 700, color: sel ? W.accent : W.text, fontSize: 13 }}>{opt.label}</span>
-                  </button>
-                );
-              })}
-            </div>
-            {/* Training column */}
-            <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-              <button onClick={() => { setSessionSetupFitnessOpen(o => !o); setSessionSetupClimbingOpen(false); }} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", background: hasTraining ? W.accent + "18" : W.surface2, border: `2px solid ${hasTraining ? W.accent : W.border}`, borderRadius: 12, padding: "12px 14px", cursor: "pointer" }}>
-                <span style={{ fontWeight: 800, fontSize: 14, color: hasTraining ? W.accent : W.text }}>Training</span>
-                <span style={{ fontSize: 12, color: W.textDim }}>{sessionSetupFitnessOpen ? "▲" : "▼"}</span>
-              </button>
-              {sessionSetupFitnessOpen && trainingOpts.map(opt => {
-                const sel = sessionTypes.includes(opt.id);
-                return (
-                  <button key={opt.id} onClick={() => toggleType(opt.id)} style={{ padding: "11px 14px", background: sel ? W.accent + "18" : W.surface2, border: `2px solid ${sel ? W.accent : W.border}`, borderRadius: 10, cursor: "pointer", textAlign: "left" }}>
-                    <span style={{ fontWeight: 700, color: sel ? W.accent : W.text, fontSize: 13 }}>{opt.label}</span>
-                  </button>
-                );
-              })}
-            </div>
+        {/* Session type card */}
+        <div style={{ background: W.surface, borderRadius: 18, border: `1px solid ${W.border}`, marginBottom: 24, overflow: "hidden" }}>
+          {/* Segmented tab bar */}
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", background: W.surface2 }}>
+            {[
+              { key: "climbing", label: "Climbing", hasSel: hasClimbing },
+              { key: "training", label: "Training", hasSel: hasTraining },
+            ].map(({ key, label, hasSel }) => {
+              const active = tab === key;
+              return (
+                <button key={key} onClick={() => setTab(active ? null : key)} style={{ padding: "15px 10px", background: active ? W.surface : "transparent", border: "none", borderBottom: active ? `2px solid ${W.accent}` : `2px solid transparent`, cursor: "pointer", transition: "background 0.15s" }}>
+                  <div style={{ fontSize: 14, fontWeight: 800, color: active ? W.accent : hasSel ? W.text : W.textMuted, textAlign: "center" }}>{label}</div>
+                  {hasSel && !active && (
+                    <div style={{ display: "flex", justifyContent: "center", gap: 4, marginTop: 4 }}>
+                      {(key === "climbing" ? climbingOpts : trainingOpts).filter(o => sessionTypes.includes(o.id)).map(o => (
+                        <span key={o.id} style={{ width: 5, height: 5, borderRadius: "50%", background: W.accent, display: "inline-block" }} />
+                      ))}
+                    </div>
+                  )}
+                </button>
+              );
+            })}
           </div>
+          {/* Sub-options */}
+          {tab && (
+            <div style={{ padding: "16px 20px", display: "flex", flexDirection: "column", gap: 8 }}>
+              {activeOpts.map(opt => {
+                const sel = sessionTypes.includes(opt.id);
+                return (
+                  <button key={opt.id} onClick={() => toggleType(opt.id)} style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 10, padding: "14px", background: sel ? W.accent + "18" : W.surface2, border: `1.5px solid ${sel ? W.accent : "transparent"}`, borderRadius: 12, cursor: "pointer", transition: "background 0.12s, border-color 0.12s" }}>
+                    {sel && <span style={{ width: 7, height: 7, borderRadius: "50%", background: W.accent, flexShrink: 0 }} />}
+                    <span style={{ fontWeight: 700, fontSize: 15, color: sel ? W.accent : W.textMuted }}>{opt.label}</span>
+                    {sel && <span style={{ fontSize: 13, color: W.accent, marginLeft: "auto" }}>✓</span>}
+                  </button>
+                );
+              })}
+            </div>
+          )}
+          {!tab && (
+            <div style={{ padding: "20px", textAlign: "center", color: W.textDim, fontSize: 13 }}>
+              Select Climbing or Training above
+            </div>
+          )}
         </div>
         <button onClick={beginTimer} style={{ width: "100%", padding: "18px", background: `linear-gradient(135deg, ${W.accent}, ${W.accentDark})`, border: "none", borderRadius: 16, color: "#fff", fontSize: 17, fontWeight: 800, cursor: "pointer", boxShadow: `0 6px 24px ${W.accentGlow}` }}>Start Session</button>
       </div>
