@@ -1610,7 +1610,7 @@ export default function App() {
 
   const getSessionType = (session) => {
     const types = new Set((session.climbs || []).map(c => c.climbType === "speed-session" ? "speed" : (c.climbType || "boulder")));
-    if (types.size === 0) return "boulder";
+    if (types.size === 0) return (session.fitnessSections || []).length > 0 ? "fitness" : "boulder";
     if (types.size === 1) return [...types][0];
     return "mixed";
   };
@@ -3293,16 +3293,24 @@ export default function App() {
               </div>
             );
           }
-          if (fitnessPickerStep === "exercise") return (
-            <div style={{ marginBottom: 16, background: W.surface, border: `2px solid ${orangeColor}55`, borderRadius: 14, padding: "16px" }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 14 }}>
-                <button onClick={() => setFitnessPickerStep("choose")} style={{ background: W.surface2, border: `1px solid ${W.border}`, borderRadius: 8, padding: "6px 10px", color: W.textDim, fontWeight: 700, cursor: "pointer", fontSize: 13 }}>← Back</button>
-                <div style={{ fontWeight: 800, fontSize: 15, color: W.text }}>Add an Exercise</div>
+          if (fitnessPickerStep === "exercise") {
+            const QUICK_EXERCISES = ["Pull-ups","Push-ups","Dips","Plank","Core Circuit","Hangboard","Campus Board","Antagonist","Stretching","Cool Down"];
+            return (
+              <div style={{ marginBottom: 16, background: W.surface, border: `2px solid ${orangeColor}55`, borderRadius: 14, padding: "16px" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 14 }}>
+                  <button onClick={() => setFitnessPickerStep("choose")} style={{ background: W.surface2, border: `1px solid ${W.border}`, borderRadius: 8, padding: "6px 10px", color: W.textDim, fontWeight: 700, cursor: "pointer", fontSize: 13 }}>← Back</button>
+                  <div style={{ fontWeight: 800, fontSize: 15, color: W.text }}>Add an Exercise</div>
+                </div>
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 12 }}>
+                  {QUICK_EXERCISES.map(name => (
+                    <button key={name} onClick={() => { setFitnessNewExerciseName(name); }} style={{ padding: "5px 10px", borderRadius: 20, border: `1px solid ${fitnessNewExerciseName === name ? orangeColor : orangeColor + "55"}`, background: fitnessNewExerciseName === name ? `${orangeColor}22` : W.surface2, color: fitnessNewExerciseName === name ? orangeColor : W.textMuted, fontSize: 11, fontWeight: 600, cursor: "pointer" }}>{name}</button>
+                  ))}
+                </div>
+                <input value={fitnessNewExerciseName} onChange={e => setFitnessNewExerciseName(e.target.value)} onKeyDown={e => { if (e.key === "Enter") addFitnessExercise(); }} placeholder="Or type a custom name…" style={{ width: "100%", boxSizing: "border-box", padding: "10px 12px", borderRadius: 10, border: `1px solid ${W.border}`, background: W.surface2, color: W.text, fontSize: 14, outline: "none", marginBottom: 10 }} />
+                <button onClick={addFitnessExercise} disabled={!fitnessNewExerciseName.trim()} style={{ width: "100%", padding: "12px", background: fitnessNewExerciseName.trim() ? orangeColor : W.surface2, border: "none", borderRadius: 12, color: fitnessNewExerciseName.trim() ? "#fff" : W.textDim, fontWeight: 800, fontSize: 14, cursor: fitnessNewExerciseName.trim() ? "pointer" : "default", transition: "background 0.15s" }}>Add Exercise</button>
               </div>
-              <input value={fitnessNewExerciseName} onChange={e => setFitnessNewExerciseName(e.target.value)} onKeyDown={e => { if (e.key === "Enter") addFitnessExercise(); }} placeholder="Exercise name (e.g. Pull-ups, Core circuit…)" style={{ width: "100%", boxSizing: "border-box", padding: "10px 12px", borderRadius: 10, border: `1px solid ${W.border}`, background: W.surface2, color: W.text, fontSize: 14, outline: "none", marginBottom: 10 }} autoFocus />
-              <button onClick={addFitnessExercise} style={{ width: "100%", padding: "12px", background: orangeColor, border: "none", borderRadius: 12, color: "#fff", fontWeight: 800, fontSize: 14, cursor: "pointer" }}>Add Exercise</button>
-            </div>
-          );
+            );
+          }
           return null;
         })()}
 
@@ -4513,78 +4521,17 @@ export default function App() {
               );
             })()}
 
-            {/* Default Workout Checklist (collapsible) */}
-            <div style={{ marginBottom: 14, border: `1px solid ${W.border}`, borderRadius: 10, overflow: "hidden" }}>
-              <button onClick={() => setSettingsWorkoutOpen(o => !o)} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", width: "100%", background: W.surface2, border: "none", padding: "10px 12px", cursor: "pointer" }}>
-                <span style={{ fontSize: 13, fontWeight: 700, color: W.text }}>Default Workout Checklist</span>
-                <span style={{ fontSize: 12, color: W.textDim }}>{settingsWorkoutOpen ? "▲" : "▼"}</span>
-              </button>
-              {settingsWorkoutOpen && (
-                <div style={{ padding: "10px 12px", borderTop: `1px solid ${W.border}` }}>
-                  {defaultWorkoutItems.map((item, i) => (
-                    <div key={item.id} style={{ display: "flex", alignItems: "center", gap: 6, padding: "7px 10px", marginBottom: 5, background: W.surface, border: `1px solid ${W.border}`, borderRadius: 9 }}>
-                      <div style={{ display: "flex", flexDirection: "column", gap: 1 }}>
-                        <button onClick={() => i > 0 && setDefaultWorkoutItems(prev => { const a = [...prev]; [a[i-1], a[i]] = [a[i], a[i-1]]; return a; })} style={{ background: "transparent", border: "none", color: i > 0 ? W.textDim : W.border, fontSize: 10, cursor: i > 0 ? "pointer" : "default", padding: "0 2px", lineHeight: 1 }}>▲</button>
-                        <button onClick={() => i < defaultWorkoutItems.length - 1 && setDefaultWorkoutItems(prev => { const a = [...prev]; [a[i], a[i+1]] = [a[i+1], a[i]]; return a; })} style={{ background: "transparent", border: "none", color: i < defaultWorkoutItems.length - 1 ? W.textDim : W.border, fontSize: 10, cursor: i < defaultWorkoutItems.length - 1 ? "pointer" : "default", padding: "0 2px", lineHeight: 1 }}>▼</button>
-                      </div>
-                      <span style={{ fontSize: 12, color: W.text, flex: 1 }}>{item.text}</span>
-                      <button onClick={() => setDefaultWorkoutItems(prev => prev.filter(x => x.id !== item.id))} style={{ background: "transparent", border: "none", color: W.textDim, fontSize: 16, cursor: "pointer", lineHeight: 1, padding: "0 2px" }}>×</button>
-                    </div>
-                  ))}
-                  <div style={{ display: "flex", gap: 6, marginTop: 4 }}>
-                    <input value={workoutSettingsNewItem} onChange={e => setWorkoutSettingsNewItem(e.target.value)} onKeyDown={e => { if (e.key === "Enter" && workoutSettingsNewItem.trim()) { setDefaultWorkoutItems(prev => [...prev, { id: Date.now(), text: workoutSettingsNewItem.trim() }]); setWorkoutSettingsNewItem(""); } }} placeholder="Add exercise…" style={{ flex: 1, padding: "7px 10px", borderRadius: 9, border: `1px solid ${W.border}`, background: W.surface, color: W.text, fontSize: 12, outline: "none" }} />
-                    <button onClick={() => { if (workoutSettingsNewItem.trim()) { setDefaultWorkoutItems(prev => [...prev, { id: Date.now(), text: workoutSettingsNewItem.trim() }]); setWorkoutSettingsNewItem(""); } }} style={{ padding: "7px 12px", borderRadius: 9, border: `1px solid ${W.accentDark}55`, background: W.accent + "22", color: W.accentDark, fontWeight: 700, fontSize: 13, cursor: "pointer" }}>+</button>
-                  </div>
-                  <button onClick={() => setDefaultWorkoutItems(DEFAULT_WORKOUT_ITEMS.map(i => ({ ...i })))} style={{ marginTop: 6, padding: "5px 10px", borderRadius: 8, border: `1px solid ${W.border}`, background: "transparent", color: W.textDim, fontSize: 11, cursor: "pointer" }}>Reset to defaults</button>
-                </div>
-              )}
-            </div>
-
-            {/* Default Fingerboard Checklist (collapsible) */}
-            <div style={{ marginBottom: 14, border: `1px solid ${W.border}`, borderRadius: 10, overflow: "hidden" }}>
-              <button onClick={() => setSettingsFingerboardOpen(o => !o)} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", width: "100%", background: W.surface2, border: "none", padding: "10px 12px", cursor: "pointer" }}>
-                <span style={{ fontSize: 13, fontWeight: 700, color: W.text }}>Default Fingerboard Checklist</span>
-                <span style={{ fontSize: 12, color: W.textDim }}>{settingsFingerboardOpen ? "▲" : "▼"}</span>
-              </button>
-              {settingsFingerboardOpen && (
-                <div style={{ padding: "10px 12px", borderTop: `1px solid ${W.border}` }}>
-                  {defaultFingerboardItems.map((item, i) => (
-                    <div key={item.id} style={{ display: "flex", alignItems: "center", gap: 6, padding: "7px 10px", marginBottom: 5, background: W.surface, border: `1px solid ${W.border}`, borderRadius: 9 }}>
-                      <div style={{ display: "flex", flexDirection: "column", gap: 1 }}>
-                        <button onClick={() => i > 0 && setDefaultFingerboardItems(prev => { const a = [...prev]; [a[i-1], a[i]] = [a[i], a[i-1]]; return a; })} style={{ background: "transparent", border: "none", color: i > 0 ? W.textDim : W.border, fontSize: 10, cursor: i > 0 ? "pointer" : "default", padding: "0 2px", lineHeight: 1 }}>▲</button>
-                        <button onClick={() => i < defaultFingerboardItems.length - 1 && setDefaultFingerboardItems(prev => { const a = [...prev]; [a[i], a[i+1]] = [a[i+1], a[i]]; return a; })} style={{ background: "transparent", border: "none", color: i < defaultFingerboardItems.length - 1 ? W.textDim : W.border, fontSize: 10, cursor: i < defaultFingerboardItems.length - 1 ? "pointer" : "default", padding: "0 2px", lineHeight: 1 }}>▼</button>
-                      </div>
-                      <span style={{ fontSize: 12, color: W.text, flex: 1 }}>{item.text}</span>
-                      <button onClick={() => setDefaultFingerboardItems(prev => prev.filter(x => x.id !== item.id))} style={{ background: "transparent", border: "none", color: W.textDim, fontSize: 16, cursor: "pointer", lineHeight: 1, padding: "0 2px" }}>×</button>
-                    </div>
-                  ))}
-                  <div style={{ display: "flex", gap: 6, marginTop: 4 }}>
-                    <input value={fingerboardSettingsNewItem} onChange={e => setFingerboardSettingsNewItem(e.target.value)} onKeyDown={e => { if (e.key === "Enter" && fingerboardSettingsNewItem.trim()) { setDefaultFingerboardItems(prev => [...prev, { id: Date.now(), text: fingerboardSettingsNewItem.trim() }]); setFingerboardSettingsNewItem(""); } }} placeholder="Add protocol…" style={{ flex: 1, padding: "7px 10px", borderRadius: 9, border: `1px solid ${W.border}`, background: W.surface, color: W.text, fontSize: 12, outline: "none" }} />
-                    <button onClick={() => { if (fingerboardSettingsNewItem.trim()) { setDefaultFingerboardItems(prev => [...prev, { id: Date.now(), text: fingerboardSettingsNewItem.trim() }]); setFingerboardSettingsNewItem(""); } }} style={{ padding: "7px 12px", borderRadius: 9, border: `1px solid ${W.yellowDark}55`, background: W.yellow, color: W.yellowDark, fontWeight: 700, fontSize: 13, cursor: "pointer" }}>+</button>
-                  </div>
-                  <button onClick={() => setDefaultFingerboardItems(DEFAULT_FINGERBOARD_ITEMS.map(i => ({ ...i })))} style={{ marginTop: 6, padding: "5px 10px", borderRadius: 8, border: `1px solid ${W.border}`, background: "transparent", color: W.textDim, fontSize: 11, cursor: "pointer" }}>Reset to defaults</button>
-                </div>
-              )}
-            </div>
-
             {/* App Theme */}
             <div style={{ marginBottom: 14 }}>
               <div style={{ fontSize: 11, fontWeight: 700, color: W.textMuted, textTransform: "uppercase", letterSpacing: 1.2, marginBottom: 8 }}>App Theme</div>
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 6 }}>
                 {[
                   { id: "espresso", label: "Espresso", icon: "☕",  desc: "Dark warm" },
-                  { id: "alpine",   label: "Alpine",   icon: "🏔",  desc: "Light natural" },
-                  { id: "chalk",    label: "Chalk",    icon: "🎨",  desc: "Warm bright" },
                   { id: "neon",     label: "Neon",     icon: "⚡",  desc: "Black + cyan" },
                   { id: "midnight", label: "Midnight", icon: "🌙",  desc: "Dark navy" },
-                  { id: "ember",    label: "Ember",    icon: "🔥",  desc: "Dark amber" },
-                  { id: "abyss",    label: "Abyss",    icon: "🔵",  desc: "Black + blue" },
                   { id: "forest",   label: "Forest",   icon: "🌲",  desc: "Dark green" },
-                  { id: "dusk",     label: "Dusk",     icon: "🌆",  desc: "Dark purple" },
                   { id: "blossom",  label: "Blossom",  icon: "🌸",  desc: "Pink light" },
                   { id: "sakura",   label: "Sakura",   icon: "🌺",  desc: "Dark pink" },
-                  { id: "slate",    label: "Slate",    icon: "🩶",  desc: "Cool gray" },
-                  { id: "crimson",  label: "Crimson",  icon: "🩸",  desc: "Dark red" },
                 ].map(t => (
                   <button key={t.id} onClick={() => setColorTheme(t.id)} style={{ padding: "8px 4px", borderRadius: 12, border: `2px solid`, borderColor: colorTheme === t.id ? W.accent : W.border, background: colorTheme === t.id ? W.accent + "22" : W.surface2, color: colorTheme === t.id ? W.accent : W.textDim, cursor: "pointer", fontSize: 10, fontWeight: colorTheme === t.id ? 700 : 500, textAlign: "center", position: "relative" }}>
                     {colorTheme === t.id && <div style={{ position: "absolute", top: 4, right: 6, fontSize: 10, fontWeight: 900, color: W.accent }}>✓</div>}
@@ -4793,7 +4740,40 @@ export default function App() {
               {warmupSessions.length > 0 && <StatCard emoji="🧘" label="Warmup" count={warmupSessions.length} totalSec={totalWarmupSec} byRoutine={warmupByRoutine} accent={W.pinkDark} />}
               {workoutSessions.length > 0 && <StatCard emoji="💪" label="Workout" count={workoutSessions.length} totalSec={totalWorkoutSec} byRoutine={workoutByRoutine} accent={W.accentDark} />}
               {fingerboardSessions.length > 0 && <StatCard emoji="🤙" label="Fingerboard" count={fingerboardSessions.length} totalSec={totalFingerboardSec} byRoutine={fingerboardByRoutine} accent={W.yellowDark} />}
-              {fitnessSessions.length > 0 && <StatCard emoji="🏋️" label="Fitness" count={fitnessSessions.length} totalSec={0} byRoutine={fitnessByBlock} accent="#f97316" secondValue={fitnessSessions.reduce((t, s) => t + (s.fitnessSections || []).length, 0)} secondLabel="total blocks" thirdValue={fitnessCompletionRate} thirdLabel="task completion" />}
+              {fitnessSessions.length > 0 && (() => {
+                // Build block duration chart — average block duration per session (last 12 sessions)
+                const recent = [...fitnessSessions].sort((a, b) => new Date(a.date) - new Date(b.date)).slice(-12);
+                const chartPts = recent.map(s => {
+                  const blocks = (s.fitnessSections || []).filter(b => b.startedAt && b.endedAt);
+                  const avgSec = blocks.length ? blocks.reduce((t, b) => t + Math.floor((b.endedAt - b.startedAt) / 1000), 0) / blocks.length : 0;
+                  return { date: s.date?.slice(0, 10), avgSec };
+                }).filter(p => p.avgSec > 0);
+                const maxSec = Math.max(...chartPts.map(p => p.avgSec), 1);
+                return (
+                  <>
+                    <StatCard emoji="🏋️" label="Fitness" count={fitnessSessions.length} totalSec={0} byRoutine={fitnessByBlock} accent="#f97316" secondValue={fitnessSessions.reduce((t, s) => t + (s.fitnessSections || []).length, 0)} secondLabel="total blocks" thirdValue={fitnessCompletionRate} thirdLabel="task completion" />
+                    {chartPts.length >= 2 && (
+                      <div style={{ background: W.surface, border: `1px solid ${W.border}`, borderRadius: 16, padding: "16px", marginBottom: 10 }}>
+                        <div style={{ fontWeight: 800, fontSize: 13, color: W.text, marginBottom: 10 }}>🏋️ Avg block duration</div>
+                        <svg width="100%" height={52} viewBox={`0 0 ${(chartPts.length - 1) * 24 + 8} 52`} preserveAspectRatio="none" style={{ display: "block", overflow: "visible" }}>
+                          <polyline
+                            points={chartPts.map((p, i) => `${i * 24 + 4},${46 - Math.round((p.avgSec / maxSec) * 40)}`).join(" ")}
+                            fill="none" stroke="#f97316" strokeWidth={2} strokeLinejoin="round" strokeLinecap="round"
+                          />
+                          {chartPts.map((p, i) => (
+                            <circle key={i} cx={i * 24 + 4} cy={46 - Math.round((p.avgSec / maxSec) * 40)} r={3} fill="#f97316" />
+                          ))}
+                        </svg>
+                        <div style={{ display: "flex", justifyContent: "space-between", marginTop: 4 }}>
+                          <span style={{ fontSize: 9, color: W.textDim }}>{chartPts[0]?.date}</span>
+                          <span style={{ fontSize: 10, fontWeight: 700, color: "#f97316" }}>peak {formatDuration(Math.round(maxSec))}</span>
+                          <span style={{ fontSize: 9, color: W.textDim }}>{chartPts[chartPts.length - 1]?.date}</span>
+                        </div>
+                      </div>
+                    )}
+                  </>
+                );
+              })()}
             </div>
           );
         })()}
@@ -5453,7 +5433,7 @@ export default function App() {
                       </div>
                       <Label>Type</Label>
                       <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 12 }}>
-                        {[["all","All"],["boulder","Boulder"],["rope","Rope"],["speed","Speed"],["mixed","Mixed"]].map(([val,label]) =>
+                        {[["all","All"],["boulder","Boulder"],["rope","Rope"],["speed","Speed"],["mixed","Mixed"],["fitness","Fitness"]].map(([val,label]) =>
                           <button key={val} onClick={() => setSessionTypeFilter(val)} style={{ padding: "6px 12px", borderRadius: 16, border: "2px solid", borderColor: sessionTypeFilter === val ? W.accent : W.border, background: sessionTypeFilter === val ? W.accent + "22" : W.surface, color: sessionTypeFilter === val ? W.accent : W.textDim, cursor: "pointer", fontSize: 12, fontWeight: 600 }}>{label}</button>
                         )}
                       </div>
