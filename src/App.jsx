@@ -249,6 +249,7 @@ export default function App() {
   const [showBoulderScalePicker, setShowBoulderScalePicker] = useState(false);
   const [showRopeScalePicker, setShowRopeScalePicker] = useState(false);
   const [gymSets, setGymSets] = useState({});
+  const [gymSetStaleWeeks, setGymSetStaleWeeks] = useState(8);
   const [selectedSetClimb, setSelectedSetClimb] = useState(null);
   const [boulderQuickPanel, setBoulderQuickPanel] = useState(null); // null | "projects" | "set"
   const [quickPanelSelected, setQuickPanelSelected] = useState([]); // array of selected item IDs
@@ -406,6 +407,7 @@ export default function App() {
             setActiveWarmupTemplateId(userData.profile.activeWarmupTemplateId || userData.profile.warmupTemplates[0].id);
           }
           setAutoEndWarmup(userData.profile?.autoEndWarmup !== false);
+          if (userData.profile?.gymSetStaleWeeks != null) setGymSetStaleWeeks(userData.profile.gymSetStaleWeeks);
           if (userData.profile?.defaultWorkoutItems?.length) setDefaultWorkoutItems(userData.profile.defaultWorkoutItems);
           if (userData.profile?.defaultFingerboardItems?.length) setDefaultFingerboardItems(userData.profile.defaultFingerboardItems);
           if (userData.profile?.sessionTypeOrder?.length) setSessionTypeOrder(userData.profile.sessionTypeOrder);
@@ -436,7 +438,7 @@ export default function App() {
     setSaveStatus("saving");
     saveTimeoutRef.current = setTimeout(async () => {
       const userData = {
-        profile: { displayName: editDisplayName || currentUser.displayName, preferredScale, preferredRopeScale, profilePic, customBoulderGrades, customRopeGrades, customBoulderScaleName, customRopeScaleName, hiddenLocations, customLocations, mainGym, following: socialFollowing, colorTheme, mutedUsers, notifPrefs, isPrivate, pendingFollowRequests, defaultWarmupItems, autoEndWarmup, warmupTemplates, activeWarmupTemplateId, defaultWorkoutItems, defaultFingerboardItems, sessionTypeOrder },
+        profile: { displayName: editDisplayName || currentUser.displayName, preferredScale, preferredRopeScale, profilePic, customBoulderGrades, customRopeGrades, customBoulderScaleName, customRopeScaleName, hiddenLocations, customLocations, mainGym, following: socialFollowing, colorTheme, mutedUsers, notifPrefs, isPrivate, pendingFollowRequests, defaultWarmupItems, autoEndWarmup, warmupTemplates, activeWarmupTemplateId, defaultWorkoutItems, defaultFingerboardItems, sessionTypeOrder, gymSetStaleWeeks },
         sessions,
         projects,
         gymSets,
@@ -446,7 +448,7 @@ export default function App() {
       setTimeout(() => setSaveStatus(""), 2000);
     }, 1000);
     return () => clearTimeout(saveTimeoutRef.current);
-  }, [sessions, projects, gymSets, editDisplayName, preferredScale, preferredRopeScale, profilePic, customBoulderGrades, customRopeGrades, customBoulderScaleName, customRopeScaleName, hiddenLocations, customLocations, mainGym, socialFollowing, colorTheme, mutedUsers, notifPrefs, isPrivate, pendingFollowRequests, defaultWarmupItems, autoEndWarmup, warmupTemplates, activeWarmupTemplateId, defaultWorkoutItems, defaultFingerboardItems, sessionTypeOrder]);
+  }, [sessions, projects, gymSets, editDisplayName, preferredScale, preferredRopeScale, profilePic, customBoulderGrades, customRopeGrades, customBoulderScaleName, customRopeScaleName, hiddenLocations, customLocations, mainGym, socialFollowing, colorTheme, mutedUsers, notifPrefs, isPrivate, pendingFollowRequests, defaultWarmupItems, autoEndWarmup, warmupTemplates, activeWarmupTemplateId, defaultWorkoutItems, defaultFingerboardItems, sessionTypeOrder, gymSetStaleWeeks]);
 
   useEffect(() => {
     if (timerRunning) {
@@ -1095,8 +1097,15 @@ export default function App() {
   const removeClimbFromActive      = (id) => setActiveSession(s => ({ ...s, climbs: (s.climbs || []).filter(c => c.id !== id) }));
   const climbAgain = (climb) => {
     const newId = Date.now();
-    const fresh = { ...climb, id: newId, loggedAt: newId, tries: 0, completed: false, climbingStartedAt: null, lastAttemptEndedAt: null, attemptLog: [], fallLog: [], pausedWorkedMs: 0, paused: false };
-    setActiveSession(s => ({ ...s, climbs: [...(s.climbs || []), fresh] }));
+    const fresh = { ...climb, id: newId, loggedAt: newId, tries: 0, falls: 0, takes: 0, completed: false, climbingStartedAt: null, lastAttemptEndedAt: null, attemptLog: [], fallLog: [], pausedWorkedMs: 0, paused: false };
+    setActiveSession(s => {
+      const climbs = s.climbs || [];
+      const idx = climbs.findIndex(c => c.id === climb.id);
+      const inserted = idx >= 0
+        ? [...climbs.slice(0, idx + 1), fresh, ...climbs.slice(idx + 1)]
+        : [...climbs, fresh];
+      return { ...s, climbs: inserted };
+    });
   };
   const removeClimbFromSession     = (sessionId, climbId) => {
     setSessions(prev => prev.map(s => s.id === sessionId ? { ...s, climbs: (s.climbs || []).filter(c => c.id !== climbId) } : s));
@@ -3490,6 +3499,17 @@ export default function App() {
               })}
             </div>
 
+            {/* Gym Set Stale Alert */}
+            <div style={{ marginBottom: 14 }}>
+              <div style={{ fontSize: 11, fontWeight: 700, color: W.textMuted, textTransform: "uppercase", letterSpacing: 1.2, marginBottom: 8 }}>Gym Set Stale Alert</div>
+              <div style={{ fontSize: 12, color: W.textDim, marginBottom: 8 }}>Highlight climbs that have been on the wall for longer than:</div>
+              <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                {[4, 6, 8, 10, 12].map(w => (
+                  <button key={w} onClick={() => setGymSetStaleWeeks(w)} style={{ padding: "6px 14px", borderRadius: 16, border: "2px solid", borderColor: gymSetStaleWeeks === w ? W.accent : W.border, background: gymSetStaleWeeks === w ? W.accent + "22" : W.surface2, color: gymSetStaleWeeks === w ? W.accent : W.textDim, cursor: "pointer", fontSize: 12, fontWeight: gymSetStaleWeeks === w ? 700 : 500 }}>{w} weeks</button>
+                ))}
+              </div>
+            </div>
+
             {/* Warmup Templates */}
             {(() => {
               const activeTpl = warmupTemplates.find(t => t.id === activeWarmupTemplateId) || warmupTemplates[0];
@@ -4458,7 +4478,7 @@ export default function App() {
                           const entrySessionCount = new Set(sessions.filter(s => (s.climbs || []).some(c => c.setClimbId === entry.id)).map(s => s.id)).size;
                           const daysOnWall = entry.setDate ? Math.floor((Date.now() - new Date(entry.setDate)) / 86400000) : null;
                           const ageLabel = daysOnWall === null ? null : daysOnWall === 0 ? "Set today" : daysOnWall === 1 ? "1 day on wall" : daysOnWall < 7 ? `${daysOnWall} days on wall` : daysOnWall < 14 ? "1 week on wall" : `${Math.floor(daysOnWall / 7)} weeks on wall`;
-                          const isStale = daysOnWall !== null && daysOnWall >= 56; // 8+ weeks
+                          const isStale = daysOnWall !== null && daysOnWall >= gymSetStaleWeeks * 7;
                           return (
                             <div key={entry.id} onClick={() => setSelectedSetClimb(entry)} style={{ background: isStale ? "#78350f18" : W.surface, border: `1px solid ${isStale ? "#b45309" : W.border}`, borderRadius: 14, padding: "12px 14px", marginBottom: 8, cursor: "pointer", display: "flex", alignItems: "center", gap: 12 }}>
                               <div style={{ width: 44, height: 44, borderRadius: 10, display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 900, fontSize: 13, background: getGradeColor(entry.grade) + "30", color: getGradeColor(entry.grade), border: `1.5px solid ${getGradeColor(entry.grade)}60`, flexShrink: 0 }}>{entry.grade}</div>
@@ -4469,7 +4489,7 @@ export default function App() {
                                   {ageLabel && <span style={{ marginLeft: "auto", fontSize: 10, color: isStale ? "#b45309" : W.textMuted, fontWeight: 700, whiteSpace: "nowrap" }}>{ageLabel}</span>}
                                 </div>
                                 <div style={{ fontSize: 11, color: W.textMuted, marginTop: 2 }}>
-                                  {entrySessionCount} session{entrySessionCount !== 1 ? "s" : ""} · {entryAttempts.length} attempt{entryAttempts.length !== 1 ? "s" : ""} · {entrySends} send{entrySends !== 1 ? "s" : ""}
+                                  {entrySessionCount} session{entrySessionCount !== 1 ? "s" : ""} · {entryAttempts.length} lap{entryAttempts.length !== 1 ? "s" : ""} · {entrySends} send{entrySends !== 1 ? "s" : ""}
                                 </div>
                               </div>
                               <span style={{ color: W.textMuted, fontSize: 16 }}>›</span>
@@ -5707,7 +5727,7 @@ export default function App() {
             {setEntry ? (
               <>
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: 8, marginBottom: 18 }}>
-                  {[["Sessions", sessionsClimbed], ["Attempts", allAttempts.length], ["Sends", sends], ["Flashes", flashes]].map(([label, val]) => (
+                  {[["Sessions", sessionsClimbed], ["Laps", allAttempts.length], ["Sends", sends], ["Flashes", flashes]].map(([label, val]) => (
                     <div key={label} style={{ background: W.surface2, borderRadius: 12, padding: "10px 8px", textAlign: "center", border: `1px solid ${W.border}` }}>
                       <div style={{ fontSize: 20, fontWeight: 900, color: W.text }}>{val}</div>
                       <div style={{ fontSize: 10, color: W.textMuted, fontWeight: 600, marginTop: 2 }}>{label}</div>
