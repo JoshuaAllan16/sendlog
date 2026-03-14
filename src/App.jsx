@@ -1210,11 +1210,13 @@ export default function App() {
       });
       if (!activeSession?.warmupStartedAt && sessionActiveStart && Date.now() - sessionActiveStart < 120000) setShowWarmupNudge(true);
       setBoulderQuickPanel(null);
+      setQuickPanelSelected([]);
       setShowClimbForm(false);
       setClimbForm(blankForm);
     } catch (e) {
       console.error("quickAddToSession error:", e);
       setBoulderQuickPanel(null);
+      setQuickPanelSelected([]);
       setShowClimbForm(false);
     }
   };
@@ -5511,15 +5513,39 @@ export default function App() {
       const title = isProjects ? "🎯 Boulder Projects" : `Current Set · ${location || "No gym"}`;
       const accentColor = isProjects ? W.pinkDark : W.accent;
       const accentBg = isProjects ? W.pink : W.accent + "22";
+      const activeClimbs = activeSession?.climbs || [];
+      const inSession = (item) => isProjects
+        ? activeClimbs.some(c => c.projectId === item.id)
+        : activeClimbs.some(c => c.setClimbId === item.id);
       const selCount = quickPanelSelected.length;
       const close = () => { setBoulderQuickPanel(null); setQuickPanelSelected([]); };
-      const toggleSel = (id) => setQuickPanelSelected(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
+      const toggleSel = (id, alreadyIn) => { if (alreadyIn) return; setQuickPanelSelected(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]); };
       const addSelected = () => {
         const items = sorted.filter(item => quickPanelSelected.includes(item.id));
-        items.forEach(item => quickAddToSession(isProjects
-          ? { name: item.name, grade: item.grade, scale: item.scale, climbType: "boulder", isProject: true, projectId: item.id }
-          : { name: item.name, grade: item.grade, scale: item.scale, color: item.color, wallTypes: item.wallTypes, holdTypes: item.holdTypes, climbType: "boulder", setClimbId: item.id }
-        ));
+        const base = Date.now();
+        // Build all climbs with guaranteed unique IDs, then add in one state update
+        const newClimbs = items.map((item, idx) => {
+          const pid = isProjects ? item.id : null;
+          return {
+            name: item.name || "", grade: item.grade, scale: item.scale || preferredScale,
+            color: item.color || null, wallTypes: item.wallTypes || [], holdTypes: item.holdTypes || [],
+            climbType: "boulder", ropeStyle: "lead",
+            isProject: isProjects, projectId: pid,
+            photo: null, comments: "", id: base + idx, loggedAt: base + idx, tries: 0, completed: false,
+            ...(isProjects ? {} : { setClimbId: item.id }),
+          };
+        });
+        setActiveSession(s => {
+          const now = base;
+          const typeUpdates = {};
+          if (!s.boulderStartedAt && newClimbs.some(c => c.climbType === "boulder")) { typeUpdates.boulderStartedAt = now; typeUpdates.boulderTotalSec = 0; }
+          return { ...s, ...typeUpdates, climbs: [...(s.climbs || []), ...newClimbs] };
+        });
+        if (!activeSession?.warmupStartedAt && sessionActiveStart && Date.now() - sessionActiveStart < 120000) setShowWarmupNudge(true);
+        setBoulderQuickPanel(null);
+        setQuickPanelSelected([]);
+        setShowClimbForm(false);
+        setClimbForm(blankForm);
       };
       return (
         <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.6)", zIndex: 400, display: "flex", alignItems: "flex-end", justifyContent: "center" }} onClick={close}>
@@ -5536,10 +5562,11 @@ export default function App() {
               ) : sorted.map(item => {
                 const gc = getGradeColor(item.grade);
                 const sel = quickPanelSelected.includes(item.id);
+                const alreadyIn = inSession(item);
                 return (
-                  <div key={item.id} onClick={() => toggleSel(item.id)} style={{ display: "flex", alignItems: "center", gap: 12, padding: "12px 0", borderBottom: `1px solid ${W.border}`, cursor: "pointer", background: sel ? accentBg : "transparent", margin: "0 -16px", padding: "12px 16px" }}>
-                    <div style={{ width: 26, height: 26, borderRadius: 8, border: `2px solid ${sel ? accentColor : W.border}`, background: sel ? accentColor : "transparent", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-                      {sel && <span style={{ color: "#fff", fontSize: 14, fontWeight: 900 }}>✓</span>}
+                  <div key={item.id} onClick={() => toggleSel(item.id, alreadyIn)} style={{ display: "flex", alignItems: "center", gap: 12, borderBottom: `1px solid ${W.border}`, cursor: alreadyIn ? "default" : "pointer", background: alreadyIn ? W.surface2 : sel ? accentBg : "transparent", margin: "0 -16px", padding: "12px 16px", opacity: alreadyIn ? 0.55 : 1 }}>
+                    <div style={{ width: 26, height: 26, borderRadius: 8, border: `2px solid ${alreadyIn ? W.border : sel ? accentColor : W.border}`, background: alreadyIn ? W.border : sel ? accentColor : "transparent", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                      {alreadyIn ? <span style={{ fontSize: 11, fontWeight: 900, color: W.textMuted }}>–</span> : sel && <span style={{ color: "#fff", fontSize: 14, fontWeight: 900 }}>✓</span>}
                     </div>
                     <div style={{ width: 40, height: 40, borderRadius: 10, display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 900, fontSize: 13, background: gc + "30", color: gc, border: `1.5px solid ${gc}60`, flexShrink: 0 }}>{item.grade}</div>
                     <div style={{ flex: 1, minWidth: 0 }}>
@@ -5549,6 +5576,7 @@ export default function App() {
                       </div>
                       <div style={{ fontSize: 11, color: W.textMuted, marginTop: 2 }}>{item.grade} · {item.scale}</div>
                     </div>
+                    {alreadyIn && <span style={{ fontSize: 11, fontWeight: 700, color: W.textMuted, background: W.surface, border: `1px solid ${W.border}`, borderRadius: 8, padding: "3px 8px", flexShrink: 0 }}>In Session</span>}
                   </div>
                 );
               })}
