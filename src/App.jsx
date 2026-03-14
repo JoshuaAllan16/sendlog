@@ -255,6 +255,7 @@ export default function App() {
   const [pendingDupeClimb, setPendingDupeClimb] = useState(null);
   const [dupeNewName, setDupeNewName] = useState("");
   const [gymSetShowRemoved, setGymSetShowRemoved] = useState({});
+  const [showNewBoulderForm, setShowNewBoulderForm] = useState(false);
   const [calendarDate, setCalendarDate] = useState(new Date());
 
   const [logbookFilter, setLogbookFilter]   = useState("all");
@@ -1102,6 +1103,7 @@ export default function App() {
   };
 
   const openClimbForm = (existing = null, fromProject = null, climbType = "boulder") => {
+    setShowNewBoulderForm(false);
     if (existing) {
       // Auto-stop climb timer when opening edit form
       if (existing.climbingStartedAt && activeSession) {
@@ -1837,7 +1839,8 @@ export default function App() {
     const type = climbForm.climbType || "boulder";
     const ropeGrades = climbForm.scale === "Custom" ? customRopeGrades : (ROPE_GRADES[climbForm.scale] || ROPE_GRADES["French"]);
     const boulderGrades = climbForm.scale === "Custom" ? customBoulderGrades : (GRADES[climbForm.scale] || GRADES["V-Scale"]);
-    const title = editingClimbId ? "✏️ Edit Climb" : type === "boulder" ? "🪨 Add a Boulder" : type === "rope" ? "🪢 Add a Rope Climb" : "⏱ Add a Speed Climb";
+    const title = editingClimbId ? "Edit Climb" : type === "boulder" ? "Add a Boulder" : type === "rope" ? "Add a Rope Climb" : "Add a Speed Climb";
+    const showFields = !isActiveSession || !!editingClimbId || type !== "boulder" || showNewBoulderForm;
     return (
       <div style={{ background: W.surface2, borderRadius: 16, padding: "16px", marginBottom: 16, border: `1px solid ${W.border}` }}>
         <div style={{ fontWeight: 700, color: W.text, marginBottom: 14, fontSize: 15 }}>{title}</div>
@@ -1845,10 +1848,15 @@ export default function App() {
         {/* Quick-add buttons: Projects + Current Set — popup is rendered at app level */}
         {isActiveSession && !editingClimbId && type === "boulder" && (
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 14 }}>
-            <button onClick={() => setBoulderQuickPanel("projects")} style={{ padding: "9px", borderRadius: 12, border: `2px solid ${W.border}`, background: W.surface, color: W.textMuted, fontWeight: 700, fontSize: 13, cursor: "pointer" }}>🎯 Projects</button>
+            <button onClick={() => setBoulderQuickPanel("projects")} style={{ padding: "9px", borderRadius: 12, border: `2px solid ${W.border}`, background: W.surface, color: W.textMuted, fontWeight: 700, fontSize: 13, cursor: "pointer" }}>Projects</button>
             <button onClick={() => setBoulderQuickPanel("set")} style={{ padding: "9px", borderRadius: 12, border: `2px solid ${W.border}`, background: W.surface, color: W.textMuted, fontWeight: 700, fontSize: 13, cursor: "pointer" }}>Current Set</button>
           </div>
         )}
+        {/* Collapsible "Create a New Boulder" section for active session */}
+        {isActiveSession && !editingClimbId && type === "boulder" && !showNewBoulderForm && (
+          <button onClick={() => setShowNewBoulderForm(true)} style={{ width: "100%", padding: "13px", borderRadius: 14, border: `2px solid ${W.border}`, background: W.surface, color: W.text, fontWeight: 700, fontSize: 14, cursor: "pointer", marginBottom: 4 }}>+ Create a New Boulder</button>
+        )}
+        {showFields && <>
         {/* Name */}
         <Label>{type === "speed" ? "Climb Name (optional)" : "Climb Name"}</Label>
         <input value={climbForm.name} onChange={e => setClimbForm(f => ({ ...f, name: e.target.value }))} placeholder={type === "boulder" ? "e.g. The Sloper Problem" : type === "rope" ? "e.g. Red Route 6b+" : "e.g. Speed Route"} style={{ width: "100%", padding: "10px 12px", background: W.surface, border: `2px solid ${W.border}`, borderRadius: 10, color: W.text, fontSize: 14, boxSizing: "border-box", marginBottom: 12, fontFamily: "inherit" }} />
@@ -2026,6 +2034,7 @@ export default function App() {
           <button onClick={onCancel} style={{ padding: "11px", background: "transparent", border: `1px solid ${W.border}`, borderRadius: 12, color: W.textMuted, cursor: "pointer", fontWeight: 600 }}>Cancel</button>
           <button onClick={onSave} style={{ padding: "11px", background: `linear-gradient(135deg, ${W.accent}, ${W.accentDark})`, border: "none", borderRadius: 12, color: "#fff", cursor: "pointer", fontWeight: 700 }}>Save</button>
         </div>
+        </>}
       </div>
     );
   };
@@ -4483,6 +4492,8 @@ export default function App() {
                           const entryAttempts = sessions.flatMap(s => (s.climbs || []).filter(c => c.setClimbId === entry.id));
                           const entrySends = entryAttempts.filter(c => c.completed).length;
                           const entrySessionCount = new Set(sessions.filter(s => (s.climbs || []).some(c => c.setClimbId === entry.id)).map(s => s.id)).size;
+                          const daysOnWall = entry.setDate ? Math.floor((Date.now() - new Date(entry.setDate)) / 86400000) : null;
+                          const ageLabel = daysOnWall === null ? null : daysOnWall === 0 ? "Set today" : daysOnWall === 1 ? "1 day on wall" : daysOnWall < 7 ? `${daysOnWall} days on wall` : daysOnWall < 14 ? "1 week on wall" : `${Math.floor(daysOnWall / 7)} weeks on wall`;
                           return (
                             <div key={entry.id} onClick={() => setSelectedSetClimb(entry)} style={{ background: W.surface, border: `1px solid ${W.border}`, borderRadius: 14, padding: "12px 14px", marginBottom: 8, cursor: "pointer", display: "flex", alignItems: "center", gap: 12 }}>
                               <div style={{ width: 44, height: 44, borderRadius: 10, display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 900, fontSize: 13, background: getGradeColor(entry.grade) + "30", color: getGradeColor(entry.grade), border: `1.5px solid ${getGradeColor(entry.grade)}60`, flexShrink: 0 }}>{entry.grade}</div>
@@ -4490,6 +4501,7 @@ export default function App() {
                                 <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
                                   {entry.color && <ColorDot colorId={entry.color} size={9} />}
                                   <div style={{ fontWeight: 700, fontSize: 14, color: W.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{entry.name || entry.grade}</div>
+                                  {ageLabel && <span style={{ marginLeft: "auto", fontSize: 10, color: W.textMuted, fontWeight: 600, whiteSpace: "nowrap" }}>{ageLabel}</span>}
                                 </div>
                                 <div style={{ fontSize: 11, color: W.textMuted, marginTop: 2 }}>
                                   {entrySessionCount} session{entrySessionCount !== 1 ? "s" : ""} · {entryAttempts.length} attempt{entryAttempts.length !== 1 ? "s" : ""} · {entrySends} send{entrySends !== 1 ? "s" : ""}
@@ -5286,7 +5298,7 @@ export default function App() {
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "14px 20px", borderBottom: `1px solid ${W.border}`, background: W.navBg, position: "sticky", top: 0, zIndex: 50 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
           {(backMap[screen] || screen === "session" || screen === "sessionSummary") && (
-            <button onClick={() => { if (screen === "session" && !sessionStarted) setScreen("home"); else if (screen === "sessionSummary") setShowSummaryLeaveWarn(true); else if (backMap[screen]) { setScreen(backMap[screen]); setShowClimbForm(false); if (screen === "calendar" || screen === "projectDetail") setProfileTab("stats"); if (screen === "sessionDetail") setSessionReadOnly(false); } }} style={{ background: "none", border: "none", color: W.accent, fontSize: 16, cursor: "pointer", padding: 0, marginRight: 4 }}>←</button>
+            <button onClick={() => { if (screen === "session" && sessionStarted && showClimbForm) { setShowClimbForm(false); setPhotoPreview(null); setEditingClimbId(null); setShowNewBoulderForm(false); } else if (screen === "session" && !sessionStarted) setScreen("home"); else if (screen === "sessionSummary") setShowSummaryLeaveWarn(true); else if (backMap[screen]) { setScreen(backMap[screen]); setShowClimbForm(false); if (screen === "calendar" || screen === "projectDetail") setProfileTab("stats"); if (screen === "sessionDetail") setSessionReadOnly(false); } }} style={{ background: "none", border: "none", color: W.accent, fontSize: 16, cursor: "pointer", padding: 0, marginRight: 4 }}>←</button>
           )}
           {screen === "session" && sessionStarted ? (
             <div style={{ display: "flex", flexDirection: "column", gap: 1 }}>
