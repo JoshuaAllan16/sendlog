@@ -152,15 +152,26 @@ export const SessionSummaryScreen = ({
     pieAngle = end;
     return { grade, path, color: getGradeColor(grade), data };
   });
+  const isPureFitness = stats.total === 0 && (session.fitnessSections || []).length > 0;
+  const orangeColor = "#f97316";
   return (
     <div style={{ padding: "24px 20px" }}>
       <div style={{ textAlign: "center", marginBottom: 16 }}>
-        <div style={{ fontSize: 44, marginBottom: 6 }}>🎉</div>
-        <div style={{ fontSize: 22, fontWeight: 900, color: W.text, marginBottom: 4 }}>Session Complete!</div>
+        <div style={{ fontSize: 44, marginBottom: 6 }}>{isPureFitness ? "🏋️" : "🎉"}</div>
+        <div style={{ fontSize: 22, fontWeight: 900, color: W.text, marginBottom: 4 }}>{isPureFitness ? "Fitness Complete!" : "Session Complete!"}</div>
         <div style={{ fontSize: 13, color: W.textMuted }}>📍 {session.location} · {formatDate(session.date)}</div>
       </div>
       <div style={{ display: "flex", gap: 8, marginBottom: 20, justifyContent: "center" }}>
-        {[
+        {isPureFitness ? [
+          { label: formatDuration(session.duration), sub: "total time", color: orangeColor },
+          { label: `${(session.fitnessSections || []).filter(s => s.endedAt).length}/${(session.fitnessSections || []).length}`, sub: "blocks done", color: orangeColor },
+          ...((session.fitnessSections || []).reduce((t, s) => t + (s.items || []).length, 0) > 0 ? [{ label: `${(session.fitnessSections || []).reduce((t, s) => t + (s.items || []).filter(i => i.checked).length, 0)}/${(session.fitnessSections || []).reduce((t, s) => t + (s.items || []).length, 0)}`, sub: "tasks done", color: orangeColor }] : []),
+        ].map((c, i) => (
+          <div key={i} style={{ flex: 1, background: `${orangeColor}18`, borderRadius: 12, padding: "10px 6px", textAlign: "center", border: `1px solid ${orangeColor}44` }}>
+            <div style={{ fontSize: 15, fontWeight: 900, color: c.color }}>{c.label}</div>
+            <div style={{ fontSize: 10, color: W.textMuted, marginTop: 2, fontWeight: 600 }}>{c.sub}</div>
+          </div>
+        )) : [
           { label: formatDuration(session.duration), sub: "time on wall" },
           { label: `${stats.sends}/${stats.total}`, sub: "sends" },
           ...(stats.hardestSent !== "—" ? [{ label: stats.hardestSent, sub: "hardest sent" }] : []),
@@ -282,7 +293,10 @@ export const SessionSummaryScreen = ({
             <div style={{ flex: 1 }}>
               <div style={{ fontSize: 14, fontWeight: 800, color: allDone ? orangeColor : W.text }}>{allDone ? "Fitness Complete!" : `Fitness — ${doneBlocks}/${fitnessSections.length} blocks done`}</div>
               <div style={{ fontSize: 11, color: W.textMuted, marginTop: 2 }}>
-                {fitnessSections.map(s => s.name).join(" · ")}
+                {fitnessSections.map(s => {
+                  const dur = s.endedAt ? formatDuration(Math.floor((s.endedAt - s.startedAt) / 1000)) : null;
+                  return dur ? `${s.name} (${dur})` : s.name;
+                }).join(" · ")}
                 {totalTasks > 0 && ` · ${doneTasks}/${totalTasks} tasks`}
               </div>
             </div>

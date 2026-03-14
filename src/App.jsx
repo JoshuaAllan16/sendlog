@@ -314,6 +314,7 @@ export default function App() {
   const [fitnessPickerRoutineType, setFitnessPickerRoutineType] = useState(null); // "warmup"|"workout"|"fingerboard"
   const [fitnessNewExerciseName, setFitnessNewExerciseName] = useState("");
   const [fitnessNewItemTexts, setFitnessNewItemTexts]       = useState({}); // { [sectionId]: string }
+  const [fitnessDragIdx, setFitnessDragIdx]                 = useState(null);
   const [routinePreview, setRoutinePreview]         = useState(null); // { type, id }
   const [collapsedRoutineSections, setCollapsedRoutineSections] = useState({});
   const [routineListSearch, setRoutineListSearch]   = useState("");
@@ -1216,6 +1217,16 @@ export default function App() {
       ),
     }));
     setFitnessNewItemTexts(prev => ({ ...prev, [sectionId]: "" }));
+  };
+
+  const reorderFitnessSections = (fromIdx, toIdx) => {
+    if (fromIdx === toIdx) return;
+    setActiveSession(s => {
+      const arr = [...(s.fitnessSections || [])];
+      const [moved] = arr.splice(fromIdx, 1);
+      arr.splice(toIdx, 0, moved);
+      return { ...s, fitnessSections: arr };
+    });
   };
 
   // Stops the per-climb timer without logging tries (used for rope "Done" button)
@@ -2489,6 +2500,7 @@ export default function App() {
           const hasWarmup     = (session.warmupTotalSec || 0) > 0;
           const hasWorkout    = (session.workoutTotalSec || 0) > 0;
           const hasFingerboard = (session.fingerboardTotalSec || 0) > 0;
+          const hasFitness     = (session.fitnessSections || []).length > 0;
           const typeChips  = [
             hasBoulder    && { label: "🪨 Boulder", bg: W.green,  tc: W.greenDark  },
             hasRope       && { label: "🪢 Rope",    bg: W.purple, tc: W.purpleDark },
@@ -2496,6 +2508,7 @@ export default function App() {
             hasWarmup     && { label: `🔥 ${formatDuration(session.warmupTotalSec)}`, bg: W.pink, tc: W.pinkDark },
             hasWorkout    && { label: `💪 ${formatDuration(session.workoutTotalSec)}`, bg: W.purple, tc: W.purpleDark },
             hasFingerboard && { label: `🤲 ${formatDuration(session.fingerboardTotalSec)}`, bg: W.yellow, tc: W.yellowDark },
+            hasFitness    && { label: `🏋️ ${(session.fitnessSections || []).length} block${(session.fitnessSections || []).length !== 1 ? "s" : ""}`, bg: `#f9731622`, tc: "#f97316" },
           ].filter(Boolean);
           return (
             <div style={{ padding: "14px 16px", borderBottom: `1px solid ${W.border}`, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
@@ -2571,6 +2584,31 @@ export default function App() {
         })()}
         {/* Stats section */}
         {(() => {
+          const fitnessSections = session.fitnessSections || [];
+          const isPureFitness = stats.total === 0 && fitnessSections.length > 0;
+          if (isPureFitness) {
+            const totalBlocks = fitnessSections.length;
+            const doneBlocks = fitnessSections.filter(s => s.endedAt).length;
+            const totalTasks = fitnessSections.reduce((t, s) => t + (s.items || []).length, 0);
+            const doneTasks  = fitnessSections.reduce((t, s) => t + (s.items || []).filter(i => i.checked).length, 0);
+            return (
+              <div style={{ padding: "14px 16px", borderBottom: `1px solid ${W.border}` }}>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 10 }}>
+                  <div style={{ background: W.surface2, borderRadius: 10, padding: "10px 12px", textAlign: "center" }}>
+                    <div style={{ fontSize: 18, fontWeight: 900, color: "#f97316" }}>{doneBlocks}/{totalBlocks}</div>
+                    <div style={{ fontSize: 10, color: W.textMuted, fontWeight: 600, marginTop: 2 }}>blocks done</div>
+                  </div>
+                  {totalTasks > 0 && (
+                    <div style={{ background: W.surface2, borderRadius: 10, padding: "10px 12px", textAlign: "center" }}>
+                      <div style={{ fontSize: 18, fontWeight: 900, color: "#f97316" }}>{doneTasks}/{totalTasks}</div>
+                      <div style={{ fontSize: 10, color: W.textMuted, fontWeight: 600, marginTop: 2 }}>tasks done</div>
+                    </div>
+                  )}
+                </div>
+                <div style={{ fontSize: 11, color: W.textMuted }}>{fitnessSections.map(s => s.name).join(" · ")}</div>
+              </div>
+            );
+          }
           const col1 = [
             { label: "Climbs Sent",   value: `${stats.sends}/${stats.total}` },
             { label: "Flashes",       value: stats.flashes },
@@ -3269,21 +3307,31 @@ export default function App() {
         })()}
 
         {/* ── Fitness Sections ─────────────────────────────────── */}
-        {!showClimbForm && (activeSession?.fitnessSections || []).map(section => {
+        {!showClimbForm && (activeSession?.fitnessSections || []).map((section, secIdx) => {
           const orangeColor = "#f97316";
           const orangeLight = "#fff7ed";
           const isEnded = !!section.endedAt;
           const doneCount = (section.items || []).filter(i => i.checked).length;
           const totalItems = (section.items || []).length;
+          const blockSec = isEnded ? Math.floor((section.endedAt - section.startedAt) / 1000) : Math.floor((Date.now() - section.startedAt) / 1000);
+          const isDragTarget = fitnessDragIdx !== null && fitnessDragIdx !== secIdx;
           return (
-            <div key={section.id} style={{ marginBottom: 16 }}>
-              <div style={{ borderRadius: 14, border: `2px solid ${orangeColor}55`, marginBottom: 10, overflow: "hidden", background: W.surface }}>
+            <div key={section.id} style={{ marginBottom: 16, opacity: fitnessDragIdx === secIdx ? 0.5 : 1, transition: "opacity 0.15s" }}
+              draggable
+              onDragStart={() => setFitnessDragIdx(secIdx)}
+              onDragOver={e => { e.preventDefault(); }}
+              onDrop={() => { reorderFitnessSections(fitnessDragIdx, secIdx); setFitnessDragIdx(null); }}
+              onDragEnd={() => setFitnessDragIdx(null)}
+            >
+              <div style={{ borderRadius: 14, border: `2px solid ${isDragTarget ? orangeColor : orangeColor + "55"}`, marginBottom: 10, overflow: "hidden", background: W.surface }}>
                 <div style={{ background: `${orangeColor}18`, padding: "14px" }}>
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 6 }}>
                     <div style={{ display: "flex", alignItems: "center", gap: 7 }}>
+                      <span style={{ fontSize: 14, color: orangeColor, cursor: "grab", opacity: 0.6, userSelect: "none" }}>⠿</span>
                       <div style={{ fontWeight: 800, color: orangeColor, fontSize: 16 }}>🏋️ {section.name}</div>
                       {section.kind === "routine" && <span style={{ fontSize: 10, color: orangeColor, background: `${orangeColor}22`, borderRadius: 5, padding: "1px 6px", fontWeight: 700 }}>{section.routineType}</span>}
                       {isEnded && <span style={{ background: orangeColor, color: "#fff", borderRadius: 6, padding: "1px 7px", fontSize: 10, fontWeight: 800 }}>DONE</span>}
+                      <span style={{ fontSize: 10, color: orangeColor, fontWeight: 700, opacity: 0.8 }}>{formatDuration(blockSec)}</span>
                     </div>
                     <div style={{ display: "flex", gap: 4 }}>
                       <button onClick={() => setActiveSession(s => ({ ...s, collapsedSections: { ...(s.collapsedSections || {}), [`fitness_${section.id}`]: !s.collapsedSections?.[`fitness_${section.id}`] } }))} style={{ background: "none", border: `1px solid ${orangeColor}44`, borderRadius: 7, color: orangeColor, fontSize: 14, cursor: "pointer", padding: "3px 9px", lineHeight: 1 }}>
@@ -4673,14 +4721,17 @@ export default function App() {
           fingerboardSessions.forEach(s => { const k = s.fingerboardRoutineName || "Unknown"; fingerboardByRoutine[k] = (fingerboardByRoutine[k] || 0) + 1; });
           const fitnessByBlock = {};
           fitnessSessions.forEach(s => (s.fitnessSections || []).forEach(sec => { fitnessByBlock[sec.name] = (fitnessByBlock[sec.name] || 0) + 1; }));
+          const fitnessAllTasks  = fitnessSessions.reduce((t, s) => t + (s.fitnessSections || []).reduce((a, sec) => a + (sec.items || []).length, 0), 0);
+          const fitnessDoneTasks = fitnessSessions.reduce((t, s) => t + (s.fitnessSections || []).reduce((a, sec) => a + (sec.items || []).filter(i => i.checked).length, 0), 0);
+          const fitnessCompletionRate = fitnessAllTasks > 0 ? `${Math.round((fitnessDoneTasks / fitnessAllTasks) * 100)}%` : null;
 
-          const StatCard = ({ emoji, label, count, totalSec, byRoutine, accent, secondValue, secondLabel }) => (
+          const StatCard = ({ emoji, label, count, totalSec, byRoutine, accent, secondValue, secondLabel, thirdValue, thirdLabel }) => (
             <div style={{ background: W.surface, border: `1px solid ${W.border}`, borderRadius: 16, padding: "16px", marginBottom: 10 }}>
               <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10 }}>
                 <span style={{ fontSize: 22 }}>{emoji}</span>
                 <span style={{ fontWeight: 800, fontSize: 15, color: W.text }}>{label}</span>
               </div>
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 10 }}>
+              <div style={{ display: "grid", gridTemplateColumns: thirdValue !== undefined ? "1fr 1fr 1fr" : "1fr 1fr", gap: 10, marginBottom: 10 }}>
                 <div style={{ background: W.surface2, borderRadius: 10, padding: "10px 12px" }}>
                   <div style={{ fontSize: 20, fontWeight: 800, color: accent || W.accent }}>{count}</div>
                   <div style={{ fontSize: 11, color: W.textMuted, fontWeight: 600 }}>sessions</div>
@@ -4689,6 +4740,12 @@ export default function App() {
                   <div style={{ fontSize: 20, fontWeight: 800, color: accent || W.accent }}>{secondValue !== undefined ? secondValue : formatDuration(totalSec)}</div>
                   <div style={{ fontSize: 11, color: W.textMuted, fontWeight: 600 }}>{secondLabel || "total time"}</div>
                 </div>
+                {thirdValue !== undefined && (
+                  <div style={{ background: W.surface2, borderRadius: 10, padding: "10px 12px" }}>
+                    <div style={{ fontSize: 20, fontWeight: 800, color: accent || W.accent }}>{thirdValue}</div>
+                    <div style={{ fontSize: 11, color: W.textMuted, fontWeight: 600 }}>{thirdLabel || ""}</div>
+                  </div>
+                )}
               </div>
               {Object.entries(byRoutine).sort((a,b) => b[1]-a[1]).map(([name, cnt]) => (
                 <div key={name} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "4px 0", borderTop: `1px solid ${W.border}` }}>
@@ -4736,7 +4793,7 @@ export default function App() {
               {warmupSessions.length > 0 && <StatCard emoji="🧘" label="Warmup" count={warmupSessions.length} totalSec={totalWarmupSec} byRoutine={warmupByRoutine} accent={W.pinkDark} />}
               {workoutSessions.length > 0 && <StatCard emoji="💪" label="Workout" count={workoutSessions.length} totalSec={totalWorkoutSec} byRoutine={workoutByRoutine} accent={W.accentDark} />}
               {fingerboardSessions.length > 0 && <StatCard emoji="🤙" label="Fingerboard" count={fingerboardSessions.length} totalSec={totalFingerboardSec} byRoutine={fingerboardByRoutine} accent={W.yellowDark} />}
-              {fitnessSessions.length > 0 && <StatCard emoji="🏋️" label="Fitness" count={fitnessSessions.length} totalSec={0} byRoutine={fitnessByBlock} accent="#f97316" secondValue={fitnessSessions.reduce((t, s) => t + (s.fitnessSections || []).length, 0)} secondLabel="total blocks" />}
+              {fitnessSessions.length > 0 && <StatCard emoji="🏋️" label="Fitness" count={fitnessSessions.length} totalSec={0} byRoutine={fitnessByBlock} accent="#f97316" secondValue={fitnessSessions.reduce((t, s) => t + (s.fitnessSections || []).length, 0)} secondLabel="total blocks" thirdValue={fitnessCompletionRate} thirdLabel="task completion" />}
             </div>
           );
         })()}
