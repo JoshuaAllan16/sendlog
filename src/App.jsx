@@ -2293,20 +2293,25 @@ export default function App() {
           const ropeSec    = session.ropeTotalSec || 0;
           const warmupSec  = session.warmupTotalSec || 0;
           const speedSec   = stats.speedSessions.reduce((s, ss) => s + Math.max(0, Math.floor(((ss.endedAt || Date.now()) - ss.startedAt) / 1000)), 0);
-          const hasBoulder = boulderSec > 0 || (session.climbs || []).some(c => c.climbType !== "rope" && c.climbType !== "speed-session");
-          const hasRope    = ropeSec > 0 || (session.climbs || []).some(c => c.climbType === "rope");
-          const hasSpeed   = speedSec > 0 || stats.speedSessions.length > 0;
-          const hasWarmupT = warmupSec > 0;
-          const typeCount  = [hasBoulder, hasRope, hasSpeed, hasWarmupT].filter(Boolean).length;
+          const hasBoulder  = boulderSec > 0 || (session.climbs || []).some(c => c.climbType !== "rope" && c.climbType !== "speed-session");
+          const hasRope     = ropeSec > 0 || (session.climbs || []).some(c => c.climbType === "rope");
+          const hasSpeed    = speedSec > 0 || stats.speedSessions.length > 0;
+          const hasWarmupT  = warmupSec > 0;
+          const hasWorkoutT = (session.workoutTotalSec || 0) > 0;
+          const hasFboardT  = (session.fingerboardTotalSec || 0) > 0;
+          // Only count actual climbing types (not warmup/workout/fingerboard) to decide which chart to show
+          const climbTypeCount = [hasBoulder, hasRope, hasSpeed].filter(Boolean).length;
           // Build right panel based on session type mix
           let rightPanel = null;
-          if (typeCount >= 2) {
-            // Multi-type: time breakdown pie
+          if (climbTypeCount >= 2) {
+            // Multi climbing type: time breakdown pie (warmup/workout slices included if present)
             const timeSlices = [
-              hasBoulder && boulderSec > 0 && { label: "🪨 Boulder", value: boulderSec, color: W.greenDark },
-              hasRope    && ropeSec > 0    && { label: "🪢 Rope",    value: ropeSec,    color: W.purpleDark },
-              hasSpeed   && speedSec > 0   && { label: "⚡ Speed",   value: speedSec,   color: W.yellowDark },
-              hasWarmupT && warmupSec > 0  && { label: "🔥 Warm Up", value: warmupSec,  color: W.pinkDark },
+              hasBoulder  && boulderSec > 0                           && { label: "🪨 Boulder",     value: boulderSec,                        color: W.greenDark  },
+              hasRope     && ropeSec > 0                              && { label: "🪢 Rope",         value: ropeSec,                           color: W.purpleDark },
+              hasSpeed    && speedSec > 0                             && { label: "⚡ Speed",         value: speedSec,                          color: W.yellowDark },
+              hasWarmupT  && warmupSec > 0                            && { label: "🔥 Warm Up",      value: warmupSec,                         color: W.pinkDark   },
+              hasWorkoutT && (session.workoutTotalSec || 0) > 0       && { label: "💪 Workout",      value: session.workoutTotalSec,           color: W.purpleDark },
+              hasFboardT  && (session.fingerboardTotalSec || 0) > 0   && { label: "🤲 Fingerboard",  value: session.fingerboardTotalSec,       color: W.yellowDark },
             ].filter(Boolean);
             const paths = buildPie(timeSlices);
             if (paths.length >= 2) {
@@ -2336,7 +2341,7 @@ export default function App() {
                 </div>
               );
             }
-          } else if (typeCount === 1 && hasSpeed && !hasBoulder && !hasRope) {
+          } else if (climbTypeCount === 1 && hasSpeed && !hasBoulder && !hasRope) {
             // Speed only: top times leaderboard
             const topTimes = stats.speedSessions.flatMap(ss => ss.attempts || []).filter(a => !a.fell && a.time != null).sort((a, b) => a.time - b.time).slice(0, 5);
             const best = topTimes[0]?.time;
@@ -2352,8 +2357,8 @@ export default function App() {
                 ))}
               </div>
             );
-          } else if (typeCount === 1 && (hasBoulder || hasRope)) {
-            // Single climb type: grade breakdown pie — sort by tries desc (handles custom scales)
+          } else if (climbTypeCount === 1 && (hasBoulder || hasRope)) {
+            // Single climb type (even with warmup/workout/fingerboard): grade breakdown pie
             const gradeEntries = Object.entries(stats.gradeBreakdown).sort((a, b) => b[1].tries - a[1].tries);
             if (gradeEntries.length >= 2) {
               const gradeSlices = gradeEntries.map(([grade, data]) => ({ label: grade, value: data.tries, completed: data.completed || 0, color: getGradeColor(grade) }));
