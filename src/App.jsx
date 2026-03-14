@@ -245,6 +245,7 @@ export default function App() {
 
   const [climbForm, setClimbForm]   = useState(blankForm);
   const [photoPreview, setPhotoPreview] = useState(null);
+  const [showBoulderScalePicker, setShowBoulderScalePicker] = useState(false);
   const [calendarDate, setCalendarDate] = useState(new Date());
 
   const [logbookFilter, setLogbookFilter]   = useState("all");
@@ -1778,7 +1779,7 @@ export default function App() {
             <div style={{ background: climbForm.projectId ? W.pink : W.surface2, borderRadius: 12, marginBottom: 14, border: `1.5px solid ${climbForm.projectId ? W.pinkDark + "55" : W.border}`, overflow: "hidden" }}>
               <div onClick={() => setFormProjectPickerOpen(o => !o)} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "11px 14px", cursor: "pointer" }}>
                 <div>
-                  <span style={{ fontWeight: 700, color: climbForm.projectId ? W.pinkDark : W.textMuted, fontSize: 13 }}>Log as Project</span>
+                  <span style={{ fontWeight: 700, color: climbForm.projectId ? W.pinkDark : W.textMuted, fontSize: 13 }}>Climb a Project</span>
                   {selectedProject && <span style={{ marginLeft: 8, fontSize: 12, color: W.pinkDark, fontWeight: 700 }}>{selectedProject.name || selectedProject.grade}</span>}
                 </div>
                 <span style={{ color: W.textMuted, fontSize: 12 }}>{formProjectPickerOpen ? "▲" : "▼"}</span>
@@ -1824,15 +1825,29 @@ export default function App() {
           </>
         )}
 
-        {/* Boulder: scale, grade, wall type, hold types */}
+        {/* Boulder: grade (with inline scale picker), wall type, hold types */}
         {type === "boulder" && (
           <>
-            <Label>Scale</Label>
-            <select value={climbForm.scale} onChange={e => { const s = e.target.value; const gl = s === "Custom" ? customBoulderGrades : (GRADES[s] || []); setClimbForm(f => ({ ...f, scale: s, grade: gl[0] || f.grade })); }} style={{ width: "100%", padding: "10px 12px", background: W.surface, border: `2px solid ${W.border}`, borderRadius: 10, color: W.text, fontSize: 14, boxSizing: "border-box", marginBottom: 12, fontFamily: "inherit", cursor: "pointer" }}>
-              {Object.keys(GRADES).map(scale => <option key={scale} value={scale}>{scale}</option>)}
-              <option value="Custom">{customBoulderScaleName}</option>
-            </select>
-            <Label>Grade</Label>
+            {showBoulderScalePicker && (
+              <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", zIndex: 300, display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }} onClick={() => setShowBoulderScalePicker(false)}>
+                <div style={{ background: W.surface, borderRadius: 18, padding: "20px", width: "100%", maxWidth: 340, border: `1px solid ${W.border}` }} onClick={e => e.stopPropagation()}>
+                  <div style={{ fontWeight: 800, fontSize: 16, color: W.text, marginBottom: 14 }}>Grading Scheme</div>
+                  {[...Object.keys(GRADES), "Custom"].map(s => (
+                    <button key={s} onClick={() => { const gl = s === "Custom" ? customBoulderGrades : (GRADES[s] || []); setClimbForm(f => ({ ...f, scale: s, grade: gl[0] || f.grade })); setShowBoulderScalePicker(false); }} style={{ width: "100%", padding: "12px 16px", marginBottom: 8, borderRadius: 12, border: `2px solid ${climbForm.scale === s ? W.accent : W.border}`, background: climbForm.scale === s ? W.accent + "18" : W.surface2, color: climbForm.scale === s ? W.accent : W.text, fontWeight: 700, fontSize: 14, cursor: "pointer", textAlign: "left" }}>
+                      {s === "Custom" ? customBoulderScaleName : s}
+                      {climbForm.scale === s && <span style={{ float: "right", color: W.accent }}>✓</span>}
+                    </button>
+                  ))}
+                  <button onClick={() => setShowBoulderScalePicker(false)} style={{ width: "100%", padding: "11px", borderRadius: 12, border: `1px solid ${W.border}`, background: "transparent", color: W.textMuted, fontWeight: 600, fontSize: 13, cursor: "pointer", marginTop: 4 }}>Close</button>
+                </div>
+              </div>
+            )}
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 7 }}>
+              <div style={{ color: W.textMuted, fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: 1.2 }}>Grade</div>
+              <button onClick={() => setShowBoulderScalePicker(true)} style={{ display: "flex", alignItems: "center", gap: 4, background: "none", border: `1px solid ${W.border}`, borderRadius: 8, padding: "3px 8px", cursor: "pointer", color: W.textMuted, fontSize: 11, fontWeight: 700 }}>
+                {climbForm.scale === "Custom" ? customBoulderScaleName : climbForm.scale} ✏️
+              </button>
+            </div>
             <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 12 }}>
               {boulderGrades.length > 0
                 ? boulderGrades.map(g => <button key={g} onClick={() => setClimbForm(f => ({ ...f, grade: g }))} style={{ padding: "5px 11px", borderRadius: 14, border: "2px solid", borderColor: climbForm.grade === g ? getGradeColor(g) : W.border, background: climbForm.grade === g ? getGradeColor(g) + "33" : W.surface, color: climbForm.grade === g ? getGradeColor(g) : W.textDim, cursor: "pointer", fontWeight: 700, fontSize: 12 }}>{g}</button>)
@@ -1920,6 +1935,9 @@ export default function App() {
           </>
         )}
 
+        {isActiveSession && !editingClimbId && type !== "speed" && !climbForm.projectId && (
+          <button onClick={() => setClimbForm(f => ({ ...f, isProject: !f.isProject }))} style={{ width: "100%", padding: "10px", borderRadius: 12, border: `2px solid ${climbForm.isProject ? W.pinkDark : W.border}`, background: climbForm.isProject ? W.pink : W.surface, color: climbForm.isProject ? W.pinkDark : W.textMuted, cursor: "pointer", fontWeight: 700, fontSize: 13, marginBottom: 12 }}>🎯 {climbForm.isProject ? "Marked as New Project ✓" : "Mark as New Project"}</button>
+        )}
         <Label>Comments</Label>
         <textarea value={climbForm.comments} onChange={e => setClimbForm(f => ({ ...f, comments: e.target.value }))} placeholder="Beta, notes..." style={{ width: "100%", padding: "10px 12px", background: W.surface, border: `2px solid ${W.border}`, borderRadius: 10, color: W.text, fontSize: 13, resize: "none", height: 70, boxSizing: "border-box", marginBottom: 12, fontFamily: "inherit" }} />
         <Label>Photo</Label>
