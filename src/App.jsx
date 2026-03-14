@@ -3888,50 +3888,6 @@ export default function App() {
             {/* ══ OVERALL ══════════════════════════════════════════ */}
             {statsCategory === "overall" && (
               <div>
-                {/* Streak counter */}
-                {(() => {
-                  const dayKeys = new Set(sessions.map(s => s.date.slice(0, 10)));
-                  const weekKey = (d) => { const dt = new Date(d); dt.setHours(0,0,0,0); dt.setDate(dt.getDate() - dt.getDay()); return dt.toISOString().slice(0, 10); };
-                  const weekKeys = new Set([...dayKeys].map(weekKey));
-                  // Current streak: count consecutive weeks back from current week
-                  let streak = 0, best = 0, cur = 0;
-                  // Calculate streak
-                  streak = 0; cur = 0;
-                  let expectedWk = new Date(); expectedWk.setHours(0,0,0,0); expectedWk.setDate(expectedWk.getDate() - expectedWk.getDay());
-                  for (let i = 0; i < 260; i++) {
-                    const k = expectedWk.toISOString().slice(0, 10);
-                    if (weekKeys.has(k)) { streak++; expectedWk.setDate(expectedWk.getDate() - 7); }
-                    else if (i === 0) { expectedWk.setDate(expectedWk.getDate() - 7); continue; }
-                    else break;
-                  }
-                  // Best streak
-                  const sortedWks = [...weekKeys].sort();
-                  let bestStreak = 0, runStreak = 0, prevWk = null;
-                  for (const wk of sortedWks) {
-                    if (!prevWk) { runStreak = 1; }
-                    else { const prev = new Date(prevWk); prev.setDate(prev.getDate() + 7); runStreak = prev.toISOString().slice(0,10) === wk ? runStreak + 1 : 1; }
-                    bestStreak = Math.max(bestStreak, runStreak); prevWk = wk;
-                  }
-                  if (sessions.length === 0) return null;
-                  return (
-                    <div style={{ display: "flex", alignItems: "center", gap: 12, background: W.surface2, border: `1px solid ${W.border}`, borderRadius: 14, padding: "12px 16px", marginBottom: 14 }}>
-                      <div style={{ fontSize: 26 }}>🏅</div>
-                      <div style={{ flex: 1 }}>
-                        <div style={{ fontSize: 12, fontWeight: 700, color: W.text }}>Best Streak</div>
-                        <div style={{ fontSize: 11, color: W.textMuted }}>{bestStreak} week{bestStreak !== 1 ? "s" : ""} personal best</div>
-                      </div>
-                      <div style={{ fontSize: 22, fontWeight: 900, color: W.goldLight || W.accent, fontVariantNumeric: "tabular-nums" }}>{bestStreak}w</div>
-                    </div>
-                  );
-                })()}
-                {/* Chart type filter */}
-                {!statsShowCalendar && (
-                  <div style={{ display: "flex", gap: 6, marginBottom: 8 }}>
-                    {[["all", "All"], ["boulder", "🪨 Boulder"], ["rope", "🪢 Rope"]].map(([id, label]) => (
-                      <button key={id} onClick={() => setStatsChartFilter(id)} style={{ padding: "4px 10px", borderRadius: 10, border: "2px solid", borderColor: statsChartFilter === id ? W.accent : W.border, background: statsChartFilter === id ? W.accent + "22" : W.surface, color: statsChartFilter === id ? W.accent : W.textDim, fontSize: 11, fontWeight: 700, cursor: "pointer" }}>{label}</button>
-                    ))}
-                  </div>
-                )}
                 {!statsShowCalendar ? renderChart(statsChartFilter === "boulder" ? boulderBuckets : statsChartFilter === "rope" ? ropeBuckets : chartBuckets) : (
                   <div style={{ background: W.surface, borderRadius: 16, border: `1px solid ${W.border}`, marginBottom: 10, overflow: "hidden" }}>{CalendarScreen()}</div>
                 )}
