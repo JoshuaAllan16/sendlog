@@ -3526,6 +3526,365 @@ export default function App() {
     const hasClimbFilters   = logbookFilter !== "all" || logbookScale !== "All Scales" || logbookGrade !== "All" || logbookSort !== "date";
     const hasSessionFilters = logbookGymFilter !== "All Gyms" || sessionSort !== "date" || sessionTypeFilter !== "all";
 
+    const renderRoutinesPanel = () => {
+      const ROUTINE_COLORS = ["#ef4444","#f97316","#eab308","#22c55e","#3b82f6","#8b5cf6","#ec4899","#64748b"];
+      const typeLabel = { warmup: "Warmup", workout: "Workout", fingerboard: "Fingerboard" };
+      const presets = { warmup: WARMUP_PRESETS, workout: WORKOUT_PRESETS, fingerboard: FINGERBOARD_PRESETS };
+
+      const getUsage = (type, routine) => {
+        if (type === "warmup") return sessions.filter(s => (s.warmupTotalSec || 0) > 0 && (s.warmupTemplateId === routine.id || s.warmupTemplateName === routine.name));
+        if (type === "workout") return sessions.filter(s => (s.workoutTotalSec || 0) > 0 && (s.workoutRoutineId === routine.id || s.workoutRoutineName === routine.name));
+        return sessions.filter(s => (s.fingerboardTotalSec || 0) > 0 && (s.fingerboardRoutineId === routine.id || s.fingerboardRoutineName === routine.name));
+      };
+
+      const getStreak = (usageSessions, weeklyGoal) => {
+        if (!weeklyGoal || weeklyGoal <= 0) return null;
+        const today = new Date(); today.setHours(0,0,0,0);
+        const dow = today.getDay();
+        const weekStart = new Date(today); weekStart.setDate(today.getDate() - dow);
+        let streak = 0;
+        for (let w = 0; w < 52; w++) {
+          const ws = new Date(weekStart); ws.setDate(weekStart.getDate() - w * 7);
+          const we = new Date(ws); we.setDate(ws.getDate() + 6);
+          const cnt = usageSessions.filter(s => { const d = new Date(s.date); return d >= ws && d <= we; }).length;
+          if (cnt >= weeklyGoal) streak++;
+          else if (w > 0) break;
+        }
+        return streak;
+      };
+
+      const openEditor = (mode, type, id) => {
+        let routine = null;
+        if (mode === "edit") {
+          const src = type === "warmup" ? warmupTemplates : type === "workout" ? workoutRoutines : fingerboardRoutines;
+          routine = src.find(r => r.id === id);
+        }
+        setRoutineEditorName(routine?.name || "");
+        setRoutineEditorDesc(routine?.description || "");
+        setRoutineEditorItems(routine?.items ? routine.items.map(i => ({ ...i })) : []);
+        setRoutineEditorNewItem("");
+        setRoutineEditorShowPresets(false);
+        setRoutineEditorEditingItemId(null);
+        setRoutineEditor({ mode, type, id: id || null, notes: routine?.notes || "", color: routine?.color || "", weeklyGoal: routine?.weeklyGoal || "" });
+      };
+
+      const saveEditor = () => {
+        const items = routineEditorItems;
+        const name = routineEditorName.trim() || "Untitled";
+        const description = routineEditorDesc.trim();
+        const notes = routineEditor.notes || "";
+        const color = routineEditor.color || "";
+        const weeklyGoal = parseInt(routineEditor.weeklyGoal) || null;
+        const data = { name, description, notes, color, weeklyGoal, items };
+        if (routineEditor.type === "warmup") {
+          if (routineEditor.mode === "new") { const newId = Date.now(); setWarmupTemplates(prev => [...prev, { id: newId, ...data }]); }
+          else { setWarmupTemplates(prev => prev.map(t => t.id === routineEditor.id ? { ...t, ...data } : t)); if (routineEditor.id === activeWarmupTemplateId) setDefaultWarmupItems(items); }
+        } else if (routineEditor.type === "workout") {
+          if (routineEditor.mode === "new") { const newId = Date.now(); setWorkoutRoutines(prev => [...prev, { id: newId, ...data }]); }
+          else { setWorkoutRoutines(prev => prev.map(t => t.id === routineEditor.id ? { ...t, ...data } : t)); if (routineEditor.id === activeWorkoutRoutineId) setDefaultWorkoutItems(items); }
+        } else {
+          if (routineEditor.mode === "new") { const newId = Date.now(); setFingerboardRoutines(prev => [...prev, { id: newId, ...data }]); }
+          else { setFingerboardRoutines(prev => prev.map(t => t.id === routineEditor.id ? { ...t, ...data } : t)); if (routineEditor.id === activeFingerboardRoutineId) setDefaultFingerboardItems(items); }
+        }
+        setRoutineEditor(null);
+      };
+
+      const duplicateRoutine = () => {
+        const name = (routineEditorName.trim() || "Untitled") + " (Copy)";
+        const items = routineEditorItems.map(i => ({ ...i, id: Date.now() + Math.random() }));
+        const data = { name, description: routineEditorDesc.trim(), notes: routineEditor.notes || "", color: routineEditor.color || "", weeklyGoal: parseInt(routineEditor.weeklyGoal) || null, items };
+        if (routineEditor.type === "warmup") setWarmupTemplates(prev => [...prev, { id: Date.now(), ...data }]);
+        else if (routineEditor.type === "workout") setWorkoutRoutines(prev => [...prev, { id: Date.now(), ...data }]);
+        else setFingerboardRoutines(prev => [...prev, { id: Date.now(), ...data }]);
+        setRoutineEditor(null);
+      };
+
+      const deleteRoutine = () => {
+        if (routineEditor.type === "warmup") {
+          if (warmupTemplates.length <= 1) return;
+          setWarmupTemplates(prev => prev.filter(t => t.id !== routineEditor.id));
+          if (activeWarmupTemplateId === routineEditor.id) { const r = warmupTemplates.find(t => t.id !== routineEditor.id); setActiveWarmupTemplateId(r?.id); setDefaultWarmupItems(r?.items || []); }
+        } else if (routineEditor.type === "workout") {
+          if (workoutRoutines.length <= 1) return;
+          setWorkoutRoutines(prev => prev.filter(t => t.id !== routineEditor.id));
+          if (activeWorkoutRoutineId === routineEditor.id) { const r = workoutRoutines.find(t => t.id !== routineEditor.id); setActiveWorkoutRoutineId(r?.id); setDefaultWorkoutItems(r?.items || []); }
+        } else {
+          if (fingerboardRoutines.length <= 1) return;
+          setFingerboardRoutines(prev => prev.filter(t => t.id !== routineEditor.id));
+          if (activeFingerboardRoutineId === routineEditor.id) { const r = fingerboardRoutines.find(t => t.id !== routineEditor.id); setActiveFingerboardRoutineId(r?.id); setDefaultFingerboardItems(r?.items || []); }
+        }
+        setRoutineEditor(null);
+      };
+
+      const loadPreset = (preset) => {
+        setRoutineEditorName(preset.name);
+        setRoutineEditorDesc(preset.description);
+        setRoutineEditorItems(preset.items.map(i => ({ ...i, id: Date.now() + Math.random() })));
+        setRoutineEditorShowPresets(false);
+      };
+
+      const reorderRoutines = (type, idx, dir) => {
+        const setter = type === "warmup" ? setWarmupTemplates : type === "workout" ? setWorkoutRoutines : setFingerboardRoutines;
+        setter(prev => { const a = [...prev]; const swap = idx + dir; if (swap < 0 || swap >= a.length) return a; [a[idx], a[swap]] = [a[swap], a[idx]]; return a; });
+      };
+
+      const commitInlineEdit = () => {
+        if (!routineEditorEditingItemId) return;
+        setRoutineEditorItems(prev => prev.map(it => it.id === routineEditorEditingItemId ? { ...it, text: routineEditorEditingText || it.text, detail: routineEditorEditingDetail || undefined, restDuration: parseInt(routineEditorEditingRest) || undefined } : it));
+        setRoutineEditorEditingItemId(null);
+      };
+
+      const addNewTask = () => {
+        if (!routineEditorNewItem.trim()) return;
+        const newId = Date.now();
+        setRoutineEditorItems(prev => [...prev, { id: newId, text: routineEditorNewItem.trim() }]);
+        setRoutineEditorEditingItemId(newId);
+        setRoutineEditorEditingText(routineEditorNewItem.trim());
+        setRoutineEditorEditingDetail("");
+        setRoutineEditorEditingRest("");
+        setRoutineEditorNewItem("");
+      };
+
+      // ── Import modal ─────────────────────────────────────────
+      if (showImportRoutine) {
+        const doImport = () => {
+          try {
+            const decoded = JSON.parse(atob(routineImportCode.trim()));
+            if (!decoded.name || !Array.isArray(decoded.items)) throw new Error("Invalid");
+            const { type, name, description, notes, color, weeklyGoal, items } = decoded;
+            const newId = Date.now();
+            const data = { id: newId, name, description: description || "", notes: notes || "", color: color || "", weeklyGoal: weeklyGoal || null, items };
+            if (type === "warmup") setWarmupTemplates(prev => [...prev, data]);
+            else if (type === "workout") setWorkoutRoutines(prev => [...prev, data]);
+            else setFingerboardRoutines(prev => [...prev, data]);
+            setShowImportRoutine(false); setRoutineImportCode(""); setRoutineImportError("");
+          } catch { setRoutineImportError("Invalid code. Make sure you pasted the full share code."); }
+        };
+        return (
+          <div>
+            <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 18 }}>
+              <button onClick={() => { setShowImportRoutine(false); setRoutineImportCode(""); setRoutineImportError(""); }} style={{ background: W.surface2, border: `1px solid ${W.border}`, borderRadius: 10, padding: "8px 12px", color: W.textDim, fontWeight: 700, cursor: "pointer", fontSize: 14 }}>← Back</button>
+              <div style={{ fontWeight: 800, fontSize: 16, color: W.text }}>Import Routine</div>
+            </div>
+            <div style={{ fontSize: 13, color: W.textMuted, marginBottom: 12 }}>Paste a share code from another user to import their routine.</div>
+            <textarea value={routineImportCode} onChange={e => setRoutineImportCode(e.target.value)} placeholder="Paste share code here…" rows={4} style={{ width: "100%", boxSizing: "border-box", padding: "10px 12px", borderRadius: 10, border: `1px solid ${W.border}`, background: W.surface, color: W.text, fontSize: 13, fontFamily: "monospace", outline: "none", resize: "vertical" }} />
+            {routineImportError && <div style={{ color: W.redDark, fontSize: 12, marginTop: 6 }}>{routineImportError}</div>}
+            <button onClick={doImport} style={{ marginTop: 10, width: "100%", padding: "12px", background: `linear-gradient(135deg, ${W.accent}, ${W.accentDark})`, border: "none", borderRadius: 12, color: "#fff", fontWeight: 800, fontSize: 14, cursor: "pointer" }}>Import</button>
+          </div>
+        );
+      }
+
+      // ── Share modal ───────────────────────────────────────────
+      if (routineShareModal) {
+        const encoded = btoa(JSON.stringify(routineShareModal));
+        return (
+          <div>
+            <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 18 }}>
+              <button onClick={() => setRoutineShareModal(null)} style={{ background: W.surface2, border: `1px solid ${W.border}`, borderRadius: 10, padding: "8px 12px", color: W.textDim, fontWeight: 700, cursor: "pointer", fontSize: 14 }}>← Back</button>
+              <div style={{ fontWeight: 800, fontSize: 16, color: W.text }}>Share: {routineShareModal.name}</div>
+            </div>
+            <div style={{ fontSize: 13, color: W.textMuted, marginBottom: 10 }}>Share this code with others. They can import it using the Import Routine button.</div>
+            <div style={{ background: W.surface2, border: `1px solid ${W.border}`, borderRadius: 12, padding: "12px", fontFamily: "monospace", fontSize: 11, color: W.textDim, wordBreak: "break-all", marginBottom: 12 }}>{encoded}</div>
+            <button onClick={() => navigator.clipboard?.writeText(encoded)} style={{ width: "100%", padding: "12px", background: W.accent, border: "none", borderRadius: 12, color: "#fff", fontWeight: 800, fontSize: 14, cursor: "pointer" }}>Copy to Clipboard</button>
+          </div>
+        );
+      }
+
+      // ── Editor view ───────────────────────────────────────────
+      if (routineEditor) {
+        const ps = presets[routineEditor.type] || [];
+        return (
+          <div>
+            <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 14 }}>
+              <button onClick={() => setRoutineEditor(null)} style={{ background: W.surface2, border: `1px solid ${W.border}`, borderRadius: 10, padding: "8px 12px", color: W.textDim, fontWeight: 700, cursor: "pointer", fontSize: 14 }}>← Back</button>
+              <div style={{ fontWeight: 800, fontSize: 16, color: W.text, flex: 1 }}>{routineEditor.mode === "new" ? `New ${typeLabel[routineEditor.type]}` : "Edit Routine"}</div>
+              {routineEditor.mode === "edit" && <button onClick={() => { const src = routineEditor.type === "warmup" ? warmupTemplates : routineEditor.type === "workout" ? workoutRoutines : fingerboardRoutines; const r = src.find(x => x.id === routineEditor.id); if (r) setRoutineShareModal({ ...r, type: routineEditor.type }); }} style={{ background: W.surface2, border: `1px solid ${W.border}`, borderRadius: 8, padding: "6px 10px", color: W.textMuted, fontSize: 12, fontWeight: 700, cursor: "pointer" }}>Share</button>}
+            </div>
+            <div style={{ marginBottom: 10 }}>
+              <div style={{ fontSize: 11, fontWeight: 700, color: W.textMuted, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 6 }}>Name</div>
+              <input value={routineEditorName} onChange={e => setRoutineEditorName(e.target.value)} placeholder="Routine name" style={{ width: "100%", boxSizing: "border-box", padding: "10px 12px", borderRadius: 10, border: `1px solid ${W.border}`, background: W.surface, color: W.text, fontSize: 14, outline: "none" }} />
+            </div>
+            <div style={{ marginBottom: 10 }}>
+              <div style={{ fontSize: 11, fontWeight: 700, color: W.textMuted, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 6 }}>Description (optional)</div>
+              <input value={routineEditorDesc} onChange={e => setRoutineEditorDesc(e.target.value)} placeholder="Short description" style={{ width: "100%", boxSizing: "border-box", padding: "10px 12px", borderRadius: 10, border: `1px solid ${W.border}`, background: W.surface, color: W.text, fontSize: 14, outline: "none" }} />
+            </div>
+            <div style={{ marginBottom: 10 }}>
+              <div style={{ fontSize: 11, fontWeight: 700, color: W.textMuted, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 6 }}>Notes (optional)</div>
+              <textarea value={routineEditor.notes || ""} onChange={e => setRoutineEditor(re => ({ ...re, notes: e.target.value }))} placeholder="Rest intervals, equipment, cues…" rows={2} style={{ width: "100%", boxSizing: "border-box", padding: "10px 12px", borderRadius: 10, border: `1px solid ${W.border}`, background: W.surface, color: W.text, fontSize: 13, fontFamily: "inherit", resize: "vertical", outline: "none" }} />
+            </div>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 12 }}>
+              <div>
+                <div style={{ fontSize: 11, fontWeight: 700, color: W.textMuted, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 6 }}>Color tag</div>
+                <div style={{ display: "flex", gap: 5, flexWrap: "wrap" }}>
+                  <button onClick={() => setRoutineEditor(re => ({ ...re, color: "" }))} style={{ width: 22, height: 22, borderRadius: 6, background: W.surface2, border: `2px solid ${!routineEditor.color ? W.accent : W.border}`, cursor: "pointer" }} />
+                  {ROUTINE_COLORS.map(c => <button key={c} onClick={() => setRoutineEditor(re => ({ ...re, color: c }))} style={{ width: 22, height: 22, borderRadius: 6, background: c, border: `2px solid ${routineEditor.color === c ? "#fff" : "transparent"}`, cursor: "pointer", outline: routineEditor.color === c ? `2px solid ${c}` : "none" }} />)}
+                </div>
+              </div>
+              <div>
+                <div style={{ fontSize: 11, fontWeight: 700, color: W.textMuted, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 6 }}>Weekly goal</div>
+                <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                  <input type="number" min="0" max="7" value={routineEditor.weeklyGoal || ""} onChange={e => setRoutineEditor(re => ({ ...re, weeklyGoal: e.target.value }))} placeholder="0" style={{ width: 50, padding: "8px 10px", borderRadius: 8, border: `1px solid ${W.border}`, background: W.surface, color: W.text, fontSize: 14, outline: "none", textAlign: "center" }} />
+                  <span style={{ fontSize: 12, color: W.textMuted }}>× / week</span>
+                </div>
+              </div>
+            </div>
+            {ps.length > 0 && (
+              <div style={{ marginBottom: 12 }}>
+                <button onClick={() => setRoutineEditorShowPresets(o => !o)} style={{ padding: "8px 14px", background: W.surface2, border: `1px solid ${W.border}`, borderRadius: 10, color: W.textMuted, fontWeight: 700, fontSize: 12, cursor: "pointer" }}>
+                  {routineEditorShowPresets ? "▲ Hide presets" : "⚡ Load preset"}
+                </button>
+                {routineEditorShowPresets && (
+                  <div style={{ marginTop: 8, display: "flex", flexDirection: "column", gap: 6 }}>
+                    {ps.map(p => (
+                      <button key={p.name} onClick={() => loadPreset(p)} style={{ textAlign: "left", padding: "10px 14px", background: W.surface, border: `1px solid ${W.border}`, borderRadius: 12, cursor: "pointer" }}>
+                        <div style={{ fontWeight: 700, fontSize: 13, color: W.text }}>{p.name}</div>
+                        <div style={{ fontSize: 11, color: W.textMuted, marginTop: 2 }}>{p.description} · {p.items.length} tasks</div>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+            <div style={{ fontWeight: 800, fontSize: 14, color: W.text, marginBottom: 8 }}>Tasks ({routineEditorItems.length})</div>
+            {routineEditorItems.length === 0 && <div style={{ color: W.textDim, fontSize: 13, padding: "8px 0 12px", textAlign: "center" }}>No tasks yet. Add one below or load a preset.</div>}
+            {routineEditorItems.map((item, i) => (
+              <div key={item.id} style={{ marginBottom: 6 }}
+                draggable={routineEditorEditingItemId !== item.id}
+                onDragStart={e => e.dataTransfer.setData("text/plain", String(i))}
+                onDragOver={e => e.preventDefault()}
+                onDrop={e => { e.preventDefault(); const from = parseInt(e.dataTransfer.getData("text/plain")); if (from === i || isNaN(from)) return; setRoutineEditorItems(prev => { const a = [...prev]; const [moved] = a.splice(from, 1); a.splice(i, 0, moved); return a; }); }}
+              >
+                {routineEditorEditingItemId === item.id ? (
+                  <div style={{ background: W.surface, border: `1.5px solid ${W.accent}`, borderRadius: 10, padding: "8px 10px" }}>
+                    <input autoFocus value={routineEditorEditingText} onChange={e => setRoutineEditorEditingText(e.target.value)} onKeyDown={e => { if (e.key === "Enter") commitInlineEdit(); if (e.key === "Escape") setRoutineEditorEditingItemId(null); }} style={{ width: "100%", boxSizing: "border-box", padding: "6px 8px", borderRadius: 8, border: `1px solid ${W.border}`, background: W.surface2, color: W.text, fontSize: 13, outline: "none", marginBottom: 6 }} placeholder="Task name" />
+                    <div style={{ display: "flex", gap: 8, marginBottom: 6 }}>
+                      <input value={routineEditorEditingDetail} onChange={e => setRoutineEditorEditingDetail(e.target.value)} style={{ flex: 1, padding: "5px 8px", borderRadius: 7, border: `1px solid ${W.border}`, background: W.surface2, color: W.text, fontSize: 12, outline: "none" }} placeholder="Detail (e.g. 3×8, 30s)" />
+                      <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                        <input type="number" min="0" value={routineEditorEditingRest} onChange={e => setRoutineEditorEditingRest(e.target.value)} style={{ width: 50, padding: "5px 6px", borderRadius: 7, border: `1px solid ${W.border}`, background: W.surface2, color: W.text, fontSize: 12, outline: "none", textAlign: "center" }} placeholder="0" />
+                        <span style={{ fontSize: 11, color: W.textMuted }}>s rest</span>
+                      </div>
+                    </div>
+                    <div style={{ display: "flex", gap: 6 }}>
+                      <button onClick={commitInlineEdit} style={{ flex: 1, padding: "6px", background: W.accent, border: "none", borderRadius: 7, color: "#fff", fontWeight: 700, fontSize: 12, cursor: "pointer" }}>✓ Done</button>
+                      <button onClick={() => setRoutineEditorEditingItemId(null)} style={{ padding: "6px 10px", background: W.surface2, border: `1px solid ${W.border}`, borderRadius: 7, color: W.textDim, fontSize: 12, cursor: "pointer" }}>Cancel</button>
+                    </div>
+                  </div>
+                ) : (
+                  <div style={{ display: "flex", alignItems: "center", gap: 6, background: W.surface, border: `1px solid ${W.border}`, borderRadius: 10, padding: "8px 10px", cursor: "grab" }}>
+                    <span style={{ color: W.textDim, fontSize: 12, cursor: "grab", padding: "0 2px" }}>⠿</span>
+                    <div style={{ flex: 1, minWidth: 0, cursor: "pointer" }} onClick={() => { setRoutineEditorEditingItemId(item.id); setRoutineEditorEditingText(item.text); setRoutineEditorEditingDetail(item.detail || ""); setRoutineEditorEditingRest(item.restDuration ? String(item.restDuration) : ""); }}>
+                      <div style={{ fontSize: 13, color: W.text }}>{item.text}</div>
+                      {item.detail && <div style={{ fontSize: 11, color: W.textMuted }}>{item.detail}</div>}
+                    </div>
+                    {item.restDuration > 0 && <span style={{ fontSize: 10, color: W.textMuted, background: W.surface2, borderRadius: 5, padding: "1px 5px" }}>{item.restDuration}s</span>}
+                    <button onClick={() => setRoutineEditorItems(prev => prev.filter((_, j) => j !== i))} style={{ background: "none", border: "none", color: W.redDark, fontSize: 14, cursor: "pointer", padding: "2px 4px", fontWeight: 700 }}>✕</button>
+                  </div>
+                )}
+              </div>
+            ))}
+            <div style={{ display: "flex", gap: 8, marginTop: 6, marginBottom: 16 }}>
+              <input value={routineEditorNewItem} onChange={e => setRoutineEditorNewItem(e.target.value)} onKeyDown={e => { if (e.key === "Enter") addNewTask(); }} placeholder="Add task…" style={{ flex: 1, padding: "9px 12px", borderRadius: 10, border: `1px solid ${W.border}`, background: W.surface, color: W.text, fontSize: 13, outline: "none" }} />
+              <button onClick={addNewTask} style={{ padding: "9px 16px", background: W.accent, borderRadius: 10, border: "none", color: "#fff", fontWeight: 700, fontSize: 14, cursor: "pointer" }}>+</button>
+            </div>
+            <div style={{ display: "flex", gap: 8 }}>
+              <button onClick={saveEditor} style={{ flex: 1, padding: "13px", background: `linear-gradient(135deg, ${W.accent}, ${W.accentDark})`, border: "none", borderRadius: 12, color: "#fff", fontWeight: 800, fontSize: 14, cursor: "pointer" }}>Save Routine</button>
+              {routineEditor.mode === "edit" && <button onClick={duplicateRoutine} style={{ padding: "13px 14px", background: W.surface, border: `1px solid ${W.border}`, borderRadius: 12, color: W.textMuted, fontWeight: 700, fontSize: 13, cursor: "pointer" }}>Copy</button>}
+              {routineEditor.mode === "edit" && <button onClick={deleteRoutine} style={{ padding: "13px 14px", background: W.surface, border: `1px solid ${W.border}`, borderRadius: 12, color: W.redDark, fontWeight: 700, fontSize: 13, cursor: "pointer" }}>Delete</button>}
+            </div>
+          </div>
+        );
+      }
+
+      // ── Type picker ───────────────────────────────────────────
+      if (showAddRoutineTypePicker) {
+        return (
+          <div>
+            <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 20 }}>
+              <button onClick={() => setShowAddRoutineTypePicker(false)} style={{ background: W.surface2, border: `1px solid ${W.border}`, borderRadius: 10, padding: "8px 12px", color: W.textDim, fontWeight: 700, cursor: "pointer", fontSize: 14 }}>← Back</button>
+              <div style={{ fontWeight: 800, fontSize: 16, color: W.text }}>Choose Type</div>
+            </div>
+            {[
+              { type: "warmup", emoji: "🧘", label: "Warmup", desc: "Mobility, activation, and easy climbing prep" },
+              { type: "workout", emoji: "💪", label: "Workout", desc: "Strength and conditioning exercises" },
+              { type: "fingerboard", emoji: "🤙", label: "Fingerboard", desc: "Hangboard protocols and finger training" },
+            ].map(opt => (
+              <div key={opt.type} onClick={() => { setShowAddRoutineTypePicker(false); openEditor("new", opt.type, null); }} style={{ display: "flex", alignItems: "center", gap: 14, background: W.surface, border: `1px solid ${W.border}`, borderRadius: 16, padding: "16px 18px", marginBottom: 10, cursor: "pointer" }}>
+                <span style={{ fontSize: 28 }}>{opt.emoji}</span>
+                <div><div style={{ fontWeight: 800, fontSize: 15, color: W.text }}>{opt.label}</div><div style={{ fontSize: 12, color: W.textMuted, marginTop: 2 }}>{opt.desc}</div></div>
+                <span style={{ marginLeft: "auto", color: W.textMuted, fontSize: 20 }}>›</span>
+              </div>
+            ))}
+          </div>
+        );
+      }
+
+      // ── Routines list ─────────────────────────────────────────
+      return (
+        <div>
+          <div style={{ display: "flex", gap: 8, marginBottom: 16 }}>
+            <button onClick={() => setShowAddRoutineTypePicker(true)} style={{ flex: 1, padding: "11px", background: `linear-gradient(135deg, ${W.accent}, ${W.accentDark})`, border: "none", borderRadius: 12, color: "#fff", fontWeight: 800, fontSize: 13, cursor: "pointer" }}>+ Add Routine</button>
+            <button onClick={() => setShowImportRoutine(true)} style={{ padding: "11px 14px", background: W.surface2, border: `1px solid ${W.border}`, borderRadius: 12, color: W.textMuted, fontWeight: 700, fontSize: 13, cursor: "pointer" }}>Import</button>
+          </div>
+          {[
+            { sectionLabel: "🧘 Warmup", type: "warmup", typeRoutines: warmupTemplates, activeId: activeWarmupTemplateId, setActive: (id) => { setActiveWarmupTemplateId(id); const r = warmupTemplates.find(r => r.id === id); if (r) setDefaultWarmupItems(r.items); }, quickStart: (id) => { setActiveWarmupTemplateId(id); const r = warmupTemplates.find(r => r.id === id); if (r) setDefaultWarmupItems(r.items); setScreen("home"); } },
+            { sectionLabel: "💪 Workout", type: "workout", typeRoutines: workoutRoutines, activeId: activeWorkoutRoutineId, setActive: (id) => { setActiveWorkoutRoutineId(id); const r = workoutRoutines.find(r => r.id === id); if (r) setDefaultWorkoutItems(r.items); }, quickStart: (id) => { setActiveWorkoutRoutineId(id); const r = workoutRoutines.find(r => r.id === id); if (r) setDefaultWorkoutItems(r.items); setScreen("home"); } },
+            { sectionLabel: "🤙 Fingerboard", type: "fingerboard", typeRoutines: fingerboardRoutines, activeId: activeFingerboardRoutineId, setActive: (id) => { setActiveFingerboardRoutineId(id); const r = fingerboardRoutines.find(r => r.id === id); if (r) setDefaultFingerboardItems(r.items); }, quickStart: (id) => { setActiveFingerboardRoutineId(id); const r = fingerboardRoutines.find(r => r.id === id); if (r) setDefaultFingerboardItems(r.items); setScreen("home"); } },
+          ].map(({ sectionLabel, type, typeRoutines, activeId, setActive, quickStart }) => (
+            <div key={type} style={{ marginBottom: 22 }}>
+              <div style={{ fontWeight: 800, fontSize: 12, color: W.textMuted, textTransform: "uppercase", letterSpacing: 1, marginBottom: 10 }}>{sectionLabel}</div>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+                {typeRoutines.map((routine, ri) => {
+                  const usageSessions = getUsage(type, routine);
+                  const lastUsed = usageSessions.length > 0 ? usageSessions.sort((a,b) => new Date(b.date) - new Date(a.date))[0] : null;
+                  const streak = getStreak(usageSessions, routine.weeklyGoal);
+                  const today = new Date(); today.setHours(0,0,0,0);
+                  const dow = today.getDay();
+                  const weekStart = new Date(today); weekStart.setDate(today.getDate() - dow);
+                  const thisWeekCount = usageSessions.filter(s => new Date(s.date) >= weekStart).length;
+                  const accentColor = routine.color || W.accent;
+                  return (
+                    <div key={routine.id} onClick={() => openEditor("edit", type, routine.id)} style={{ background: W.surface, border: `1.5px solid ${routine.id === activeId ? accentColor : W.border}`, borderRadius: 14, padding: "12px", cursor: "pointer", borderLeft: routine.color ? `4px solid ${routine.color}` : undefined, display: "flex", flexDirection: "column", gap: 6 }}>
+                      <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 4 }}>
+                        <span style={{ fontWeight: 800, fontSize: 13, color: W.text, lineHeight: 1.2, flex: 1 }}>{routine.name}</span>
+                        {routine.id === activeId && <span style={{ background: accentColor, color: "#fff", borderRadius: 5, padding: "1px 5px", fontSize: 9, fontWeight: 700, flexShrink: 0 }}>Active</span>}
+                      </div>
+                      {routine.description && <div style={{ fontSize: 11, color: W.textMuted, lineHeight: 1.3 }}>{routine.description}</div>}
+                      <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginTop: 2 }}>
+                        <span style={{ fontSize: 10, color: W.textDim, background: W.surface2, borderRadius: 4, padding: "1px 5px" }}>{(routine.items || []).length} tasks</span>
+                        {usageSessions.length > 0 && <span style={{ fontSize: 10, color: W.textDim, background: W.surface2, borderRadius: 4, padding: "1px 5px" }}>{usageSessions.length} uses</span>}
+                        {streak > 0 && <span style={{ fontSize: 10, color: W.accent, background: W.surface2, borderRadius: 4, padding: "1px 5px" }}>🔥 {streak}wk</span>}
+                      </div>
+                      {lastUsed && <div style={{ fontSize: 10, color: W.textDim }}>Last: {formatDate(lastUsed.date)}</div>}
+                      {routine.weeklyGoal > 0 && (
+                        <div>
+                          <div style={{ fontSize: 10, color: thisWeekCount >= routine.weeklyGoal ? W.accent : W.textDim, marginBottom: 3 }}>{thisWeekCount}/{routine.weeklyGoal} this week</div>
+                          <div style={{ height: 3, borderRadius: 2, background: W.surface2, overflow: "hidden" }}>
+                            <div style={{ height: "100%", width: `${Math.min(100, (thisWeekCount / routine.weeklyGoal) * 100)}%`, background: thisWeekCount >= routine.weeklyGoal ? W.accent : `${W.accent}88`, borderRadius: 2 }} />
+                          </div>
+                        </div>
+                      )}
+                      <div style={{ display: "flex", gap: 5, marginTop: 4 }} onClick={e => e.stopPropagation()}>
+                        <button onClick={e => { e.stopPropagation(); quickStart(routine.id); }} style={{ flex: 1, background: W.accent, border: "none", borderRadius: 8, padding: "5px 0", fontSize: 11, color: "#fff", fontWeight: 700, cursor: "pointer" }}>▶ Start</button>
+                        {routine.id !== activeId && <button onClick={e => { e.stopPropagation(); setActive(routine.id); }} style={{ flex: 1, background: W.surface2, border: `1px solid ${W.border}`, borderRadius: 8, padding: "5px 0", fontSize: 11, color: W.textMuted, fontWeight: 700, cursor: "pointer" }}>Set Active</button>}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          ))}
+        </div>
+      );
+    };
+
+    if (routineEditor || showAddRoutineTypePicker || showImportRoutine || routineShareModal) {
+      return (
+        <div style={{ padding: "24px 20px" }}>
+          {renderRoutinesPanel()}
+        </div>
+      );
+    }
+
     return (
       <div style={{ padding: "24px 20px" }}>
         {/* Header row: avatar + name/stats/follow pills + action buttons */}
@@ -4059,347 +4418,7 @@ export default function App() {
           );
         })()}
 
-        {profileTab === "training" && trainingSubTab === "routines" && (() => {
-          const ROUTINE_COLORS = ["#ef4444","#f97316","#eab308","#22c55e","#3b82f6","#8b5cf6","#ec4899","#64748b"];
-          const typeLabel = { warmup: "Warmup", workout: "Workout", fingerboard: "Fingerboard" };
-          const presets = { warmup: WARMUP_PRESETS, workout: WORKOUT_PRESETS, fingerboard: FINGERBOARD_PRESETS };
-
-          const getUsage = (type, routine) => {
-            if (type === "warmup") return sessions.filter(s => (s.warmupTotalSec || 0) > 0 && (s.warmupTemplateId === routine.id || s.warmupTemplateName === routine.name));
-            if (type === "workout") return sessions.filter(s => (s.workoutTotalSec || 0) > 0 && (s.workoutRoutineId === routine.id || s.workoutRoutineName === routine.name));
-            return sessions.filter(s => (s.fingerboardTotalSec || 0) > 0 && (s.fingerboardRoutineId === routine.id || s.fingerboardRoutineName === routine.name));
-          };
-
-          const getStreak = (usageSessions, weeklyGoal) => {
-            if (!weeklyGoal || weeklyGoal <= 0) return null;
-            const today = new Date(); today.setHours(0,0,0,0);
-            const dow = today.getDay();
-            const weekStart = new Date(today); weekStart.setDate(today.getDate() - dow);
-            let streak = 0;
-            for (let w = 0; w < 52; w++) {
-              const ws = new Date(weekStart); ws.setDate(weekStart.getDate() - w * 7);
-              const we = new Date(ws); we.setDate(ws.getDate() + 6);
-              const cnt = usageSessions.filter(s => { const d = new Date(s.date); return d >= ws && d <= we; }).length;
-              if (cnt >= weeklyGoal) streak++;
-              else if (w > 0) break;
-            }
-            return streak;
-          };
-
-          const openEditor = (mode, type, id) => {
-            let routine = null;
-            if (mode === "edit") {
-              const src = type === "warmup" ? warmupTemplates : type === "workout" ? workoutRoutines : fingerboardRoutines;
-              routine = src.find(r => r.id === id);
-            }
-            setRoutineEditorName(routine?.name || "");
-            setRoutineEditorDesc(routine?.description || "");
-            setRoutineEditorItems(routine?.items ? routine.items.map(i => ({ ...i })) : []);
-            setRoutineEditorNewItem("");
-            setRoutineEditorShowPresets(false);
-            setRoutineEditorEditingItemId(null);
-            setRoutineEditor({ mode, type, id: id || null, notes: routine?.notes || "", color: routine?.color || "", weeklyGoal: routine?.weeklyGoal || "" });
-          };
-
-          const saveEditor = () => {
-            const items = routineEditorItems;
-            const name = routineEditorName.trim() || "Untitled";
-            const description = routineEditorDesc.trim();
-            const notes = routineEditor.notes || "";
-            const color = routineEditor.color || "";
-            const weeklyGoal = parseInt(routineEditor.weeklyGoal) || null;
-            const data = { name, description, notes, color, weeklyGoal, items };
-            if (routineEditor.type === "warmup") {
-              if (routineEditor.mode === "new") { const newId = Date.now(); setWarmupTemplates(prev => [...prev, { id: newId, ...data }]); }
-              else { setWarmupTemplates(prev => prev.map(t => t.id === routineEditor.id ? { ...t, ...data } : t)); if (routineEditor.id === activeWarmupTemplateId) setDefaultWarmupItems(items); }
-            } else if (routineEditor.type === "workout") {
-              if (routineEditor.mode === "new") { const newId = Date.now(); setWorkoutRoutines(prev => [...prev, { id: newId, ...data }]); }
-              else { setWorkoutRoutines(prev => prev.map(t => t.id === routineEditor.id ? { ...t, ...data } : t)); if (routineEditor.id === activeWorkoutRoutineId) setDefaultWorkoutItems(items); }
-            } else {
-              if (routineEditor.mode === "new") { const newId = Date.now(); setFingerboardRoutines(prev => [...prev, { id: newId, ...data }]); }
-              else { setFingerboardRoutines(prev => prev.map(t => t.id === routineEditor.id ? { ...t, ...data } : t)); if (routineEditor.id === activeFingerboardRoutineId) setDefaultFingerboardItems(items); }
-            }
-            setRoutineEditor(null);
-          };
-
-          const duplicateRoutine = () => {
-            const name = (routineEditorName.trim() || "Untitled") + " (Copy)";
-            const items = routineEditorItems.map(i => ({ ...i, id: Date.now() + Math.random() }));
-            const data = { name, description: routineEditorDesc.trim(), notes: routineEditor.notes || "", color: routineEditor.color || "", weeklyGoal: parseInt(routineEditor.weeklyGoal) || null, items };
-            if (routineEditor.type === "warmup") setWarmupTemplates(prev => [...prev, { id: Date.now(), ...data }]);
-            else if (routineEditor.type === "workout") setWorkoutRoutines(prev => [...prev, { id: Date.now(), ...data }]);
-            else setFingerboardRoutines(prev => [...prev, { id: Date.now(), ...data }]);
-            setRoutineEditor(null);
-          };
-
-          const deleteRoutine = () => {
-            if (routineEditor.type === "warmup") {
-              if (warmupTemplates.length <= 1) return;
-              setWarmupTemplates(prev => prev.filter(t => t.id !== routineEditor.id));
-              if (activeWarmupTemplateId === routineEditor.id) { const r = warmupTemplates.find(t => t.id !== routineEditor.id); setActiveWarmupTemplateId(r?.id); setDefaultWarmupItems(r?.items || []); }
-            } else if (routineEditor.type === "workout") {
-              if (workoutRoutines.length <= 1) return;
-              setWorkoutRoutines(prev => prev.filter(t => t.id !== routineEditor.id));
-              if (activeWorkoutRoutineId === routineEditor.id) { const r = workoutRoutines.find(t => t.id !== routineEditor.id); setActiveWorkoutRoutineId(r?.id); setDefaultWorkoutItems(r?.items || []); }
-            } else {
-              if (fingerboardRoutines.length <= 1) return;
-              setFingerboardRoutines(prev => prev.filter(t => t.id !== routineEditor.id));
-              if (activeFingerboardRoutineId === routineEditor.id) { const r = fingerboardRoutines.find(t => t.id !== routineEditor.id); setActiveFingerboardRoutineId(r?.id); setDefaultFingerboardItems(r?.items || []); }
-            }
-            setRoutineEditor(null);
-          };
-
-          const loadPreset = (preset) => {
-            setRoutineEditorName(preset.name);
-            setRoutineEditorDesc(preset.description);
-            setRoutineEditorItems(preset.items.map(i => ({ ...i, id: Date.now() + Math.random() })));
-            setRoutineEditorShowPresets(false);
-          };
-
-          const reorderRoutines = (type, idx, dir) => {
-            const setter = type === "warmup" ? setWarmupTemplates : type === "workout" ? setWorkoutRoutines : setFingerboardRoutines;
-            setter(prev => { const a = [...prev]; const swap = idx + dir; if (swap < 0 || swap >= a.length) return a; [a[idx], a[swap]] = [a[swap], a[idx]]; return a; });
-          };
-
-          const commitInlineEdit = () => {
-            if (!routineEditorEditingItemId) return;
-            setRoutineEditorItems(prev => prev.map(it => it.id === routineEditorEditingItemId ? { ...it, text: routineEditorEditingText || it.text, detail: routineEditorEditingDetail || undefined, restDuration: parseInt(routineEditorEditingRest) || undefined } : it));
-            setRoutineEditorEditingItemId(null);
-          };
-
-          // ── Import modal ─────────────────────────────────────────
-          if (showImportRoutine) {
-            const doImport = () => {
-              try {
-                const decoded = JSON.parse(atob(routineImportCode.trim()));
-                if (!decoded.name || !Array.isArray(decoded.items)) throw new Error("Invalid");
-                const { type, name, description, notes, color, weeklyGoal, items } = decoded;
-                const newId = Date.now();
-                const data = { id: newId, name, description: description || "", notes: notes || "", color: color || "", weeklyGoal: weeklyGoal || null, items };
-                if (type === "warmup") setWarmupTemplates(prev => [...prev, data]);
-                else if (type === "workout") setWorkoutRoutines(prev => [...prev, data]);
-                else setFingerboardRoutines(prev => [...prev, data]);
-                setShowImportRoutine(false); setRoutineImportCode(""); setRoutineImportError("");
-              } catch { setRoutineImportError("Invalid code. Make sure you pasted the full share code."); }
-            };
-            return (
-              <div>
-                <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 18 }}>
-                  <button onClick={() => { setShowImportRoutine(false); setRoutineImportCode(""); setRoutineImportError(""); }} style={{ background: W.surface2, border: `1px solid ${W.border}`, borderRadius: 10, padding: "8px 12px", color: W.textDim, fontWeight: 700, cursor: "pointer", fontSize: 14 }}>← Back</button>
-                  <div style={{ fontWeight: 800, fontSize: 16, color: W.text }}>Import Routine</div>
-                </div>
-                <div style={{ fontSize: 13, color: W.textMuted, marginBottom: 12 }}>Paste a share code from another user to import their routine.</div>
-                <textarea value={routineImportCode} onChange={e => setRoutineImportCode(e.target.value)} placeholder="Paste share code here…" rows={4} style={{ width: "100%", boxSizing: "border-box", padding: "10px 12px", borderRadius: 10, border: `1px solid ${W.border}`, background: W.surface, color: W.text, fontSize: 13, fontFamily: "monospace", outline: "none", resize: "vertical" }} />
-                {routineImportError && <div style={{ color: W.redDark, fontSize: 12, marginTop: 6 }}>{routineImportError}</div>}
-                <button onClick={doImport} style={{ marginTop: 10, width: "100%", padding: "12px", background: `linear-gradient(135deg, ${W.accent}, ${W.accentDark})`, border: "none", borderRadius: 12, color: "#fff", fontWeight: 800, fontSize: 14, cursor: "pointer" }}>Import</button>
-              </div>
-            );
-          }
-
-          // ── Share modal ───────────────────────────────────────────
-          if (routineShareModal) {
-            const encoded = btoa(JSON.stringify(routineShareModal));
-            return (
-              <div>
-                <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 18 }}>
-                  <button onClick={() => setRoutineShareModal(null)} style={{ background: W.surface2, border: `1px solid ${W.border}`, borderRadius: 10, padding: "8px 12px", color: W.textDim, fontWeight: 700, cursor: "pointer", fontSize: 14 }}>← Back</button>
-                  <div style={{ fontWeight: 800, fontSize: 16, color: W.text }}>Share: {routineShareModal.name}</div>
-                </div>
-                <div style={{ fontSize: 13, color: W.textMuted, marginBottom: 10 }}>Share this code with others. They can import it using the Import Routine button.</div>
-                <div style={{ background: W.surface2, border: `1px solid ${W.border}`, borderRadius: 12, padding: "12px", fontFamily: "monospace", fontSize: 11, color: W.textDim, wordBreak: "break-all", marginBottom: 12 }}>{encoded}</div>
-                <button onClick={() => navigator.clipboard?.writeText(encoded)} style={{ width: "100%", padding: "12px", background: W.accent, border: "none", borderRadius: 12, color: "#fff", fontWeight: 800, fontSize: 14, cursor: "pointer" }}>Copy to Clipboard</button>
-              </div>
-            );
-          }
-
-          // ── Editor view ───────────────────────────────────────────
-          if (routineEditor) {
-            const ps = presets[routineEditor.type] || [];
-            return (
-              <div>
-                <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 14 }}>
-                  <button onClick={() => setRoutineEditor(null)} style={{ background: W.surface2, border: `1px solid ${W.border}`, borderRadius: 10, padding: "8px 12px", color: W.textDim, fontWeight: 700, cursor: "pointer", fontSize: 14 }}>← Back</button>
-                  <div style={{ fontWeight: 800, fontSize: 16, color: W.text, flex: 1 }}>{routineEditor.mode === "new" ? `New ${typeLabel[routineEditor.type]}` : "Edit Routine"}</div>
-                  {routineEditor.mode === "edit" && <button onClick={() => { const src = routineEditor.type === "warmup" ? warmupTemplates : routineEditor.type === "workout" ? workoutRoutines : fingerboardRoutines; const r = src.find(x => x.id === routineEditor.id); if (r) setRoutineShareModal({ ...r, type: routineEditor.type }); }} style={{ background: W.surface2, border: `1px solid ${W.border}`, borderRadius: 8, padding: "6px 10px", color: W.textMuted, fontSize: 12, fontWeight: 700, cursor: "pointer" }}>Share</button>}
-                </div>
-                <div style={{ marginBottom: 10 }}>
-                  <div style={{ fontSize: 11, fontWeight: 700, color: W.textMuted, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 6 }}>Name</div>
-                  <input value={routineEditorName} onChange={e => setRoutineEditorName(e.target.value)} placeholder="Routine name" style={{ width: "100%", boxSizing: "border-box", padding: "10px 12px", borderRadius: 10, border: `1px solid ${W.border}`, background: W.surface, color: W.text, fontSize: 14, outline: "none" }} />
-                </div>
-                <div style={{ marginBottom: 10 }}>
-                  <div style={{ fontSize: 11, fontWeight: 700, color: W.textMuted, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 6 }}>Description (optional)</div>
-                  <input value={routineEditorDesc} onChange={e => setRoutineEditorDesc(e.target.value)} placeholder="Short description" style={{ width: "100%", boxSizing: "border-box", padding: "10px 12px", borderRadius: 10, border: `1px solid ${W.border}`, background: W.surface, color: W.text, fontSize: 14, outline: "none" }} />
-                </div>
-                <div style={{ marginBottom: 10 }}>
-                  <div style={{ fontSize: 11, fontWeight: 700, color: W.textMuted, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 6 }}>Notes (optional)</div>
-                  <textarea value={routineEditor.notes || ""} onChange={e => setRoutineEditor(re => ({ ...re, notes: e.target.value }))} placeholder="Rest intervals, equipment, cues…" rows={2} style={{ width: "100%", boxSizing: "border-box", padding: "10px 12px", borderRadius: 10, border: `1px solid ${W.border}`, background: W.surface, color: W.text, fontSize: 13, fontFamily: "inherit", resize: "vertical", outline: "none" }} />
-                </div>
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 12 }}>
-                  <div>
-                    <div style={{ fontSize: 11, fontWeight: 700, color: W.textMuted, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 6 }}>Color tag</div>
-                    <div style={{ display: "flex", gap: 5, flexWrap: "wrap" }}>
-                      <button onClick={() => setRoutineEditor(re => ({ ...re, color: "" }))} style={{ width: 22, height: 22, borderRadius: 6, background: W.surface2, border: `2px solid ${!routineEditor.color ? W.accent : W.border}`, cursor: "pointer" }} />
-                      {ROUTINE_COLORS.map(c => <button key={c} onClick={() => setRoutineEditor(re => ({ ...re, color: c }))} style={{ width: 22, height: 22, borderRadius: 6, background: c, border: `2px solid ${routineEditor.color === c ? "#fff" : "transparent"}`, cursor: "pointer", outline: routineEditor.color === c ? `2px solid ${c}` : "none" }} />)}
-                    </div>
-                  </div>
-                  <div>
-                    <div style={{ fontSize: 11, fontWeight: 700, color: W.textMuted, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 6 }}>Weekly goal</div>
-                    <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                      <input type="number" min="0" max="7" value={routineEditor.weeklyGoal || ""} onChange={e => setRoutineEditor(re => ({ ...re, weeklyGoal: e.target.value }))} placeholder="0" style={{ width: 50, padding: "8px 10px", borderRadius: 8, border: `1px solid ${W.border}`, background: W.surface, color: W.text, fontSize: 14, outline: "none", textAlign: "center" }} />
-                      <span style={{ fontSize: 12, color: W.textMuted }}>× / week</span>
-                    </div>
-                  </div>
-                </div>
-                {ps.length > 0 && (
-                  <div style={{ marginBottom: 12 }}>
-                    <button onClick={() => setRoutineEditorShowPresets(o => !o)} style={{ padding: "8px 14px", background: W.surface2, border: `1px solid ${W.border}`, borderRadius: 10, color: W.textMuted, fontWeight: 700, fontSize: 12, cursor: "pointer" }}>
-                      {routineEditorShowPresets ? "▲ Hide presets" : "⚡ Load preset"}
-                    </button>
-                    {routineEditorShowPresets && (
-                      <div style={{ marginTop: 8, display: "flex", flexDirection: "column", gap: 6 }}>
-                        {ps.map(p => (
-                          <button key={p.name} onClick={() => loadPreset(p)} style={{ textAlign: "left", padding: "10px 14px", background: W.surface, border: `1px solid ${W.border}`, borderRadius: 12, cursor: "pointer" }}>
-                            <div style={{ fontWeight: 700, fontSize: 13, color: W.text }}>{p.name}</div>
-                            <div style={{ fontSize: 11, color: W.textMuted, marginTop: 2 }}>{p.description} · {p.items.length} tasks</div>
-                          </button>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                )}
-                <div style={{ fontWeight: 800, fontSize: 14, color: W.text, marginBottom: 8 }}>Tasks ({routineEditorItems.length})</div>
-                {routineEditorItems.length === 0 && <div style={{ color: W.textDim, fontSize: 13, padding: "8px 0 12px", textAlign: "center" }}>No tasks yet. Add one below or load a preset.</div>}
-                {routineEditorItems.map((item, i) => (
-                  <div key={item.id} style={{ marginBottom: 6 }}>
-                    {routineEditorEditingItemId === item.id ? (
-                      <div style={{ background: W.surface, border: `1.5px solid ${W.accent}`, borderRadius: 10, padding: "8px 10px" }}>
-                        <input autoFocus value={routineEditorEditingText} onChange={e => setRoutineEditorEditingText(e.target.value)} style={{ width: "100%", boxSizing: "border-box", padding: "6px 8px", borderRadius: 8, border: `1px solid ${W.border}`, background: W.surface2, color: W.text, fontSize: 13, outline: "none", marginBottom: 6 }} placeholder="Task name" />
-                        <div style={{ display: "flex", gap: 8, marginBottom: 6 }}>
-                          <input value={routineEditorEditingDetail} onChange={e => setRoutineEditorEditingDetail(e.target.value)} style={{ flex: 1, padding: "5px 8px", borderRadius: 7, border: `1px solid ${W.border}`, background: W.surface2, color: W.text, fontSize: 12, outline: "none" }} placeholder="Detail (e.g. 3×8, 30s)" />
-                          <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
-                            <input type="number" min="0" value={routineEditorEditingRest} onChange={e => setRoutineEditorEditingRest(e.target.value)} style={{ width: 50, padding: "5px 6px", borderRadius: 7, border: `1px solid ${W.border}`, background: W.surface2, color: W.text, fontSize: 12, outline: "none", textAlign: "center" }} placeholder="0" />
-                            <span style={{ fontSize: 11, color: W.textMuted }}>s rest</span>
-                          </div>
-                        </div>
-                        <div style={{ display: "flex", gap: 6 }}>
-                          <button onClick={commitInlineEdit} style={{ flex: 1, padding: "6px", background: W.accent, border: "none", borderRadius: 7, color: "#fff", fontWeight: 700, fontSize: 12, cursor: "pointer" }}>✓ Done</button>
-                          <button onClick={() => setRoutineEditorEditingItemId(null)} style={{ padding: "6px 10px", background: W.surface2, border: `1px solid ${W.border}`, borderRadius: 7, color: W.textDim, fontSize: 12, cursor: "pointer" }}>Cancel</button>
-                        </div>
-                      </div>
-                    ) : (
-                      <div style={{ display: "flex", alignItems: "center", gap: 6, background: W.surface, border: `1px solid ${W.border}`, borderRadius: 10, padding: "8px 10px" }}>
-                        <div style={{ display: "flex", flexDirection: "column", gap: 1 }}>
-                          <button onClick={() => i > 0 && setRoutineEditorItems(prev => { const a = [...prev]; [a[i-1], a[i]] = [a[i], a[i-1]]; return a; })} style={{ background: "none", border: "none", color: i > 0 ? W.textDim : W.border, cursor: i > 0 ? "pointer" : "default", fontSize: 10, lineHeight: 1, padding: "1px 2px" }}>▲</button>
-                          <button onClick={() => i < routineEditorItems.length - 1 && setRoutineEditorItems(prev => { const a = [...prev]; [a[i], a[i+1]] = [a[i+1], a[i]]; return a; })} style={{ background: "none", border: "none", color: i < routineEditorItems.length - 1 ? W.textDim : W.border, cursor: i < routineEditorItems.length - 1 ? "pointer" : "default", fontSize: 10, lineHeight: 1, padding: "1px 2px" }}>▼</button>
-                        </div>
-                        <div style={{ flex: 1, minWidth: 0, cursor: "pointer" }} onClick={() => { setRoutineEditorEditingItemId(item.id); setRoutineEditorEditingText(item.text); setRoutineEditorEditingDetail(item.detail || ""); setRoutineEditorEditingRest(item.restDuration ? String(item.restDuration) : ""); }}>
-                          <div style={{ fontSize: 13, color: W.text }}>{item.text}</div>
-                          {item.detail && <div style={{ fontSize: 11, color: W.textMuted }}>{item.detail}</div>}
-                        </div>
-                        {item.restDuration > 0 && <span style={{ fontSize: 10, color: W.textMuted, background: W.surface2, borderRadius: 5, padding: "1px 5px" }}>{item.restDuration}s</span>}
-                        <button onClick={() => setRoutineEditorItems(prev => prev.filter((_, j) => j !== i))} style={{ background: "none", border: "none", color: W.redDark, fontSize: 14, cursor: "pointer", padding: "2px 4px", fontWeight: 700 }}>✕</button>
-                      </div>
-                    )}
-                  </div>
-                ))}
-                <div style={{ display: "flex", gap: 8, marginTop: 6, marginBottom: 16 }}>
-                  <input value={routineEditorNewItem} onChange={e => setRoutineEditorNewItem(e.target.value)} onKeyDown={e => { if (e.key === "Enter" && routineEditorNewItem.trim()) { setRoutineEditorItems(prev => [...prev, { id: Date.now(), text: routineEditorNewItem.trim() }]); setRoutineEditorNewItem(""); }}} placeholder="Add task…" style={{ flex: 1, padding: "9px 12px", borderRadius: 10, border: `1px solid ${W.border}`, background: W.surface, color: W.text, fontSize: 13, outline: "none" }} />
-                  <button onClick={() => { if (!routineEditorNewItem.trim()) return; setRoutineEditorItems(prev => [...prev, { id: Date.now(), text: routineEditorNewItem.trim() }]); setRoutineEditorNewItem(""); }} style={{ padding: "9px 16px", background: W.accent, borderRadius: 10, border: "none", color: "#fff", fontWeight: 700, fontSize: 14, cursor: "pointer" }}>+</button>
-                </div>
-                <div style={{ display: "flex", gap: 8 }}>
-                  <button onClick={saveEditor} style={{ flex: 1, padding: "13px", background: `linear-gradient(135deg, ${W.accent}, ${W.accentDark})`, border: "none", borderRadius: 12, color: "#fff", fontWeight: 800, fontSize: 14, cursor: "pointer" }}>Save Routine</button>
-                  {routineEditor.mode === "edit" && <button onClick={duplicateRoutine} style={{ padding: "13px 14px", background: W.surface, border: `1px solid ${W.border}`, borderRadius: 12, color: W.textMuted, fontWeight: 700, fontSize: 13, cursor: "pointer" }}>Copy</button>}
-                  {routineEditor.mode === "edit" && <button onClick={deleteRoutine} style={{ padding: "13px 14px", background: W.surface, border: `1px solid ${W.border}`, borderRadius: 12, color: W.redDark, fontWeight: 700, fontSize: 13, cursor: "pointer" }}>Delete</button>}
-                </div>
-              </div>
-            );
-          }
-
-          // ── Type picker ───────────────────────────────────────────
-          if (showAddRoutineTypePicker) {
-            return (
-              <div>
-                <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 20 }}>
-                  <button onClick={() => setShowAddRoutineTypePicker(false)} style={{ background: W.surface2, border: `1px solid ${W.border}`, borderRadius: 10, padding: "8px 12px", color: W.textDim, fontWeight: 700, cursor: "pointer", fontSize: 14 }}>← Back</button>
-                  <div style={{ fontWeight: 800, fontSize: 16, color: W.text }}>Choose Type</div>
-                </div>
-                {[
-                  { type: "warmup", emoji: "🧘", label: "Warmup", desc: "Mobility, activation, and easy climbing prep" },
-                  { type: "workout", emoji: "💪", label: "Workout", desc: "Strength and conditioning exercises" },
-                  { type: "fingerboard", emoji: "🤙", label: "Fingerboard", desc: "Hangboard protocols and finger training" },
-                ].map(opt => (
-                  <div key={opt.type} onClick={() => { setShowAddRoutineTypePicker(false); openEditor("new", opt.type, null); }} style={{ display: "flex", alignItems: "center", gap: 14, background: W.surface, border: `1px solid ${W.border}`, borderRadius: 16, padding: "16px 18px", marginBottom: 10, cursor: "pointer" }}>
-                    <span style={{ fontSize: 28 }}>{opt.emoji}</span>
-                    <div><div style={{ fontWeight: 800, fontSize: 15, color: W.text }}>{opt.label}</div><div style={{ fontSize: 12, color: W.textMuted, marginTop: 2 }}>{opt.desc}</div></div>
-                    <span style={{ marginLeft: "auto", color: W.textMuted, fontSize: 20 }}>›</span>
-                  </div>
-                ))}
-              </div>
-            );
-          }
-
-          // ── Routines list ─────────────────────────────────────────
-          return (
-            <div>
-              <div style={{ display: "flex", gap: 8, marginBottom: 16 }}>
-                <button onClick={() => setShowAddRoutineTypePicker(true)} style={{ flex: 1, padding: "11px", background: `linear-gradient(135deg, ${W.accent}, ${W.accentDark})`, border: "none", borderRadius: 12, color: "#fff", fontWeight: 800, fontSize: 13, cursor: "pointer" }}>+ Add Routine</button>
-                <button onClick={() => setShowImportRoutine(true)} style={{ padding: "11px 14px", background: W.surface2, border: `1px solid ${W.border}`, borderRadius: 12, color: W.textMuted, fontWeight: 700, fontSize: 13, cursor: "pointer" }}>Import</button>
-              </div>
-              {[
-                { sectionLabel: "🧘 Warmup", type: "warmup", typeRoutines: warmupTemplates, activeId: activeWarmupTemplateId, setRoutines: setWarmupTemplates, setActive: (id) => { setActiveWarmupTemplateId(id); const r = warmupTemplates.find(r => r.id === id); if (r) setDefaultWarmupItems(r.items); }, quickStart: (id) => { setActiveWarmupTemplateId(id); const r = warmupTemplates.find(r => r.id === id); if (r) setDefaultWarmupItems(r.items); setScreen("home"); } },
-                { sectionLabel: "💪 Workout", type: "workout", typeRoutines: workoutRoutines, activeId: activeWorkoutRoutineId, setRoutines: setWorkoutRoutines, setActive: (id) => { setActiveWorkoutRoutineId(id); const r = workoutRoutines.find(r => r.id === id); if (r) setDefaultWorkoutItems(r.items); }, quickStart: (id) => { setActiveWorkoutRoutineId(id); const r = workoutRoutines.find(r => r.id === id); if (r) setDefaultWorkoutItems(r.items); setScreen("home"); } },
-                { sectionLabel: "🤙 Fingerboard", type: "fingerboard", typeRoutines: fingerboardRoutines, activeId: activeFingerboardRoutineId, setRoutines: setFingerboardRoutines, setActive: (id) => { setActiveFingerboardRoutineId(id); const r = fingerboardRoutines.find(r => r.id === id); if (r) setDefaultFingerboardItems(r.items); }, quickStart: (id) => { setActiveFingerboardRoutineId(id); const r = fingerboardRoutines.find(r => r.id === id); if (r) setDefaultFingerboardItems(r.items); setScreen("home"); } },
-              ].map(({ sectionLabel, type, typeRoutines, activeId, setRoutines, setActive, quickStart }) => (
-                <div key={type} style={{ marginBottom: 22 }}>
-                  <div style={{ fontWeight: 800, fontSize: 12, color: W.textMuted, textTransform: "uppercase", letterSpacing: 1, marginBottom: 10 }}>{sectionLabel}</div>
-                  {typeRoutines.map((routine, ri) => {
-                    const usageSessions = getUsage(type, routine);
-                    const lastUsed = usageSessions.length > 0 ? usageSessions.sort((a,b) => new Date(b.date) - new Date(a.date))[0] : null;
-                    const streak = getStreak(usageSessions, routine.weeklyGoal);
-                    const today = new Date(); today.setHours(0,0,0,0);
-                    const dow = today.getDay();
-                    const weekStart = new Date(today); weekStart.setDate(today.getDate() - dow);
-                    const thisWeekCount = usageSessions.filter(s => new Date(s.date) >= weekStart).length;
-                    const accentColor = routine.color || W.accent;
-                    return (
-                      <div key={routine.id} style={{ background: W.surface, border: `2px solid ${routine.id === activeId ? accentColor : W.border}`, borderRadius: 14, padding: "12px 14px", marginBottom: 8, borderLeft: routine.color ? `4px solid ${routine.color}` : undefined }}>
-                        <div style={{ display: "flex", alignItems: "flex-start", gap: 10 }}>
-                          <div style={{ flex: 1, minWidth: 0, cursor: "pointer" }} onClick={() => openEditor("edit", type, routine.id)}>
-                            <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
-                              <span style={{ fontWeight: 800, fontSize: 14, color: W.text }}>{routine.name}</span>
-                              {routine.id === activeId && <span style={{ background: accentColor, color: "#fff", borderRadius: 6, padding: "1px 7px", fontSize: 10, fontWeight: 700 }}>Active</span>}
-                              {streak > 0 && <span style={{ background: W.surface2, color: W.accent, borderRadius: 6, padding: "1px 7px", fontSize: 10, fontWeight: 700 }}>🔥 {streak}wk streak</span>}
-                            </div>
-                            {routine.description && <div style={{ fontSize: 12, color: W.textMuted, marginTop: 2 }}>{routine.description}</div>}
-                            <div style={{ display: "flex", gap: 8, marginTop: 4, flexWrap: "wrap" }}>
-                              <span style={{ fontSize: 11, color: W.textDim }}>{(routine.items || []).length} tasks</span>
-                              {usageSessions.length > 0 && <span style={{ fontSize: 11, color: W.textDim }}>{usageSessions.length} uses</span>}
-                              {lastUsed && <span style={{ fontSize: 11, color: W.textDim }}>Last: {formatDate(lastUsed.date)}</span>}
-                              {routine.weeklyGoal > 0 && <span style={{ fontSize: 11, color: thisWeekCount >= routine.weeklyGoal ? W.accent : W.textDim }}>{thisWeekCount}/{routine.weeklyGoal} this week</span>}
-                            </div>
-                          </div>
-                          <div style={{ display: "flex", flexDirection: "column", gap: 4, alignItems: "flex-end" }}>
-                            <div style={{ display: "flex", gap: 4 }}>
-                              <button onClick={e => { e.stopPropagation(); reorderRoutines(type, ri, -1); }} disabled={ri === 0} style={{ background: "none", border: "none", color: ri > 0 ? W.textDim : W.border, fontSize: 11, cursor: ri > 0 ? "pointer" : "default", padding: "2px 4px" }}>▲</button>
-                              <button onClick={e => { e.stopPropagation(); reorderRoutines(type, ri, 1); }} disabled={ri === typeRoutines.length - 1} style={{ background: "none", border: "none", color: ri < typeRoutines.length - 1 ? W.textDim : W.border, fontSize: 11, cursor: ri < typeRoutines.length - 1 ? "pointer" : "default", padding: "2px 4px" }}>▼</button>
-                            </div>
-                            <button onClick={e => { e.stopPropagation(); quickStart(routine.id); }} style={{ background: W.accent, border: "none", borderRadius: 8, padding: "4px 8px", fontSize: 11, color: "#fff", fontWeight: 700, cursor: "pointer" }}>▶ Start</button>
-                            {routine.id !== activeId && <button onClick={e => { e.stopPropagation(); setActive(routine.id); }} style={{ background: W.surface2, border: `1px solid ${W.border}`, borderRadius: 8, padding: "4px 8px", fontSize: 11, color: W.textMuted, fontWeight: 700, cursor: "pointer" }}>Set Active</button>}
-                          </div>
-                        </div>
-                        {routine.weeklyGoal > 0 && (
-                          <div style={{ marginTop: 8, height: 4, borderRadius: 2, background: W.surface2, overflow: "hidden" }}>
-                            <div style={{ height: "100%", width: `${Math.min(100, (thisWeekCount / routine.weeklyGoal) * 100)}%`, background: thisWeekCount >= routine.weeklyGoal ? W.accent : `${W.accent}88`, borderRadius: 2, transition: "width 0.3s" }} />
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-              ))}
-            </div>
-          );
-        })()}
+        {profileTab === "training" && trainingSubTab === "routines" && renderRoutinesPanel()}
 
         {profileTab === "stats" && (() => {
           const tfLabels = { "2w": "Past 2 Weeks", "1m": "Past Month", "6m": "Past 6 Months", "1y": "Past Year", "all": "All Time" };
