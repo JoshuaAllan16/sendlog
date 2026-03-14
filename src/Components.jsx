@@ -255,7 +255,7 @@ export const BoulderRopeSessionCard = ({ type, totalSec, activeStart, isEnded, t
 };
 
 // §ACTIVE_CLIMB_CARD
-export const ActiveClimbCard = ({ climb, onEdit, onStartClimbing, onEndAttempt, onUpdateTries, onToggleCompleted, onLogRope, onRemove, onLightbox, onPauseClimb, onResumeClimb, sessionCount }) => {
+export const ActiveClimbCard = ({ climb, onEdit, onStartClimbing, onEndAttempt, onUpdateTries, onToggleCompleted, onLogRope, onRemove, onLightbox, onPauseClimb, onResumeClimb, onClimbAgain, sessionCount }) => {
   const W = useTheme();
   const [confirmRemove, setConfirmRemove] = useState(false);
   const [showRopeLog, setShowRopeLog] = useState(false);
@@ -470,6 +470,9 @@ export const ActiveClimbCard = ({ climb, onEdit, onStartClimbing, onEndAttempt, 
             <button onClick={() => onRemove(climb.id)} style={{ padding: "5px 12px", background: W.redDark, border: "none", borderRadius: 8, color: "#fff", cursor: "pointer", fontSize: 12, fontWeight: 700 }}>Yes</button>
           </div>
         </div>
+      )}
+      {climb.completed && onClimbAgain && !confirmRemove && (
+        <button onClick={() => onClimbAgain(climb)} style={{ width: "100%", padding: "9px", background: "transparent", border: "none", borderTop: `1px solid ${W.border}`, color: W.textMuted, fontSize: 12, fontWeight: 700, cursor: "pointer" }}>↩ Climb Again</button>
       )}
     </div>
   );

@@ -1093,6 +1093,11 @@ export default function App() {
     return { ...s, climbs: (s.climbs || []).map(c => c.id === id ? { ...c, ...climbUpdates } : c) };
   });
   const removeClimbFromActive      = (id) => setActiveSession(s => ({ ...s, climbs: (s.climbs || []).filter(c => c.id !== id) }));
+  const climbAgain = (climb) => {
+    const newId = Date.now();
+    const fresh = { ...climb, id: newId, loggedAt: newId, tries: 0, completed: false, climbingStartedAt: null, lastAttemptEndedAt: null, attemptLog: [], fallLog: [], pausedWorkedMs: 0, paused: false };
+    setActiveSession(s => ({ ...s, climbs: [...(s.climbs || []), fresh] }));
+  };
   const removeClimbFromSession     = (sessionId, climbId) => {
     setSessions(prev => prev.map(s => s.id === sessionId ? { ...s, climbs: (s.climbs || []).filter(c => c.id !== climbId) } : s));
     setSelectedSession(prev => ({ ...prev, climbs: (prev.climbs || []).filter(c => c.id !== climbId) }));
@@ -1169,7 +1174,7 @@ export default function App() {
         let setClimbId = climbForm.setClimbId || null;
         if (location && !setClimbId && (climbForm.climbType === "boulder" || climbForm.climbType === "rope")) {
           setClimbId = Date.now() + 2;
-          const newSetClimb = { id: setClimbId, name: climbForm.name, grade: climbForm.grade, scale: climbForm.scale, color: climbForm.color, wallTypes: climbForm.wallTypes, holdTypes: climbForm.holdTypes, setDate: new Date().toISOString(), location, removed: false, removedDate: null };
+          const newSetClimb = { id: setClimbId, name: climbForm.name, grade: climbForm.grade, scale: climbForm.scale, color: climbForm.color, wallTypes: climbForm.wallTypes, holdTypes: climbForm.holdTypes, climbType: climbForm.climbType || "boulder", setDate: new Date().toISOString(), location, removed: false, removedDate: null };
           setGymSets(prev => ({ ...prev, [location]: [...(prev[location] || []), newSetClimb] }));
         }
         const newClimb = { ...climbForm, photo: photoPreview, projectId: pid, id: Date.now(), loggedAt: Date.now(), tries: climbForm.climbType === "speed" ? 1 : 0, completed: climbForm.climbType === "speed" ? climbForm.completed : false, ...(speedGrade ? { grade: speedGrade, scale: "Speed" } : {}), ...(setClimbId ? { setClimbId } : {}) };
@@ -1840,21 +1845,21 @@ export default function App() {
     const ropeGrades = climbForm.scale === "Custom" ? customRopeGrades : (ROPE_GRADES[climbForm.scale] || ROPE_GRADES["French"]);
     const boulderGrades = climbForm.scale === "Custom" ? customBoulderGrades : (GRADES[climbForm.scale] || GRADES["V-Scale"]);
     const title = editingClimbId ? "Edit Climb" : type === "boulder" ? "Add a Boulder" : type === "rope" ? "Add a Rope Climb" : "Add a Speed Climb";
-    const showFields = !isActiveSession || !!editingClimbId || type !== "boulder" || showNewBoulderForm;
+    const showFields = !isActiveSession || !!editingClimbId || (type !== "boulder" && type !== "rope") || showNewBoulderForm;
     return (
       <div style={{ background: W.surface2, borderRadius: 16, padding: "16px", marginBottom: 16, border: `1px solid ${W.border}` }}>
         <div style={{ fontWeight: 700, color: W.text, marginBottom: 14, fontSize: 15 }}>{title}</div>
 
         {/* Quick-add buttons: Projects + Current Set — popup is rendered at app level */}
-        {isActiveSession && !editingClimbId && type === "boulder" && (
+        {isActiveSession && !editingClimbId && (type === "boulder" || type === "rope") && (
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 14 }}>
-            <button onClick={() => setBoulderQuickPanel("projects")} style={{ padding: "9px", borderRadius: 12, border: `2px solid ${W.border}`, background: W.surface, color: W.textMuted, fontWeight: 700, fontSize: 13, cursor: "pointer" }}>Projects</button>
-            <button onClick={() => setBoulderQuickPanel("set")} style={{ padding: "9px", borderRadius: 12, border: `2px solid ${W.border}`, background: W.surface, color: W.textMuted, fontWeight: 700, fontSize: 13, cursor: "pointer" }}>Current Set</button>
+            <button onClick={() => setBoulderQuickPanel(type === "rope" ? "rope-projects" : "projects")} style={{ padding: "9px", borderRadius: 12, border: `2px solid ${W.border}`, background: W.surface, color: W.textMuted, fontWeight: 700, fontSize: 13, cursor: "pointer" }}>Projects</button>
+            <button onClick={() => setBoulderQuickPanel(type === "rope" ? "rope-set" : "set")} style={{ padding: "9px", borderRadius: 12, border: `2px solid ${W.border}`, background: W.surface, color: W.textMuted, fontWeight: 700, fontSize: 13, cursor: "pointer" }}>Current Set</button>
           </div>
         )}
-        {/* Collapsible "Create a New Boulder" section for active session */}
-        {isActiveSession && !editingClimbId && type === "boulder" && !showNewBoulderForm && (
-          <button onClick={() => setShowNewBoulderForm(true)} style={{ width: "100%", padding: "13px", borderRadius: 14, border: `2px solid ${W.border}`, background: W.surface, color: W.text, fontWeight: 700, fontSize: 14, cursor: "pointer", marginBottom: 4 }}>+ Create a New Boulder</button>
+        {/* Collapsible create section for active session */}
+        {isActiveSession && !editingClimbId && (type === "boulder" || type === "rope") && !showNewBoulderForm && (
+          <button onClick={() => setShowNewBoulderForm(true)} style={{ width: "100%", padding: "13px", borderRadius: 14, border: `2px solid ${W.border}`, background: W.surface, color: W.text, fontWeight: 700, fontSize: 14, cursor: "pointer", marginBottom: 4 }}>{type === "rope" ? "+ Create a New Rope Climb" : "+ Create a New Boulder"}</button>
         )}
         {showFields && <>
         {/* Name */}
@@ -2603,7 +2608,7 @@ export default function App() {
       onEdit: openClimbForm, onStartClimbing: startClimbing, onEndAttempt: endClimbAttempt,
       onUpdateTries: updateActiveClimbTries, onToggleCompleted: toggleActiveClimbCompleted,
       onLogRope: logRopeAttempt, onRemove: removeClimbFromActive, onLightbox: setLightboxPhoto,
-      onPauseClimb: pauseClimb, onResumeClimb: resumeClimb,
+      onPauseClimb: pauseClimb, onResumeClimb: resumeClimb, onClimbAgain: climbAgain,
     };
     return (
       <div style={{ padding: "20px" }}>
@@ -2914,48 +2919,7 @@ export default function App() {
         })()}
         {!showClimbForm && (
           <div style={{ marginTop: 4 }}>
-            {/* Section timer status indicators */}
-            {(activeSession?.boulderStartedAt || activeSession?.ropeStartedAt || activeSession?.warmupStartedAt || speedSessions.some(s => !s.endedAt)) && (
-              <div style={{ display: "flex", gap: 6, justifyContent: "center", marginBottom: 8, flexWrap: "wrap" }}>
-                {activeSession?.boulderStartedAt && !activeSession.boulderEndedAt && (() => {
-                  const active = !!activeSession.boulderActiveStart;
-                  return (
-                    <div style={{ display: "flex", alignItems: "center", gap: 4, background: W.surface2, borderRadius: 10, padding: "4px 10px", border: `1px solid ${active ? W.greenDark + "55" : W.border}` }}>
-                      <div style={{ width: 7, height: 7, borderRadius: "50%", background: active ? W.greenDark : W.textDim }} />
-                      <span style={{ fontSize: 10, fontWeight: 700, color: active ? W.greenDark : W.textDim }}>🪨 {active ? "active" : "paused"}</span>
-                    </div>
-                  );
-                })()}
-                {activeSession?.ropeStartedAt && !activeSession.ropeEndedAt && (() => {
-                  const active = !!activeSession.ropeActiveStart;
-                  return (
-                    <div style={{ display: "flex", alignItems: "center", gap: 4, background: W.surface2, borderRadius: 10, padding: "4px 10px", border: `1px solid ${active ? W.purpleDark + "55" : W.border}` }}>
-                      <div style={{ width: 7, height: 7, borderRadius: "50%", background: active ? W.purpleDark : W.textDim }} />
-                      <span style={{ fontSize: 10, fontWeight: 700, color: active ? W.purpleDark : W.textDim }}>🪢 {active ? "active" : "paused"}</span>
-                    </div>
-                  );
-                })()}
-                {speedSessions.filter(s => !s.endedAt).map(s => {
-                  const active = !!s.speedActiveStart;
-                  return (
-                    <div key={s.id} style={{ display: "flex", alignItems: "center", gap: 4, background: W.surface2, borderRadius: 10, padding: "4px 10px", border: `1px solid ${active ? W.yellowDark + "55" : W.border}` }}>
-                      <div style={{ width: 7, height: 7, borderRadius: "50%", background: active ? W.yellowDark : W.textDim }} />
-                      <span style={{ fontSize: 10, fontWeight: 700, color: active ? W.yellowDark : W.textDim }}>⚡ {active ? "active" : "paused"}</span>
-                    </div>
-                  );
-                })}
-                {activeSession?.warmupStartedAt && !activeSession.warmupEndedAt && (() => {
-                  const active = !!activeSession.warmupActiveStart;
-                  return (
-                    <div style={{ display: "flex", alignItems: "center", gap: 4, background: W.surface2, borderRadius: 10, padding: "4px 10px", border: `1px solid ${active ? W.pinkDark + "55" : W.border}` }}>
-                      <div style={{ width: 7, height: 7, borderRadius: "50%", background: active ? W.pinkDark : W.textDim }} />
-                      <span style={{ fontSize: 10, fontWeight: 700, color: active ? W.pinkDark : W.textDim }}>🔥 {active ? "active" : "paused"}</span>
-                    </div>
-                  );
-                })()}
-              </div>
-            )}
-            <button onClick={toggleSessionTimer} style={{ width: "100%", padding: "12px", background: W.surface2, border: `2px solid ${W.border}`, borderRadius: 14, color: W.textMuted, fontWeight: 700, fontSize: 14, cursor: "pointer", marginBottom: 8 }}>{timerRunning ? "Pause Session" : "Resume Session"}</button>
+            <button onClick={toggleSessionTimer} style={{ width: "100%", padding: "12px", background: W.surface2, border: `2px solid ${W.border}`, borderRadius: 14, color: W.textMuted, fontWeight: 700, fontSize: 22, cursor: "pointer", marginBottom: 8 }}>{timerRunning ? "⏸" : "▶"}</button>
             <button onClick={() => setShowEndConfirm(true)} style={{ width: "100%", padding: "14px", background: W.surface, border: `2px solid ${W.border}`, borderRadius: 14, color: W.redDark, fontWeight: 700, fontSize: 15, cursor: "pointer" }}>End Session</button>
           </div>
         )}
@@ -4494,14 +4458,15 @@ export default function App() {
                           const entrySessionCount = new Set(sessions.filter(s => (s.climbs || []).some(c => c.setClimbId === entry.id)).map(s => s.id)).size;
                           const daysOnWall = entry.setDate ? Math.floor((Date.now() - new Date(entry.setDate)) / 86400000) : null;
                           const ageLabel = daysOnWall === null ? null : daysOnWall === 0 ? "Set today" : daysOnWall === 1 ? "1 day on wall" : daysOnWall < 7 ? `${daysOnWall} days on wall` : daysOnWall < 14 ? "1 week on wall" : `${Math.floor(daysOnWall / 7)} weeks on wall`;
+                          const isStale = daysOnWall !== null && daysOnWall >= 56; // 8+ weeks
                           return (
-                            <div key={entry.id} onClick={() => setSelectedSetClimb(entry)} style={{ background: W.surface, border: `1px solid ${W.border}`, borderRadius: 14, padding: "12px 14px", marginBottom: 8, cursor: "pointer", display: "flex", alignItems: "center", gap: 12 }}>
+                            <div key={entry.id} onClick={() => setSelectedSetClimb(entry)} style={{ background: isStale ? "#78350f18" : W.surface, border: `1px solid ${isStale ? "#b45309" : W.border}`, borderRadius: 14, padding: "12px 14px", marginBottom: 8, cursor: "pointer", display: "flex", alignItems: "center", gap: 12 }}>
                               <div style={{ width: 44, height: 44, borderRadius: 10, display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 900, fontSize: 13, background: getGradeColor(entry.grade) + "30", color: getGradeColor(entry.grade), border: `1.5px solid ${getGradeColor(entry.grade)}60`, flexShrink: 0 }}>{entry.grade}</div>
                               <div style={{ flex: 1, minWidth: 0 }}>
                                 <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
                                   {entry.color && <ColorDot colorId={entry.color} size={9} />}
                                   <div style={{ fontWeight: 700, fontSize: 14, color: W.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{entry.name || entry.grade}</div>
-                                  {ageLabel && <span style={{ marginLeft: "auto", fontSize: 10, color: W.textMuted, fontWeight: 600, whiteSpace: "nowrap" }}>{ageLabel}</span>}
+                                  {ageLabel && <span style={{ marginLeft: "auto", fontSize: 10, color: isStale ? "#b45309" : W.textMuted, fontWeight: 700, whiteSpace: "nowrap" }}>{ageLabel}</span>}
                                 </div>
                                 <div style={{ fontSize: 11, color: W.textMuted, marginTop: 2 }}>
                                   {entrySessionCount} session{entrySessionCount !== 1 ? "s" : ""} · {entryAttempts.length} attempt{entryAttempts.length !== 1 ? "s" : ""} · {entrySends} send{entrySends !== 1 ? "s" : ""}
@@ -5306,7 +5271,7 @@ export default function App() {
                 <div style={{ fontWeight: 800, fontSize: 15, color: W.text, lineHeight: 1.2 }}>{activeSession?.location || "Session"}</div>
                 <button onClick={() => setActiveLocationDropdownOpen(o => !o)} style={{ background: "none", border: "none", color: W.textMuted, cursor: "pointer", padding: "0 2px", fontSize: 12, lineHeight: 1 }}>✏️</button>
               </div>
-              <div style={{ fontSize: 11, color: W.textMuted, fontWeight: 600 }}>{(activeSession?.climbs || []).filter(c => c.climbType !== "speed-session").length} attempts</div>
+              <div style={{ fontSize: 11, color: W.textMuted, fontWeight: 600 }}>{(activeSession?.climbs || []).filter(c => c.climbType !== "speed-session").reduce((sum, c) => sum + (c.tries || 0) + (c.completed ? 1 : 0), 0)} attempts</div>
             </div>
           ) : (
             <>
@@ -5584,13 +5549,15 @@ export default function App() {
 
     {/* Quick-add popup: Projects / Current Set — multi-select */}
     {boulderQuickPanel && (() => {
-      const isProjects = boulderQuickPanel === "projects";
+      const isRopeCtx = boulderQuickPanel === "rope-projects" || boulderQuickPanel === "rope-set";
+      const isProjects = boulderQuickPanel === "projects" || boulderQuickPanel === "rope-projects";
+      const climbTypeForAdd = isRopeCtx ? "rope" : "boulder";
       const location = activeSession?.location;
       const rawList = isProjects
-        ? activeProjects.filter(p => !p.climbType || p.climbType === "boulder")
-        : (location ? (gymSets[location] || []).filter(c => !c.removed) : []);
+        ? activeProjects.filter(p => isRopeCtx ? p.climbType === "rope" : (!p.climbType || p.climbType === "boulder"))
+        : (location ? (gymSets[location] || []).filter(c => !c.removed && (isRopeCtx ? c.climbType === "rope" : c.climbType !== "rope")) : []);
       const sorted = [...rawList].sort((a, b) => getGradeIndex(b.grade, b.scale) - getGradeIndex(a.grade, a.scale));
-      const title = isProjects ? "🎯 Boulder Projects" : `Current Set · ${location || "No gym"}`;
+      const title = isProjects ? (isRopeCtx ? "Rope Projects" : "Boulder Projects") : `Current Set · ${location || "No gym"}`;
       const accentColor = isProjects ? W.pinkDark : W.accent;
       const accentBg = isProjects ? W.pink : W.accent + "22";
       const activeClimbs = activeSession?.climbs || [];
@@ -5609,7 +5576,7 @@ export default function App() {
           return {
             name: item.name || "", grade: item.grade, scale: item.scale || preferredScale,
             color: item.color || null, wallTypes: item.wallTypes || [], holdTypes: item.holdTypes || [],
-            climbType: "boulder", ropeStyle: "lead",
+            climbType: climbTypeForAdd, ropeStyle: "lead",
             isProject: isProjects, projectId: pid,
             photo: null, comments: "", id: base + idx, loggedAt: base + idx, tries: 0, completed: false,
             ...(isProjects ? {} : { setClimbId: item.id }),
@@ -5619,6 +5586,7 @@ export default function App() {
           const now = base;
           const typeUpdates = {};
           if (!s.boulderStartedAt && newClimbs.some(c => c.climbType === "boulder")) { typeUpdates.boulderStartedAt = now; typeUpdates.boulderTotalSec = 0; }
+          if (!s.ropeStartedAt && newClimbs.some(c => c.climbType === "rope")) { typeUpdates.ropeStartedAt = now; typeUpdates.ropeTotalSec = 0; }
           return { ...s, ...typeUpdates, climbs: [...(s.climbs || []), ...newClimbs] };
         });
         if (!activeSession?.warmupStartedAt && sessionActiveStart && Date.now() - sessionActiveStart < 120000) setShowWarmupNudge(true);
