@@ -313,6 +313,7 @@ export default function App() {
   const [fitnessPickerStep, setFitnessPickerStep] = useState(null); // null | "choose" | "routine-type" | "routine-list" | "exercise"
   const [fitnessPickerRoutineType, setFitnessPickerRoutineType] = useState(null); // "warmup"|"workout"|"fingerboard"
   const [fitnessNewExerciseName, setFitnessNewExerciseName] = useState("");
+  const [fitnessNewItemTexts, setFitnessNewItemTexts]       = useState({}); // { [sectionId]: string }
   const [routinePreview, setRoutinePreview]         = useState(null); // { type, id }
   const [collapsedRoutineSections, setCollapsedRoutineSections] = useState({});
   const [routineListSearch, setRoutineListSearch]   = useState("");
@@ -1204,6 +1205,19 @@ export default function App() {
     }));
   };
 
+  const addFitnessItem = (sectionId, text) => {
+    if (!text.trim()) return;
+    setActiveSession(s => ({
+      ...s,
+      fitnessSections: (s.fitnessSections || []).map(sec =>
+        sec.id === sectionId
+          ? { ...sec, items: [...(sec.items || []), { id: Date.now(), text: text.trim(), checked: false }] }
+          : sec
+      ),
+    }));
+    setFitnessNewItemTexts(prev => ({ ...prev, [sectionId]: "" }));
+  };
+
   // Stops the per-climb timer without logging tries (used for rope "Done" button)
   // Type section timer keeps running — it only pauses when switching types or ending the section
   const endClimbAttempt = (id) => setActiveSession(s => {
@@ -1282,7 +1296,7 @@ export default function App() {
     const finalDuration = sessionActiveStart ? Math.floor((now - sessionActiveStart) / 1000) + sessionPausedSec : sessionPausedSec;
     const rawLoc = (final.location || pendingLocation || "Unknown Gym").trim();
     const location = rawLoc.replace(/\b([a-z])/g, c => c.toUpperCase());
-    const completed = { id: now, date: new Date().toISOString(), duration: finalDuration, location, climbs: final.climbs, boulderTotalSec: final.boulderTotalSec || 0, ropeTotalSec: final.ropeTotalSec || 0, warmupTotalSec: final.warmupTotalSec || 0, warmupChecklist: final.warmupChecklist || [], warmupTemplateName: final.warmupTemplateName || null, warmupTemplateId: final.warmupTemplateId || null, workoutTotalSec: final.workoutTotalSec || 0, workoutChecklist: final.workoutChecklist || [], workoutRoutineName: final.workoutRoutineName || null, workoutRoutineId: final.workoutRoutineId || null, fingerboardTotalSec: final.fingerboardTotalSec || 0, fingerboardChecklist: final.fingerboardChecklist || [], fingerboardRoutineName: final.fingerboardRoutineName || null, fingerboardRoutineId: final.fingerboardRoutineId || null, boulderStartedAt: final.boulderStartedAt, ropeStartedAt: final.ropeStartedAt, sessionTypes: final.sessionTypes || [], notes: final.notes || null };
+    const completed = { id: now, date: new Date().toISOString(), duration: finalDuration, location, climbs: final.climbs, boulderTotalSec: final.boulderTotalSec || 0, ropeTotalSec: final.ropeTotalSec || 0, warmupTotalSec: final.warmupTotalSec || 0, warmupChecklist: final.warmupChecklist || [], warmupTemplateName: final.warmupTemplateName || null, warmupTemplateId: final.warmupTemplateId || null, workoutTotalSec: final.workoutTotalSec || 0, workoutChecklist: final.workoutChecklist || [], workoutRoutineName: final.workoutRoutineName || null, workoutRoutineId: final.workoutRoutineId || null, fingerboardTotalSec: final.fingerboardTotalSec || 0, fingerboardChecklist: final.fingerboardChecklist || [], fingerboardRoutineName: final.fingerboardRoutineName || null, fingerboardRoutineId: final.fingerboardRoutineId || null, fitnessSections: final.fitnessSections || [], boulderStartedAt: final.boulderStartedAt, ropeStartedAt: final.ropeStartedAt, sessionTypes: final.sessionTypes || [], notes: final.notes || null };
     setSessions(prev => [completed, ...prev]);
     const sentProjectIds = (final.climbs || []).filter(c => c.isProject && c.completed && c.projectId).map(c => c.projectId);
     if (sentProjectIds.length > 0) {
@@ -3296,8 +3310,11 @@ export default function App() {
               </div>
               {!activeSession.collapsedSections?.[`fitness_${section.id}`] && (
                 <div style={{ borderLeft: `3px solid ${orangeColor}44`, paddingLeft: 10, marginLeft: 2 }}>
-                  {section.kind === "exercise" && !isEnded && (
-                    <div style={{ padding: "10px 12px", marginBottom: 6, background: W.surface2, border: `1px solid ${W.border}`, borderRadius: 10, color: W.textMuted, fontSize: 13, textAlign: "center" }}>Tap Done when finished</div>
+                  {!isEnded && (
+                    <div style={{ display: "flex", gap: 8, marginBottom: 6, marginTop: 2 }}>
+                      <input value={fitnessNewItemTexts[section.id] || ""} onChange={e => setFitnessNewItemTexts(prev => ({ ...prev, [section.id]: e.target.value }))} onKeyDown={e => { if (e.key === "Enter") addFitnessItem(section.id, fitnessNewItemTexts[section.id] || ""); }} placeholder="Add a task…" style={{ flex: 1, padding: "8px 12px", borderRadius: 10, border: `1px solid ${W.border}`, background: W.surface, color: W.text, fontSize: 13, outline: "none" }} />
+                      <button onClick={() => addFitnessItem(section.id, fitnessNewItemTexts[section.id] || "")} style={{ padding: "8px 14px", borderRadius: 10, border: `1px solid ${orangeColor}55`, background: `${orangeColor}18`, color: orangeColor, fontWeight: 700, fontSize: 13, cursor: "pointer" }}>+</button>
+                    </div>
                   )}
                   {(section.items || []).map(item => (
                     <div key={item.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "9px 12px", marginBottom: 6, background: item.checked ? `${orangeColor}18` : W.surface2, border: `1px solid ${item.checked ? orangeColor + "44" : W.border}`, borderRadius: 10, cursor: "pointer" }}
@@ -4624,6 +4641,7 @@ export default function App() {
           const warmupSessions     = sessions.filter(s => (s.warmupTotalSec || 0) > 0);
           const workoutSessions    = sessions.filter(s => (s.workoutTotalSec || 0) > 0);
           const fingerboardSessions = sessions.filter(s => (s.fingerboardTotalSec || 0) > 0);
+          const fitnessSessions     = sessions.filter(s => (s.fitnessSections || []).length > 0);
           const totalWarmupSec     = warmupSessions.reduce((sum, s) => sum + (s.warmupTotalSec || 0), 0);
           const totalWorkoutSec    = workoutSessions.reduce((sum, s) => sum + (s.workoutTotalSec || 0), 0);
           const totalFingerboardSec = fingerboardSessions.reduce((sum, s) => sum + (s.fingerboardTotalSec || 0), 0);
@@ -4637,10 +4655,11 @@ export default function App() {
           sessions.forEach(s => {
             const day = s.date?.slice(0,10);
             if (!day) return;
-            if (!trainingByDate[day]) trainingByDate[day] = { warmup: false, workout: false, fingerboard: false };
+            if (!trainingByDate[day]) trainingByDate[day] = { warmup: false, workout: false, fingerboard: false, fitness: false };
             if ((s.warmupTotalSec || 0) > 0) trainingByDate[day].warmup = true;
             if ((s.workoutTotalSec || 0) > 0) trainingByDate[day].workout = true;
             if ((s.fingerboardTotalSec || 0) > 0) trainingByDate[day].fingerboard = true;
+            if ((s.fitnessSections || []).length > 0) trainingByDate[day].fitness = true;
           });
           const calCols = [];
           for (let i = 0; i < calDays.length; i += 7) calCols.push(calDays.slice(i, i + 7));
@@ -4652,8 +4671,10 @@ export default function App() {
           workoutSessions.forEach(s => { const k = s.workoutRoutineName || "Unknown"; workoutByRoutine[k] = (workoutByRoutine[k] || 0) + 1; });
           const fingerboardByRoutine = {};
           fingerboardSessions.forEach(s => { const k = s.fingerboardRoutineName || "Unknown"; fingerboardByRoutine[k] = (fingerboardByRoutine[k] || 0) + 1; });
+          const fitnessByBlock = {};
+          fitnessSessions.forEach(s => (s.fitnessSections || []).forEach(sec => { fitnessByBlock[sec.name] = (fitnessByBlock[sec.name] || 0) + 1; }));
 
-          const StatCard = ({ emoji, label, count, totalSec, byRoutine, accent }) => (
+          const StatCard = ({ emoji, label, count, totalSec, byRoutine, accent, secondValue, secondLabel }) => (
             <div style={{ background: W.surface, border: `1px solid ${W.border}`, borderRadius: 16, padding: "16px", marginBottom: 10 }}>
               <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10 }}>
                 <span style={{ fontSize: 22 }}>{emoji}</span>
@@ -4665,8 +4686,8 @@ export default function App() {
                   <div style={{ fontSize: 11, color: W.textMuted, fontWeight: 600 }}>sessions</div>
                 </div>
                 <div style={{ background: W.surface2, borderRadius: 10, padding: "10px 12px" }}>
-                  <div style={{ fontSize: 20, fontWeight: 800, color: accent || W.accent }}>{formatDuration(totalSec)}</div>
-                  <div style={{ fontSize: 11, color: W.textMuted, fontWeight: 600 }}>total time</div>
+                  <div style={{ fontSize: 20, fontWeight: 800, color: accent || W.accent }}>{secondValue !== undefined ? secondValue : formatDuration(totalSec)}</div>
+                  <div style={{ fontSize: 11, color: W.textMuted, fontWeight: 600 }}>{secondLabel || "total time"}</div>
                 </div>
               </div>
               {Object.entries(byRoutine).sort((a,b) => b[1]-a[1]).map(([name, cnt]) => (
@@ -4678,7 +4699,7 @@ export default function App() {
             </div>
           );
 
-          if (warmupSessions.length === 0 && workoutSessions.length === 0 && fingerboardSessions.length === 0) return (
+          if (warmupSessions.length === 0 && workoutSessions.length === 0 && fingerboardSessions.length === 0 && fitnessSessions.length === 0) return (
             <div style={{ textAlign: "center", color: W.textDim, padding: "40px 20px" }}>
               <div style={{ fontSize: 32, marginBottom: 10 }}>🏋️</div>
               <div style={{ fontSize: 15, fontWeight: 700, color: W.text, marginBottom: 6 }}>No training data yet</div>
@@ -4695,15 +4716,16 @@ export default function App() {
                       {week.map(d => {
                         const key = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
                         const t = trainingByDate[key];
-                        const hasTraining = t?.warmup || t?.workout || t?.fingerboard;
-                        const bg = !t ? W.surface2 : (t.warmup && t.workout) || (t.warmup && t.fingerboard) || (t.workout && t.fingerboard) ? W.accent : t.warmup ? W.pinkDark : t.workout ? W.accentDark : W.yellowDark;
+                        const hasTraining = t?.warmup || t?.workout || t?.fingerboard || t?.fitness;
+                        const typeCount = [t?.warmup, t?.workout, t?.fingerboard, t?.fitness].filter(Boolean).length;
+                        const bg = !t ? W.surface2 : typeCount > 1 ? W.accent : t?.warmup ? W.pinkDark : t?.workout ? W.accentDark : t?.fingerboard ? W.yellowDark : "#f97316";
                         return <div key={key} title={key} style={{ width: 12, height: 12, borderRadius: 3, background: hasTraining ? bg : W.surface2, opacity: hasTraining ? 1 : 0.4 }} />;
                       })}
                     </div>
                   ))}
                 </div>
                 <div style={{ display: "flex", gap: 10, marginTop: 8 }}>
-                  {[["🧘",W.pinkDark,"Warmup"],["💪",W.accentDark,"Workout"],["🤙",W.yellowDark,"Fingerboard"]].map(([e,c,l]) => (
+                  {[["🧘",W.pinkDark,"Warmup"],["💪",W.accentDark,"Workout"],["🤙",W.yellowDark,"Fingerboard"],["🏋️","#f97316","Fitness"]].map(([e,c,l]) => (
                     <div key={l} style={{ display: "flex", alignItems: "center", gap: 4 }}>
                       <div style={{ width: 10, height: 10, borderRadius: 2, background: c }} />
                       <span style={{ fontSize: 10, color: W.textMuted }}>{l}</span>
@@ -4714,6 +4736,7 @@ export default function App() {
               {warmupSessions.length > 0 && <StatCard emoji="🧘" label="Warmup" count={warmupSessions.length} totalSec={totalWarmupSec} byRoutine={warmupByRoutine} accent={W.pinkDark} />}
               {workoutSessions.length > 0 && <StatCard emoji="💪" label="Workout" count={workoutSessions.length} totalSec={totalWorkoutSec} byRoutine={workoutByRoutine} accent={W.accentDark} />}
               {fingerboardSessions.length > 0 && <StatCard emoji="🤙" label="Fingerboard" count={fingerboardSessions.length} totalSec={totalFingerboardSec} byRoutine={fingerboardByRoutine} accent={W.yellowDark} />}
+              {fitnessSessions.length > 0 && <StatCard emoji="🏋️" label="Fitness" count={fitnessSessions.length} totalSec={0} byRoutine={fitnessByBlock} accent="#f97316" secondValue={fitnessSessions.reduce((t, s) => t + (s.fitnessSections || []).length, 0)} secondLabel="total blocks" />}
             </div>
           );
         })()}

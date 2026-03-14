@@ -260,6 +260,37 @@ export const SessionSummaryScreen = ({
         );
       })()}
       {(() => {
+        const fitnessSections = session.fitnessSections || [];
+        if (!fitnessSections.length) return null;
+        const totalTasks = fitnessSections.reduce((t, s) => t + (s.items || []).length, 0);
+        const doneTasks  = fitnessSections.reduce((t, s) => t + (s.items || []).filter(i => i.checked).length, 0);
+        const doneBlocks = fitnessSections.filter(s => s.endedAt).length;
+        const allDone = doneBlocks === fitnessSections.length && fitnessSections.length > 0;
+        const orangeColor = "#f97316";
+        const pct = totalTasks > 0 ? doneTasks / totalTasks : doneBlocks / fitnessSections.length;
+        const r = 18, circ = 2 * Math.PI * r;
+        const dash = pct * circ;
+        return (
+          <div style={{ display: "flex", alignItems: "center", gap: 14, background: allDone ? `${orangeColor}18` : W.surface2, border: `1px solid ${allDone ? orangeColor + "44" : W.border}`, borderRadius: 16, padding: "12px 16px", marginBottom: 14 }}>
+            <svg width={48} height={48} viewBox="0 0 48 48">
+              <circle cx={24} cy={24} r={r} fill="none" stroke={W.border} strokeWidth={4} />
+              <circle cx={24} cy={24} r={r} fill="none" stroke={orangeColor} strokeWidth={4}
+                strokeDasharray={`${dash.toFixed(2)} ${circ.toFixed(2)}`}
+                strokeLinecap="round" transform="rotate(-90 24 24)" />
+              <text x={24} y={28} textAnchor="middle" fontSize={12} fontWeight={900} fill={orangeColor}>🏋️</text>
+            </svg>
+            <div style={{ flex: 1 }}>
+              <div style={{ fontSize: 14, fontWeight: 800, color: allDone ? orangeColor : W.text }}>{allDone ? "Fitness Complete!" : `Fitness — ${doneBlocks}/${fitnessSections.length} blocks done`}</div>
+              <div style={{ fontSize: 11, color: W.textMuted, marginTop: 2 }}>
+                {fitnessSections.map(s => s.name).join(" · ")}
+                {totalTasks > 0 && ` · ${doneTasks}/${totalTasks} tasks`}
+              </div>
+            </div>
+            {allDone && <div style={{ fontSize: 22 }}>✅</div>}
+          </div>
+        );
+      })()}
+      {(() => {
         const sentProjects = (session.climbs || []).filter(c => c.isProject && c.completed);
         if (!sentProjects.length) return null;
         return (
@@ -330,6 +361,13 @@ export const SessionSummaryScreen = ({
             <div style={{ fontSize: 11, color: W.textMuted, marginTop: 2 }}>
               {session.fingerboardChecklist?.length > 0 ? `Fingerboard · ${formatDuration(session.fingerboardTotalSec)}` : "Fingerboard"}
             </div>
+          </div>
+        )}
+        {(session.fitnessSections?.length > 0) && (
+          <div style={{ background: `#f9731622`, borderRadius: 14, padding: "14px", border: `1px solid ${W.border}` }}>
+            <div style={{ fontSize: 20, marginBottom: 4 }}>🏋️</div>
+            <div style={{ fontSize: 20, fontWeight: 800, color: "#f97316" }}>{session.fitnessSections.filter(s => s.endedAt).length}/{session.fitnessSections.length}</div>
+            <div style={{ fontSize: 11, color: W.textMuted, marginTop: 2 }}>Fitness blocks</div>
           </div>
         )}
         {hasRestData && [
