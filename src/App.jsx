@@ -2362,6 +2362,34 @@ export default function App() {
     }, [inlineEditing]);
     const handleEditClick = () => onInlineSave ? setInlineEditing(e => !e) : onEdit && onEdit(climb);
     const handleInlineSave = () => { onInlineSave(climb.id, { name: inlineName, tries: inlineTries, completed: inlineCompleted, comments: inlineComments, grade: inlineGrade, scale: inlineScale, ...(climb.climbType === "rope" ? { falls: inlineFalls } : {}) }); setInlineEditing(false); };
+    // Photo-card layout for logbook view
+    if (climb.photo && onClimbClick && !onEdit && !onInlineSave && !onRemove && !inlineEditing) {
+      const colorHex   = CLIMB_COLORS.find(cc => cc.id === climb.color)?.hex;
+      const colorLabel = CLIMB_COLORS.find(cc => cc.id === climb.color)?.label;
+      const timeSec    = Math.floor((climb.attemptLog || []).reduce((t, a) => t + (a.duration || 0), 0) / 1000);
+      return (
+        <div onClick={() => onClimbClick(climb)} style={{ borderRadius: 16, overflow: "hidden", border: `1px solid ${W.border}`, marginBottom: 12, cursor: "pointer", background: W.surface }}>
+          <div style={{ position: "relative" }}>
+            <img src={climb.photo} alt="" style={{ width: "100%", height: 190, objectFit: "cover", display: "block" }} />
+            <div style={{ position: "absolute", inset: 0, background: "linear-gradient(to bottom, rgba(0,0,0,0.08) 0%, rgba(0,0,0,0.65) 100%)" }} />
+            <div style={{ position: "absolute", top: 10, right: 10 }}>
+              <span style={{ background: climb.completed ? "#16a34a" : "#dc2626", color: "#fff", borderRadius: 8, padding: "3px 10px", fontSize: 11, fontWeight: 800 }}>{climb.completed ? "✓ Sent" : "Not Sent"}</span>
+            </div>
+            <div style={{ position: "absolute", bottom: 12, left: 14, display: "flex", alignItems: "center", gap: 8 }}>
+              <div style={{ background: getGradeColor(climb.grade), color: "#fff", borderRadius: 10, padding: "4px 13px", fontWeight: 900, fontSize: 20, letterSpacing: 0.3, boxShadow: "0 2px 8px rgba(0,0,0,0.4)" }}>{climb.grade}</div>
+              {colorHex && <div style={{ width: 24, height: 24, borderRadius: "50%", background: colorHex, border: "2.5px solid rgba(255,255,255,0.9)", boxShadow: "0 1px 5px rgba(0,0,0,0.5)", flexShrink: 0 }} title={colorLabel} />}
+              {colorLabel && <span style={{ color: "rgba(255,255,255,0.9)", fontWeight: 700, fontSize: 13, textShadow: "0 1px 4px rgba(0,0,0,0.7)" }}>{colorLabel}</span>}
+            </div>
+          </div>
+          <div style={{ padding: "10px 14px", display: "flex", gap: 14, alignItems: "center", flexWrap: "wrap" }}>
+            {climb.name && <span style={{ fontWeight: 700, color: W.text, fontSize: 13 }}>{climb.name}</span>}
+            <span style={{ fontSize: 12, color: W.textMuted }}><span style={{ fontWeight: 700, color: W.text }}>{climb.tries || 0}</span> {climb.climbType === "rope" ? "attempts" : "falls"}</span>
+            {timeSec > 0 && <span style={{ fontSize: 12, color: W.textMuted }}><span style={{ fontWeight: 700, color: W.text }}>{formatDuration(timeSec)}</span> on climb</span>}
+            <TagChips wallTypes={climb.wallTypes} holdTypes={climb.holdTypes} />
+          </div>
+        </div>
+      );
+    }
     return (
       <div style={{ background: W.surface, borderRadius: 12, padding: "12px 14px", border: `1px solid ${W.border}`, marginBottom: 8, borderLeft: `4px solid ${(inlineEditing ? inlineCompleted : climb.completed) ? W.greenDark : W.redDark}` }}>
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
@@ -6990,11 +7018,24 @@ export default function App() {
           </div>
           <div style={{ padding: "20px" }}>
             {/* Photo */}
-            {climb.photo && (
-              <div style={{ marginBottom: 20, borderRadius: 16, overflow: "hidden", border: `1px solid ${W.border}` }}>
-                <img src={climb.photo} alt="" style={{ width: "100%", maxHeight: 260, objectFit: "cover", display: "block" }} />
-              </div>
-            )}
+            {climb.photo && (() => {
+              const colorHex   = CLIMB_COLORS.find(cc => cc.id === climb.color)?.hex;
+              const colorLabel = CLIMB_COLORS.find(cc => cc.id === climb.color)?.label;
+              return (
+                <div style={{ marginBottom: 20, borderRadius: 16, overflow: "hidden", border: `1px solid ${W.border}`, position: "relative" }}>
+                  <img src={climb.photo} alt="" style={{ width: "100%", maxHeight: 300, objectFit: "cover", display: "block" }} />
+                  <div style={{ position: "absolute", inset: 0, background: "linear-gradient(to bottom, rgba(0,0,0,0.06) 0%, rgba(0,0,0,0.60) 100%)", borderRadius: 16 }} />
+                  {/* Fullscreen button — top right */}
+                  <button onClick={() => setLightboxPhoto({ photos: [{ src: climb.photo, grade: climb.grade, name: climb.name, colorId: climb.color }], idx: 0 })} style={{ position: "absolute", top: 10, right: 10, background: "rgba(0,0,0,0.55)", border: "1.5px solid rgba(255,255,255,0.4)", borderRadius: 8, color: "#fff", fontSize: 18, width: 36, height: 36, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", lineHeight: 1 }}>⤢</button>
+                  {/* Grade + color overlay — bottom left */}
+                  <div style={{ position: "absolute", bottom: 14, left: 14, display: "flex", alignItems: "center", gap: 8 }}>
+                    <div style={{ background: gradeColor, color: "#fff", borderRadius: 10, padding: "5px 15px", fontWeight: 900, fontSize: 22, boxShadow: "0 2px 8px rgba(0,0,0,0.45)" }}>{climb.grade}</div>
+                    {colorHex && <div style={{ width: 26, height: 26, borderRadius: "50%", background: colorHex, border: "2.5px solid rgba(255,255,255,0.9)", boxShadow: "0 1px 5px rgba(0,0,0,0.5)", flexShrink: 0 }} title={colorLabel} />}
+                    {colorLabel && <span style={{ color: "rgba(255,255,255,0.92)", fontWeight: 700, fontSize: 14, textShadow: "0 1px 4px rgba(0,0,0,0.7)" }}>{colorLabel}</span>}
+                  </div>
+                </div>
+              );
+            })()}
             {/* Stats grid */}
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10, marginBottom: 20 }}>
               {[
