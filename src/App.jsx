@@ -345,6 +345,7 @@ export default function App() {
   const [gymSets, setGymSets] = useState({});
   const [gymSetStaleWeeks, setGymSetStaleWeeks] = useState(8);
   const [selectedSetClimb, setSelectedSetClimb] = useState(null);
+  const [selectedLogbookClimb, setSelectedLogbookClimb] = useState(null);
   const [boulderQuickPanel, setBoulderQuickPanel] = useState(null); // null | "projects" | "set"
   const [quickPanelSelected, setQuickPanelSelected] = useState([]); // array of selected item IDs
   const [pendingDupeClimb, setPendingDupeClimb] = useState(null);
@@ -2385,6 +2386,9 @@ export default function App() {
               </div>
             )}
           </div>
+          {climb.photo && !inlineEditing && (
+            <img src={climb.photo} alt="" onClick={onClimbClick && !confirmRemove ? () => onClimbClick(climb) : undefined} style={{ width: 52, height: 52, borderRadius: 10, objectFit: "cover", flexShrink: 0, cursor: onClimbClick && !confirmRemove ? "pointer" : "default", border: `1px solid ${W.border}` }} />
+          )}
           <div style={{ display: "flex", flexDirection: "column", gap: 5, flexShrink: 0 }}>
             {(onEdit || onInlineSave) && !confirmRemove && <button onClick={handleEditClick} style={{ background: inlineEditing ? W.accent + "22" : W.surface2, border: `1px solid ${inlineEditing ? W.accent : W.border}`, borderRadius: 7, padding: "4px 9px", fontSize: 11, color: W.accent, fontWeight: 700, cursor: "pointer" }}>{inlineEditing ? "Cancel" : "Edit"}</button>}
             {onRemove && !confirmRemove && !inlineEditing && <button onClick={() => setConfirmRemove(true)} style={{ background: W.red, border: `1px solid ${W.redDark}`, borderRadius: 7, padding: "4px 9px", fontSize: 11, color: W.redDark, fontWeight: 700, cursor: "pointer" }}>Remove</button>}
@@ -5601,7 +5605,7 @@ export default function App() {
         {profileTab === "climbing" && climbingSubTab === "logbook" && (
           <div>
             <div style={{ display: "flex", background: W.surface2, borderRadius: 10, padding: 3, marginBottom: 14, border: `1px solid ${W.border}` }}>
-              {[{ id: "climbs", label: "By Climb" }, { id: "sessions", label: "By Session" }].map(v => (
+              {[{ id: "climbs", label: "Climbs" }, { id: "sessions", label: "Sessions" }].map(v => (
                 <button key={v.id} onClick={() => setLogbookView(v.id)} style={{ flex: 1, padding: "8px", borderRadius: 8, border: "none", background: logbookView === v.id ? `linear-gradient(135deg, ${W.accent}, ${W.accentDark})` : "transparent", color: logbookView === v.id ? "#fff" : W.textDim, fontWeight: 700, fontSize: 12, cursor: "pointer" }}>{v.label}</button>
               ))}
             </div>
@@ -5674,7 +5678,7 @@ export default function App() {
                         <>
                           {visible.map((c, i) => {
                             const showHeader = logbookSort === "date" && (i === 0 || logbookClimbs[i - 1].sessionDate !== c.sessionDate);
-                            return (<div key={`${c.id}-${i}`}>{showHeader && <div style={{ fontSize: 12, fontWeight: 700, color: W.textMuted, marginBottom: 6, marginTop: i > 0 ? 14 : 0 }}>📍 {c.sessionLocation} · {formatDate(c.sessionDate)}</div>}<ClimbRow climb={c} onClimbClick={(climb) => setSelectedSetClimb(climb)} /></div>);
+                            return (<div key={`${c.id}-${i}`}>{showHeader && <div style={{ fontSize: 12, fontWeight: 700, color: W.textMuted, marginBottom: 6, marginTop: i > 0 ? 14 : 0 }}>📍 {c.sessionLocation} · {formatDate(c.sessionDate)}</div>}<ClimbRow climb={c} onClimbClick={(climb) => setSelectedLogbookClimb(climb)} /></div>);
                           })}
                           {hasMore && (
                             <button onClick={() => setLogbookClimbPage(p => p + 1)} style={{ width: "100%", padding: "13px", background: "transparent", border: `1px solid ${W.border}`, borderRadius: 14, color: W.textMuted, fontSize: 14, fontWeight: 600, cursor: "pointer", marginBottom: 8 }}>
@@ -6953,6 +6957,102 @@ export default function App() {
         </div>
       </div>
     )}
+
+    {/* Logbook Climb Detail Page */}
+    {selectedLogbookClimb && (() => {
+      const climb = selectedLogbookClimb;
+      // Find all sessions containing this climb (by id, projectId, setClimbId, or name+grade)
+      const relatedEntries = sessions.flatMap(s =>
+        (s.climbs || [])
+          .filter(c =>
+            c.id === climb.id ||
+            (climb.projectId && c.projectId === climb.projectId) ||
+            (climb.setClimbId && c.setClimbId === climb.setClimbId) ||
+            (climb.name && climb.name.trim() && c.name === climb.name && c.grade === climb.grade && c.climbType === (climb.climbType || "boulder"))
+          )
+          .map(c => ({ climb: c, session: s }))
+      ).sort((a, b) => new Date(b.session.date) - new Date(a.session.date));
+      const totalAttempts = relatedEntries.reduce((t, { climb: c }) => t + (c.tries || 0), 0);
+      const totalSends    = relatedEntries.filter(({ climb: c }) => c.completed).length;
+      const totalTimeMs   = relatedEntries.reduce((t, { climb: c }) => t + (c.attemptLog || []).reduce((s, a) => s + (a.duration || 0), 0), 0);
+      const totalTimeSec  = Math.floor(totalTimeMs / 1000);
+      const gradeColor    = getGradeColor(climb.grade);
+      return (
+        <div style={{ position: "fixed", inset: 0, zIndex: 450, background: W.bg, overflowY: "auto", display: "flex", flexDirection: "column" }}>
+          {/* Header bar */}
+          <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "16px 20px 12px", background: W.surface, borderBottom: `1px solid ${W.border}`, position: "sticky", top: 0, zIndex: 2 }}>
+            <button onClick={() => setSelectedLogbookClimb(null)} style={{ background: W.surface2, border: `1px solid ${W.border}`, borderRadius: 10, padding: "7px 14px", color: W.text, fontWeight: 700, fontSize: 14, cursor: "pointer" }}>← Back</button>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ fontWeight: 900, fontSize: 18, color: W.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{climb.name || climb.grade}</div>
+              <div style={{ fontSize: 12, color: W.textMuted }}>{climb.grade}{climb.climbType === "rope" ? " · Rope" : ""}</div>
+            </div>
+            <div style={{ width: 44, height: 44, borderRadius: 10, display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 900, fontSize: 13, background: gradeColor + "30", color: gradeColor, border: `1.5px solid ${gradeColor}60`, flexShrink: 0 }}>{climb.grade}</div>
+          </div>
+          <div style={{ padding: "20px" }}>
+            {/* Photo */}
+            {climb.photo && (
+              <div style={{ marginBottom: 20, borderRadius: 16, overflow: "hidden", border: `1px solid ${W.border}` }}>
+                <img src={climb.photo} alt="" style={{ width: "100%", maxHeight: 260, objectFit: "cover", display: "block" }} />
+              </div>
+            )}
+            {/* Stats grid */}
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10, marginBottom: 20 }}>
+              {[
+                { label: "Total Attempts", value: totalAttempts },
+                { label: "Total Sends", value: totalSends },
+                { label: "Sessions", value: relatedEntries.length },
+              ].map(({ label, value }) => (
+                <div key={label} style={{ background: W.surface, border: `1px solid ${W.border}`, borderRadius: 14, padding: "14px 10px", textAlign: "center" }}>
+                  <div style={{ fontSize: 26, fontWeight: 900, color: W.text }}>{value}</div>
+                  <div style={{ fontSize: 10, color: W.textMuted, fontWeight: 700, marginTop: 3, textTransform: "uppercase", letterSpacing: 0.5 }}>{label}</div>
+                </div>
+              ))}
+            </div>
+            {totalTimeSec > 0 && (
+              <div style={{ background: W.surface, border: `1px solid ${W.border}`, borderRadius: 14, padding: "14px 16px", marginBottom: 20, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <div style={{ fontSize: 13, fontWeight: 700, color: W.textMuted, textTransform: "uppercase", letterSpacing: 0.5 }}>Total Time on Climb</div>
+                <div style={{ fontSize: 22, fontWeight: 900, color: W.text }}>{formatDuration(totalTimeSec)}</div>
+              </div>
+            )}
+            {/* Tags */}
+            {((climb.wallTypes || []).length > 0 || (climb.holdTypes || []).length > 0) && (
+              <div style={{ marginBottom: 20 }}><TagChips wallTypes={climb.wallTypes} holdTypes={climb.holdTypes} /></div>
+            )}
+            {/* Session history */}
+            <div style={{ fontSize: 13, fontWeight: 800, color: W.textMuted, textTransform: "uppercase", letterSpacing: 1, marginBottom: 10 }}>Session History</div>
+            {relatedEntries.length === 0 && <div style={{ textAlign: "center", color: W.textDim, padding: "20px 0" }}>No history found.</div>}
+            {relatedEntries.map(({ climb: c, session: s }, i) => {
+              const timeMs = (c.attemptLog || []).reduce((t, a) => t + (a.duration || 0), 0);
+              const timeSec = Math.floor(timeMs / 1000);
+              return (
+                <div key={`${s.id}-${c.id}-${i}`} style={{ background: W.surface, border: `1px solid ${W.border}`, borderRadius: 14, padding: "14px 16px", marginBottom: 10 }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 6 }}>
+                    <div>
+                      <div style={{ fontWeight: 700, fontSize: 14, color: W.text }}>{formatDate(s.date?.slice(0, 10))}</div>
+                      <div style={{ fontSize: 12, color: W.textMuted, marginTop: 2 }}>📍 {s.location}</div>
+                    </div>
+                    <span style={{ background: c.completed ? W.green : W.red, color: c.completed ? W.greenDark : W.redDark, borderRadius: 8, padding: "3px 10px", fontSize: 11, fontWeight: 800 }}>{c.completed ? "✓ Sent" : "Not Sent"}</span>
+                  </div>
+                  <div style={{ display: "flex", gap: 16, flexWrap: "wrap" }}>
+                    <div style={{ fontSize: 12, color: W.textMuted }}><span style={{ fontWeight: 700, color: W.text }}>{c.tries || 0}</span> {c.climbType === "rope" ? "attempts" : "falls"}</div>
+                    {c.climbType === "rope" && c.falls != null && <div style={{ fontSize: 12, color: W.textMuted }}><span style={{ fontWeight: 700, color: W.text }}>{c.falls}</span> falls</div>}
+                    {timeSec > 0 && <div style={{ fontSize: 12, color: W.textMuted }}><span style={{ fontWeight: 700, color: W.text }}>{formatDuration(timeSec)}</span> on climb</div>}
+                  </div>
+                  {c.comments && <div style={{ fontSize: 12, color: W.textDim, marginTop: 6, fontStyle: "italic" }}>{c.comments}</div>}
+                  {(c.attemptLog || []).length > 0 && (
+                    <div style={{ display: "flex", gap: 4, flexWrap: "wrap", marginTop: 6 }}>
+                      {c.attemptLog.map((a, ai) => (
+                        <span key={ai} style={{ fontSize: 10, color: W.textDim, background: W.surface2, borderRadius: 5, padding: "1px 6px", border: `1px solid ${W.border}` }}>#{ai + 1} {formatDuration(Math.floor(a.duration / 1000))}</span>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      );
+    })()}
 
     {/* Climb Stats Modal */}
     {selectedSetClimb && (() => {
