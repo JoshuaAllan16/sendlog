@@ -2327,8 +2327,15 @@ export default function App() {
         <Label>Comments</Label>
         <textarea value={climbForm.comments} onChange={e => setClimbForm(f => ({ ...f, comments: e.target.value }))} placeholder="Beta, notes..." style={{ width: "100%", padding: "10px 12px", background: W.surface, border: `2px solid ${W.border}`, borderRadius: 10, color: W.text, fontSize: 13, resize: "none", height: 70, boxSizing: "border-box", marginBottom: 12, fontFamily: "inherit" }} />
         <Label>Photo</Label>
-        <div onClick={() => fileRef.current.click()} style={{ border: `2px dashed ${W.border}`, borderRadius: 10, padding: "12px", textAlign: "center", cursor: "pointer", marginBottom: 12, background: W.surface }}>
-          {photoPreview ? <img src={photoPreview} alt="climb" style={{ width: "100%", borderRadius: 8, maxHeight: 140, objectFit: "cover" }} /> : <div style={{ color: W.textDim, fontSize: 13 }}>📷 Tap to upload</div>}
+        <div style={{ border: `2px dashed ${W.border}`, borderRadius: 10, padding: photoPreview ? "0" : "12px", textAlign: "center", marginBottom: 12, background: W.surface, overflow: "hidden", position: "relative" }}>
+          {photoPreview ? (
+            <>
+              <img src={photoPreview} alt="climb" onClick={() => setLightboxPhoto({ photos: [{ src: photoPreview, grade: climbForm.grade, name: climbForm.name, colorId: climbForm.color }], idx: 0 })} style={{ width: "100%", borderRadius: 8, maxHeight: 140, objectFit: "cover", display: "block", cursor: "zoom-in" }} />
+              <button onClick={() => fileRef.current.click()} style={{ position: "absolute", bottom: 8, right: 8, background: "rgba(0,0,0,0.55)", border: "none", borderRadius: 7, color: "#fff", fontSize: 11, fontWeight: 700, padding: "4px 10px", cursor: "pointer" }}>Change</button>
+            </>
+          ) : (
+            <div onClick={() => fileRef.current.click()} style={{ color: W.textDim, fontSize: 13, cursor: "pointer", padding: "0" }}>📷 Tap to upload</div>
+          )}
         </div>
         <input ref={fileRef} type="file" accept="image/*" style={{ display: "none" }} onChange={e => { const f = e.target.files[0]; if (!f) return; const r = new FileReader(); r.onload = ev => { const img = new Image(); img.onload = () => { const MAX = 900; const scale = Math.min(1, MAX / Math.max(img.width, img.height)); const canvas = document.createElement("canvas"); canvas.width = Math.round(img.width * scale); canvas.height = Math.round(img.height * scale); canvas.getContext("2d").drawImage(img, 0, 0, canvas.width, canvas.height); setPhotoPreview(canvas.toDataURL("image/jpeg", 0.75)); }; img.src = ev.target.result; }; r.readAsDataURL(f); }} />
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
@@ -2362,6 +2369,35 @@ export default function App() {
     }, [inlineEditing]);
     const handleEditClick = () => onInlineSave ? setInlineEditing(e => !e) : onEdit && onEdit(climb);
     const handleInlineSave = () => { onInlineSave(climb.id, { name: inlineName, tries: inlineTries, completed: inlineCompleted, comments: inlineComments, grade: inlineGrade, scale: inlineScale, ...(climb.climbType === "rope" ? { falls: inlineFalls } : {}) }); setInlineEditing(false); };
+    // No-photo logbook card
+    if (!climb.photo && onClimbClick && !onEdit && !onInlineSave && !onRemove && !inlineEditing) {
+      const colorHex   = CLIMB_COLORS.find(cc => cc.id === climb.color)?.hex;
+      const colorLabel = CLIMB_COLORS.find(cc => cc.id === climb.color)?.label;
+      const timeSec    = Math.floor((climb.attemptLog || []).reduce((t, a) => t + (a.duration || 0), 0) / 1000);
+      const gradeClr   = getGradeColor(climb.grade);
+      return (
+        <div onClick={() => onClimbClick(climb)} style={{ borderRadius: 14, border: `1px solid ${W.border}`, borderLeft: `4px solid ${gradeClr}`, marginBottom: 10, cursor: "pointer", background: W.surface, overflow: "hidden", display: "flex", alignItems: "stretch" }}>
+          <div style={{ background: gradeClr + "1a", display: "flex", alignItems: "center", justifyContent: "center", padding: "0 14px", minWidth: 56, borderRight: `1px solid ${gradeClr}28` }}>
+            <div style={{ fontWeight: 900, fontSize: 17, color: gradeClr, textAlign: "center" }}>{climb.grade}</div>
+          </div>
+          <div style={{ flex: 1, padding: "10px 12px", minWidth: 0 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 7, marginBottom: 3, flexWrap: "wrap" }}>
+              {colorHex && <div style={{ width: 13, height: 13, borderRadius: "50%", background: colorHex, border: `1.5px solid ${W.border}`, flexShrink: 0 }} title={colorLabel} />}
+              {colorLabel && <span style={{ fontSize: 12, color: W.textMuted, fontWeight: 600 }}>{colorLabel}</span>}
+              {climb.name && <span style={{ fontWeight: 700, color: W.text, fontSize: 14 }}>{climb.name}</span>}
+            </div>
+            <div style={{ display: "flex", gap: 12, flexWrap: "wrap", alignItems: "center" }}>
+              <span style={{ fontSize: 12, color: W.textMuted }}><span style={{ fontWeight: 700, color: W.text }}>{climb.tries || 0}</span> {climb.climbType === "rope" ? "attempts" : "falls"}</span>
+              {timeSec > 0 && <span style={{ fontSize: 12, color: W.textMuted }}><span style={{ fontWeight: 700, color: W.text }}>{formatDuration(timeSec)}</span> on climb</span>}
+              <TagChips wallTypes={climb.wallTypes} holdTypes={climb.holdTypes} />
+            </div>
+          </div>
+          <div style={{ padding: "0 12px", display: "flex", alignItems: "center", flexShrink: 0 }}>
+            <span style={{ background: climb.completed ? W.green : W.red, color: climb.completed ? W.greenDark : W.redDark, borderRadius: 8, padding: "3px 9px", fontSize: 11, fontWeight: 800, whiteSpace: "nowrap" }}>{climb.completed ? "✓ Sent" : "Not Sent"}</span>
+          </div>
+        </div>
+      );
+    }
     // Photo-card layout for logbook view
     if (climb.photo && onClimbClick && !onEdit && !onInlineSave && !onRemove && !inlineEditing) {
       const colorHex   = CLIMB_COLORS.find(cc => cc.id === climb.color)?.hex;
@@ -6825,7 +6861,7 @@ export default function App() {
                 });
               }
             }}
-            style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.92)", zIndex: 300, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "20px 56px" }}>
+            style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.92)", zIndex: 600, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "20px 56px" }}>
             <button onClick={() => setLightboxPhoto(null)} style={{ position: "absolute", top: 16, right: 20, background: "rgba(255,255,255,0.15)", border: "none", borderRadius: "50%", width: 36, height: 36, color: "#fff", fontSize: 20, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>×</button>
             {total > 1 && lightboxPhoto.idx > 0 && (
               <button onClick={e => { e.stopPropagation(); setLightboxPhoto(p => ({ ...p, idx: p.idx - 1 })); }} style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", background: "rgba(255,255,255,0.15)", border: "none", borderRadius: "50%", width: 40, height: 40, color: "#fff", fontSize: 20, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>‹</button>
@@ -7059,6 +7095,37 @@ export default function App() {
             {((climb.wallTypes || []).length > 0 || (climb.holdTypes || []).length > 0) && (
               <div style={{ marginBottom: 20 }}><TagChips wallTypes={climb.wallTypes} holdTypes={climb.holdTypes} /></div>
             )}
+            {/* Notes from sessions */}
+            {relatedEntries.some(({ climb: c }) => c.comments) && (() => {
+              const withNotes = relatedEntries.filter(({ climb: c }) => c.comments);
+              return (
+                <div style={{ marginBottom: 20 }}>
+                  <div style={{ fontSize: 13, fontWeight: 800, color: W.textMuted, textTransform: "uppercase", letterSpacing: 1, marginBottom: 10 }}>Notes</div>
+                  {withNotes.slice(0, 5).map(({ climb: c, session: s }, i) => (
+                    <div key={`note-${s.id}-${i}`} style={{ background: W.surface, border: `1px solid ${W.border}`, borderLeft: `3px solid ${W.accentDark}`, borderRadius: 12, padding: "10px 14px", marginBottom: 8 }}>
+                      <div style={{ fontSize: 11, color: W.textMuted, fontWeight: 700, marginBottom: 5 }}>{formatDate(s.date?.slice(0, 10))}</div>
+                      <div style={{ fontSize: 13, color: W.text, fontStyle: "italic", lineHeight: 1.4 }}>"{c.comments}"</div>
+                    </div>
+                  ))}
+                </div>
+              );
+            })()}
+            {/* Last 10 attempts graphic */}
+            {relatedEntries.length > 0 && (() => {
+              const last10 = relatedEntries.slice(0, 10).reverse();
+              return (
+                <div style={{ background: W.surface, border: `1px solid ${W.border}`, borderRadius: 14, padding: "14px 16px", marginBottom: 20 }}>
+                  <div style={{ fontSize: 11, fontWeight: 800, color: W.textMuted, textTransform: "uppercase", letterSpacing: 0.8, marginBottom: 10 }}>Last {last10.length} Session{last10.length !== 1 ? "s" : ""}</div>
+                  <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                    {last10.map(({ climb: c, session: s }, i) => (
+                      <div key={`att-${s.id}-${i}`} style={{ width: 38, height: 38, borderRadius: 10, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 20, fontWeight: 900, background: c.completed ? W.green : W.red, color: c.completed ? W.greenDark : W.redDark, border: `1.5px solid ${c.completed ? W.greenDark + "80" : W.redDark + "80"}`, flexShrink: 0 }} title={formatDate(s.date?.slice(0, 10))}>
+                        {c.completed ? "✓" : "✗"}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              );
+            })()}
             {/* Session history */}
             <div style={{ fontSize: 13, fontWeight: 800, color: W.textMuted, textTransform: "uppercase", letterSpacing: 1, marginBottom: 10 }}>Session History</div>
             {relatedEntries.length === 0 && <div style={{ textAlign: "center", color: W.textDim, padding: "20px 0" }}>No history found.</div>}
