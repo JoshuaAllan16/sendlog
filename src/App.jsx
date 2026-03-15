@@ -315,6 +315,7 @@ export default function App() {
   const [fitnessNewExerciseName, setFitnessNewExerciseName] = useState("");
   const [fitnessNewItemTexts, setFitnessNewItemTexts]       = useState({}); // { [sectionId]: string }
   const [fitnessDragIdx, setFitnessDragIdx]                 = useState(null);
+  const [trainingPickerType, setTrainingPickerType]         = useState(null); // null | "warmup" | "workout" | "fingerboard"
   const [sessionSetupClimbingOpen, setSessionSetupClimbingOpen] = useState(true);
   const [sessionSetupFitnessOpen, setSessionSetupFitnessOpen]   = useState(false);
   const [routinePreview, setRoutinePreview]         = useState(null); // { type, id }
@@ -3007,22 +3008,32 @@ export default function App() {
         {/* ══ CLIMBING SECTION ══════════════════════════════════════ */}
         {!showClimbForm && (() => {
           const isCollapsed = !!activeSession?.collapsedSections?.climbingSection;
+          const climbTotalSec = (() => {
+            let t = (activeSession?.boulderTotalSec || 0) + (activeSession?.ropeTotalSec || 0);
+            if (activeSession?.boulderActiveStart) t += Math.max(0, Math.floor((Date.now() - activeSession.boulderActiveStart) / 1000));
+            if (activeSession?.ropeActiveStart) t += Math.max(0, Math.floor((Date.now() - activeSession.ropeActiveStart) / 1000));
+            speedSessions.forEach(ss => {
+              t += ss.totalSec || 0;
+              if (ss.activeStart && !ss.endedAt) t += Math.max(0, Math.floor((Date.now() - ss.activeStart) / 1000));
+            });
+            return t;
+          })();
           return (
             <div style={{ marginBottom: 16 }}>
-              <div style={{ borderRadius: 14, border: `2px solid ${W.accentDark}44`, marginBottom: isCollapsed ? 0 : 10, overflow: "hidden", background: W.surface }}>
-                <div style={{ background: `${W.accent}18`, padding: "12px 14px" }}>
-                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
-                    <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                      <div style={{ fontWeight: 800, color: W.accent, fontSize: 17 }}>Climbing</div>
-                      {regularTotal > 0 && <span style={{ fontSize: 11, color: W.textMuted, fontWeight: 600 }}>{regularSends}/{regularTotal} sends</span>}
-                      {speedSessions.length > 0 && <span style={{ fontSize: 11, color: W.textMuted, fontWeight: 600 }}>{speedSessions.reduce((t, s) => t + (s.attempts||[]).length, 0)} speed</span>}
+              <div style={{ borderRadius: 16, border: `2px solid ${W.accentDark}55`, marginBottom: isCollapsed ? 0 : 12, overflow: "hidden", background: W.surface }}>
+                <div style={{ background: `${W.accent}22`, padding: "16px 18px" }}>
+                  <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 10 }}>
+                    <div>
+                      <div style={{ fontWeight: 900, color: W.accent, fontSize: 22, letterSpacing: 0.5, marginBottom: 3 }}>Climbing</div>
+                      <div style={{ fontSize: 36, fontWeight: 900, color: W.accent, fontVariantNumeric: "tabular-nums", letterSpacing: 1, lineHeight: 1 }}>{formatDuration(climbTotalSec)}</div>
                     </div>
-                    <button onClick={() => setActiveSession(s => ({ ...s, collapsedSections: { ...(s.collapsedSections || {}), climbingSection: !s.collapsedSections?.climbingSection } }))} style={{ background: "none", border: `1px solid ${W.accentDark}44`, borderRadius: 7, color: W.accent, fontSize: 14, cursor: "pointer", padding: "3px 9px", lineHeight: 1 }}>{isCollapsed ? "▼" : "▲"}</button>
+                    <button onClick={() => setActiveSession(s => ({ ...s, collapsedSections: { ...(s.collapsedSections || {}), climbingSection: !s.collapsedSections?.climbingSection } }))} style={{ background: "none", border: `1px solid ${W.accentDark}44`, borderRadius: 8, color: W.accent, fontSize: 15, cursor: "pointer", padding: "4px 10px", lineHeight: 1, marginTop: 2 }}>{isCollapsed ? "▼" : "▲"}</button>
                   </div>
-                  <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-                    {!activeSession?.boulderEndedAt && <button onClick={() => openClimbForm(null, null, "boulder")} style={{ padding: "6px 12px", background: W.green, border: `1.5px solid ${W.greenDark}`, borderRadius: 10, color: W.greenDark, fontWeight: 700, fontSize: 12, cursor: "pointer" }}>+ Boulder</button>}
-                    {!activeSession?.ropeEndedAt && <button onClick={() => openClimbForm(null, null, "rope")} style={{ padding: "6px 12px", background: W.purple, border: `1.5px solid ${W.purpleDark}`, borderRadius: 10, color: W.purpleDark, fontWeight: 700, fontSize: 12, cursor: "pointer" }}>+ Rope</button>}
-                    <button onClick={addSpeedSession} style={{ padding: "6px 12px", background: W.yellow, border: `1.5px solid ${W.yellowDark}`, borderRadius: 10, color: W.yellowDark, fontWeight: 700, fontSize: 12, cursor: "pointer" }}>+ Speed</button>
+                  {regularTotal > 0 && <div style={{ fontSize: 12, color: W.textMuted, fontWeight: 600, marginBottom: 10 }}>{regularSends} sends · {regularTotal} climbs{speedSessions.length > 0 ? ` · ${speedSessions.reduce((t, s) => t + (s.attempts||[]).length, 0)} speed attempts` : ""}</div>}
+                  <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                    {!activeSession?.boulderEndedAt && <button onClick={() => openClimbForm(null, null, "boulder")} style={{ padding: "8px 14px", background: W.green, border: `1.5px solid ${W.greenDark}`, borderRadius: 10, color: W.greenDark, fontWeight: 700, fontSize: 13, cursor: "pointer" }}>+ Boulder</button>}
+                    {!activeSession?.ropeEndedAt && <button onClick={() => openClimbForm(null, null, "rope")} style={{ padding: "8px 14px", background: W.purple, border: `1.5px solid ${W.purpleDark}`, borderRadius: 10, color: W.purpleDark, fontWeight: 700, fontSize: 13, cursor: "pointer" }}>+ Rope</button>}
+                    <button onClick={addSpeedSession} style={{ padding: "8px 14px", background: W.yellow, border: `1.5px solid ${W.yellowDark}`, borderRadius: 10, color: W.yellowDark, fontWeight: 700, fontSize: 13, cursor: "pointer" }}>+ Speed</button>
                   </div>
                 </div>
               </div>
@@ -3088,36 +3099,112 @@ export default function App() {
         {!showClimbForm && (() => {
           const orangeColor = "#f97316";
           const isCollapsedT = !!activeSession?.collapsedSections?.trainingSection;
-          const hasTrainingContent = activeSession?.warmupStartedAt || activeSession?.workoutStartedAt || activeSession?.fingerboardStartedAt || (activeSession?.fitnessSections || []).length > 0;
+          const trainTotalSec = (() => {
+            let t = (activeSession?.warmupTotalSec || 0) + (activeSession?.workoutTotalSec || 0) + (activeSession?.fingerboardTotalSec || 0);
+            if (activeSession?.warmupActiveStart) t += Math.max(0, Math.floor((Date.now() - activeSession.warmupActiveStart) / 1000));
+            if (activeSession?.workoutActiveStart) t += Math.max(0, Math.floor((Date.now() - activeSession.workoutActiveStart) / 1000));
+            if (activeSession?.fingerboardActiveStart) t += Math.max(0, Math.floor((Date.now() - activeSession.fingerboardActiveStart) / 1000));
+            (activeSession?.fitnessSections || []).forEach(sec => {
+              if (sec.startedAt) t += Math.max(0, Math.floor(((sec.endedAt || Date.now()) - sec.startedAt) / 1000));
+            });
+            return t;
+          })();
           return (
             <div style={{ marginBottom: 16 }}>
-              <div style={{ borderRadius: 14, border: `2px solid ${orangeColor}44`, marginBottom: isCollapsedT ? 0 : 10, overflow: "hidden", background: W.surface }}>
-                <div style={{ background: `${orangeColor}18`, padding: "12px 14px" }}>
-                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
-                    <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                      <div style={{ fontWeight: 800, color: orangeColor, fontSize: 17 }}>Training</div>
-                      {hasTrainingContent && (() => {
-                        const parts = [];
-                        if (activeSession?.warmupStartedAt) parts.push(activeSession?.warmupEndedAt ? "✓ Warm Up" : "Warm Up");
-                        if (activeSession?.workoutStartedAt) parts.push(activeSession?.workoutEndedAt ? "✓ Workout" : "Workout");
-                        if (activeSession?.fingerboardStartedAt) parts.push(activeSession?.fingerboardEndedAt ? "✓ Fingerboard" : "Fingerboard");
-                        const bt = (activeSession?.fitnessSections || []).length;
-                        if (bt > 0) parts.push(`${(activeSession?.fitnessSections || []).filter(s => s.endedAt).length}/${bt} blocks`);
-                        return parts.length > 0 ? <span style={{ fontSize: 11, color: W.textMuted, fontWeight: 600 }}>{parts.join(" · ")}</span> : null;
-                      })()}
+              <div style={{ borderRadius: 16, border: `2px solid ${orangeColor}55`, marginBottom: isCollapsedT ? 0 : 12, overflow: "hidden", background: W.surface }}>
+                <div style={{ background: `${orangeColor}22`, padding: "16px 18px" }}>
+                  <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 10 }}>
+                    <div>
+                      <div style={{ fontWeight: 900, color: orangeColor, fontSize: 22, letterSpacing: 0.5, marginBottom: 3 }}>Training</div>
+                      <div style={{ fontSize: 36, fontWeight: 900, color: orangeColor, fontVariantNumeric: "tabular-nums", letterSpacing: 1, lineHeight: 1 }}>{formatDuration(trainTotalSec)}</div>
                     </div>
-                    <button onClick={() => setActiveSession(s => ({ ...s, collapsedSections: { ...(s.collapsedSections || {}), trainingSection: !s.collapsedSections?.trainingSection } }))} style={{ background: "none", border: `1px solid ${orangeColor}44`, borderRadius: 7, color: orangeColor, fontSize: 14, cursor: "pointer", padding: "3px 9px", lineHeight: 1 }}>{isCollapsedT ? "▼" : "▲"}</button>
+                    <button onClick={() => setActiveSession(s => ({ ...s, collapsedSections: { ...(s.collapsedSections || {}), trainingSection: !s.collapsedSections?.trainingSection } }))} style={{ background: "none", border: `1px solid ${orangeColor}44`, borderRadius: 8, color: orangeColor, fontSize: 15, cursor: "pointer", padding: "4px 10px", lineHeight: 1, marginTop: 2 }}>{isCollapsedT ? "▼" : "▲"}</button>
                   </div>
-                  <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-                    {!activeSession?.warmupStartedAt && <button onClick={startWarmupSection} style={{ padding: "6px 12px", background: W.pink, border: `1.5px solid ${W.pinkDark}`, borderRadius: 10, color: W.pinkDark, fontWeight: 700, fontSize: 12, cursor: "pointer" }}>+ Warm Up</button>}
-                    {!activeSession?.workoutStartedAt && <button onClick={startWorkoutSection} style={{ padding: "6px 12px", background: `${W.accent}22`, border: `1.5px solid ${W.accentDark}`, borderRadius: 10, color: W.accentDark, fontWeight: 700, fontSize: 12, cursor: "pointer" }}>+ Workout</button>}
-                    {!activeSession?.fingerboardStartedAt && <button onClick={startFingerboardSection} style={{ padding: "6px 12px", background: W.yellow, border: `1.5px solid ${W.yellowDark}`, borderRadius: 10, color: W.yellowDark, fontWeight: 700, fontSize: 12, cursor: "pointer" }}>+ Fingerboard</button>}
-                    <button onClick={startFitnessSession} style={{ padding: "6px 12px", background: `${orangeColor}18`, border: `1.5px solid ${orangeColor}`, borderRadius: 10, color: orangeColor, fontWeight: 700, fontSize: 12, cursor: "pointer" }}>+ Block</button>
+                  {(() => {
+                    const parts = [];
+                    if (activeSession?.warmupStartedAt) parts.push(activeSession?.warmupEndedAt ? "✓ Warm Up" : "Warm Up");
+                    if (activeSession?.workoutStartedAt) parts.push(activeSession?.workoutEndedAt ? "✓ Workout" : "Workout");
+                    if (activeSession?.fingerboardStartedAt) parts.push(activeSession?.fingerboardEndedAt ? "✓ Fingerboard" : "Fingerboard");
+                    const bt = (activeSession?.fitnessSections || []).length;
+                    if (bt > 0) parts.push(`${(activeSession?.fitnessSections || []).filter(s => s.endedAt).length}/${bt} blocks`);
+                    return parts.length > 0 ? <div style={{ fontSize: 12, color: W.textMuted, fontWeight: 600, marginBottom: 10 }}>{parts.join(" · ")}</div> : null;
+                  })()}
+                  <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                    <button onClick={() => setTrainingPickerType("warmup")} style={{ padding: "8px 14px", background: W.pink, border: `1.5px solid ${W.pinkDark}`, borderRadius: 10, color: W.pinkDark, fontWeight: 700, fontSize: 13, cursor: "pointer" }}>+ Warm Up</button>
+                    <button onClick={() => setTrainingPickerType("workout")} style={{ padding: "8px 14px", background: `${W.accent}22`, border: `1.5px solid ${W.accentDark}`, borderRadius: 10, color: W.accentDark, fontWeight: 700, fontSize: 13, cursor: "pointer" }}>+ Workout</button>
+                    <button onClick={() => setTrainingPickerType("fingerboard")} style={{ padding: "8px 14px", background: W.yellow, border: `1.5px solid ${W.yellowDark}`, borderRadius: 10, color: W.yellowDark, fontWeight: 700, fontSize: 13, cursor: "pointer" }}>+ Fingerboard</button>
+                    <button onClick={startFitnessSession} style={{ padding: "8px 14px", background: `${orangeColor}18`, border: `1.5px solid ${orangeColor}`, borderRadius: 10, color: orangeColor, fontWeight: 700, fontSize: 13, cursor: "pointer" }}>+ Block</button>
                   </div>
                 </div>
               </div>
               {!isCollapsedT && (
                 <div>
+                  {/* Training Routine Picker */}
+                  {trainingPickerType && (() => {
+                    const isWarmup = trainingPickerType === "warmup";
+                    const isWorkout = trainingPickerType === "workout";
+                    const isFb = trainingPickerType === "fingerboard";
+                    const routines = isWarmup ? warmupTemplates : isWorkout ? workoutRoutines : fingerboardRoutines;
+                    const accentC = isWarmup ? W.pinkDark : isWorkout ? W.accentDark : W.yellowDark;
+                    const bgC = isWarmup ? W.pink : isWorkout ? `${W.accent}22` : W.yellow;
+                    const label = isWarmup ? "Warm Up" : isWorkout ? "Workout" : "Fingerboard";
+                    const alreadyStarted = isWarmup ? !!activeSession?.warmupStartedAt : isWorkout ? !!activeSession?.workoutStartedAt : !!activeSession?.fingerboardStartedAt;
+                    const handleRoutineSelect = (routine) => {
+                      const items = (routine?.items || []).map(item => ({ ...item, id: Date.now() + Math.random(), checked: false }));
+                      if (!alreadyStarted) {
+                        if (isWarmup) {
+                          setActiveSession(s => {
+                            const now = Date.now(), upd = {};
+                            if (s.boulderActiveStart) { upd.boulderTotalSec = (s.boulderTotalSec||0)+Math.max(0,Math.floor((now-s.boulderActiveStart)/1000)); upd.boulderActiveStart=null; upd.boulderPausedAt=now; }
+                            if (s.ropeActiveStart)    { upd.ropeTotalSec    = (s.ropeTotalSec   ||0)+Math.max(0,Math.floor((now-s.ropeActiveStart)   /1000)); upd.ropeActiveStart   =null; upd.ropePausedAt   =now; }
+                            return { ...s, ...upd, warmupStartedAt: now, warmupActiveStart: now, warmupTotalSec: 0, warmupPausedAt: null, warmupEndedAt: null, warmupChecklist: items };
+                          });
+                        } else if (isWorkout) {
+                          setActiveSession(s => {
+                            const now = Date.now(), upd = {};
+                            if (s.boulderActiveStart)     { upd.boulderTotalSec=(s.boulderTotalSec||0)+Math.max(0,Math.floor((now-s.boulderActiveStart)/1000)); upd.boulderActiveStart=null; upd.boulderPausedAt=now; }
+                            if (s.ropeActiveStart)        { upd.ropeTotalSec=(s.ropeTotalSec||0)+Math.max(0,Math.floor((now-s.ropeActiveStart)/1000)); upd.ropeActiveStart=null; upd.ropePausedAt=now; }
+                            if (s.warmupActiveStart)      { upd.warmupTotalSec=(s.warmupTotalSec||0)+Math.max(0,Math.floor((now-s.warmupActiveStart)/1000)); upd.warmupActiveStart=null; upd.warmupPausedAt=now; }
+                            if (s.fingerboardActiveStart) { upd.fingerboardTotalSec=(s.fingerboardTotalSec||0)+Math.max(0,Math.floor((now-s.fingerboardActiveStart)/1000)); upd.fingerboardActiveStart=null; upd.fingerboardPausedAt=now; }
+                            return { ...s, ...upd, workoutStartedAt: now, workoutActiveStart: now, workoutTotalSec: 0, workoutPausedAt: null, workoutEndedAt: null, workoutChecklist: items };
+                          });
+                        } else {
+                          setActiveSession(s => {
+                            const now = Date.now(), upd = {};
+                            if (s.boulderActiveStart)  { upd.boulderTotalSec=(s.boulderTotalSec||0)+Math.max(0,Math.floor((now-s.boulderActiveStart)/1000)); upd.boulderActiveStart=null; upd.boulderPausedAt=now; }
+                            if (s.ropeActiveStart)     { upd.ropeTotalSec=(s.ropeTotalSec||0)+Math.max(0,Math.floor((now-s.ropeActiveStart)/1000)); upd.ropeActiveStart=null; upd.ropePausedAt=now; }
+                            if (s.warmupActiveStart)   { upd.warmupTotalSec=(s.warmupTotalSec||0)+Math.max(0,Math.floor((now-s.warmupActiveStart)/1000)); upd.warmupActiveStart=null; upd.warmupPausedAt=now; }
+                            if (s.workoutActiveStart)  { upd.workoutTotalSec=(s.workoutTotalSec||0)+Math.max(0,Math.floor((now-s.workoutActiveStart)/1000)); upd.workoutActiveStart=null; upd.workoutPausedAt=now; }
+                            return { ...s, ...upd, fingerboardStartedAt: now, fingerboardActiveStart: now, fingerboardTotalSec: 0, fingerboardPausedAt: null, fingerboardEndedAt: null, fingerboardChecklist: items };
+                          });
+                        }
+                      } else {
+                        // Already started — append items to existing checklist
+                        const key = isWarmup ? "warmupChecklist" : isWorkout ? "workoutChecklist" : "fingerboardChecklist";
+                        setActiveSession(s => ({ ...s, [key]: [...(s[key] || []), ...items] }));
+                      }
+                      setTrainingPickerType(null);
+                    };
+                    return (
+                      <div style={{ marginBottom: 14, background: W.surface, border: `2px solid ${accentC}44`, borderRadius: 14, padding: "16px" }}>
+                        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
+                          <div style={{ fontWeight: 800, fontSize: 16, color: W.text }}>{label} Routines</div>
+                          <button onClick={() => setTrainingPickerType(null)} style={{ background: "none", border: "none", color: W.textDim, fontSize: 20, cursor: "pointer", padding: "0 4px", lineHeight: 1 }}>×</button>
+                        </div>
+                        {routines.length === 0 && <div style={{ color: W.textDim, fontSize: 13, textAlign: "center", padding: "12px 0" }}>No {label.toLowerCase()} routines yet. Add one in Settings.</div>}
+                        {routines.map(r => (
+                          <div key={r.id} onClick={() => handleRoutineSelect(r)} style={{ background: W.surface2, border: `1px solid ${accentC}33`, borderRadius: 12, padding: "12px 14px", marginBottom: 8, cursor: "pointer" }}>
+                            <div style={{ fontWeight: 700, fontSize: 14, color: W.text }}>{r.name}</div>
+                            {r.description && <div style={{ fontSize: 11, color: W.textMuted, marginTop: 2 }}>{r.description}</div>}
+                            <div style={{ fontSize: 11, color: accentC, marginTop: 4, fontWeight: 600 }}>{(r.items || []).length} tasks {alreadyStarted ? "· tap to add to session" : "· tap to start"}</div>
+                          </div>
+                        ))}
+                        {!alreadyStarted && (
+                          <button onClick={() => handleRoutineSelect(null)} style={{ width: "100%", padding: "10px", background: bgC, border: `1.5px solid ${accentC}44`, borderRadius: 10, color: accentC, fontWeight: 700, fontSize: 13, cursor: "pointer", marginTop: 4 }}>Start Empty</button>
+                        )}
+                      </div>
+                    );
+                  })()}
 
         {/* ── Warm Up Section ──────────────────────────────────── */}
         {!showClimbForm && activeSession?.warmupStartedAt && (() => {
