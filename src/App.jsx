@@ -3004,58 +3004,120 @@ export default function App() {
         )}
         {showClimbForm && ClimbFormPanel({ isActiveSession: true, onSave: saveClimbToActiveSession, onCancel: () => { setShowClimbForm(false); setPhotoPreview(null); setEditingClimbId(null); } })}
 
-        {/* ── Boulder Section ─────────────────────────────────── */}
-        {!showClimbForm && activeSession?.boulderStartedAt && (
-          <div style={{ marginBottom: 16 }}>
-            <BoulderRopeSessionCard type="boulder" totalSec={activeSession.boulderTotalSec || 0} activeStart={activeSession.boulderActiveStart || null} isEnded={!!activeSession.boulderEndedAt} tick={sessionTimer} onPause={pauseBoulderSession} onResume={resumeBoulderSession} pausedAt={activeSession.boulderPausedAt || null} collapsed={!!activeSession.collapsedSections?.boulder} onToggleCollapse={() => setActiveSession(s => ({ ...s, collapsedSections: { ...(s.collapsedSections || {}), boulder: !s.collapsedSections?.boulder } }))} />
-            {!activeSession.collapsedSections?.boulder && (
-              <div style={{ borderLeft: `3px solid ${W.greenDark}44`, paddingLeft: 10, marginLeft: 2 }}>
-                {boulderClimbs.filter(c => !c.completed).map(c => <ActiveClimbCard key={c.id} climb={c} {...cardProps} sessionCount={c.projectId ? getProjectHistory(c.projectId).length + 1 : null} lapNumber={lapNumbers[c.id] || null} />)}
-                {selectedTypes.includes("boulder") && !activeSession.boulderEndedAt && (
-                  <button onClick={() => openClimbForm(null, null, "boulder")} style={{ width: "100%", padding: "10px", background: W.green, border: `2px solid ${W.greenDark}`, borderRadius: 12, color: W.greenDark, fontWeight: 700, fontSize: 13, cursor: "pointer", marginTop: 2 }}>+ Boulder Climb</button>
-                )}
-                {boulderClimbs.filter(c => c.completed).length > 0 && (
-                  <>
-                    <button onClick={() => setShowSentBoulders(v => !v)} style={{ width: "100%", display: "flex", alignItems: "center", justifyContent: "space-between", padding: "8px 10px", marginTop: 6, background: W.green + "33", border: `1px solid ${W.greenDark}44`, borderRadius: 10, color: W.greenDark, fontWeight: 700, fontSize: 12, cursor: "pointer" }}>
-                      <span>✓ Sent ({boulderClimbs.filter(c => c.completed).length})</span>
-                      <span>{showSentBoulders ? "▲" : "▼"}</span>
-                    </button>
-                    {showSentBoulders && boulderClimbs.filter(c => c.completed).map(c => <ActiveClimbCard key={c.id} climb={c} {...cardProps} sessionCount={c.projectId ? getProjectHistory(c.projectId).length + 1 : null} lapNumber={lapNumbers[c.id] || null} />)}
-                  </>
-                )}
+        {/* ══ CLIMBING SECTION ══════════════════════════════════════ */}
+        {!showClimbForm && (() => {
+          const isCollapsed = !!activeSession?.collapsedSections?.climbingSection;
+          return (
+            <div style={{ marginBottom: 16 }}>
+              <div style={{ borderRadius: 14, border: `2px solid ${W.accentDark}44`, marginBottom: isCollapsed ? 0 : 10, overflow: "hidden", background: W.surface }}>
+                <div style={{ background: `${W.accent}18`, padding: "12px 14px" }}>
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                      <div style={{ fontWeight: 800, color: W.accent, fontSize: 17 }}>Climbing</div>
+                      {regularTotal > 0 && <span style={{ fontSize: 11, color: W.textMuted, fontWeight: 600 }}>{regularSends}/{regularTotal} sends</span>}
+                      {speedSessions.length > 0 && <span style={{ fontSize: 11, color: W.textMuted, fontWeight: 600 }}>{speedSessions.reduce((t, s) => t + (s.attempts||[]).length, 0)} speed</span>}
+                    </div>
+                    <button onClick={() => setActiveSession(s => ({ ...s, collapsedSections: { ...(s.collapsedSections || {}), climbingSection: !s.collapsedSections?.climbingSection } }))} style={{ background: "none", border: `1px solid ${W.accentDark}44`, borderRadius: 7, color: W.accent, fontSize: 14, cursor: "pointer", padding: "3px 9px", lineHeight: 1 }}>{isCollapsed ? "▼" : "▲"}</button>
+                  </div>
+                  <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                    {!activeSession?.boulderEndedAt && <button onClick={() => openClimbForm(null, null, "boulder")} style={{ padding: "6px 12px", background: W.green, border: `1.5px solid ${W.greenDark}`, borderRadius: 10, color: W.greenDark, fontWeight: 700, fontSize: 12, cursor: "pointer" }}>+ Boulder</button>}
+                    {!activeSession?.ropeEndedAt && <button onClick={() => openClimbForm(null, null, "rope")} style={{ padding: "6px 12px", background: W.purple, border: `1.5px solid ${W.purpleDark}`, borderRadius: 10, color: W.purpleDark, fontWeight: 700, fontSize: 12, cursor: "pointer" }}>+ Rope</button>}
+                    <button onClick={addSpeedSession} style={{ padding: "6px 12px", background: W.yellow, border: `1.5px solid ${W.yellowDark}`, borderRadius: 10, color: W.yellowDark, fontWeight: 700, fontSize: 12, cursor: "pointer" }}>+ Speed</button>
+                  </div>
+                </div>
               </div>
-            )}
-          </div>
-        )}
+              {!isCollapsed && (
+                <div>
+                  {/* Boulder Section */}
+                  {activeSession?.boulderStartedAt && (
+                    <div style={{ marginBottom: 16 }}>
+                      <BoulderRopeSessionCard type="boulder" totalSec={activeSession.boulderTotalSec || 0} activeStart={activeSession.boulderActiveStart || null} isEnded={!!activeSession.boulderEndedAt} tick={sessionTimer} onPause={pauseBoulderSession} onResume={resumeBoulderSession} pausedAt={activeSession.boulderPausedAt || null} collapsed={!!activeSession.collapsedSections?.boulder} onToggleCollapse={() => setActiveSession(s => ({ ...s, collapsedSections: { ...(s.collapsedSections || {}), boulder: !s.collapsedSections?.boulder } }))} />
+                      {!activeSession.collapsedSections?.boulder && (
+                        <div style={{ borderLeft: `3px solid ${W.greenDark}44`, paddingLeft: 10, marginLeft: 2 }}>
+                          {boulderClimbs.filter(c => !c.completed).map(c => <ActiveClimbCard key={c.id} climb={c} {...cardProps} sessionCount={c.projectId ? getProjectHistory(c.projectId).length + 1 : null} lapNumber={lapNumbers[c.id] || null} />)}
+                          {!activeSession.boulderEndedAt && (
+                            <button onClick={() => openClimbForm(null, null, "boulder")} style={{ width: "100%", padding: "10px", background: W.green, border: `2px solid ${W.greenDark}`, borderRadius: 12, color: W.greenDark, fontWeight: 700, fontSize: 13, cursor: "pointer", marginTop: 2 }}>+ Boulder Climb</button>
+                          )}
+                          {boulderClimbs.filter(c => c.completed).length > 0 && (
+                            <>
+                              <button onClick={() => setShowSentBoulders(v => !v)} style={{ width: "100%", display: "flex", alignItems: "center", justifyContent: "space-between", padding: "8px 10px", marginTop: 6, background: W.green + "33", border: `1px solid ${W.greenDark}44`, borderRadius: 10, color: W.greenDark, fontWeight: 700, fontSize: 12, cursor: "pointer" }}>
+                                <span>✓ Sent ({boulderClimbs.filter(c => c.completed).length})</span>
+                                <span>{showSentBoulders ? "▲" : "▼"}</span>
+                              </button>
+                              {showSentBoulders && boulderClimbs.filter(c => c.completed).map(c => <ActiveClimbCard key={c.id} climb={c} {...cardProps} sessionCount={c.projectId ? getProjectHistory(c.projectId).length + 1 : null} lapNumber={lapNumbers[c.id] || null} />)}
+                            </>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                  {/* Rope Section */}
+                  {activeSession?.ropeStartedAt && (
+                    <div style={{ marginBottom: 16 }}>
+                      <BoulderRopeSessionCard type="rope" totalSec={activeSession.ropeTotalSec || 0} activeStart={activeSession.ropeActiveStart || null} isEnded={!!activeSession.ropeEndedAt} tick={sessionTimer} onPause={pauseRopeSession} onResume={resumeRopeSession} pausedAt={activeSession.ropePausedAt || null} collapsed={!!activeSession.collapsedSections?.rope} onToggleCollapse={() => setActiveSession(s => ({ ...s, collapsedSections: { ...(s.collapsedSections || {}), rope: !s.collapsedSections?.rope } }))} />
+                      {!activeSession.collapsedSections?.rope && (
+                        <div style={{ borderLeft: `3px solid ${W.purpleDark}44`, paddingLeft: 10, marginLeft: 2 }}>
+                          {ropeClimbs.filter(c => !c.completed).map(c => <ActiveClimbCard key={c.id} climb={c} {...cardProps} sessionCount={c.projectId ? getProjectHistory(c.projectId).length + 1 : null} lapNumber={lapNumbers[c.id] || null} />)}
+                          {!activeSession.ropeEndedAt && (
+                            <button onClick={() => openClimbForm(null, null, "rope")} style={{ width: "100%", padding: "10px", background: W.purple, border: `2px solid ${W.purpleDark}`, borderRadius: 12, color: W.purpleDark, fontWeight: 700, fontSize: 13, cursor: "pointer", marginTop: 2 }}>+ Rope Climb</button>
+                          )}
+                          {ropeClimbs.filter(c => c.completed).length > 0 && (
+                            <>
+                              <button onClick={() => setShowSentRope(v => !v)} style={{ width: "100%", display: "flex", alignItems: "center", justifyContent: "space-between", padding: "8px 10px", marginTop: 6, background: W.purple + "33", border: `1px solid ${W.purpleDark}44`, borderRadius: 10, color: W.purpleDark, fontWeight: 700, fontSize: 12, cursor: "pointer" }}>
+                                <span>✓ Sent ({ropeClimbs.filter(c => c.completed).length})</span>
+                                <span>{showSentRope ? "▲" : "▼"}</span>
+                              </button>
+                              {showSentRope && ropeClimbs.filter(c => c.completed).map(c => <ActiveClimbCard key={c.id} climb={c} {...cardProps} sessionCount={c.projectId ? getProjectHistory(c.projectId).length + 1 : null} lapNumber={lapNumbers[c.id] || null} />)}
+                            </>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                  {/* Speed Sessions */}
+                  {speedSessions.length > 0 && (
+                    <>{speedSessions.map((c, i) => <SpeedSessionCard key={c.id} climb={c} tick={sessionTimer} index={i} totalCount={speedSessions.length} onAddAttempt={a => addSpeedAttempt(c.id, a)} onRemove={() => removeSpeedSession(c.id)} onEnd={() => endSpeedSession(c.id)} onPause={() => pauseSpeedSession(c.id)} onResume={() => resumeSpeedSession(c.id)} />)}</>
+                  )}
+                </div>
+              )}
+            </div>
+          );
+        })()}
 
-        {/* ── Rope Section ─────────────────────────────────────── */}
-        {!showClimbForm && activeSession?.ropeStartedAt && (
-          <div style={{ marginBottom: 16 }}>
-            <BoulderRopeSessionCard type="rope" totalSec={activeSession.ropeTotalSec || 0} activeStart={activeSession.ropeActiveStart || null} isEnded={!!activeSession.ropeEndedAt} tick={sessionTimer} onPause={pauseRopeSession} onResume={resumeRopeSession} pausedAt={activeSession.ropePausedAt || null} collapsed={!!activeSession.collapsedSections?.rope} onToggleCollapse={() => setActiveSession(s => ({ ...s, collapsedSections: { ...(s.collapsedSections || {}), rope: !s.collapsedSections?.rope } }))} />
-            {!activeSession.collapsedSections?.rope && (
-              <div style={{ borderLeft: `3px solid ${W.purpleDark}44`, paddingLeft: 10, marginLeft: 2 }}>
-                {ropeClimbs.filter(c => !c.completed).map(c => <ActiveClimbCard key={c.id} climb={c} {...cardProps} sessionCount={c.projectId ? getProjectHistory(c.projectId).length + 1 : null} lapNumber={lapNumbers[c.id] || null} />)}
-                {selectedTypes.includes("rope") && !activeSession.ropeEndedAt && (
-                  <button onClick={() => openClimbForm(null, null, "rope")} style={{ width: "100%", padding: "10px", background: W.purple, border: `2px solid ${W.purpleDark}`, borderRadius: 12, color: W.purpleDark, fontWeight: 700, fontSize: 13, cursor: "pointer", marginTop: 2 }}>+ Rope Climb</button>
-                )}
-                {ropeClimbs.filter(c => c.completed).length > 0 && (
-                  <>
-                    <button onClick={() => setShowSentRope(v => !v)} style={{ width: "100%", display: "flex", alignItems: "center", justifyContent: "space-between", padding: "8px 10px", marginTop: 6, background: W.purple + "33", border: `1px solid ${W.purpleDark}44`, borderRadius: 10, color: W.purpleDark, fontWeight: 700, fontSize: 12, cursor: "pointer" }}>
-                      <span>✓ Sent ({ropeClimbs.filter(c => c.completed).length})</span>
-                      <span>{showSentRope ? "▲" : "▼"}</span>
-                    </button>
-                    {showSentRope && ropeClimbs.filter(c => c.completed).map(c => <ActiveClimbCard key={c.id} climb={c} {...cardProps} sessionCount={c.projectId ? getProjectHistory(c.projectId).length + 1 : null} lapNumber={lapNumbers[c.id] || null} />)}
-                  </>
-                )}
+        {/* ══ TRAINING SECTION ══════════════════════════════════════ */}
+        {!showClimbForm && (() => {
+          const orangeColor = "#f97316";
+          const isCollapsedT = !!activeSession?.collapsedSections?.trainingSection;
+          const hasTrainingContent = activeSession?.warmupStartedAt || activeSession?.workoutStartedAt || activeSession?.fingerboardStartedAt || (activeSession?.fitnessSections || []).length > 0;
+          return (
+            <div style={{ marginBottom: 16 }}>
+              <div style={{ borderRadius: 14, border: `2px solid ${orangeColor}44`, marginBottom: isCollapsedT ? 0 : 10, overflow: "hidden", background: W.surface }}>
+                <div style={{ background: `${orangeColor}18`, padding: "12px 14px" }}>
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                      <div style={{ fontWeight: 800, color: orangeColor, fontSize: 17 }}>Training</div>
+                      {hasTrainingContent && (() => {
+                        const parts = [];
+                        if (activeSession?.warmupStartedAt) parts.push(activeSession?.warmupEndedAt ? "✓ Warm Up" : "Warm Up");
+                        if (activeSession?.workoutStartedAt) parts.push(activeSession?.workoutEndedAt ? "✓ Workout" : "Workout");
+                        if (activeSession?.fingerboardStartedAt) parts.push(activeSession?.fingerboardEndedAt ? "✓ Fingerboard" : "Fingerboard");
+                        const bt = (activeSession?.fitnessSections || []).length;
+                        if (bt > 0) parts.push(`${(activeSession?.fitnessSections || []).filter(s => s.endedAt).length}/${bt} blocks`);
+                        return parts.length > 0 ? <span style={{ fontSize: 11, color: W.textMuted, fontWeight: 600 }}>{parts.join(" · ")}</span> : null;
+                      })()}
+                    </div>
+                    <button onClick={() => setActiveSession(s => ({ ...s, collapsedSections: { ...(s.collapsedSections || {}), trainingSection: !s.collapsedSections?.trainingSection } }))} style={{ background: "none", border: `1px solid ${orangeColor}44`, borderRadius: 7, color: orangeColor, fontSize: 14, cursor: "pointer", padding: "3px 9px", lineHeight: 1 }}>{isCollapsedT ? "▼" : "▲"}</button>
+                  </div>
+                  <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                    {!activeSession?.warmupStartedAt && <button onClick={startWarmupSection} style={{ padding: "6px 12px", background: W.pink, border: `1.5px solid ${W.pinkDark}`, borderRadius: 10, color: W.pinkDark, fontWeight: 700, fontSize: 12, cursor: "pointer" }}>+ Warm Up</button>}
+                    {!activeSession?.workoutStartedAt && <button onClick={startWorkoutSection} style={{ padding: "6px 12px", background: `${W.accent}22`, border: `1.5px solid ${W.accentDark}`, borderRadius: 10, color: W.accentDark, fontWeight: 700, fontSize: 12, cursor: "pointer" }}>+ Workout</button>}
+                    {!activeSession?.fingerboardStartedAt && <button onClick={startFingerboardSection} style={{ padding: "6px 12px", background: W.yellow, border: `1.5px solid ${W.yellowDark}`, borderRadius: 10, color: W.yellowDark, fontWeight: 700, fontSize: 12, cursor: "pointer" }}>+ Fingerboard</button>}
+                    <button onClick={startFitnessSession} style={{ padding: "6px 12px", background: `${orangeColor}18`, border: `1.5px solid ${orangeColor}`, borderRadius: 10, color: orangeColor, fontWeight: 700, fontSize: 12, cursor: "pointer" }}>+ Block</button>
+                  </div>
+                </div>
               </div>
-            )}
-          </div>
-        )}
-
-        {/* ── Speed Sessions ────────────────────────────────────── */}
-        {!showClimbForm && speedSessions.length > 0 && (
-          <>{speedSessions.map((c, i) => <SpeedSessionCard key={c.id} climb={c} tick={sessionTimer} index={i} totalCount={speedSessions.length} onAddAttempt={a => addSpeedAttempt(c.id, a)} onRemove={() => removeSpeedSession(c.id)} onEnd={() => endSpeedSession(c.id)} onPause={() => pauseSpeedSession(c.id)} onResume={() => resumeSpeedSession(c.id)} />)}</>
-        )}
+              {!isCollapsedT && (
+                <div>
 
         {/* ── Warm Up Section ──────────────────────────────────── */}
         {!showClimbForm && activeSession?.warmupStartedAt && (() => {
@@ -3450,44 +3512,9 @@ export default function App() {
             </div>
           );
         })}
-
-        {!showClimbForm && (() => {
-          // Buttons for types whose section isn't started yet (first climb of that type)
-          const unstartedPrimary = primaryBtns.filter(b =>
-            !(b.type === "boulder"     && activeSession?.boulderStartedAt) &&
-            !(b.type === "rope"        && activeSession?.ropeStartedAt) &&
-            !(b.type === "warmup"      && activeSession?.warmupStartedAt) &&
-            !(b.type === "workout"     && activeSession?.workoutStartedAt) &&
-            !(b.type === "fingerboard" && activeSession?.fingerboardStartedAt)
-          );
-          const hasBottomButtons = unstartedPrimary.length > 0 || secondaryBtns.length > 0;
-          if (!hasBottomButtons) return null;
-          const showTplPicker = warmupTemplates.length > 1 && !activeSession?.warmupStartedAt && (selectedTypes.includes("warmup") || secondaryBtns.some(b => b.type === "warmup"));
-          return (
-            <>
-            {showTplPicker && (
-              <div style={{ display: "flex", gap: 6, alignItems: "center", marginBottom: 8, flexWrap: "wrap" }}>
-                <span style={{ fontSize: 11, color: W.textDim, fontWeight: 600 }}>🔥 Warmup template:</span>
-                {warmupTemplates.map(t => (
-                  <button key={t.id} onClick={() => setActiveWarmupTemplateId(t.id)}
-                    style={{ padding: "4px 10px", borderRadius: 16, border: `1.5px solid ${t.id === activeWarmupTemplateId ? W.pinkDark : W.border}`, background: t.id === activeWarmupTemplateId ? W.pink : W.surface2, color: t.id === activeWarmupTemplateId ? W.pinkDark : W.textMuted, fontWeight: 700, fontSize: 11, cursor: "pointer" }}>
-                    {t.name}
-                  </button>
-                ))}
-              </div>
-            )}
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 12, marginTop: 8 }}>
-              {unstartedPrimary.map(b => (
-                <button key={b.type} onClick={b.onClick} style={{ padding: "13px", background: b.bg, border: `2px solid ${b.border}`, borderRadius: 14, color: b.color, fontWeight: 700, fontSize: 13, cursor: "pointer" }}>{b.label}</button>
-              ))}
-              {secondaryBtns.length > 0 && (
-                <button onClick={() => setShowMoreClimbTypes(v => !v)} style={{ padding: "13px", background: W.surface2, border: `2px solid ${W.border}`, borderRadius: 14, color: W.textMuted, fontWeight: 700, fontSize: 13, cursor: "pointer" }}>{showMoreClimbTypes ? "▲ Less" : "▼ See More"}</button>
+                </div>
               )}
-              {showMoreClimbTypes && secondaryBtns.map(b => (
-                <button key={b.type} onClick={b.onClick} style={{ padding: "13px", background: b.bg, border: `2px solid ${b.border}`, borderRadius: 14, color: b.color, fontWeight: 700, fontSize: 13, cursor: "pointer", opacity: 0.85 }}>{b.label}</button>
-              ))}
             </div>
-            </>
           );
         })()}
         {!showClimbForm && (
