@@ -2459,7 +2459,7 @@ export default function App() {
         {/* Tries/Completed when editing a finished session climb (boulder/rope) — hidden for gym set edits */}
         {!isActiveSession && editingClimbId && type !== "speed" && !editingGymSetClimb && (
           <>
-            <Label>Tries</Label>
+            <Label>Falls</Label>
             <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 12 }}>
               <button onClick={() => setClimbForm(f => ({ ...f, tries: Math.max(0, (f.tries || 0) - 1) }))} style={{ width: 36, height: 36, borderRadius: 10, border: `2px solid ${W.border}`, background: W.surface, color: W.text, fontSize: 20, cursor: "pointer" }}>−</button>
               <span style={{ fontSize: 22, fontWeight: 800, color: W.text, minWidth: 30, textAlign: "center" }}>{climbForm.tries || 0}</span>
@@ -2560,7 +2560,7 @@ export default function App() {
                 {climb.name && <span style={{ fontWeight: 700, color: W.text, fontSize: 14 }}>{climb.name}</span>}
               </div>
               <div style={{ display: "flex", gap: 12, flexWrap: "wrap", alignItems: "center" }}>
-                <span style={{ fontSize: 12, color: W.textMuted }}><span style={{ fontWeight: 700, color: W.text }}>{climb.tries || 0}</span> {climb.climbType === "rope" ? "attempts" : "falls"}</span>
+                <span style={{ fontSize: 12, color: W.textMuted }}><span style={{ fontWeight: 700, color: W.text }}>{climb.tries || 0}</span> falls{climb.climbType !== "rope" && <> · <span style={{ fontWeight: 700, color: W.text }}>{climbAttempts(climb)}</span> attempts</>}</span>
                 {timeSec > 0 && <span style={{ fontSize: 12, color: W.textMuted }}><span style={{ fontWeight: 700, color: W.text }}>{formatDuration(timeSec)}</span> on climb</span>}
                 {climb._sessionCount > 1 && <span style={{ fontSize: 11, color: W.textMuted, fontWeight: 700 }}>🗓 {climb._sessionCount} sessions</span>}
                 <TagChips wallTypes={climb.wallTypes} holdTypes={climb.holdTypes} />
@@ -4099,25 +4099,6 @@ export default function App() {
             </div>
           );
         })()}
-        {session.warmupChecklist?.length > 0 && (
-          <div style={{ background: W.surface2, borderRadius: 16, padding: "16px", marginBottom: 16, border: `1px solid ${W.border}` }}>
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
-              <div style={{ fontSize: 13, fontWeight: 800, color: W.pinkDark }}>🔥 Warm Up Checklist</div>
-              <div style={{ fontSize: 11, color: W.textDim }}>
-                {session.warmupChecklist.filter(i => i.checked).length}/{session.warmupChecklist.length} done
-                {session.warmupTotalSec > 0 && ` · ${formatDuration(session.warmupTotalSec)}`}
-              </div>
-            </div>
-            {session.warmupChecklist.map(item => (
-              <div key={item.id} style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 0", borderBottom: `1px solid ${W.border}` }}>
-                <div style={{ width: 16, height: 16, borderRadius: 4, background: item.checked ? W.pinkDark : "transparent", border: `2px solid ${item.checked ? W.pinkDark : W.border}`, flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center" }}>
-                  {item.checked && <span style={{ fontSize: 9, color: "#fff", fontWeight: 900 }}>✓</span>}
-                </div>
-                <span style={{ fontSize: 12, color: item.checked ? W.pinkDark : W.textMuted, textDecoration: item.checked ? "line-through" : "none" }}>{item.text}</span>
-              </div>
-            ))}
-          </div>
-        )}
         {session.workoutChecklist?.length > 0 && (
           <div style={{ background: W.surface2, borderRadius: 16, padding: "16px", marginBottom: 16, border: `1px solid ${W.border}` }}>
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
@@ -4160,7 +4141,7 @@ export default function App() {
         {!readOnly && showClimbForm && editingClimbId ? (
           <ClimbFormPanel onSave={() => saveClimbToFinishedSession(session.id)} onCancel={() => { setShowClimbForm(false); setEditingClimbId(null); setEditingSessionId(null); }} />
         ) : (
-          (session.climbs || []).map((c, ci) => {
+          [...(session.climbs || [])].sort((a, b) => (b.photo ? 1 : 0) - (a.photo ? 1 : 0)).map((c, ci) => {
             const gradeClr  = getGradeColor(c.grade);
             const colorHex  = CLIMB_COLORS.find(cc => cc.id === c.color)?.hex;
             const allPhotos = (session.climbs || []).filter(x => x.photo);
@@ -4174,7 +4155,7 @@ export default function App() {
                   <div style={{ background: gradeClr, color: "#fff", borderRadius: 10, padding: "6px 12px", fontWeight: 900, fontSize: 20, flexShrink: 0, boxShadow: "0 2px 8px rgba(0,0,0,0.4)" }}>{c.grade}</div>
                   <div style={{ flex: 1, minWidth: 0 }}>
                     {c.name && <div style={{ fontSize: 13, fontWeight: 800, color: "#fff", textShadow: "0 1px 3px rgba(0,0,0,0.8)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{c.name}</div>}
-                    <div style={{ fontSize: 11, color: "rgba(255,255,255,0.75)", marginTop: 2 }}>{c.tries || 0} {c.climbType === "rope" ? "attempts" : "falls"}</div>
+                    <div style={{ fontSize: 11, color: "rgba(255,255,255,0.75)", marginTop: 2 }}>{c.tries || 0} falls{c.climbType !== "rope" && ` · ${climbAttempts(c)} attempts`}</div>
                     <div style={{ display: "flex", alignItems: "center", gap: 4, marginTop: 4, flexWrap: "wrap" }}>
                       {colorHex && <div style={{ width: 10, height: 10, borderRadius: "50%", background: colorHex, border: "1.5px solid rgba(255,255,255,0.8)", flexShrink: 0 }} />}
                       {c.section && <span style={{ fontSize: 10, color: "rgba(255,255,255,0.8)", fontWeight: 700 }}>📌 {c.section}</span>}
@@ -4192,7 +4173,7 @@ export default function App() {
                     {c.name && <div style={{ fontSize: 13, fontWeight: 700, color: W.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{c.name}</div>}
                     <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: c.name ? 3 : 0 }}>
                       {colorHex && <div style={{ width: 10, height: 10, borderRadius: "50%", background: colorHex, border: `1px solid ${W.border}`, flexShrink: 0 }} />}
-                      <span style={{ fontSize: 11, color: W.textMuted }}>{c.tries || 0} {c.climbType === "rope" ? "attempts" : "falls"}</span>
+                      <span style={{ fontSize: 11, color: W.textMuted }}>{c.tries || 0} falls{c.climbType !== "rope" && ` · ${climbAttempts(c)} attempts`}</span>
                       {c.section && <span style={{ fontSize: 11, color: W.accent, fontWeight: 700 }}>📌 {c.section}</span>}
                     </div>
                   </div>
@@ -4201,6 +4182,25 @@ export default function App() {
               </div>
             );
           })
+        )}
+        {session.warmupChecklist?.length > 0 && (
+          <div style={{ background: W.surface2, borderRadius: 16, padding: "16px", marginBottom: 16, border: `1px solid ${W.border}` }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
+              <div style={{ fontSize: 13, fontWeight: 800, color: W.pinkDark }}>🔥 Warm Up Checklist</div>
+              <div style={{ fontSize: 11, color: W.textDim }}>
+                {session.warmupChecklist.filter(i => i.checked).length}/{session.warmupChecklist.length} done
+                {session.warmupTotalSec > 0 && ` · ${formatDuration(session.warmupTotalSec)}`}
+              </div>
+            </div>
+            {session.warmupChecklist.map(item => (
+              <div key={item.id} style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 0", borderBottom: `1px solid ${W.border}` }}>
+                <div style={{ width: 16, height: 16, borderRadius: 4, background: item.checked ? W.pinkDark : "transparent", border: `2px solid ${item.checked ? W.pinkDark : W.border}`, flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                  {item.checked && <span style={{ fontSize: 9, color: "#fff", fontWeight: 900 }}>✓</span>}
+                </div>
+                <span style={{ fontSize: 12, color: item.checked ? W.pinkDark : W.textMuted, textDecoration: item.checked ? "line-through" : "none" }}>{item.text}</span>
+              </div>
+            ))}
+          </div>
         )}
         {/* Comments section — only on read-only (someone else's) sessions */}
         {readOnly && (
