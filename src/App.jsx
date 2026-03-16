@@ -3785,9 +3785,11 @@ export default function App() {
                         {!activeSession.collapsedSections?.boulder && (
                           <div style={{ borderLeft: `3px solid ${W.greenDark}44`, paddingLeft: 10, marginLeft: 2 }}>
                             {boulderClimbs.filter(c => !c.completed).sort((a, b) => {
-                                const aWorked = a.climbingStartedAt ? 2 : (wasAttempted(a) ? 1 : 0);
-                                const bWorked = b.climbingStartedAt ? 2 : (wasAttempted(b) ? 1 : 0);
-                                return bWorked - aWorked;
+                                if (!!a.climbingStartedAt !== !!b.climbingStartedAt) return a.climbingStartedAt ? -1 : 1;
+                                if (!wasAttempted(a) && !wasAttempted(b)) return 0;
+                                if (!wasAttempted(a)) return 1;
+                                if (!wasAttempted(b)) return -1;
+                                return (b.lastAttemptEndedAt || 0) - (a.lastAttemptEndedAt || 0);
                               }).map(c => <ActiveClimbCard key={c.id} climb={c} {...cardProps} onStartClimbing={id => { startClimbing(id); setTimeout(() => boulderListRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 80); }} sessionCount={c.projectId ? getProjectHistory(c.projectId).length + 1 : null} lapNumber={lapNumbers[c.id] || null} />)}
                             {!activeSession.boulderEndedAt && (
                               <button onClick={openBoulderAdd} style={{ width: "100%", padding: "10px", background: W.green, border: `2px solid ${W.greenDark}`, borderRadius: 12, color: W.greenDark, fontWeight: 700, fontSize: 13, cursor: "pointer", marginTop: 2 }}>+ Boulder Climb</button>
