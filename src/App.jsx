@@ -1698,6 +1698,7 @@ export default function App() {
     if (logbookSort === "hardest") climbs.sort((a, b) => { const d = getGradeIndex(b.grade, b.scale) - getGradeIndex(a.grade, a.scale); return d !== 0 ? d : photoFirst(a, b); });
     else if (logbookSort === "easiest") climbs.sort((a, b) => { const d = getGradeIndex(a.grade, a.scale) - getGradeIndex(b.grade, b.scale); return d !== 0 ? d : photoFirst(a, b); });
     else if (logbookSort === "name") climbs.sort((a, b) => { const d = (a.name || a.grade).localeCompare(b.name || b.grade); return d !== 0 ? d : photoFirst(a, b); });
+    else if (logbookSort === "projects") climbs.sort((a, b) => { const d = (b.isProject ? 1 : 0) - (a.isProject ? 1 : 0); return d !== 0 ? d : new Date(b.sessionDate) - new Date(a.sessionDate); });
     else climbs.sort((a, b) => { const d = new Date(b.sessionDate) - new Date(a.sessionDate); return d !== 0 ? d : photoFirst(a, b); });
     // Deduplicate set climbs: keep first occurrence per setClimbId after sort
     const seenSetClimbs = new Set();
@@ -5872,7 +5873,7 @@ export default function App() {
                     })()}
                     <Label>Sort</Label>
                     <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
-                      {[["date", "📅 Newest"], ["hardest", "🔺 Hardest"], ["easiest", "🔻 Easiest"], ["name", "🔤 A–Z"]].map(([val, label]) => <button key={val} onClick={() => setLogbookSort(val)} style={{ padding: "6px 12px", borderRadius: 16, border: "2px solid", borderColor: logbookSort === val ? W.accent : W.border, background: logbookSort === val ? W.accent + "22" : W.surface, color: logbookSort === val ? W.accent : W.textDim, cursor: "pointer", fontSize: 12, fontWeight: 600 }}>{label}</button>)}
+                      {[["date", "📅 Newest"], ["hardest", "🔺 Hardest"], ["easiest", "🔻 Easiest"], ["name", "🔤 A–Z"], ["projects", "🎯 Projects"]].map(([val, label]) => <button key={val} onClick={() => setLogbookSort(val)} style={{ padding: "6px 12px", borderRadius: 16, border: "2px solid", borderColor: logbookSort === val ? W.accent : W.border, background: logbookSort === val ? W.accent + "22" : W.surface, color: logbookSort === val ? W.accent : W.textDim, cursor: "pointer", fontSize: 12, fontWeight: 600 }}>{label}</button>)}
                     </div>
                     <Label>View</Label>
                     <div style={{ display: "flex", gap: 8 }}>
@@ -5886,6 +5887,7 @@ export default function App() {
               ) : (
                 <div style={{ display: "flex", gap: 8 }}>
                   <button onClick={() => { setLogbookSearchOpen(o => { if (o) setLogbookSearch(""); return !o; }); }} style={{ padding: "11px 13px", background: logbookSearchOpen ? W.accent + "22" : W.surface2, border: `1.5px solid ${logbookSearchOpen ? W.accent : W.border}`, borderRadius: 12, color: logbookSearchOpen ? W.accent : W.textMuted, cursor: "pointer", flexShrink: 0, fontSize: 16, lineHeight: 1 }}>🔍</button>
+                  <button onClick={() => { setLogbookFilter(f => f === "projects" ? "all" : "projects"); setLogbookClimbPage(1); }} style={{ padding: "11px 13px", background: logbookFilter === "projects" ? W.pinkDark + "22" : W.surface2, border: `1.5px solid ${logbookFilter === "projects" ? W.pinkDark : W.border}`, borderRadius: 12, color: logbookFilter === "projects" ? W.pinkDark : W.textMuted, cursor: "pointer", flexShrink: 0, fontSize: 16, lineHeight: 1 }}>🎯</button>
                   {logbookSearchOpen ? (
                     <div style={{ flex: 1, position: "relative" }}>
                       <input autoFocus value={logbookSearch} onChange={e => { setLogbookSearch(e.target.value); setLogbookClimbPage(1); }} placeholder="Search name, grade, gym…" style={{ width: "100%", padding: "11px 36px 11px 14px", background: W.surface2, border: `1.5px solid ${logbookSearch ? W.accent : W.border}`, borderRadius: 12, color: W.text, fontSize: 13, boxSizing: "border-box", fontFamily: "inherit", outline: "none" }} />
@@ -5961,11 +5963,11 @@ export default function App() {
                                   </div>
                                   {/* grade + info bottom */}
                                   <div style={{ position: "absolute", bottom: 10, left: 10, right: 10 }}>
-                                    <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 4 }}>
+                                    {c.name && <div style={{ fontSize: 12, fontWeight: 700, color: "#fff", textShadow: "0 1px 3px rgba(0,0,0,0.8)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", marginBottom: 4 }}>{c.name}</div>}
+                                    <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 3 }}>
                                       <div style={{ background: isOffWall ? "rgba(80,80,80,0.85)" : gradeClr, color: "#fff", borderRadius: 8, padding: "3px 10px", fontWeight: 900, fontSize: 17, letterSpacing: 0.3, boxShadow: "0 1px 5px rgba(0,0,0,0.5)" }}>{c.grade}</div>
                                       {colorHex && <div style={{ width: 14, height: 14, borderRadius: "50%", background: colorHex, border: "2px solid rgba(255,255,255,0.8)", flexShrink: 0 }} />}
                                     </div>
-                                    {c.name && <div style={{ fontSize: 12, fontWeight: 700, color: "#fff", textShadow: "0 1px 3px rgba(0,0,0,0.8)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", marginBottom: 2 }}>{c.name}</div>}
                                     <div style={{ fontSize: 11, color: "rgba(255,255,255,0.75)" }}>{c.tries || 0} {c.climbType === "rope" ? "attempts" : "falls"}{c._sessionCount > 1 ? ` · 🗓 ${c._sessionCount}` : ""}</div>
                                     {c.section && <div style={{ fontSize: 10, color: "rgba(255,255,255,0.7)", fontWeight: 700, marginTop: 2 }}>📌 {c.section}</div>}
                                   </div>
@@ -5976,13 +5978,13 @@ export default function App() {
                                   {c.isProject && <div style={{ background: `linear-gradient(90deg, ${W.pinkDark}, #be185d)`, color: "#fff", padding: "4px 10px", fontSize: 11, fontWeight: 900, letterSpacing: 0.4 }}>🎯 PROJECT</div>}
                                   {isOffWall && !c.isProject && <div style={{ background: W.surface2, color: W.textMuted, padding: "3px 8px", fontSize: 10, fontWeight: 800 }}>🚫 Off Wall</div>}
                                   <div style={{ padding: "10px 10px 12px" }}>
-                                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
-                                      <span style={{ fontWeight: 900, fontSize: 22, color: isOffWall ? W.textMuted : gradeClr }}>{c.grade}</span>
-                                      <span style={{ background: c.completed ? W.green : W.red, color: c.completed ? W.greenDark : W.redDark, borderRadius: 6, padding: "2px 6px", fontSize: 10, fontWeight: 800, whiteSpace: "nowrap" }}>{c.completed ? "✓" : "✗"}</span>
+                                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 6 }}>
+                                      <span style={{ fontSize: 12, fontWeight: 700, color: W.text, overflow: "hidden", textOverflow: "ellipsis", flex: 1, marginRight: 6, lineHeight: 1.3 }}>{c.name || "—"}</span>
+                                      <span style={{ background: c.completed ? W.green : W.red, color: c.completed ? W.greenDark : W.redDark, borderRadius: 6, padding: "2px 6px", fontSize: 10, fontWeight: 800, whiteSpace: "nowrap", flexShrink: 0 }}>{c.completed ? "✓" : "✗"}</span>
                                     </div>
                                     <div style={{ display: "flex", alignItems: "center", gap: 5, marginBottom: 4 }}>
+                                      <span style={{ fontWeight: 900, fontSize: 20, color: isOffWall ? W.textMuted : gradeClr }}>{c.grade}</span>
                                       {colorHex && <div style={{ width: 10, height: 10, borderRadius: "50%", background: colorHex, flexShrink: 0, border: `1px solid ${W.border}` }} />}
-                                      <span style={{ fontSize: 12, fontWeight: 700, color: W.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{c.name || "—"}</span>
                                     </div>
                                     <div style={{ fontSize: 11, color: W.textMuted, marginBottom: 3 }}>{c.tries || 0} {c.climbType === "rope" ? "attempts" : "falls"}{c._sessionCount > 1 ? ` · 🗓 ${c._sessionCount}` : ""}</div>
                                     {c.section && <div style={{ fontSize: 11, color: W.accent, fontWeight: 700 }}>📌 {c.section}</div>}
@@ -6116,11 +6118,12 @@ export default function App() {
             return (
               <div>
                 {/* Header */}
-                <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 16 }}>
-                  <button onClick={() => { setSelectedGym(null); setGymDetailsOpen(false); setGymSectionInput(""); setGymSetSortBySection(false); }} style={{ background: W.surface2, border: `1px solid ${W.border}`, borderRadius: 10, padding: "7px 14px", color: W.text, fontWeight: 700, fontSize: 14, cursor: "pointer" }}>←</button>
-                  <div style={{ fontWeight: 900, fontSize: 17, color: W.text, flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{loc}</div>
-                  {wallSections.length > 0 && <button onClick={() => setGymSetSortBySection(o => !o)} style={{ background: gymSetSortBySection ? W.accent + "22" : W.surface2, border: `1px solid ${gymSetSortBySection ? W.accent : W.border}`, borderRadius: 10, padding: "7px 10px", color: gymSetSortBySection ? W.accent : W.textMuted, fontWeight: 700, fontSize: 11, cursor: "pointer", flexShrink: 0 }}>📌 Section</button>}
-                  <button onClick={() => setGymDetailsOpen(o => !o)} style={{ background: gymDetailsOpen ? W.accent + "22" : W.surface2, border: `1px solid ${gymDetailsOpen ? W.accent : W.border}`, borderRadius: 10, padding: "7px 13px", color: gymDetailsOpen ? W.accent : W.text, fontWeight: 700, fontSize: 13, cursor: "pointer", flexShrink: 0 }}>⚙ Details</button>
+                <div style={{ marginBottom: 14 }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8 }}>
+                    <button onClick={() => { setSelectedGym(null); setGymDetailsOpen(false); setGymSectionInput(""); setGymSetSortBySection(false); }} style={{ background: W.surface2, border: `1px solid ${W.border}`, borderRadius: 10, padding: "7px 14px", color: W.text, fontWeight: 700, fontSize: 14, cursor: "pointer", flexShrink: 0 }}>←</button>
+                    <div style={{ fontWeight: 900, fontSize: 19, color: W.text, flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>📍 {loc}</div>
+                  </div>
+                  <button onClick={() => setGymDetailsOpen(o => !o)} style={{ width: "100%", padding: "8px 14px", background: gymDetailsOpen ? W.accent + "22" : W.surface2, border: `1px solid ${gymDetailsOpen ? W.accent : W.border}`, borderRadius: 10, color: gymDetailsOpen ? W.accent : W.text, fontWeight: 700, fontSize: 13, cursor: "pointer", textAlign: "left" }}>⚙ Details {gymDetailsOpen ? "▲" : "▼"}</button>
                 </div>
 
                 {gs.hours && <div style={{ fontSize: 12, color: W.textMuted, marginBottom: gymDetailsOpen ? 14 : 16, fontWeight: 600 }}>{gs.hours}</div>}
@@ -6328,6 +6331,7 @@ export default function App() {
                 const activeSends = active.filter(entry =>
                   sessions.some(s => (s.climbs || []).some(c => c.setClimbId === entry.id && c.completed))
                 ).length;
+                const gymSessionCount = sessions.filter(s => s.location === loc).length;
                 const gs = gymScales[loc] || {};
                 const isHome = loc === mainGym;
                 return (
@@ -6340,8 +6344,8 @@ export default function App() {
                         {gs.rope    && <span style={{ background: W.purple + "22", color: W.purpleDark, borderRadius: 6, padding: "2px 7px", fontSize: 10, fontWeight: 700 }}>{gs.rope}</span>}
                       </div>
                     </div>
-                    {active.length > 0 ? (
-                      <div style={{ display: "flex", gap: 14 }}>
+                    <div style={{ display: "flex", gap: 14 }}>
+                      {active.length > 0 && <>
                         <div>
                           <div style={{ fontWeight: 900, fontSize: 20, color: W.text, lineHeight: 1 }}>{active.length}</div>
                           <div style={{ fontSize: 10, color: W.textMuted, marginTop: 2 }}>Active</div>
@@ -6350,10 +6354,13 @@ export default function App() {
                           <div style={{ fontWeight: 900, fontSize: 20, color: activeSends > 0 ? W.greenDark : W.textMuted, lineHeight: 1 }}>{activeSends}</div>
                           <div style={{ fontSize: 10, color: W.textMuted, marginTop: 2 }}>Sent</div>
                         </div>
-                      </div>
-                    ) : (
-                      <div style={{ fontSize: 11, color: W.textDim }}>No active set</div>
-                    )}
+                      </>}
+                      {gymSessionCount > 0 && <div>
+                        <div style={{ fontWeight: 900, fontSize: 20, color: W.accent, lineHeight: 1 }}>{gymSessionCount}</div>
+                        <div style={{ fontSize: 10, color: W.textMuted, marginTop: 2 }}>Sessions</div>
+                      </div>}
+                      {active.length === 0 && gymSessionCount === 0 && <div style={{ fontSize: 11, color: W.textDim }}>No sessions yet</div>}
+                    </div>
                   </div>
                 );
               })}
