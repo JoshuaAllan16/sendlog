@@ -372,6 +372,7 @@ export default function App() {
   const [showAddGym, setShowAddGym]                     = useState(false);
   const [addGymInput, setAddGymInput]                   = useState("");
   const [showClimbShare, setShowClimbShare]         = useState(false);
+  const [logbookClimbEditOpen, setLogbookClimbEditOpen] = useState(false);
   const [logbookGymFilter, setLogbookGymFilter]     = useState("All Gyms");
   const [sessionTypeFilter, setSessionTypeFilter]   = useState("all");
   const [sessionSort, setSessionSort]               = useState("date");
@@ -457,7 +458,10 @@ export default function App() {
         localStorage.setItem("abandoned:session", JSON.stringify({ session: abandoned, idledAt: lat }));
         localStorage.removeItem("active:climb");
       } else if (ss && sa) {
-        setActiveSession(sa);
+        // Restore photos from sessionStorage (stripped from localStorage to avoid quota errors)
+        const savedPhotos = JSON.parse(sessionStorage.getItem("active:photos") || "{}");
+        const restoredSession = { ...sa, climbs: (sa.climbs || []).map(c => ({ ...c, photo: savedPhotos[c.id] || null })) };
+        setActiveSession(restoredSession);
         if (tr && sas && lat) {
           const gapSec = Math.floor((Date.now() - lat) / 1000);
           setSessionPausedSec((sps || 0) + gapSec);
@@ -600,6 +604,8 @@ export default function App() {
     // Strip photos from climbs before persisting to avoid localStorage quota errors on mobile
     const sessionForStorage = { ...activeSession, climbs: (activeSession.climbs || []).map(c => ({ ...c, photo: null })) };
     try { localStorage.setItem("active:climb", JSON.stringify({ username: savedUsername, activeSession: sessionForStorage, sessionActiveStart, sessionPausedSec, sessionStarted, timerRunning, pendingLocation, lastActivityAt: Date.now() })); } catch (e) { console.warn("active:climb storage failed:", e); }
+    // Save photos separately in sessionStorage (survives page refresh within same tab)
+    try { const photoMap = {}; (activeSession.climbs || []).forEach(c => { if (c.photo) photoMap[c.id] = c.photo; }); sessionStorage.setItem("active:photos", JSON.stringify(photoMap)); } catch (e) {}
   }, [activeSession, sessionActiveStart, sessionPausedSec, sessionStarted, timerRunning, pendingLocation, currentUser]);
 
   // §HANDLERS
@@ -1354,7 +1360,7 @@ export default function App() {
     }
     setSessionSummary(completed);
     setTimerRunning(false); setSessionActiveStart(null); setSessionPausedSec(0); setActiveSession(null); setSessionTimer(0); setSessionStarted(false); setPendingLocation(""); setShowEndConfirm(false); setScreen("sessionSummary");
-    localStorage.removeItem("active:climb");
+    localStorage.removeItem("active:climb"); sessionStorage.removeItem("active:photos");
   };
   const deleteSession = (id) => { setSessions(prev => prev.filter(s => s.id !== id)); setScreen("profile"); setProfileTab("climbing"); setClimbingSubTab("logbook"); };
   const updateSessionNotes = (id, notes) => setSessions(prev => prev.map(s => s.id === id ? { ...s, notes } : s));
@@ -1366,7 +1372,7 @@ export default function App() {
       setProjects(prev => prev.map(p => sentProjectIds.includes(p.id) ? { ...p, completed: false, active: true, dateSent: null } : p));
     }
     setSessionSummary(null); setScreen("home");
-    localStorage.removeItem("active:climb");
+    localStorage.removeItem("active:climb"); sessionStorage.removeItem("active:photos");
   };
 
   const updateActiveClimbTries = (id, delta) => setActiveSession(s => {
@@ -3019,48 +3025,28 @@ export default function App() {
           <LocationDropdown value={pendingLocation} onChange={v => { setPendingLocation(v); addCustomLocation(v); }} open={locationDropdownOpen} setOpen={setLocationDropdownOpen} knownLocations={knownLocations} onRemove={loc => setHiddenLocations(h => [...h, loc])} />
         </div>
         {/* Session type card */}
-        <div style={{ background: W.surface, borderRadius: 18, border: `1px solid ${W.border}`, marginBottom: 24, overflow: "hidden" }}>
-          {/* Segmented tab bar */}
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", background: W.surface2 }}>
-            {[
-              { key: "climbing", label: "Climbing", hasSel: hasClimbing },
-              { key: "training", label: "Training", hasSel: hasTraining },
-            ].map(({ key, label, hasSel }) => {
-              const active = tab === key;
-              return (
-                <button key={key} onClick={() => setTab(active ? null : key)} style={{ padding: "15px 10px", background: active ? W.surface : "transparent", border: "none", borderBottom: active ? `2px solid ${W.accent}` : `2px solid transparent`, cursor: "pointer", transition: "background 0.15s" }}>
-                  <div style={{ fontSize: 14, fontWeight: 800, color: active ? W.accent : hasSel ? W.text : W.textMuted, textAlign: "center" }}>{label}</div>
-                  {hasSel && !active && (
-                    <div style={{ display: "flex", justifyContent: "center", gap: 4, marginTop: 4 }}>
-                      {(key === "climbing" ? climbingOpts : trainingOpts).filter(o => sessionTypes.includes(o.id)).map(o => (
-                        <span key={o.id} style={{ width: 5, height: 5, borderRadius: "50%", background: W.accent, display: "inline-block" }} />
-                      ))}
-                    </div>
-                  )}
-                </button>
-              );
-            })}
-          </div>
-          {/* Sub-options */}
-          {tab && (
-            <div style={{ padding: "16px 20px", display: "flex", flexDirection: "column", gap: 8 }}>
-              {activeOpts.map(opt => {
-                const sel = sessionTypes.includes(opt.id);
-                return (
-                  <button key={opt.id} onClick={() => toggleType(opt.id)} style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 10, padding: "14px", background: sel ? W.accent + "18" : W.surface2, border: `1.5px solid ${sel ? W.accent : "transparent"}`, borderRadius: 12, cursor: "pointer", transition: "background 0.12s, border-color 0.12s" }}>
-                    {sel && <span style={{ width: 7, height: 7, borderRadius: "50%", background: W.accent, flexShrink: 0 }} />}
-                    <span style={{ fontWeight: 700, fontSize: 15, color: sel ? W.accent : W.textMuted }}>{opt.label}</span>
-                    {sel && <span style={{ fontSize: 13, color: W.accent, marginLeft: "auto" }}>✓</span>}
-                  </button>
-                );
-              })}
-            </div>
-          )}
-          {!tab && (
-            <div style={{ padding: "20px", textAlign: "center", color: W.textDim, fontSize: 13 }}>
-              Select Climbing or Training above
-            </div>
-          )}
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 24 }}>
+          {[
+            { key: "climbing", label: "Climbing", icon: "🧗", defaultType: "boulder" },
+            { key: "training", label: "Fitness",  icon: "🏋️", defaultType: "fitness" },
+          ].map(({ key, label, icon, defaultType }) => {
+            const sel = key === "climbing" ? hasClimbing : hasTraining;
+            return (
+              <button key={key} onClick={() => {
+                if (key === "climbing") {
+                  if (hasClimbing) setSessionTypes(prev => prev.filter(t => !["boulder","rope","speed"].includes(t)).length ? prev.filter(t => !["boulder","rope","speed"].includes(t)) : ["fitness"]);
+                  else setSessionTypes(prev => [...prev.filter(t => !["boulder","rope","speed"].includes(t)), "boulder"]);
+                } else {
+                  if (hasTraining) setSessionTypes(prev => prev.filter(t => !["warmup","workout","fingerboard","fitness"].includes(t)).length ? prev.filter(t => !["warmup","workout","fingerboard","fitness"].includes(t)) : ["boulder"]);
+                  else setSessionTypes(prev => [...prev.filter(t => !["warmup","workout","fingerboard","fitness"].includes(t)), "fitness"]);
+                }
+              }} style={{ padding: "24px 16px", background: sel ? W.accent + "18" : W.surface, border: `2px solid ${sel ? W.accent : W.border}`, borderRadius: 18, cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", gap: 10, transition: "background 0.12s, border-color 0.12s" }}>
+                <span style={{ fontSize: 36 }}>{icon}</span>
+                <span style={{ fontWeight: 800, fontSize: 16, color: sel ? W.accent : W.text }}>{label}</span>
+                {sel && <span style={{ fontSize: 18, color: W.accent }}>✓</span>}
+              </button>
+            );
+          })}
         </div>
         <button onClick={beginTimer} style={{ width: "100%", padding: "18px", background: `linear-gradient(135deg, ${W.accent}, ${W.accentDark})`, border: "none", borderRadius: 16, color: "#fff", fontSize: 17, fontWeight: 800, cursor: "pointer", boxShadow: `0 6px 24px ${W.accentGlow}` }}>Start Session</button>
       </div>
@@ -7356,15 +7342,21 @@ export default function App() {
           style={{ position: "fixed", inset: 0, zIndex: 450, background: W.bg, overflowY: "auto", display: "flex", flexDirection: "column", transition: "transform 0.05s, opacity 0.05s" }}>
           {/* Header bar */}
           <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "16px 20px 12px", background: W.surface, borderBottom: `1px solid ${W.border}`, position: "sticky", top: 0, zIndex: 2 }}>
-            <button onClick={() => { setSelectedLogbookClimb(null); setShowClimbShare(false); }} style={{ background: W.surface2, border: `1px solid ${W.border}`, borderRadius: 10, padding: "7px 14px", color: W.text, fontWeight: 700, fontSize: 14, cursor: "pointer" }}>← Back</button>
+            <button onClick={() => { setSelectedLogbookClimb(null); setShowClimbShare(false); setLogbookClimbEditOpen(false); }} style={{ background: W.surface2, border: `1px solid ${W.border}`, borderRadius: 10, padding: "7px 14px", color: W.text, fontWeight: 700, fontSize: 14, cursor: "pointer" }}>← Back</button>
             <div style={{ flex: 1, minWidth: 0 }}>
               <div style={{ fontWeight: 900, fontSize: 18, color: W.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{climb.name || climb.grade}</div>
               <div style={{ fontSize: 12, color: W.textMuted }}>{climb.grade}{climb.climbType === "rope" ? " · Rope" : ""}</div>
             </div>
             <div style={{ width: 44, height: 44, borderRadius: 10, display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 900, fontSize: 13, background: gradeColor + "30", color: gradeColor, border: `1.5px solid ${gradeColor}60`, flexShrink: 0 }}>{climb.grade}</div>
+            <button onClick={() => { const ownerSession = sessions.find(s => (s.climbs || []).some(c => c.id === climb.id)); setClimbForm({ name: climb.name || "", grade: climb.grade, scale: climb.scale || preferredScale, tries: climb.tries ?? 0, completed: climb.completed ?? false, isProject: climb.isProject ?? false, comments: climb.comments || "", photo: climb.photo, projectId: climb.projectId || null, color: climb.color || null, wallTypes: climb.wallTypes || [], holdTypes: climb.holdTypes || [], climbType: climb.climbType || "boulder", ropeStyle: climb.ropeStyle || "lead", speedTime: "", setClimbId: climb.setClimbId || null, section: climb.section || null }); setPhotoPreview(climb.photo || null); setEditingClimbId(climb.id); setEditingSessionId(ownerSession?.id || null); setLogbookClimbEditOpen(true); }} style={{ background: logbookClimbEditOpen ? W.accent + "22" : W.surface2, border: `1px solid ${logbookClimbEditOpen ? W.accent : W.border}`, borderRadius: 10, width: 40, height: 40, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16, cursor: "pointer", flexShrink: 0 }} title="Edit">✏️</button>
             <button onClick={() => setShowClimbShare(true)} style={{ background: W.surface2, border: `1px solid ${W.border}`, borderRadius: 10, width: 40, height: 40, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18, cursor: "pointer", flexShrink: 0 }} title="Share">⬆</button>
           </div>
-          <div style={{ padding: "20px" }}>
+          {logbookClimbEditOpen && (
+            <div style={{ background: W.bg, borderBottom: `1px solid ${W.border}` }}>
+              {ClimbFormPanel({ isActiveSession: false, onSave: () => { saveClimbToFinishedSession(editingSessionId); setSelectedLogbookClimb(s => s ? { ...s, ...climbForm, photo: photoPreview } : s); setLogbookClimbEditOpen(false); }, onCancel: () => { setLogbookClimbEditOpen(false); setPhotoPreview(null); setEditingClimbId(null); setEditingSessionId(null); } })}
+            </div>
+          )}
+          <div style={{ padding: "20px", display: logbookClimbEditOpen ? "none" : undefined }}>
             {/* Photo */}
             {climb.photo && (() => {
               const colorHex   = colorEntry?.hex;
