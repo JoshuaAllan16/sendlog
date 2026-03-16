@@ -451,10 +451,10 @@ export default function App() {
   // §EFFECTS
   // Prevent background scroll when any full-screen popup is open
   useEffect(() => {
-    const locked = !!(boulderQuickPanel || pendingDupeClimb || selectedSetClimb);
+    const locked = !!(boulderQuickPanel || pendingDupeClimb || selectedSetClimb || boulderAddMode);
     document.body.style.overflow = locked ? "hidden" : "";
     return () => { document.body.style.overflow = ""; };
-  }, [boulderQuickPanel, pendingDupeClimb, selectedSetClimb]);
+  }, [boulderQuickPanel, pendingDupeClimb, selectedSetClimb, boulderAddMode]);
 
   // Persist logbook filter prefs
   useEffect(() => {
@@ -3498,7 +3498,6 @@ export default function App() {
                   ) : (
                     <div style={{ fontSize: 13, color: W.textDim, marginBottom: 14 }}>No sections configured for this gym. Type one below or skip.</div>
                   )}
-                  <input value={climbForm.section || ""} onChange={e => setClimbForm(f => ({ ...f, section: e.target.value || null }))} placeholder="Custom section name…" style={{ width: "100%", boxSizing: "border-box", padding: "12px 14px", background: W.surface2, border: `1px solid ${W.border}`, borderRadius: 12, color: W.text, fontSize: 14, outline: "none" }} />
                 </div>
               );
               if (newBoulderStep === 3) return (
