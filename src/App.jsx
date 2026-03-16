@@ -3198,7 +3198,7 @@ export default function App() {
   const SessionActiveScreen = () => {
     const selectedTypes = activeSession?.sessionTypes || ["boulder"];
     const allTypeButtons = [
-      { type: "boulder",     label: "+ Boulder Session",       bg: W.green,   border: W.greenDark,   color: W.greenDark,   onClick: () => openClimbForm(null, null, "boulder") },
+      { type: "boulder",     label: "+ Boulder Session",       bg: W.green,   border: W.greenDark,   color: W.greenDark,   onClick: openBoulderAdd },
       { type: "rope",        label: "+ Rope Climb Session",    bg: W.purple,  border: W.purpleDark,  color: W.purpleDark,  onClick: () => openClimbForm(null, null, "rope") },
       { type: "speed",       label: "+ Speed Climb Session",   bg: W.yellow,  border: W.yellowDark,  color: W.yellowDark,  onClick: addSpeedSession },
       { type: "warmup",      label: "+ Warm Up Session",       bg: W.pink,    border: W.pinkDark,    color: W.pinkDark,    onClick: startWarmupSection },
@@ -3717,7 +3717,7 @@ export default function App() {
                   {regularTotal > 0 && <div style={{ fontSize: 12, color: W.textMuted, fontWeight: 600, marginBottom: 10 }}>{regularSends} sends · {regularTotal} climbs{speedSessions.length > 0 ? ` · ${speedSessions.reduce((t, s) => t + (s.attempts||[]).length, 0)} speed attempts` : ""}</div>}
                   {hasAnyClimbActivity ? (
                     <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                      {!activeSession?.boulderEndedAt && <button onClick={() => openClimbForm(null, null, "boulder")} style={{ padding: "8px 14px", background: W.green, border: `1.5px solid ${W.greenDark}`, borderRadius: 10, color: W.greenDark, fontWeight: 700, fontSize: 13, cursor: "pointer" }}>+ Boulder</button>}
+                      {!activeSession?.boulderEndedAt && <button onClick={openBoulderAdd} style={{ padding: "8px 14px", background: W.green, border: `1.5px solid ${W.greenDark}`, borderRadius: 10, color: W.greenDark, fontWeight: 700, fontSize: 13, cursor: "pointer" }}>+ Boulder</button>}
                       {!activeSession?.ropeEndedAt && <button onClick={() => openClimbForm(null, null, "rope")} style={{ padding: "8px 14px", background: W.purple, border: `1.5px solid ${W.purpleDark}`, borderRadius: 10, color: W.purpleDark, fontWeight: 700, fontSize: 13, cursor: "pointer" }}>+ Rope</button>}
                       <button onClick={addSpeedSession} style={{ padding: "8px 14px", background: W.yellow, border: `1.5px solid ${W.yellowDark}`, borderRadius: 10, color: W.yellowDark, fontWeight: 700, fontSize: 13, cursor: "pointer" }}>+ Speed</button>
                     </div>
