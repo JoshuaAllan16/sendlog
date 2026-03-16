@@ -1611,17 +1611,19 @@ export default function App() {
     setSelectedSession(prev => prev ? { ...prev, climbs: (prev.climbs || []).map(c => c.id === editingClimbId ? { ...c, ...climbForm, photo: photoPreview } : c) } : null);
     if (climbForm.isProject && climbForm.completed && climbForm.projectId) setProjects(prev => prev.map(p => p.id === climbForm.projectId ? { ...p, completed: true, active: false, dateSent: new Date().toISOString() } : p));
     // Sync section/name/grade/color changes back to the gym set entry
-    if (climbForm.setClimbId) {
-      setGymSets(prev => {
-        const updated = { ...prev };
-        for (const loc of Object.keys(updated)) {
-          updated[loc] = updated[loc].map(e => e.id === climbForm.setClimbId
-            ? { ...e, section: climbForm.section ?? e.section, name: climbForm.name || e.name, grade: climbForm.grade || e.grade, color: climbForm.color || e.color }
-            : e);
-        }
-        return updated;
-      });
-    }
+    setGymSets(prev => {
+      const updated = { ...prev };
+      const sessionLoc = sessions.find(s => s.id === sessionId)?.location;
+      for (const loc of Object.keys(updated)) {
+        updated[loc] = updated[loc].map(e => {
+          const matchById = climbForm.setClimbId && e.id === climbForm.setClimbId;
+          const matchByName = !climbForm.setClimbId && sessionLoc && e.location === sessionLoc && e.name && climbForm.name && e.name === climbForm.name;
+          if (!matchById && !matchByName) return e;
+          return { ...e, section: climbForm.section !== undefined ? (climbForm.section || null) : e.section, name: climbForm.name || e.name, grade: climbForm.grade || e.grade, color: climbForm.color || e.color };
+        });
+      }
+      return updated;
+    });
     setEditingClimbId(null); setEditingSessionId(null); setShowClimbForm(false);
   };
 
@@ -6163,8 +6165,9 @@ export default function App() {
                 const gymSessionCount = sessions.filter(s => s.location === loc).length;
                 const gs = gymScales[loc] || {};
                 const isHome = loc === mainGym;
+                const gymTotalSec = sessions.filter(s => s.location === loc).reduce((sum, s) => sum + (s.duration || 0), 0);
                 return (
-                  <div key={loc} onClick={() => setSelectedGym(loc)} style={{ background: W.surface, border: `2px solid ${isHome ? W.accentDark : W.border}`, borderRadius: 16, padding: "14px 12px", cursor: "pointer", position: "relative", minHeight: 110, display: "flex", flexDirection: "column", justifyContent: "center", gap: 10 }}>
+                  <div key={loc} onClick={() => setSelectedGym(loc)} style={{ background: W.surface, border: `2px solid ${isHome ? W.accentDark : W.border}`, borderRadius: 16, padding: "14px 12px", cursor: "pointer", position: "relative", minHeight: 120, display: "flex", flexDirection: "column", justifyContent: "space-between" }}>
                     {isHome && <span style={{ position: "absolute", top: 8, right: 8, background: W.accent, color: "#fff", borderRadius: 6, padding: "1px 7px", fontSize: 9, fontWeight: 800 }}>HOME</span>}
                     <div style={{ fontWeight: 800, fontSize: 13, color: W.text, paddingRight: isHome ? 44 : 0, lineHeight: 1.3 }}>{loc}</div>
                     <div style={{ display: "flex", gap: 14 }}>
@@ -6184,6 +6187,11 @@ export default function App() {
                       </div>}
                       {active.length === 0 && gymSessionCount === 0 && <div style={{ fontSize: 11, color: W.textDim }}>No sessions yet</div>}
                     </div>
+                    {gymTotalSec > 0 && (
+                      <div style={{ fontSize: 11, color: W.textMuted, fontWeight: 700 }}>
+                        <span style={{ color: W.text, fontWeight: 900 }}>{formatTotalTime(gymTotalSec)}</span> total time
+                      </div>
+                    )}
                   </div>
                 );
               })}
