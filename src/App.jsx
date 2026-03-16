@@ -267,6 +267,7 @@ export default function App() {
   const [settingsWorkoutOpen, setSettingsWorkoutOpen] = useState(false);
   const [settingsFingerboardOpen, setSettingsFingerboardOpen] = useState(false);
   const [deleteSetConfirm, setDeleteSetConfirm] = useState(false);
+  const [editingGymSetClimb, setEditingGymSetClimb] = useState(false);
   const [followRequestsOpen, setFollowRequestsOpen] = useState(false);
   const [profileNotifsOpen, setProfileNotifsOpen]   = useState(false);
   const [lightboxPhoto, setLightboxPhoto]           = useState(null); // { photos:[{src,grade,name,colorId}], idx }
@@ -2371,7 +2372,9 @@ export default function App() {
               {WALL_TYPES.map(t => { const sel = climbForm.wallTypes.includes(t); return (<button key={t} onClick={() => setClimbForm(f => ({ ...f, wallTypes: toggleArr(f.wallTypes, t) }))} style={{ flex: 1, padding: "9px", borderRadius: 10, border: "2px solid", borderColor: sel ? W.purpleDark : W.border, background: sel ? W.purple : W.surface, color: sel ? W.purpleDark : W.textDim, cursor: "pointer", fontWeight: 700, fontSize: 13 }}>{t}</button>); })}
             </div>
             {(() => {
-              const loc = isActiveSession ? activeSession?.location : sessions.find(s => s.id === editingSessionId)?.location;
+              const loc = isActiveSession ? activeSession?.location
+                : sessions.find(s => s.id === editingSessionId)?.location
+                || Object.keys(gymSets).find(l => (gymSets[l] || []).some(e => e.id === editingClimbId));
               const sections = (loc ? gymScales[loc]?.wallSections : null) || [];
               if (!sections.length) return null;
               return (<>
@@ -2448,8 +2451,8 @@ export default function App() {
           </>
         )}
 
-        {/* Tries/Completed when editing a finished session climb (boulder/rope) */}
-        {!isActiveSession && editingClimbId && type !== "speed" && (
+        {/* Tries/Completed when editing a finished session climb (boulder/rope) — hidden for gym set edits */}
+        {!isActiveSession && editingClimbId && type !== "speed" && !editingGymSetClimb && (
           <>
             <Label>Tries</Label>
             <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 12 }}>
@@ -7334,7 +7337,7 @@ export default function App() {
               <div style={{ fontSize: 12, color: W.textMuted }}>{climb.grade}{climb.climbType === "rope" ? " · Rope" : ""}</div>
             </div>
             <div style={{ width: 44, height: 44, borderRadius: 10, display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 900, fontSize: 13, background: gradeColor + "30", color: gradeColor, border: `1.5px solid ${gradeColor}60`, flexShrink: 0 }}>{climb.grade}</div>
-            <button onClick={() => { const ownerSession = sessions.find(s => (s.climbs || []).some(c => c.id === climb.id)); const form = { name: climb.name || "", grade: climb.grade, scale: climb.scale || preferredScale, tries: climb.tries ?? 0, completed: climb.completed ?? false, isProject: climb.isProject ?? false, comments: climb.comments || "", photo: climb.photo, projectId: climb.projectId || null, color: climb.color || null, wallTypes: climb.wallTypes || [], holdTypes: climb.holdTypes || [], climbType: climb.climbType || "boulder", ropeStyle: climb.ropeStyle || "lead", speedTime: "", setClimbId: climb.setClimbId || null, section: climb.section || null }; setClimbForm(form); setLogbookEditOriginal(JSON.stringify(form)); setPhotoPreview(climb.photo || null); setEditingClimbId(climb.id); setEditingSessionId(ownerSession?.id || null); setLogbookClimbEditOpen(true); }} style={{ background: logbookClimbEditOpen ? W.accent + "22" : W.surface2, border: `1px solid ${logbookClimbEditOpen ? W.accent : W.border}`, borderRadius: 10, width: 40, height: 40, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16, cursor: "pointer", flexShrink: 0 }} title="Edit">✏️</button>
+            <button onClick={() => { const ownerSession = sessions.find(s => (s.climbs || []).some(c => c.id === climb.id)); const form = { name: climb.name || "", grade: climb.grade, scale: climb.scale || preferredScale, tries: climb.tries ?? 0, completed: climb.completed ?? false, isProject: climb.isProject ?? false, comments: climb.comments || "", photo: climb.photo, projectId: climb.projectId || null, color: climb.color || null, wallTypes: climb.wallTypes || [], holdTypes: climb.holdTypes || [], climbType: climb.climbType || "boulder", ropeStyle: climb.ropeStyle || "lead", speedTime: "", setClimbId: climb.setClimbId || null, section: climb.section || null }; setClimbForm(form); setLogbookEditOriginal(JSON.stringify(form)); setPhotoPreview(climb.photo || null); setEditingClimbId(climb.id); setEditingSessionId(ownerSession?.id || null); setEditingGymSetClimb(!!setClimbEntry); setLogbookClimbEditOpen(true); }} style={{ background: logbookClimbEditOpen ? W.accent + "22" : W.surface2, border: `1px solid ${logbookClimbEditOpen ? W.accent : W.border}`, borderRadius: 10, width: 40, height: 40, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16, cursor: "pointer", flexShrink: 0 }} title="Edit">✏️</button>
             <button onClick={() => setShowClimbShare(true)} style={{ background: W.surface2, border: `1px solid ${W.border}`, borderRadius: 10, width: 40, height: 40, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18, cursor: "pointer", flexShrink: 0 }} title="Share">⬆</button>
           </div>
           {showUnsavedPrompt && (
@@ -7502,7 +7505,7 @@ export default function App() {
                 </div>
               );
             })}
-            {/* Wall status toggle — only for set climbs */}
+            {/* Wall status toggle + delete — only for set climbs */}
             {setClimbEntry && (
               <div style={{ marginTop: 16, paddingTop: 16, borderTop: `1px solid ${W.border}` }}>
                 <button
@@ -7510,10 +7513,20 @@ export default function App() {
                     const loc = setClimbEntry.location;
                     setGymSets(prev => ({ ...prev, [loc]: (prev[loc] || []).map(e => e.id === setClimbEntry.id ? { ...e, removed: !e.removed, removedDate: !e.removed ? new Date().toISOString() : null } : e) }));
                   }}
-                  style={{ width: "100%", padding: "13px", borderRadius: 14, border: `2px solid ${isOffWall ? W.border : "#f87171"}`, background: isOffWall ? W.surface2 : "#fca5a5", color: isOffWall ? W.textMuted : "#b91c1c", fontWeight: 700, fontSize: 14, cursor: "pointer" }}
+                  style={{ width: "100%", padding: "13px", borderRadius: 14, border: `2px solid ${isOffWall ? W.border : "#f87171"}`, background: isOffWall ? W.surface2 : "#fca5a5", color: isOffWall ? W.textMuted : "#b91c1c", fontWeight: 700, fontSize: 14, cursor: "pointer", marginBottom: 8 }}
                 >
                   {isOffWall ? "↩ Mark as Back on Wall" : "🚫 Mark as No Longer on Wall"}
                 </button>
+                {!deleteSetConfirm
+                  ? <button onClick={() => setDeleteSetConfirm(true)} style={{ width: "100%", padding: "11px", background: "transparent", border: "1px solid #f87171", borderRadius: 14, color: "#b91c1c", fontWeight: 700, fontSize: 13, cursor: "pointer", opacity: 0.8 }}>Delete from Gym Sets Permanently</button>
+                  : <div style={{ background: "#fca5a5", borderRadius: 14, padding: "12px", border: "1px solid #f87171" }}>
+                      <div style={{ fontSize: 13, fontWeight: 700, color: "#b91c1c", marginBottom: 8 }}>Delete this gym set entry and all its history?</div>
+                      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+                        <button onClick={() => setDeleteSetConfirm(false)} style={{ padding: "9px", background: "transparent", border: `1px solid ${W.border}`, borderRadius: 10, color: W.textMuted, cursor: "pointer", fontWeight: 600 }}>Cancel</button>
+                        <button onClick={() => { const loc = setClimbEntry.location; setGymSets(prev => ({ ...prev, [loc]: (prev[loc] || []).filter(e => e.id !== setClimbEntry.id) })); setDeleteSetConfirm(false); setSelectedLogbookClimb(null); }} style={{ padding: "9px", background: "#b91c1c", border: "none", borderRadius: 10, color: "#fff", cursor: "pointer", fontWeight: 700 }}>Delete Forever</button>
+                      </div>
+                    </div>
+                }
               </div>
             )}
             {/* Similar climbs */}
@@ -7656,7 +7669,7 @@ export default function App() {
         };
       };
 
-      // Build section-grouped + sorted active climbs
+      // Build section-grouped + sorted active climbs, photos first within each group
       const sectionGroups = {};
       for (const entry of active) {
         const sec = entry.section || "";
@@ -7664,16 +7677,28 @@ export default function App() {
         sectionGroups[sec].push(entry);
       }
       for (const sec of Object.keys(sectionGroups)) {
-        sectionGroups[sec].sort((a, b) => getGradeRank(b.grade, b.scale) - getGradeRank(a.grade, a.scale));
+        sectionGroups[sec].sort((a, b) => {
+          const aPhoto = !!entryStats(a).photo;
+          const bPhoto = !!entryStats(b).photo;
+          if (bPhoto !== aPhoto) return bPhoto ? 1 : -1; // photos first
+          return getGradeRank(b.grade, b.scale) - getGradeRank(a.grade, a.scale); // then hardest first
+        });
       }
-      // Ordered sections: defined wall sections first, then any unknown sections, then unsectioned
       const orderedSections = [
         ...sections.filter(s => sectionGroups[s]),
         ...Object.keys(sectionGroups).filter(s => s && !sections.includes(s)),
         ...(sectionGroups[""] ? [""] : []),
       ];
 
-      const renderGymCard = (entry, isManage = false) => {
+      const openGymClimbDetail = (entry) => {
+        const related = sessions.flatMap(s =>
+          (s.climbs || []).filter(c => c.setClimbId === entry.id)
+            .map(c => ({ ...c, sessionDate: s.date, sessionLocation: s.location, _sessionId: s.id }))
+        ).sort((a, b) => new Date(b.sessionDate) - new Date(a.sessionDate));
+        setSelectedLogbookClimb(related.length > 0 ? related[0] : { ...entry, sessionDate: entry.setDate, sessionLocation: entry.location, _sessionId: null });
+      };
+
+      const renderGymCard = (entry) => {
         const gradeColor = getGradeColor(entry.grade);
         const colorEntry = CLIMB_COLORS.find(cc => cc.id === entry.color);
         const { sends, attempts, sessionCount, photo } = entryStats(entry);
@@ -7683,51 +7708,50 @@ export default function App() {
 
         const handleClick = () => {
           if (gymManageMode) {
-            setGymSelectedIds(prev => {
-              const next = new Set(prev);
-              next.has(entry.id) ? next.delete(entry.id) : next.add(entry.id);
-              return next;
-            });
+            setGymSelectedIds(prev => { const next = new Set(prev); next.has(entry.id) ? next.delete(entry.id) : next.add(entry.id); return next; });
           } else {
-            setSelectedSetClimb(entry);
+            openGymClimbDetail(entry);
           }
         };
 
         if (gymSetView === "tiles") {
           return (
-            <div key={entry.id} onClick={handleClick} style={{ background: W.surface, border: `1.5px solid ${isSelected ? W.accent : W.border}`, borderRadius: 16, overflow: "hidden", cursor: "pointer", display: "flex", flexDirection: "column", position: "relative" }}>
-              {/* Photo background or solid header */}
-              <div style={{ position: "relative", flex: 1, minHeight: 120 }}>
-                {photo && <img src={photo} alt="" style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover" }} />}
-                {photo && <div style={{ position: "absolute", inset: 0, background: "linear-gradient(135deg, rgba(0,0,0,0.5) 0%, rgba(0,0,0,0.15) 60%)" }} />}
-                {/* Top-left: sent/not sent badge */}
-                <div style={{ position: "absolute", top: 8, left: 8, width: 28, height: 28, borderRadius: 8, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 14, fontWeight: 900, background: hasSends ? (photo ? "rgba(34,197,94,0.9)" : W.green) : (photo ? "rgba(239,68,68,0.85)" : W.red), color: hasSends ? W.greenDark : W.redDark, border: photo ? "1.5px solid rgba(255,255,255,0.5)" : `1.5px solid ${hasSends ? W.greenDark + "60" : W.redDark + "60"}`, zIndex: 2 }}>
-                  {hasSends ? "✓" : "✗"}
-                </div>
-                {/* Manage mode selection overlay */}
-                {gymManageMode && <div style={{ position: "absolute", inset: 0, zIndex: 3, background: isSelected ? "rgba(var(--accent-rgb),0.25)" : "transparent", border: isSelected ? `3px solid ${W.accent}` : "none", borderRadius: 14, display: "flex", alignItems: "center", justifyContent: "center" }}>{isSelected && <div style={{ width: 28, height: 28, borderRadius: "50%", background: W.accent, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16, color: "#fff" }}>✓</div>}</div>}
-                {/* Top-right: name + grade + color */}
-                <div style={{ position: "absolute", top: 8, right: 8, maxWidth: "65%", display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 3, zIndex: 2 }}>
-                  {entry.name && <div style={{ fontSize: 10, fontWeight: 800, color: photo ? "#fff" : W.text, textAlign: "right", lineHeight: 1.2, textShadow: photo ? "0 1px 3px rgba(0,0,0,0.7)" : "none", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: "100%" }}>{entry.name}</div>}
-                  <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
-                    <div style={{ background: gradeColor, color: "#fff", borderRadius: 6, padding: "2px 7px", fontWeight: 900, fontSize: 12 }}>{entry.grade}</div>
-                    {colorEntry && <div style={{ width: 12, height: 12, borderRadius: "50%", background: colorEntry.hex, border: photo ? "1.5px solid rgba(255,255,255,0.8)" : `1.5px solid ${W.border}`, flexShrink: 0 }} />}
-                  </div>
-                </div>
-                {/* Project badge */}
-                {entry.isProject && <div style={{ position: "absolute", bottom: 0, left: 0, right: 0, background: "linear-gradient(90deg, #9d174d, #be185d)", color: "#fff", fontSize: 8, fontWeight: 900, letterSpacing: 1, textAlign: "center", padding: "2px 0", zIndex: 2 }}>🎯 PROJECT</div>}
+            <div key={entry.id} onClick={handleClick} style={{ border: `1.5px solid ${isSelected ? W.accent : W.border}`, borderRadius: 16, overflow: "hidden", cursor: "pointer", position: "relative", minHeight: 200, background: photo ? "transparent" : W.surface }}>
+              {/* Full bleed photo or gradient background */}
+              {photo
+                ? <img src={photo} alt="" style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover" }} />
+                : <div style={{ position: "absolute", inset: 0, background: `linear-gradient(135deg, ${gradeColor}18, ${W.surface2})` }} />
+              }
+              {/* Bottom gradient scrim */}
+              <div style={{ position: "absolute", bottom: 0, left: 0, right: 0, height: "55%", background: photo ? "linear-gradient(to top, rgba(0,0,0,0.82) 0%, rgba(0,0,0,0.3) 60%, transparent 100%)" : `linear-gradient(to top, ${W.surface}cc 0%, transparent 100%)`, zIndex: 1 }} />
+              {/* Top-left: sent/not sent badge */}
+              <div style={{ position: "absolute", top: 8, left: 8, width: 28, height: 28, borderRadius: 8, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 14, fontWeight: 900, background: hasSends ? "rgba(34,197,94,0.85)" : "rgba(239,68,68,0.85)", color: hasSends ? "#14532d" : "#7f1d1d", zIndex: 2 }}>
+                {hasSends ? "✓" : "✗"}
               </div>
-              {/* Bottom stats strip */}
-              <div style={{ display: "flex", borderTop: `1px solid ${W.border}`, background: W.surface }}>
-                {[{ val: sends, label: "Sends" }, { val: attempts, label: "Att." }, { val: sessionCount, label: "Sess." }].map((s, i, arr) => (
-                  <div key={i} style={{ flex: 1, padding: "5px 2px", textAlign: "center", borderRight: i < arr.length - 1 ? `1px solid ${W.border}` : "none" }}>
-                    <div style={{ fontWeight: 900, fontSize: 13, color: i === 0 && s.val > 0 ? W.greenDark : W.text, lineHeight: 1 }}>{s.val}</div>
-                    <div style={{ fontSize: 8, color: W.textMuted, marginTop: 1 }}>{s.label}</div>
-                  </div>
-                ))}
+              {/* Top-right: name + grade + color */}
+              <div style={{ position: "absolute", top: 8, right: 8, maxWidth: "62%", display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 3, zIndex: 2 }}>
+                {entry.name && <div style={{ fontSize: 10, fontWeight: 800, color: "#fff", textAlign: "right", lineHeight: 1.2, textShadow: "0 1px 4px rgba(0,0,0,0.8)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: "100%" }}>{entry.name}</div>}
+                <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                  <div style={{ background: gradeColor, color: "#fff", borderRadius: 6, padding: "2px 7px", fontWeight: 900, fontSize: 12, boxShadow: "0 1px 4px rgba(0,0,0,0.4)" }}>{entry.grade}</div>
+                  {colorEntry && <div style={{ width: 13, height: 13, borderRadius: "50%", background: colorEntry.hex, border: "1.5px solid rgba(255,255,255,0.85)", flexShrink: 0 }} />}
+                </div>
               </div>
-              {/* Set date */}
-              {ago && <div style={{ fontSize: 8, color: W.textDim, textAlign: "center", padding: "2px 0 3px", background: W.surface, borderTop: `1px solid ${W.border}` }}>Set {ago}</div>}
+              {/* Project badge */}
+              {entry.isProject && <div style={{ position: "absolute", top: 40, right: 8, background: "rgba(157,23,77,0.9)", color: "#fff", fontSize: 8, fontWeight: 900, letterSpacing: 0.8, borderRadius: 5, padding: "2px 6px", zIndex: 2 }}>🎯 PROJECT</div>}
+              {/* Manage mode overlay */}
+              {gymManageMode && isSelected && <div style={{ position: "absolute", inset: 0, zIndex: 3, border: `3px solid ${W.accent}`, borderRadius: 14, display: "flex", alignItems: "center", justifyContent: "center", background: `${W.accent}33` }}><div style={{ width: 28, height: 28, borderRadius: "50%", background: W.accent, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16, color: "#fff" }}>✓</div></div>}
+              {/* Bottom stats overlay — transparent, text directly on photo */}
+              <div style={{ position: "absolute", bottom: 0, left: 0, right: 0, zIndex: 2, padding: "6px 4px 4px" }}>
+                <div style={{ display: "flex", justifyContent: "space-around" }}>
+                  {[{ val: sends, label: "Sends", hi: hasSends }, { val: attempts, label: "Att." }, { val: sessionCount, label: "Sess." }].map((s, i) => (
+                    <div key={i} style={{ textAlign: "center", background: "rgba(0,0,0,0.35)", borderRadius: 6, padding: "3px 5px", minWidth: 34 }}>
+                      <div style={{ fontWeight: 900, fontSize: 13, color: s.hi ? "#86efac" : "#fff", lineHeight: 1, textShadow: "0 1px 2px rgba(0,0,0,0.6)" }}>{s.val}</div>
+                      <div style={{ fontSize: 8, color: "rgba(255,255,255,0.75)", marginTop: 1 }}>{s.label}</div>
+                    </div>
+                  ))}
+                </div>
+                {ago && <div style={{ fontSize: 8, color: "rgba(255,255,255,0.6)", textAlign: "center", marginTop: 3 }}>Set {ago}</div>}
+              </div>
             </div>
           );
         }
