@@ -369,7 +369,7 @@ export default function App() {
   const [logbookSectionFilter, setLogbookSectionFilter] = useState(() => localStorage.getItem("lb:section") || "All");
   const [gymSetSortBySection, setGymSetSortBySection]   = useState(false);
   const [logbookTickList, setLogbookTickList]           = useState(() => localStorage.getItem("lb:tickList") === "true");
-  const [logbookTileView, setLogbookTileView]           = useState(() => localStorage.getItem("lb:tileView") !== "false");
+  const [logbookTileView, setLogbookTileView]           = useState(() => { const v = localStorage.getItem("lb:tileView"); return (v === "list" || v === "single" || v === "tiles") ? v : (v === "false" ? "list" : "tiles"); });
   const [logbookSearch, setLogbookSearch]               = useState("");
   const [logbookSearchOpen, setLogbookSearchOpen]       = useState(false);
   const [longPressPhotoTarget, setLongPressPhotoTarget] = useState(null); // { climbId, sessionId }
@@ -455,7 +455,7 @@ export default function App() {
     localStorage.setItem("lb:color", logbookColorFilter);
     localStorage.setItem("lb:section", logbookSectionFilter);
     localStorage.setItem("lb:tickList", logbookTickList);
-    localStorage.setItem("lb:tileView", logbookTileView);
+    localStorage.setItem("lb:tileView", logbookTileView); // "tiles" | "single" | "list"
   }, [logbookFilter, logbookScale, logbookGrade, logbookSort, logbookColorFilter, logbookSectionFilter, logbookTickList, logbookTileView]);
 
   // ── SHARED: restore active:climb from localStorage ─────────
@@ -4104,7 +4104,8 @@ export default function App() {
             const allPhotos = (session.climbs || []).filter(x => x.photo);
             const photoIdx  = allPhotos.findIndex(x => x.id === c.id);
             return c.photo ? (
-              <div key={c.id} onClick={() => setLightboxPhoto({ photos: allPhotos.map(p => ({ src: p.photo, grade: p.grade, name: p.name, colorId: p.color })), idx: photoIdx })} style={{ position: "relative", borderRadius: 14, overflow: "hidden", border: `1.5px solid ${W.border}`, marginBottom: 10, cursor: "pointer", height: 160 }}>
+              <div key={c.id} onClick={() => setLightboxPhoto({ photos: allPhotos.map(p => ({ src: p.photo, grade: p.grade, name: p.name, colorId: p.color })), idx: photoIdx })} style={{ position: "relative", borderRadius: 14, overflow: "hidden", border: `1.5px solid ${c.isProject ? W.pinkDark + "80" : W.border}`, marginBottom: 10, cursor: "pointer", height: 160 }}>
+                {c.isProject && <div style={{ position: "absolute", top: 0, left: 0, right: 0, zIndex: 2, background: `linear-gradient(90deg, ${W.pinkDark}ee, #be185dee)`, color: "#fff", padding: "4px 14px", fontSize: 11, fontWeight: 900, letterSpacing: 0.4 }}>🎯 PROJECT</div>}
                 <img src={c.photo} alt={c.name || c.grade} style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
                 <div style={{ position: "absolute", inset: 0, background: "linear-gradient(to right, rgba(0,0,0,0.7) 0%, rgba(0,0,0,0.2) 60%, rgba(0,0,0,0.1) 100%)" }} />
                 <div style={{ position: "absolute", inset: 0, padding: "12px 14px", display: "flex", alignItems: "center", gap: 12 }}>
@@ -4121,18 +4122,20 @@ export default function App() {
                 </div>
               </div>
             ) : (
-              <div key={c.id} style={{ background: W.surface, borderRadius: 14, border: `1.5px solid ${W.border}`, borderLeft: `4px solid ${gradeClr}`, marginBottom: 10, padding: "12px 14px", display: "flex", alignItems: "center", gap: 12 }}>
-                <div style={{ fontWeight: 900, fontSize: 22, color: gradeClr, flexShrink: 0, minWidth: 42 }}>{c.grade}</div>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  {c.name && <div style={{ fontSize: 13, fontWeight: 700, color: W.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{c.name}</div>}
-                  <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: c.name ? 3 : 0 }}>
-                    {colorHex && <div style={{ width: 10, height: 10, borderRadius: "50%", background: colorHex, border: `1px solid ${W.border}`, flexShrink: 0 }} />}
-                    <span style={{ fontSize: 11, color: W.textMuted }}>{c.tries || 0} {c.climbType === "rope" ? "attempts" : "falls"}</span>
-                    {c.isProject && <span style={{ background: W.pink, color: W.pinkDark, borderRadius: 6, padding: "1px 6px", fontSize: 10, fontWeight: 800 }}>🎯</span>}
-                    {c.section && <span style={{ fontSize: 11, color: W.accent, fontWeight: 700 }}>📌 {c.section}</span>}
+              <div key={c.id} style={{ background: W.surface, borderRadius: 14, border: `1.5px solid ${c.isProject ? W.pinkDark + "80" : W.border}`, borderLeft: `4px solid ${gradeClr}`, marginBottom: 10, overflow: "hidden" }}>
+                {c.isProject && <div style={{ background: `linear-gradient(90deg, ${W.pinkDark}, #be185d)`, color: "#fff", padding: "4px 14px", fontSize: 11, fontWeight: 900, letterSpacing: 0.4 }}>🎯 PROJECT</div>}
+                <div style={{ padding: "12px 14px", display: "flex", alignItems: "center", gap: 12 }}>
+                  <div style={{ fontWeight: 900, fontSize: 22, color: gradeClr, flexShrink: 0, minWidth: 42 }}>{c.grade}</div>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    {c.name && <div style={{ fontSize: 13, fontWeight: 700, color: W.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{c.name}</div>}
+                    <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: c.name ? 3 : 0 }}>
+                      {colorHex && <div style={{ width: 10, height: 10, borderRadius: "50%", background: colorHex, border: `1px solid ${W.border}`, flexShrink: 0 }} />}
+                      <span style={{ fontSize: 11, color: W.textMuted }}>{c.tries || 0} {c.climbType === "rope" ? "attempts" : "falls"}</span>
+                      {c.section && <span style={{ fontSize: 11, color: W.accent, fontWeight: 700 }}>📌 {c.section}</span>}
+                    </div>
                   </div>
+                  <span style={{ background: c.completed ? W.green : W.red, color: c.completed ? W.greenDark : W.redDark, borderRadius: 8, padding: "4px 10px", fontSize: 12, fontWeight: 800, flexShrink: 0 }}>{c.completed ? "✓" : "✗"}</span>
                 </div>
-                <span style={{ background: c.completed ? W.green : W.red, color: c.completed ? W.greenDark : W.redDark, borderRadius: 8, padding: "4px 10px", fontSize: 12, fontWeight: 800, flexShrink: 0 }}>{c.completed ? "✓" : "✗"}</span>
               </div>
             );
           })
@@ -5874,7 +5877,9 @@ export default function App() {
                     <Label>View</Label>
                     <div style={{ display: "flex", gap: 8 }}>
                       <button onClick={() => setLogbookTickList(t => !t)} style={{ padding: "6px 14px", borderRadius: 16, border: "2px solid", borderColor: logbookTickList ? W.accent : W.border, background: logbookTickList ? W.accent + "22" : W.surface, color: logbookTickList ? W.accent : W.textDim, cursor: "pointer", fontSize: 12, fontWeight: 600 }}>📋 Tick List</button>
-                      <button onClick={() => setLogbookTileView(t => !t)} style={{ padding: "6px 14px", borderRadius: 16, border: "2px solid", borderColor: logbookTileView ? W.accent : W.border, background: logbookTileView ? W.accent + "22" : W.surface, color: logbookTileView ? W.accent : W.textDim, cursor: "pointer", fontSize: 12, fontWeight: 600 }}>{logbookTileView ? "⊞ Tiles" : "☰ List"}</button>
+                      {[["tiles","⊞ Tiles"],["single","▤ Single"],["list","☰ List"]].map(([val,label]) => (
+                        <button key={val} onClick={() => setLogbookTileView(val)} style={{ padding: "6px 14px", borderRadius: 16, border: "2px solid", borderColor: logbookTileView === val ? W.accent : W.border, background: logbookTileView === val ? W.accent + "22" : W.surface, color: logbookTileView === val ? W.accent : W.textDim, cursor: "pointer", fontSize: 12, fontWeight: 600 }}>{label}</button>
+                      ))}
                     </div>
                   </div>
                 </>
@@ -5920,37 +5925,36 @@ export default function App() {
                   const hasMore = logbookClimbs.length > visible.length;
                   return (
                     <>
-                      {!logbookTileView ? (
+                      {logbookTileView === "list" ? (
                         visible.map((c, i) => (
                           <ClimbRow key={`${c.id}-${i}`} climb={c} onEdit={() => {}} onRemove={() => {}} onInlineSave={() => {}} onClimbClick={() => setSelectedLogbookClimb(c)} />
                         ))
-                      ) : (
-                      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
-                        {visible.map((c, i) => {
+                      ) : (() => {
+                        // Shared per-card data extraction for both tile views
+                        const renderCards = (cols) => visible.map((c, i) => {
                           const showHeader = logbookSort === "date" && (i === 0 || logbookClimbs[i - 1].sessionDate !== c.sessionDate);
-                          const gradeClr = getGradeColor(c.grade);
-                          const colorEntry = CLIMB_COLORS.find(cc => cc.id === c.color);
-                          const colorHex = colorEntry?.hex;
+                          const gradeClr  = getGradeColor(c.grade);
+                          const colorHex  = CLIMB_COLORS.find(cc => cc.id === c.color)?.hex;
                           const isOffWall = c.setClimbId ? Object.values(gymSets).flat().some(e => e.id === c.setClimbId && e.removed) : false;
                           let lpTimer = null;
                           const handleLPStart = () => { lpTimer = setTimeout(() => { setLongPressPhotoTarget({ climbId: c.id, sessionId: c._sessionId }); lbPhotoRef.current?.click(); }, 600); };
                           const handleLPEnd   = () => { clearTimeout(lpTimer); };
+                          const headerSpan   = cols === 2 ? { gridColumn: "1 / -1" } : {};
                           return (
                             <Fragment key={`${c.id}-${i}`}>
                               {showHeader && (
-                                <div style={{ gridColumn: "1 / -1", fontSize: 12, fontWeight: 700, color: W.textMuted, marginBottom: 2, marginTop: i > 0 ? 10 : 0 }}>📍 {c.sessionLocation} · {formatDate(c.sessionDate)}</div>
+                                <div style={{ ...headerSpan, fontSize: 12, fontWeight: 700, color: W.textMuted, marginBottom: 2, marginTop: i > 0 ? 10 : 0 }}>📍 {c.sessionLocation} · {formatDate(c.sessionDate)}</div>
                               )}
                               {c.photo ? (
-                                <div onClick={() => setSelectedLogbookClimb(c)} style={{ borderRadius: 14, overflow: "hidden", border: `1.5px solid ${c.isProject ? W.pinkDark + "60" : W.border}`, cursor: "pointer", position: "relative", minHeight: 200 }}>
+                                /* ── PHOTO CARD ─────────────────────────── */
+                                <div onClick={() => setSelectedLogbookClimb(c)} style={{ borderRadius: 14, overflow: "hidden", border: `1.5px solid ${c.isProject ? W.pinkDark + "80" : W.border}`, cursor: "pointer", position: "relative", minHeight: cols === 2 ? 200 : 190 }}>
                                   <img src={c.photo} alt="" style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", display: "block", filter: isOffWall ? "grayscale(60%)" : "none" }} />
                                   <div style={{ position: "absolute", inset: 0, background: "linear-gradient(to bottom, rgba(0,0,0,0.15) 0%, rgba(0,0,0,0.72) 100%)" }} />
                                   {/* top-left badges */}
-                                  {(c.isProject || isOffWall) && (
-                                    <div style={{ position: "absolute", top: 8, left: 8, display: "flex", gap: 4, flexWrap: "wrap" }}>
-                                      {c.isProject && <span style={{ background: W.pinkDark, color: "#fff", borderRadius: 6, padding: "2px 7px", fontSize: 10, fontWeight: 800, boxShadow: "0 1px 4px rgba(0,0,0,0.4)" }}>🎯</span>}
-                                      {isOffWall && <span style={{ background: "rgba(0,0,0,0.65)", color: "#fff", borderRadius: 6, padding: "2px 6px", fontSize: 10, fontWeight: 800 }}>🚫</span>}
-                                    </div>
-                                  )}
+                                  <div style={{ position: "absolute", top: 8, left: 8, display: "flex", gap: 4, flexWrap: "wrap" }}>
+                                    {c.isProject && <span style={{ background: W.pinkDark, color: "#fff", borderRadius: 7, padding: "3px 9px", fontSize: 11, fontWeight: 900, boxShadow: "0 2px 6px rgba(0,0,0,0.5)", letterSpacing: 0.3 }}>🎯 PROJECT</span>}
+                                    {isOffWall && <span style={{ background: "rgba(0,0,0,0.65)", color: "#fff", borderRadius: 6, padding: "2px 7px", fontSize: 10, fontWeight: 800 }}>🚫 Off Wall</span>}
+                                  </div>
                                   {/* sent badge top-right */}
                                   <div style={{ position: "absolute", top: 8, right: 8 }}>
                                     <span style={{ background: c.completed ? "#16a34a" : "#dc2626", color: "#fff", borderRadius: 6, padding: "2px 7px", fontSize: 10, fontWeight: 800 }}>{c.completed ? "✓" : "✗"}</span>
@@ -5963,16 +5967,14 @@ export default function App() {
                                     </div>
                                     {c.name && <div style={{ fontSize: 12, fontWeight: 700, color: "#fff", textShadow: "0 1px 3px rgba(0,0,0,0.8)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", marginBottom: 2 }}>{c.name}</div>}
                                     <div style={{ fontSize: 11, color: "rgba(255,255,255,0.75)" }}>{c.tries || 0} {c.climbType === "rope" ? "attempts" : "falls"}{c._sessionCount > 1 ? ` · 🗓 ${c._sessionCount}` : ""}</div>
+                                    {c.section && <div style={{ fontSize: 10, color: "rgba(255,255,255,0.7)", fontWeight: 700, marginTop: 2 }}>📌 {c.section}</div>}
                                   </div>
                                 </div>
-                              ) : (
-                                <div onClick={() => setSelectedLogbookClimb(c)} onTouchStart={handleLPStart} onTouchEnd={handleLPEnd} onTouchMove={handleLPEnd} style={{ background: W.surface, borderRadius: 14, border: `1.5px solid ${c.isProject ? W.pinkDark + "50" : W.border}`, borderTop: `3px solid ${isOffWall ? W.border : gradeClr}`, cursor: "pointer", overflow: "hidden", minHeight: 120 }}>
-                                  {(c.isProject || isOffWall) && (
-                                    <div style={{ display: "flex", gap: 4, flexWrap: "wrap", padding: "5px 8px 0" }}>
-                                      {c.isProject && <span style={{ background: W.pink, color: W.pinkDark, borderRadius: 6, padding: "2px 6px", fontSize: 10, fontWeight: 800 }}>🎯 Project</span>}
-                                      {isOffWall && <span style={{ background: "#1a1a1a22", color: W.textMuted, borderRadius: 6, padding: "2px 6px", fontSize: 10, fontWeight: 800 }}>🚫 Off Wall</span>}
-                                    </div>
-                                  )}
+                              ) : cols === 2 ? (
+                                /* ── NO-PHOTO 2-COL TILE ─────────────────── */
+                                <div onClick={() => setSelectedLogbookClimb(c)} onTouchStart={handleLPStart} onTouchEnd={handleLPEnd} onTouchMove={handleLPEnd} style={{ background: W.surface, borderRadius: 14, border: `1.5px solid ${c.isProject ? W.pinkDark + "80" : W.border}`, borderTop: `3px solid ${isOffWall ? W.border : gradeClr}`, cursor: "pointer", overflow: "hidden", minHeight: 120 }}>
+                                  {c.isProject && <div style={{ background: `linear-gradient(90deg, ${W.pinkDark}, #be185d)`, color: "#fff", padding: "4px 10px", fontSize: 11, fontWeight: 900, letterSpacing: 0.4 }}>🎯 PROJECT</div>}
+                                  {isOffWall && !c.isProject && <div style={{ background: W.surface2, color: W.textMuted, padding: "3px 8px", fontSize: 10, fontWeight: 800 }}>🚫 Off Wall</div>}
                                   <div style={{ padding: "10px 10px 12px" }}>
                                     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
                                       <span style={{ fontWeight: 900, fontSize: 22, color: isOffWall ? W.textMuted : gradeClr }}>{c.grade}</span>
@@ -5986,12 +5988,38 @@ export default function App() {
                                     {c.section && <div style={{ fontSize: 11, color: W.accent, fontWeight: 700 }}>📌 {c.section}</div>}
                                   </div>
                                 </div>
+                              ) : (
+                                /* ── NO-PHOTO SINGLE ROW ─────────────────── */
+                                <div onClick={() => setSelectedLogbookClimb(c)} onTouchStart={handleLPStart} onTouchEnd={handleLPEnd} onTouchMove={handleLPEnd} style={{ borderRadius: 14, border: `1px solid ${c.isProject ? W.pinkDark + "80" : W.border}`, borderLeft: `4px solid ${isOffWall ? W.border : gradeClr}`, marginBottom: 10, cursor: "pointer", background: W.surface, overflow: "hidden" }}>
+                                  {c.isProject && <div style={{ background: `linear-gradient(90deg, ${W.pinkDark}, #be185d)`, color: "#fff", padding: "4px 14px", fontSize: 11, fontWeight: 900, letterSpacing: 0.4 }}>🎯 PROJECT</div>}
+                                  <div style={{ display: "flex", alignItems: "stretch", minHeight: 72 }}>
+                                    <div style={{ background: (isOffWall ? W.border : gradeClr) + "1a", display: "flex", alignItems: "center", justifyContent: "center", padding: "0 14px", minWidth: 56, borderRight: `1px solid ${(isOffWall ? W.border : gradeClr)}28` }}>
+                                      <div style={{ fontWeight: 900, fontSize: 17, color: isOffWall ? W.textMuted : gradeClr }}>{c.grade}</div>
+                                    </div>
+                                    <div style={{ flex: 1, padding: "10px 12px", minWidth: 0 }}>
+                                      <div style={{ display: "flex", alignItems: "center", gap: 7, marginBottom: 3, flexWrap: "wrap" }}>
+                                        {colorHex && <div style={{ width: 13, height: 13, borderRadius: "50%", background: colorHex, border: `1.5px solid ${W.border}`, flexShrink: 0 }} />}
+                                        {c.name && <span style={{ fontWeight: 700, color: W.text, fontSize: 14 }}>{c.name}</span>}
+                                        {isOffWall && <span style={{ fontSize: 10, color: W.textMuted, fontWeight: 800 }}>🚫 Off Wall</span>}
+                                      </div>
+                                      <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
+                                        <span style={{ fontSize: 12, color: W.textMuted }}>{c.tries || 0} {c.climbType === "rope" ? "attempts" : "falls"}{c._sessionCount > 1 ? ` · 🗓 ${c._sessionCount}` : ""}</span>
+                                        {c.section && <span style={{ fontSize: 11, color: W.accent, fontWeight: 700 }}>📌 {c.section}</span>}
+                                      </div>
+                                    </div>
+                                    <div style={{ padding: "0 12px", display: "flex", alignItems: "center", flexShrink: 0 }}>
+                                      <span style={{ background: c.completed ? W.green : W.red, color: c.completed ? W.greenDark : W.redDark, borderRadius: 8, padding: "3px 9px", fontSize: 11, fontWeight: 800, whiteSpace: "nowrap" }}>{c.completed ? "✓" : "✗"}</span>
+                                    </div>
+                                  </div>
+                                </div>
                               )}
                             </Fragment>
                           );
-                        })}
-                      </div>
-                      )}
+                        });
+                        return logbookTileView === "tiles"
+                          ? <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>{renderCards(2)}</div>
+                          : <div>{renderCards(1)}</div>;
+                      })()}
                       {hasMore && (
                         <button onClick={() => setLogbookClimbPage(p => p + 1)} style={{ width: "100%", padding: "13px", background: "transparent", border: `1px solid ${W.border}`, borderRadius: 14, color: W.textMuted, fontSize: 14, fontWeight: 600, cursor: "pointer", marginTop: 8, marginBottom: 8 }}>
                           Load more ({logbookClimbs.length - visible.length} remaining)
