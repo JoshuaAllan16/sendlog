@@ -131,6 +131,7 @@ export const SessionSummaryScreen = ({
   setShowSummaryLeaveWarn,
   updateSessionNotes,
   recentSessions,
+  allSessions,
 }) => {
   const W = useTheme();
   const [showDiscard, setShowDiscard] = useState(false);
@@ -545,6 +546,23 @@ export const SessionSummaryScreen = ({
                       <span style={{ fontSize: 12, fontWeight: 800, color: timeColor, fontVariantNumeric: "tabular-nums" }}>{formatDuration(Math.floor(workedMs / 1000))}</span>
                       <span style={{ fontSize: 10, color: W.textDim, fontWeight: 600 }}>worked</span>
                       {attempts > 0 && <><span style={{ fontSize: 10, color: W.textDim }}>·</span><span style={{ fontSize: 10, color: W.textDim, fontWeight: 600 }}>{attempts} {attempts === 1 ? "attempt" : "attempts"}</span></>}
+                    </div>
+                  );
+                })()}
+                {c.setClimbId && allSessions && (() => {
+                  const history = allSessions.flatMap(s => (s.climbs || []).filter(x => x.setClimbId === c.setClimbId));
+                  if (history.length < 2) return null;
+                  const sends = history.filter(x => x.completed).length;
+                  const pct = Math.round((sends / history.length) * 100);
+                  return (
+                    <div style={{ marginTop: 5 }}>
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 3 }}>
+                        <span style={{ fontSize: 10, color: W.textDim, fontWeight: 600 }}>Set send rate</span>
+                        <span style={{ fontSize: 10, fontWeight: 800, color: sends > 0 ? W.greenDark : W.textMuted }}>{sends}/{history.length} sessions</span>
+                      </div>
+                      <div style={{ height: 5, borderRadius: 3, background: W.surface2, overflow: "hidden" }}>
+                        <div style={{ height: "100%", width: `${pct}%`, background: sends > 0 ? W.greenDark : W.border, borderRadius: 3 }} />
+                      </div>
                     </div>
                   );
                 })()}

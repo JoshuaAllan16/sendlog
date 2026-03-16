@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, Component } from "react";
+import { useState, useRef, useEffect, Component, Fragment } from "react";
 import { createClient } from "@supabase/supabase-js";
 import { ThemeCtx, THEMES } from "./theme.js";
 import { ColorDot, TagChips, LocationDropdown, SpeedSessionCard, BoulderRopeSessionCard, ActiveClimbCard } from "./Components.jsx";
@@ -369,6 +369,7 @@ export default function App() {
   const [gymSetSortBySection, setGymSetSortBySection]   = useState(false);
   const [logbookTickList, setLogbookTickList]           = useState(false);
   const [logbookSearch, setLogbookSearch]               = useState("");
+  const [logbookSearchOpen, setLogbookSearchOpen]       = useState(false);
   const [showAddGym, setShowAddGym]                     = useState(false);
   const [addGymInput, setAddGymInput]                   = useState("");
   const [showClimbShare, setShowClimbShare]         = useState(false);
@@ -5772,17 +5773,23 @@ export default function App() {
 
         {profileTab === "climbing" && climbingSubTab === "climbs" && (
           <div>
-            <div style={{ position: "relative", marginBottom: 10 }}>
-              <input value={logbookSearch} onChange={e => { setLogbookSearch(e.target.value); setLogbookClimbPage(1); }} placeholder="Search name, grade, gym…" style={{ width: "100%", padding: "10px 36px 10px 14px", background: W.surface2, border: `1.5px solid ${logbookSearch ? W.accent : W.border}`, borderRadius: 12, color: W.text, fontSize: 13, boxSizing: "border-box", fontFamily: "inherit", outline: "none" }} />
-              {logbookSearch ? <button onClick={() => setLogbookSearch("")} style={{ position: "absolute", right: 10, top: "50%", transform: "translateY(-50%)", background: "none", border: "none", color: W.textMuted, fontSize: 18, cursor: "pointer", lineHeight: 1, padding: 0 }}>×</button> : <span style={{ position: "absolute", right: 12, top: "50%", transform: "translateY(-50%)", fontSize: 15, color: W.textMuted, pointerEvents: "none" }}>🔍</span>}
-            </div>
-            <div style={{ marginBottom: 14 }}>
-              <button onClick={() => setLogbookFiltersOpen(o => !o)} style={{ width: "100%", padding: "11px 14px", background: W.surface2, border: `1px solid ${W.border}`, borderRadius: logbookFiltersOpen ? "12px 12px 0 0" : "12px", cursor: "pointer", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                <div style={{ display: "flex", alignItems: "center", gap: 8 }}><span style={{ fontWeight: 700, color: W.text, fontSize: 13 }}>Filters</span>{hasClimbFilters && <span style={{ background: W.accent, color: "#fff", borderRadius: 20, padding: "2px 8px", fontSize: 10, fontWeight: 700 }}>Active</span>}</div>
-                <span style={{ color: W.textMuted, fontSize: 16 }}>⌄</span>
-              </button>
+            <div style={{ display: "flex", gap: 8, marginBottom: 14, alignItems: "flex-start" }}>
+              {/* Search toggle button */}
+              <button onClick={() => { setLogbookSearchOpen(o => { if (o) setLogbookSearch(""); return !o; }); setLogbookFiltersOpen(false); }} style={{ padding: "11px 13px", background: logbookSearchOpen ? W.accent + "22" : W.surface2, border: `1.5px solid ${logbookSearchOpen ? W.accent : W.border}`, borderRadius: 12, color: logbookSearchOpen ? W.accent : W.textMuted, cursor: "pointer", flexShrink: 0, fontSize: 16, lineHeight: 1 }}>🔍</button>
+              {/* Filters button OR search input */}
+              {logbookSearchOpen ? (
+                <div style={{ flex: 1, position: "relative" }}>
+                  <input autoFocus value={logbookSearch} onChange={e => { setLogbookSearch(e.target.value); setLogbookClimbPage(1); }} placeholder="Search name, grade, gym…" style={{ width: "100%", padding: "11px 36px 11px 14px", background: W.surface2, border: `1.5px solid ${logbookSearch ? W.accent : W.border}`, borderRadius: 12, color: W.text, fontSize: 13, boxSizing: "border-box", fontFamily: "inherit", outline: "none" }} />
+                  {logbookSearch && <button onClick={() => setLogbookSearch("")} style={{ position: "absolute", right: 10, top: "50%", transform: "translateY(-50%)", background: "none", border: "none", color: W.textMuted, fontSize: 18, cursor: "pointer", lineHeight: 1, padding: 0 }}>×</button>}
+                </div>
+              ) : (
+                <div style={{ flex: 1 }}>
+                  <button onClick={() => setLogbookFiltersOpen(o => !o)} style={{ width: "100%", padding: "11px 14px", background: W.surface2, border: `1.5px solid ${W.border}`, borderRadius: logbookFiltersOpen ? "12px 12px 0 0" : "12px", cursor: "pointer", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 8 }}><span style={{ fontWeight: 700, color: W.text, fontSize: 13 }}>Filters</span>{hasClimbFilters && <span style={{ background: W.accent, color: "#fff", borderRadius: 20, padding: "2px 8px", fontSize: 10, fontWeight: 700 }}>Active</span>}</div>
+                    <span style={{ color: W.textMuted, fontSize: 16 }}>⌄</span>
+                  </button>
               {logbookFiltersOpen && (
-                <div style={{ background: W.surface, border: `1px solid ${W.border}`, borderTop: "none", borderRadius: "0 0 12px 12px", padding: "14px" }}>
+                <div style={{ background: W.surface, border: `1.5px solid ${W.border}`, borderTop: "none", borderRadius: "0 0 12px 12px", padding: "14px" }}>
                   <Label>Status</Label>
                   <div style={{ display: "flex", gap: 8, marginBottom: 12, flexWrap: "wrap" }}>
                     {[["all", "All"], ["completed", "✓ Sent"], ["incomplete", "✗ Not Sent"], ["projects", "🎯 Projects"]].map(([val, label]) => <button key={val} onClick={() => setLogbookFilter(val)} style={{ padding: "6px 12px", borderRadius: 16, border: "2px solid", borderColor: logbookFilter === val ? (val === "projects" ? W.pinkDark : W.accent) : W.border, background: logbookFilter === val ? (val === "projects" ? W.pink : W.accent + "22") : W.surface, color: logbookFilter === val ? (val === "projects" ? W.pinkDark : W.accent) : W.textDim, cursor: "pointer", fontSize: 12, fontWeight: 600 }}>{label}</button>)}
@@ -5826,6 +5833,8 @@ export default function App() {
                   </div>
                 </div>
               )}
+                </div>
+              )}
             </div>
             <div style={{ fontSize: 12, color: W.textMuted, marginBottom: 12, fontWeight: 600 }}>{logbookClimbs.length} climb{logbookClimbs.length !== 1 ? "s" : ""} found</div>
             {logbookClimbs.length === 0 ? <div style={{ textAlign: "center", color: W.textDim, padding: "30px 0" }}>No climbs match your filters.</div>
@@ -5834,12 +5843,46 @@ export default function App() {
                   const hasMore = logbookClimbs.length > visible.length;
                   return (
                     <>
-                      {visible.map((c, i) => {
-                        const showHeader = logbookSort === "date" && (i === 0 || logbookClimbs[i - 1].sessionDate !== c.sessionDate);
-                        return (<div key={`${c.id}-${i}`}>{showHeader && <div style={{ fontSize: 12, fontWeight: 700, color: W.textMuted, marginBottom: 6, marginTop: i > 0 ? 14 : 0 }}>📍 {c.sessionLocation} · {formatDate(c.sessionDate)}</div>}<ClimbRow climb={c} onClimbClick={(climb) => setSelectedLogbookClimb(climb)} /></div>);
-                      })}
+                      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+                        {visible.map((c, i) => {
+                          const showHeader = logbookSort === "date" && (i === 0 || logbookClimbs[i - 1].sessionDate !== c.sessionDate);
+                          const gradeClr = getGradeColor(c.grade);
+                          const colorEntry = CLIMB_COLORS.find(cc => cc.id === c.color);
+                          const colorHex = colorEntry?.hex;
+                          const isOffWall = c.setClimbId ? Object.values(gymSets).flat().some(e => e.id === c.setClimbId && e.removed) : false;
+                          return (
+                            <Fragment key={`${c.id}-${i}`}>
+                              {showHeader && (
+                                <div style={{ gridColumn: "1 / -1", fontSize: 12, fontWeight: 700, color: W.textMuted, marginBottom: 2, marginTop: i > 0 ? 10 : 0 }}>📍 {c.sessionLocation} · {formatDate(c.sessionDate)}</div>
+                              )}
+                              <div onClick={() => setSelectedLogbookClimb(c)} style={{ background: W.surface, borderRadius: 14, border: `1.5px solid ${c.isProject ? W.pinkDark + "50" : W.border}`, borderTop: `3px solid ${isOffWall ? W.border : gradeClr}`, cursor: "pointer", overflow: "hidden" }}>
+                                {(c.isProject || isOffWall) && (
+                                  <div style={{ display: "flex", gap: 4, flexWrap: "wrap", padding: "5px 8px 0" }}>
+                                    {c.isProject && <span style={{ background: W.pink, color: W.pinkDark, borderRadius: 6, padding: "2px 6px", fontSize: 10, fontWeight: 800 }}>🎯 Project</span>}
+                                    {isOffWall && <span style={{ background: "#1a1a1a22", color: W.textMuted, borderRadius: 6, padding: "2px 6px", fontSize: 10, fontWeight: 800 }}>🚫 Off Wall</span>}
+                                  </div>
+                                )}
+                                <div style={{ padding: "8px 10px 10px" }}>
+                                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 5 }}>
+                                    <span style={{ fontWeight: 900, fontSize: 20, color: isOffWall ? W.textMuted : gradeClr }}>{c.grade}</span>
+                                    <span style={{ background: c.completed ? W.green : W.red, color: c.completed ? W.greenDark : W.redDark, borderRadius: 6, padding: "2px 6px", fontSize: 10, fontWeight: 800, whiteSpace: "nowrap" }}>{c.completed ? "✓" : "✗"}</span>
+                                  </div>
+                                  <div style={{ display: "flex", alignItems: "center", gap: 5, marginBottom: 3 }}>
+                                    {colorHex && <div style={{ width: 9, height: 9, borderRadius: "50%", background: colorHex, flexShrink: 0, border: `1px solid ${W.border}` }} />}
+                                    <span style={{ fontSize: 12, fontWeight: 700, color: W.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{c.name || "—"}</span>
+                                  </div>
+                                  <div style={{ fontSize: 11, color: W.textMuted }}>
+                                    {c.tries || 0} {c.climbType === "rope" ? "attempts" : "falls"}
+                                    {c._sessionCount > 1 && <span> · 🗓 {c._sessionCount}</span>}
+                                  </div>
+                                </div>
+                              </div>
+                            </Fragment>
+                          );
+                        })}
+                      </div>
                       {hasMore && (
-                        <button onClick={() => setLogbookClimbPage(p => p + 1)} style={{ width: "100%", padding: "13px", background: "transparent", border: `1px solid ${W.border}`, borderRadius: 14, color: W.textMuted, fontSize: 14, fontWeight: 600, cursor: "pointer", marginBottom: 8 }}>
+                        <button onClick={() => setLogbookClimbPage(p => p + 1)} style={{ width: "100%", padding: "13px", background: "transparent", border: `1px solid ${W.border}`, borderRadius: 14, color: W.textMuted, fontSize: 14, fontWeight: 600, cursor: "pointer", marginTop: 8, marginBottom: 8 }}>
                           Load more ({logbookClimbs.length - visible.length} remaining)
                         </button>
                       )}
@@ -6085,6 +6128,8 @@ export default function App() {
                       const gradeClr = getGradeColor(entry.grade);
                       const colorEntry = CLIMB_COLORS.find(cc => cc.id === entry.color);
                       const colorHex = colorEntry?.hex;
+                      const removedDaysAgo = entry.removedDate ? Math.floor((Date.now() - new Date(entry.removedDate)) / 86400000) : null;
+                      const removedLabel = removedDaysAgo !== null ? (removedDaysAgo === 0 ? "Removed today" : `Removed ${removedDaysAgo}d ago`) : "Off Wall";
                       if (entryPhoto) {
                         return (
                           <div key={entry.id} onClick={() => setSelectedSetClimb(entry)} style={{ borderRadius: 16, overflow: "hidden", border: `1px solid ${W.border}`, marginBottom: 12, cursor: "pointer", background: W.surface, opacity: 0.7 }}>
@@ -6092,7 +6137,7 @@ export default function App() {
                               <img src={entryPhoto} alt="" style={{ width: "100%", height: 190, objectFit: "cover", display: "block", filter: "grayscale(40%)" }} />
                               <div style={{ position: "absolute", inset: 0, background: "linear-gradient(to bottom, rgba(0,0,0,0.08) 0%, rgba(0,0,0,0.65) 100%)" }} />
                               <div style={{ position: "absolute", top: 10, right: 10 }}>
-                                <span style={{ background: "rgba(0,0,0,0.6)", color: "#fff", borderRadius: 8, padding: "3px 10px", fontSize: 11, fontWeight: 800 }}>Off Wall</span>
+                                <span style={{ background: "rgba(0,0,0,0.6)", color: "#fff", borderRadius: 8, padding: "3px 10px", fontSize: 11, fontWeight: 800 }}>{removedLabel}</span>
                               </div>
                               <div style={{ position: "absolute", bottom: 12, left: 14, display: "flex", alignItems: "center", gap: 8 }}>
                                 <div style={{ background: gradeClr, color: "#fff", borderRadius: 10, padding: "4px 13px", fontWeight: 900, fontSize: 20, letterSpacing: 0.3, boxShadow: "0 2px 8px rgba(0,0,0,0.4)" }}>{entry.grade}</div>
@@ -6123,7 +6168,7 @@ export default function App() {
                               </div>
                             </div>
                             <div style={{ padding: "0 12px", display: "flex", alignItems: "center", flexShrink: 0 }}>
-                              <span style={{ background: W.surface2, color: W.textMuted, borderRadius: 8, padding: "3px 9px", fontSize: 11, fontWeight: 800, whiteSpace: "nowrap" }}>Off Wall</span>
+                              <span style={{ background: W.surface2, color: W.textMuted, borderRadius: 8, padding: "3px 9px", fontSize: 11, fontWeight: 800, whiteSpace: "nowrap" }}>{removedLabel}</span>
                             </div>
                           </div>
                         </div>
@@ -6920,6 +6965,7 @@ export default function App() {
           setShowSummaryLeaveWarn={setShowSummaryLeaveWarn}
           updateSessionNotes={updateSessionNotes}
           recentSessions={sessions.filter(s => s.id !== sessionSummary.id).slice(0, 5)}
+          allSessions={sessions}
         />}
       </div>
 
@@ -7481,6 +7527,42 @@ export default function App() {
                 </button>
               </div>
             )}
+            {/* Similar climbs */}
+            {(() => {
+              const allLogbook = sessions.flatMap(s => (s.climbs || []).map(c => ({ ...c, sessionDate: s.date, sessionLocation: s.location })));
+              const similarRaw = allLogbook.filter(c =>
+                c.id !== climb.id &&
+                !(climb.setClimbId && c.setClimbId === climb.setClimbId) &&
+                c.grade === climb.grade &&
+                (climb.holdTypes || []).some(h => (c.holdTypes || []).includes(h))
+              );
+              const seen = new Set();
+              const similar = similarRaw.filter(c => {
+                const key = c.setClimbId || c.id;
+                if (seen.has(key)) return false;
+                seen.add(key);
+                return true;
+              }).slice(0, 5);
+              if (!similar.length) return null;
+              return (
+                <div style={{ marginTop: 16, paddingTop: 16, borderTop: `1px solid ${W.border}` }}>
+                  <div style={{ fontSize: 13, fontWeight: 800, color: W.textMuted, textTransform: "uppercase", letterSpacing: 1, marginBottom: 10 }}>Similar Climbs</div>
+                  {similar.map((c, i) => {
+                    const gc = getGradeColor(c.grade);
+                    return (
+                      <div key={`sim-${c.id}-${i}`} onClick={() => setSelectedLogbookClimb(c)} style={{ background: W.surface, border: `1px solid ${W.border}`, borderLeft: `4px solid ${gc}`, borderRadius: 12, padding: "10px 14px", marginBottom: 8, cursor: "pointer", display: "flex", alignItems: "center", gap: 12 }}>
+                        <div style={{ fontWeight: 900, fontSize: 16, color: gc, minWidth: 32, flexShrink: 0 }}>{c.grade}</div>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ fontSize: 13, fontWeight: 700, color: W.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{c.name || c.grade}</div>
+                          <div style={{ fontSize: 11, color: W.textMuted }}>📍 {c.sessionLocation}</div>
+                        </div>
+                        <span style={{ background: c.completed ? W.green : W.red, color: c.completed ? W.greenDark : W.redDark, borderRadius: 6, padding: "2px 8px", fontSize: 10, fontWeight: 800, flexShrink: 0 }}>{c.completed ? "✓" : "✗"}</span>
+                      </div>
+                    );
+                  })}
+                </div>
+              );
+            })()}
           </div>
           {/* Share modal */}
           {showClimbShare && (
