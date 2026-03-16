@@ -7684,7 +7684,11 @@ export default function App() {
       const totalTimeMs   = relatedEntries.reduce((t, { climb: c }) => t + (c.attemptLog || []).reduce((s, a) => s + (a.duration || 0), 0), 0);
       const totalTimeSec  = Math.floor(totalTimeMs / 1000);
       const gradeColor    = getGradeColor(climb.grade);
-      const setClimbEntry = climb.setClimbId ? Object.values(gymSets).flat().find(e => e.id === climb.setClimbId) : null;
+      const setClimbEntry = climb.setClimbId
+        ? Object.values(gymSets).flat().find(e => e.id === climb.setClimbId)
+        : climb._sessionId === null
+          ? Object.values(gymSets).flat().find(e => e.id === climb.id)
+          : null;
       const isOffWall     = setClimbEntry?.removed || false;
       const colorEntry    = CLIMB_COLORS.find(cc => cc.id === climb.color);
       return (
