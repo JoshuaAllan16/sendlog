@@ -338,14 +338,14 @@ export const ActiveClimbCard = ({ climb, onEdit, onStartClimbing, onEndAttempt, 
 
         {/* ── BOULDER HEADER: left = timer, right = grade/color/name ── */}
         {!isRope && (
-          <div style={{ display: "flex", gap: 12, padding: "16px 14px 12px", minHeight: 96 }}>
+          <div style={{ display: "flex", gap: 12, padding: isActivelyClimbing ? "22px 14px 18px" : "16px 14px 12px", minHeight: isActivelyClimbing ? 130 : 96 }}>
             {/* Left: timer area */}
             <div style={{ flex: "0 0 auto", display: "flex", flexDirection: "column", justifyContent: "center", minWidth: 68 }}>
               {hasBoulderTimer ? (<>
                 <div style={{ fontSize: 9, color: isActivelyClimbing ? T.greenDark : T.textDim, textTransform: "uppercase", letterSpacing: 0.8, fontWeight: 700, marginBottom: 1 }}>
                   {isActivelyClimbing ? "Working" : "Worked"}
                 </div>
-                <div style={{ fontSize: isActivelyClimbing ? 40 : 32, fontWeight: 900, color: isActivelyClimbing ? T.greenDark : (climb.completed ? T.greenDark : T.accent), fontVariantNumeric: "tabular-nums", lineHeight: 1 }}>
+                <div style={{ fontSize: isActivelyClimbing ? 52 : 32, fontWeight: 900, color: isActivelyClimbing ? T.greenDark : (climb.completed ? T.greenDark : T.accent), fontVariantNumeric: "tabular-nums", lineHeight: 1 }}>
                   {formatDuration(boulderTimerSec)}
                 </div>
                 {boulderAttemptCount > 0 && <div style={{ fontSize: 10, color: T.textDim, marginTop: 3 }}>{boulderAttemptCount} attempt{boulderAttemptCount !== 1 ? "s" : ""}</div>}
@@ -432,13 +432,13 @@ export const ActiveClimbCard = ({ climb, onEdit, onStartClimbing, onEndAttempt, 
               <div>
                 {/* Mark Sent + Falls row */}
                 <div style={{ display: "flex" }}>
-                  <button onClick={() => onToggleCompleted(climb.id)} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "16px 10px", border: "none", borderRight: `1px solid ${T.border}`, background: climb.completed ? (hasPhoto ? "rgba(20,83,45,0.55)" : W.green) : T.sectionBg, cursor: "pointer", gap: 5 }}>
+                  <button onClick={() => onToggleCompleted(climb.id)} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "22px 10px", border: "none", borderRight: `1px solid ${T.border}`, background: climb.completed ? (hasPhoto ? "rgba(20,83,45,0.55)" : W.green) : T.sectionBg, cursor: "pointer", gap: 5 }}>
                     <div style={{ width: 32, height: 32, borderRadius: 8, border: `2.5px solid ${W.greenDark}`, background: climb.completed ? W.greenDark : "transparent", display: "flex", alignItems: "center", justifyContent: "center" }}>
                       {climb.completed && <span style={{ color: "#fff", fontSize: 18, lineHeight: 1 }}>✓</span>}
                     </div>
                     <span style={{ fontSize: 16, fontWeight: 800, color: T.greenDark }}>{climb.completed ? (lapNumber > 1 ? `Lap ${lapNumber} sent` : "Sent!") : "Mark Sent"}</span>
                   </button>
-                  <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 12, padding: "16px 12px", background: T.sectionBg }}>
+                  <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 12, padding: "22px 12px", background: T.sectionBg }}>
                     <div style={{ textAlign: "center" }}>
                       <div style={{ fontSize: 34, fontWeight: 900, color: T.text, lineHeight: 1 }}>{climb.tries}</div>
                       <div style={{ fontSize: 10, color: T.textDim, textTransform: "uppercase", letterSpacing: 0.8 }}>{climb.tries === 1 ? "fall" : "falls"}</div>
