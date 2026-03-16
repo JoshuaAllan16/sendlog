@@ -3784,7 +3784,11 @@ export default function App() {
                         <BoulderRopeSessionCard type="boulder" totalSec={activeSession.boulderTotalSec || 0} activeStart={activeSession.boulderActiveStart || null} isEnded={!!activeSession.boulderEndedAt} tick={sessionTimer} onPause={pauseBoulderSession} onResume={resumeBoulderSession} pausedAt={activeSession.boulderPausedAt || null} collapsed={!!activeSession.collapsedSections?.boulder} onToggleCollapse={() => setActiveSession(s => ({ ...s, collapsedSections: { ...(s.collapsedSections || {}), boulder: !s.collapsedSections?.boulder } }))} />
                         {!activeSession.collapsedSections?.boulder && (
                           <div style={{ borderLeft: `3px solid ${W.greenDark}44`, paddingLeft: 10, marginLeft: 2 }}>
-                            {boulderClimbs.filter(c => !c.completed).sort((a, b) => (b.climbingStartedAt ? 1 : 0) - (a.climbingStartedAt ? 1 : 0)).map(c => <ActiveClimbCard key={c.id} climb={c} {...cardProps} onStartClimbing={id => { startClimbing(id); setTimeout(() => boulderListRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 80); }} sessionCount={c.projectId ? getProjectHistory(c.projectId).length + 1 : null} lapNumber={lapNumbers[c.id] || null} />)}
+                            {boulderClimbs.filter(c => !c.completed).sort((a, b) => {
+                                const aWorked = a.climbingStartedAt ? 2 : (wasAttempted(a) ? 1 : 0);
+                                const bWorked = b.climbingStartedAt ? 2 : (wasAttempted(b) ? 1 : 0);
+                                return bWorked - aWorked;
+                              }).map(c => <ActiveClimbCard key={c.id} climb={c} {...cardProps} onStartClimbing={id => { startClimbing(id); setTimeout(() => boulderListRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 80); }} sessionCount={c.projectId ? getProjectHistory(c.projectId).length + 1 : null} lapNumber={lapNumbers[c.id] || null} />)}
                             {!activeSession.boulderEndedAt && (
                               <button onClick={openBoulderAdd} style={{ width: "100%", padding: "10px", background: W.green, border: `2px solid ${W.greenDark}`, borderRadius: 12, color: W.greenDark, fontWeight: 700, fontSize: 13, cursor: "pointer", marginTop: 2 }}>+ Boulder Climb</button>
                             )}
