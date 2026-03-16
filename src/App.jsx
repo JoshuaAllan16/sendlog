@@ -3770,56 +3770,63 @@ export default function App() {
               })()}
               {!isCollapsed && (
                 <div>
-                  {/* Boulder Section */}
-                  {activeSession?.boulderStartedAt && (
-                    <div ref={boulderListRef} style={{ marginBottom: 16 }}>
-                      <BoulderRopeSessionCard type="boulder" totalSec={activeSession.boulderTotalSec || 0} activeStart={activeSession.boulderActiveStart || null} isEnded={!!activeSession.boulderEndedAt} tick={sessionTimer} onPause={pauseBoulderSession} onResume={resumeBoulderSession} pausedAt={activeSession.boulderPausedAt || null} collapsed={!!activeSession.collapsedSections?.boulder} onToggleCollapse={() => setActiveSession(s => ({ ...s, collapsedSections: { ...(s.collapsedSections || {}), boulder: !s.collapsedSections?.boulder } }))} />
-                      {!activeSession.collapsedSections?.boulder && (
-                        <div style={{ borderLeft: `3px solid ${W.greenDark}44`, paddingLeft: 10, marginLeft: 2 }}>
-                          {boulderClimbs.filter(c => !c.completed).sort((a, b) => (b.climbingStartedAt ? 1 : 0) - (a.climbingStartedAt ? 1 : 0)).map(c => <ActiveClimbCard key={c.id} climb={c} {...cardProps} onStartClimbing={id => { startClimbing(id); setTimeout(() => boulderListRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 80); }} sessionCount={c.projectId ? getProjectHistory(c.projectId).length + 1 : null} lapNumber={lapNumbers[c.id] || null} />)}
-                          {!activeSession.boulderEndedAt && (
-                            <button onClick={openBoulderAdd} style={{ width: "100%", padding: "10px", background: W.green, border: `2px solid ${W.greenDark}`, borderRadius: 12, color: W.greenDark, fontWeight: 700, fontSize: 13, cursor: "pointer", marginTop: 2 }}>+ Boulder Climb</button>
-                          )}
-                          {boulderClimbs.filter(c => c.completed).length > 0 && (
-                            <>
-                              <button onClick={() => setShowSentBoulders(v => !v)} style={{ width: "100%", display: "flex", alignItems: "center", justifyContent: "space-between", padding: "8px 10px", marginTop: 6, background: W.green + "33", border: `1px solid ${W.greenDark}44`, borderRadius: 10, color: W.greenDark, fontWeight: 700, fontSize: 12, cursor: "pointer" }}>
-                                <span>✓ Sent ({boulderClimbs.filter(c => c.completed).length})</span>
-                                <span>{showSentBoulders ? "▲" : "▼"}</span>
-                              </button>
-                              {showSentBoulders && boulderClimbs.filter(c => c.completed).map(c => <ActiveClimbCard key={c.id} climb={c} {...cardProps} sessionCount={c.projectId ? getProjectHistory(c.projectId).length + 1 : null} lapNumber={lapNumbers[c.id] || null} />)}
-                            </>
-                          )}
-                        </div>
-                      )}
-                    </div>
-                  )}
-                  {/* Rope Section */}
-                  {activeSession?.ropeStartedAt && (
-                    <div style={{ marginBottom: 16 }}>
-                      <BoulderRopeSessionCard type="rope" totalSec={activeSession.ropeTotalSec || 0} activeStart={activeSession.ropeActiveStart || null} isEnded={!!activeSession.ropeEndedAt} tick={sessionTimer} onPause={pauseRopeSession} onResume={resumeRopeSession} pausedAt={activeSession.ropePausedAt || null} collapsed={!!activeSession.collapsedSections?.rope} onToggleCollapse={() => setActiveSession(s => ({ ...s, collapsedSections: { ...(s.collapsedSections || {}), rope: !s.collapsedSections?.rope } }))} />
-                      {!activeSession.collapsedSections?.rope && (
-                        <div style={{ borderLeft: `3px solid ${W.purpleDark}44`, paddingLeft: 10, marginLeft: 2 }}>
-                          {ropeClimbs.filter(c => !c.completed).map(c => <ActiveClimbCard key={c.id} climb={c} {...cardProps} sessionCount={c.projectId ? getProjectHistory(c.projectId).length + 1 : null} lapNumber={lapNumbers[c.id] || null} />)}
-                          {!activeSession.ropeEndedAt && (
-                            <button onClick={() => openClimbForm(null, null, "rope")} style={{ width: "100%", padding: "10px", background: W.purple, border: `2px solid ${W.purpleDark}`, borderRadius: 12, color: W.purpleDark, fontWeight: 700, fontSize: 13, cursor: "pointer", marginTop: 2 }}>+ Rope Climb</button>
-                          )}
-                          {ropeClimbs.filter(c => c.completed).length > 0 && (
-                            <>
-                              <button onClick={() => setShowSentRope(v => !v)} style={{ width: "100%", display: "flex", alignItems: "center", justifyContent: "space-between", padding: "8px 10px", marginTop: 6, background: W.purple + "33", border: `1px solid ${W.purpleDark}44`, borderRadius: 10, color: W.purpleDark, fontWeight: 700, fontSize: 12, cursor: "pointer" }}>
-                                <span>✓ Sent ({ropeClimbs.filter(c => c.completed).length})</span>
-                                <span>{showSentRope ? "▲" : "▼"}</span>
-                              </button>
-                              {showSentRope && ropeClimbs.filter(c => c.completed).map(c => <ActiveClimbCard key={c.id} climb={c} {...cardProps} sessionCount={c.projectId ? getProjectHistory(c.projectId).length + 1 : null} lapNumber={lapNumbers[c.id] || null} />)}
-                            </>
-                          )}
-                        </div>
-                      )}
-                    </div>
-                  )}
-                  {/* Speed Sessions */}
-                  {speedSessions.length > 0 && (
-                    <>{speedSessions.map((c, i) => <SpeedSessionCard key={c.id} climb={c} tick={sessionTimer} index={i} totalCount={speedSessions.length} onAddAttempt={a => addSpeedAttempt(c.id, a)} onRemove={() => removeSpeedSession(c.id)} onEnd={() => endSpeedSession(c.id)} onPause={() => pauseSpeedSession(c.id)} onResume={() => resumeSpeedSession(c.id)} />)}</>
-                  )}
+                  {/* Sections sorted by start time — most recently added first */}
+                  {[
+                    activeSession?.boulderStartedAt ? { key: "boulder", t: activeSession.boulderStartedAt } : null,
+                    activeSession?.ropeStartedAt    ? { key: "rope",    t: activeSession.ropeStartedAt    } : null,
+                    speedSessions.length > 0        ? { key: "speed",   t: speedSessions[0].loggedAt || speedSessions[0].id } : null,
+                  ].filter(Boolean).sort((a, b) => b.t - a.t).map(({ key }) => {
+                    if (key === "boulder") return (
+                      <div key="boulder" ref={boulderListRef} style={{ marginBottom: 16 }}>
+                        <BoulderRopeSessionCard type="boulder" totalSec={activeSession.boulderTotalSec || 0} activeStart={activeSession.boulderActiveStart || null} isEnded={!!activeSession.boulderEndedAt} tick={sessionTimer} onPause={pauseBoulderSession} onResume={resumeBoulderSession} pausedAt={activeSession.boulderPausedAt || null} collapsed={!!activeSession.collapsedSections?.boulder} onToggleCollapse={() => setActiveSession(s => ({ ...s, collapsedSections: { ...(s.collapsedSections || {}), boulder: !s.collapsedSections?.boulder } }))} />
+                        {!activeSession.collapsedSections?.boulder && (
+                          <div style={{ borderLeft: `3px solid ${W.greenDark}44`, paddingLeft: 10, marginLeft: 2 }}>
+                            {boulderClimbs.filter(c => !c.completed).sort((a, b) => (b.climbingStartedAt ? 1 : 0) - (a.climbingStartedAt ? 1 : 0)).map(c => <ActiveClimbCard key={c.id} climb={c} {...cardProps} onStartClimbing={id => { startClimbing(id); setTimeout(() => boulderListRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 80); }} sessionCount={c.projectId ? getProjectHistory(c.projectId).length + 1 : null} lapNumber={lapNumbers[c.id] || null} />)}
+                            {!activeSession.boulderEndedAt && (
+                              <button onClick={openBoulderAdd} style={{ width: "100%", padding: "10px", background: W.green, border: `2px solid ${W.greenDark}`, borderRadius: 12, color: W.greenDark, fontWeight: 700, fontSize: 13, cursor: "pointer", marginTop: 2 }}>+ Boulder Climb</button>
+                            )}
+                            {boulderClimbs.filter(c => c.completed).length > 0 && (
+                              <>
+                                <button onClick={() => setShowSentBoulders(v => !v)} style={{ width: "100%", display: "flex", alignItems: "center", justifyContent: "space-between", padding: "8px 10px", marginTop: 6, background: W.green + "33", border: `1px solid ${W.greenDark}44`, borderRadius: 10, color: W.greenDark, fontWeight: 700, fontSize: 12, cursor: "pointer" }}>
+                                  <span>✓ Sent ({boulderClimbs.filter(c => c.completed).length})</span>
+                                  <span>{showSentBoulders ? "▲" : "▼"}</span>
+                                </button>
+                                {showSentBoulders && boulderClimbs.filter(c => c.completed).map(c => <ActiveClimbCard key={c.id} climb={c} {...cardProps} sessionCount={c.projectId ? getProjectHistory(c.projectId).length + 1 : null} lapNumber={lapNumbers[c.id] || null} />)}
+                              </>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    );
+                    if (key === "rope") return (
+                      <div key="rope" style={{ marginBottom: 16 }}>
+                        <BoulderRopeSessionCard type="rope" totalSec={activeSession.ropeTotalSec || 0} activeStart={activeSession.ropeActiveStart || null} isEnded={!!activeSession.ropeEndedAt} tick={sessionTimer} onPause={pauseRopeSession} onResume={resumeRopeSession} pausedAt={activeSession.ropePausedAt || null} collapsed={!!activeSession.collapsedSections?.rope} onToggleCollapse={() => setActiveSession(s => ({ ...s, collapsedSections: { ...(s.collapsedSections || {}), rope: !s.collapsedSections?.rope } }))} />
+                        {!activeSession.collapsedSections?.rope && (
+                          <div style={{ borderLeft: `3px solid ${W.purpleDark}44`, paddingLeft: 10, marginLeft: 2 }}>
+                            {ropeClimbs.filter(c => !c.completed).map(c => <ActiveClimbCard key={c.id} climb={c} {...cardProps} sessionCount={c.projectId ? getProjectHistory(c.projectId).length + 1 : null} lapNumber={lapNumbers[c.id] || null} />)}
+                            {!activeSession.ropeEndedAt && (
+                              <button onClick={() => openClimbForm(null, null, "rope")} style={{ width: "100%", padding: "10px", background: W.purple, border: `2px solid ${W.purpleDark}`, borderRadius: 12, color: W.purpleDark, fontWeight: 700, fontSize: 13, cursor: "pointer", marginTop: 2 }}>+ Rope Climb</button>
+                            )}
+                            {ropeClimbs.filter(c => c.completed).length > 0 && (
+                              <>
+                                <button onClick={() => setShowSentRope(v => !v)} style={{ width: "100%", display: "flex", alignItems: "center", justifyContent: "space-between", padding: "8px 10px", marginTop: 6, background: W.purple + "33", border: `1px solid ${W.purpleDark}44`, borderRadius: 10, color: W.purpleDark, fontWeight: 700, fontSize: 12, cursor: "pointer" }}>
+                                  <span>✓ Sent ({ropeClimbs.filter(c => c.completed).length})</span>
+                                  <span>{showSentRope ? "▲" : "▼"}</span>
+                                </button>
+                                {showSentRope && ropeClimbs.filter(c => c.completed).map(c => <ActiveClimbCard key={c.id} climb={c} {...cardProps} sessionCount={c.projectId ? getProjectHistory(c.projectId).length + 1 : null} lapNumber={lapNumbers[c.id] || null} />)}
+                              </>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    );
+                    if (key === "speed") return (
+                      <div key="speed">
+                        {speedSessions.map((c, i) => <SpeedSessionCard key={c.id} climb={c} tick={sessionTimer} index={i} totalCount={speedSessions.length} onAddAttempt={a => addSpeedAttempt(c.id, a)} onRemove={() => removeSpeedSession(c.id)} onEnd={() => endSpeedSession(c.id)} onPause={() => pauseSpeedSession(c.id)} onResume={() => resumeSpeedSession(c.id)} />)}
+                      </div>
+                    );
+                    return null;
+                  })}
                 </div>
               )}
             </div>
