@@ -1685,11 +1685,12 @@ export default function App() {
   // This helper returns the true total attempts (falls + 1 if sent).
   // For rope, tries already counts every attempt including the topped one.
   const climbAttempts = (c) => (c.tries || 0) + (c.climbType !== "rope" && c.completed ? 1 : 0);
+  const wasAttempted = (c) => c.completed || (c.tries || 0) > 0;
 
   const getStats = (overrideSessions) => {
     const tfSessions = overrideSessions !== undefined ? overrideSessions : getTimeframeSessions();
     const tfClimbs = tfSessions.flatMap(s => s.climbs);
-    const base = tfClimbs.filter(c => (statsScaleFilter === "All Scales" || c.scale === statsScaleFilter) && (statsGradeFilter === "All" || c.grade === statsGradeFilter));
+    const base = tfClimbs.filter(c => wasAttempted(c) && (statsScaleFilter === "All Scales" || c.scale === statsScaleFilter) && (statsGradeFilter === "All" || c.grade === statsGradeFilter));
     const completed = base.filter(c => c.completed);
     const flashes   = completed.filter(c => c.tries === 0);
     const flashRate = base.length ? Math.round((flashes.length / base.length) * 100) : 0;
@@ -1823,7 +1824,7 @@ export default function App() {
   };
 
   const getSessionStats = (session) => {
-    const climbs = (session.climbs || []).filter(c => c.climbType !== "speed-session");
+    const climbs = (session.climbs || []).filter(c => c.climbType !== "speed-session" && wasAttempted(c));
     const sends = climbs.filter(c => c.completed).length;
     const total  = climbs.length;
     const totalTries = climbs.reduce((s, c) => s + climbAttempts(c), 0);
@@ -3225,8 +3226,8 @@ export default function App() {
     const hasAnyFitnessActivity = !!(activeSession?.workoutStartedAt || activeSession?.fingerboardStartedAt || (activeSession?.fitnessSections || []).length > 0);
     const boulderClimbs = allClimbs.filter(c => c.climbType !== "speed-session" && (c.climbType === "boulder" || !c.climbType));
     const ropeClimbs    = allClimbs.filter(c => c.climbType === "rope");
-    const regularSends = allClimbs.filter(c => c.climbType !== "speed-session" && c.completed).length;
-    const regularTotal = allClimbs.filter(c => c.climbType !== "speed-session").length;
+    const regularSends = allClimbs.filter(c => c.climbType !== "speed-session" && wasAttempted(c) && c.completed).length;
+    const regularTotal = allClimbs.filter(c => c.climbType !== "speed-session" && wasAttempted(c)).length;
     // Compute lap numbers: climbs sharing a climbGroupId or setClimbId get numbered 1,2,3…
     const lapNumbers = {};
     const grouped = {};
@@ -4396,7 +4397,7 @@ export default function App() {
           </div>
         </div>
         {(() => {
-          const climbs = (session.climbs || []).filter(c => c.climbType !== "speed-session");
+          const climbs = (session.climbs || []).filter(c => c.climbType !== "speed-session" && wasAttempted(c));
           const totalAttempts = climbs.reduce((s, c) => s + climbAttempts(c), 0);
           const mostAttempts  = climbs.length ? Math.max(...climbs.map(c => climbAttempts(c))) : 0;
           const sendRate      = climbs.length ? Math.round((climbs.filter(c => c.completed).length / climbs.length) * 100) : 0;
