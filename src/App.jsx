@@ -279,6 +279,7 @@ export default function App() {
   const [showMoreClimbTypes, setShowMoreClimbTypes] = useState(false);
   const [showSentBoulders, setShowSentBoulders]     = useState(false);
   const [showSentRope, setShowSentRope]             = useState(false);
+  const [showClimbTypeDropdown, setShowClimbTypeDropdown] = useState(false);
   const [warmupNewItemText, setWarmupNewItemText]         = useState("");
   const [defaultWarmupItems, setDefaultWarmupItems]       = useState(DEFAULT_WARMUP_ITEMS);
   const [warmupTemplates, setWarmupTemplates]             = useState([{ id: 1, name: "Standard", items: DEFAULT_WARMUP_ITEMS }]);
@@ -3712,16 +3713,34 @@ export default function App() {
                       <div style={{ fontWeight: 900, color: W.accent, fontSize: 22, letterSpacing: 0.5, marginBottom: 3 }}>Climbing</div>
                       <div style={{ fontSize: 36, fontWeight: 900, color: W.accent, fontVariantNumeric: "tabular-nums", letterSpacing: 1, lineHeight: 1 }}>{formatDuration(climbTotalSec)}</div>
                     </div>
-                    <button onClick={() => setActiveSession(s => ({ ...s, collapsedSections: { ...(s.collapsedSections || {}), climbingSection: !s.collapsedSections?.climbingSection } }))} style={{ background: "none", border: `1px solid ${W.accentDark}44`, borderRadius: 8, color: W.accent, fontSize: 15, cursor: "pointer", padding: "4px 10px", lineHeight: 1, marginTop: 2 }}>{isCollapsed ? "▼" : "▲"}</button>
+                    <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 6, marginTop: 2, position: "relative" }}>
+                      <button onClick={() => setActiveSession(s => ({ ...s, collapsedSections: { ...(s.collapsedSections || {}), climbingSection: !s.collapsedSections?.climbingSection } }))} style={{ background: "none", border: `1px solid ${W.accentDark}44`, borderRadius: 8, color: W.accent, fontSize: 15, cursor: "pointer", padding: "4px 10px", lineHeight: 1 }}>{isCollapsed ? "▼" : "▲"}</button>
+                      {hasAnyClimbActivity && (
+                        <button onClick={() => setShowClimbTypeDropdown(v => !v)} style={{ background: showClimbTypeDropdown ? W.accent : "none", border: `1px solid ${W.accentDark}44`, borderRadius: 8, color: showClimbTypeDropdown ? "#fff" : W.accent, fontSize: 18, fontWeight: 900, cursor: "pointer", padding: "2px 10px", lineHeight: 1 }}>+</button>
+                      )}
+                      {hasAnyClimbActivity && showClimbTypeDropdown && (() => {
+                        const dropOpts = [
+                          { id: "boulder", label: "Bouldering", icon: "🪨", bg: W.green,  tc: W.greenDark,  fn: openBoulderAdd,                        hide: !!activeSession?.boulderStartedAt },
+                          { id: "rope",    label: "Rope",        icon: "🪢", bg: W.purple, tc: W.purpleDark, fn: () => openClimbForm(null, null, "rope"), hide: !!activeSession?.ropeStartedAt },
+                          { id: "speed",   label: "Speed",       icon: "⚡", bg: W.yellow, tc: W.yellowDark, fn: addSpeedSession,                        hide: false },
+                          { id: "warmup",  label: "Warm Up",     icon: "🔥", bg: W.pink,   tc: W.pinkDark,   fn: startWarmupSection,                    hide: !!activeSession?.warmupStartedAt },
+                        ].filter(o => !o.hide);
+                        if (dropOpts.length === 0) return null;
+                        return (
+                          <div style={{ position: "absolute", top: "100%", right: 0, marginTop: 4, background: W.surface, border: `1.5px solid ${W.accentDark}44`, borderRadius: 14, overflow: "hidden", zIndex: 50, minWidth: 160, boxShadow: `0 4px 20px rgba(0,0,0,0.18)` }}>
+                            {dropOpts.map(opt => (
+                              <button key={opt.id} onClick={() => { opt.fn(); setShowClimbTypeDropdown(false); }} style={{ width: "100%", display: "flex", alignItems: "center", gap: 10, padding: "11px 14px", background: "transparent", border: "none", borderBottom: `1px solid ${W.border}`, cursor: "pointer", textAlign: "left" }}>
+                                <span style={{ fontSize: 18 }}>{opt.icon}</span>
+                                <span style={{ fontWeight: 700, fontSize: 13, color: opt.tc }}>{opt.label}</span>
+                              </button>
+                            ))}
+                          </div>
+                        );
+                      })()}
+                    </div>
                   </div>
                   {regularTotal > 0 && <div style={{ fontSize: 12, color: W.textMuted, fontWeight: 600, marginBottom: 10 }}>{regularSends} sends · {regularTotal} climbs{speedSessions.length > 0 ? ` · ${speedSessions.reduce((t, s) => t + (s.attempts||[]).length, 0)} speed attempts` : ""}</div>}
-                  {hasAnyClimbActivity ? (
-                    <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                      {!activeSession?.boulderEndedAt && <button onClick={openBoulderAdd} style={{ padding: "8px 14px", background: W.green, border: `1.5px solid ${W.greenDark}`, borderRadius: 10, color: W.greenDark, fontWeight: 700, fontSize: 13, cursor: "pointer" }}>+ Boulder</button>}
-                      {!activeSession?.ropeEndedAt && <button onClick={() => openClimbForm(null, null, "rope")} style={{ padding: "8px 14px", background: W.purple, border: `1.5px solid ${W.purpleDark}`, borderRadius: 10, color: W.purpleDark, fontWeight: 700, fontSize: 13, cursor: "pointer" }}>+ Rope</button>}
-                      <button onClick={addSpeedSession} style={{ padding: "8px 14px", background: W.yellow, border: `1.5px solid ${W.yellowDark}`, borderRadius: 10, color: W.yellowDark, fontWeight: 700, fontSize: 13, cursor: "pointer" }}>+ Speed</button>
-                    </div>
-                  ) : (
+                  {!hasAnyClimbActivity && (
                     <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginTop: 4 }}>
                       {[
                         { id: "boulder", label: "Bouldering", icon: "🪨", bg: W.green,  tc: W.greenDark,  fn: openBoulderAdd },
