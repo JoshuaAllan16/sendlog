@@ -329,6 +329,7 @@ export default function App() {
   const [sessionTypeOrder, setSessionTypeOrder]               = useState(["boulder","rope","speed","warmup","workout","fingerboard","fitness"]);
   const [colorTheme, setColorTheme]             = useState("espresso");
   const [showEndConfirm, setShowEndConfirm]     = useState(false);
+  const [showRemoveQueuedPrompt, setShowRemoveQueuedPrompt] = useState(false);
   const [showProjectPrompt, setShowProjectPrompt] = useState(false);
   const [projectPromptChecked, setProjectPromptChecked] = useState({});
   const [sessionSummary, setSessionSummary]     = useState(null);
@@ -1361,10 +1362,10 @@ export default function App() {
         : c),
     };
   });
-  const endSession = () => {
+  const endSession = (climbsOverride) => {
     if (!activeSession) return;
     const now = Date.now();
-    let final = { ...activeSession };
+    let final = climbsOverride !== undefined ? { ...activeSession, climbs: climbsOverride } : { ...activeSession };
     // Flush any active type timers
     if (final.boulderActiveStart) {
       final.boulderTotalSec = (final.boulderTotalSec || 0) + Math.max(0, Math.floor((now - final.boulderActiveStart) / 1000));
@@ -3228,6 +3229,7 @@ export default function App() {
     const ropeClimbs    = allClimbs.filter(c => c.climbType === "rope");
     const regularSends = allClimbs.filter(c => c.climbType !== "speed-session" && wasAttempted(c) && c.completed).length;
     const regularTotal = allClimbs.filter(c => c.climbType !== "speed-session" && wasAttempted(c)).length;
+    const queuedCount  = allClimbs.filter(c => c.climbType !== "speed-session" && !wasAttempted(c)).length;
     // Compute lap numbers: climbs sharing a climbGroupId or setClimbId get numbered 1,2,3…
     const lapNumbers = {};
     const grouped = {};
@@ -3728,7 +3730,7 @@ export default function App() {
                       )}
                     </div>
                   </div>
-                  {regularTotal > 0 && <div style={{ fontSize: 12, color: W.textMuted, fontWeight: 600, marginBottom: 10 }}>{regularSends} sends · {regularTotal} climbs{speedSessions.length > 0 ? ` · ${speedSessions.reduce((t, s) => t + (s.attempts||[]).length, 0)} speed attempts` : ""}</div>}
+                  {(regularTotal > 0 || queuedCount > 0) && <div style={{ fontSize: 12, color: W.textMuted, fontWeight: 600, marginBottom: 10 }}>{regularTotal > 0 ? `${regularSends} sends · ${regularTotal} climbs` : "no attempts yet"}{queuedCount > 0 ? <span style={{ color: W.textDim, fontWeight: 500 }}> · {queuedCount} queued</span> : ""}{speedSessions.length > 0 ? ` · ${speedSessions.reduce((t, s) => t + (s.attempts||[]).length, 0)} speed attempts` : ""}</div>}
                   {!hasAnyClimbActivity && (
                     <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginTop: 4 }}>
                       {[
@@ -4321,6 +4323,30 @@ export default function App() {
             </div>
           );
         })()}
+        {showRemoveQueuedPrompt && (
+          <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", zIndex: 200, display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
+            <div style={{ background: W.surface, borderRadius: 20, padding: "28px 24px", width: "100%", maxWidth: 340, boxShadow: "0 20px 60px rgba(0,0,0,0.3)" }}>
+              <div style={{ fontSize: 20, fontWeight: 900, color: W.text, marginBottom: 8 }}>Remove queued climbs?</div>
+              <div style={{ fontSize: 13, color: W.textMuted, marginBottom: 20 }}>
+                {queuedCount} climb{queuedCount !== 1 ? "s" : ""} {queuedCount !== 1 ? "were" : "was"} added but never attempted. Remove {queuedCount !== 1 ? "them" : "it"} from the session log?
+              </div>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+                <button onClick={() => {
+                  setShowRemoveQueuedPrompt(false);
+                  const unsent = (activeSession?.climbs || []).filter(c => !c.completed && c.climbType !== "speed-session" && wasAttempted(c));
+                  if (unsent.length > 0) { setProjectPromptChecked({}); setShowProjectPrompt(true); } else { endSession(); }
+                }} style={{ padding: "13px", background: "transparent", border: `2px solid ${W.border}`, borderRadius: 12, color: W.textMuted, fontWeight: 700, fontSize: 14, cursor: "pointer" }}>Keep</button>
+                <button onClick={() => {
+                  const filteredClimbs = (activeSession?.climbs || []).filter(c => wasAttempted(c) || c.climbType === "speed-session");
+                  setActiveSession(s => ({ ...s, climbs: filteredClimbs }));
+                  setShowRemoveQueuedPrompt(false);
+                  const unsent = filteredClimbs.filter(c => !c.completed && c.climbType !== "speed-session" && wasAttempted(c));
+                  if (unsent.length > 0) { setProjectPromptChecked({}); setShowProjectPrompt(true); } else { endSession(filteredClimbs); }
+                }} style={{ padding: "13px", background: `linear-gradient(135deg, ${W.redDark}, #b91c1c)`, border: "none", borderRadius: 12, color: "#fff", fontWeight: 800, fontSize: 14, cursor: "pointer" }}>Remove</button>
+              </div>
+            </div>
+          </div>
+        )}
         {showEndConfirm && (
           <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", zIndex: 200, display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
             <div style={{ background: W.surface, borderRadius: 20, padding: "28px 24px", width: "100%", maxWidth: 340, boxShadow: "0 20px 60px rgba(0,0,0,0.3)" }}>
@@ -4331,19 +4357,18 @@ export default function App() {
                   <div style={{ color: "#fff", fontSize: 42, fontWeight: 900, letterSpacing: 3, lineHeight: 1 }}>{formatDuration(sessionTimer)}</div>
                 </div>
                 <div style={{ fontSize: 13, color: W.textMuted }}>
-                  {regularSends} sends · {regularTotal} climbs · {speedSessions.length > 0 ? `${speedSessions.reduce((t, s) => t + (s.attempts||[]).length, 0)} speed attempts` : ""}
+                  {regularTotal > 0 ? `${regularSends} sends · ${regularTotal} climbs` : "no attempts yet"}{queuedCount > 0 ? ` · ${queuedCount} queued` : ""}{speedSessions.length > 0 ? ` · ${speedSessions.reduce((t, s) => t + (s.attempts||[]).length, 0)} speed attempts` : ""}
                 </div>
               </div>
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
                 <button onClick={() => setShowEndConfirm(false)} style={{ padding: "13px", background: "transparent", border: `2px solid ${W.border}`, borderRadius: 12, color: W.textMuted, fontWeight: 700, fontSize: 14, cursor: "pointer" }}>Keep Going</button>
                 <button onClick={() => {
-                  const unsent = (activeSession?.climbs || []).filter(c => !c.completed && c.climbType !== "speed-session");
-                  if (unsent.length > 0) {
-                    setProjectPromptChecked({});
-                    setShowEndConfirm(false);
-                    setShowProjectPrompt(true);
+                  setShowEndConfirm(false);
+                  if (queuedCount > 0) {
+                    setShowRemoveQueuedPrompt(true);
                   } else {
-                    endSession();
+                    const unsent = (activeSession?.climbs || []).filter(c => !c.completed && c.climbType !== "speed-session" && wasAttempted(c));
+                    if (unsent.length > 0) { setProjectPromptChecked({}); setShowProjectPrompt(true); } else { endSession(); }
                   }
                 }} style={{ padding: "13px", background: `linear-gradient(135deg, ${W.redDark}, #b91c1c)`, border: "none", borderRadius: 12, color: "#fff", fontWeight: 800, fontSize: 14, cursor: "pointer" }}>End It</button>
               </div>

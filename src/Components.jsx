@@ -267,6 +267,7 @@ export const ActiveClimbCard = ({ climb, onEdit, onStartClimbing, onEndAttempt, 
   const isRope = climb.climbType === "rope";
   const hasPhoto = !!climb.photo;
   const isActivelyClimbing = !!climb.climbingStartedAt;
+  const isQueued = !climb.completed && (climb.tries || 0) === 0 && !climb.climbingStartedAt && !climb.lastAttemptEndedAt && !climb.paused;
 
   const restSec = !climb.climbingStartedAt && !climb.paused && climb.lastAttemptEndedAt
     ? Math.max(0, Math.floor((Date.now() - climb.lastAttemptEndedAt) / 1000)) : null;
@@ -324,6 +325,7 @@ export const ActiveClimbCard = ({ climb, onEdit, onStartClimbing, onEndAttempt, 
       border: `2px solid ${outerBorderColor}`,
       marginBottom: isActivelyClimbing ? 14 : 10,
       overflow: "hidden",
+      opacity: isQueued ? 0.55 : 1,
       boxShadow: isActivelyClimbing ? `0 0 0 2px ${W.greenDark}, 0 8px 28px ${W.greenDark}44` : hasPhoto ? "0 4px 14px rgba(0,0,0,0.28)" : "none",
       background: !isRope && !hasPhoto ? `linear-gradient(135deg, ${getGradeColor(climb.grade)}${isActivelyClimbing ? "50" : "2e"} 0%, ${W.surface} ${isActivelyClimbing ? "70%" : "55%"})` : W.surface,
     }}>
@@ -379,6 +381,7 @@ export const ActiveClimbCard = ({ climb, onEdit, onStartClimbing, onEndAttempt, 
                 {lapNumber && <span style={{ background: T.sectionBg, color: T.textMuted, borderRadius: 6, padding: "1px 6px", fontSize: 10, fontWeight: 700, border: `1px solid ${T.border}` }}>Lap {lapNumber}</span>}
                 {isFlash && <span style={{ background: W.yellow, color: W.yellowDark, borderRadius: 6, padding: "1px 6px", fontSize: 10, fontWeight: 700 }}>⚡ FLASH</span>}
                 {climb.paused && <span style={{ background: W.yellow, color: W.yellowDark, borderRadius: 6, padding: "1px 6px", fontSize: 10, fontWeight: 700 }}>⏸ PAUSED</span>}
+                {isQueued && <span style={{ background: W.surface2, color: W.textDim, borderRadius: 6, padding: "1px 6px", fontSize: 10, fontWeight: 700, border: `1px solid ${W.border}` }}>QUEUED</span>}
               </div>
               {climb.comments && <div style={{ fontSize: 11, color: T.textDim, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: "100%" }}>{climb.comments}</div>}
               <TagChips wallTypes={climb.wallTypes} holdTypes={climb.holdTypes} />
@@ -398,6 +401,7 @@ export const ActiveClimbCard = ({ climb, onEdit, onStartClimbing, onEndAttempt, 
                 {lapNumber && <span style={{ background: T.sectionBg, color: T.textMuted, borderRadius: 6, padding: "1px 6px", fontSize: 10, fontWeight: 700, border: `1px solid ${T.border}` }}>Lap {lapNumber}</span>}
                 {climb.ropeStyle && <span style={{ background: W.purple, color: W.purpleDark, borderRadius: 6, padding: "1px 6px", fontSize: 10, fontWeight: 700 }}>{climb.ropeStyle === "top-rope" ? "🔝 TR" : "🧗 Lead"}</span>}
                 {climb.paused && <span style={{ background: W.yellow, color: W.yellowDark, borderRadius: 6, padding: "1px 6px", fontSize: 10, fontWeight: 700 }}>⏸ PAUSED</span>}
+                {isQueued && <span style={{ background: W.surface2, color: W.textDim, borderRadius: 6, padding: "1px 6px", fontSize: 10, fontWeight: 700, border: `1px solid ${W.border}` }}>QUEUED</span>}
               </div>
               {climb.comments && <div style={{ fontSize: 11, color: T.textDim, marginTop: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{climb.comments}</div>}
               <TagChips wallTypes={climb.wallTypes} holdTypes={climb.holdTypes} />
