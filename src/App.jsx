@@ -360,6 +360,8 @@ export default function App() {
   const [logbookSort, setLogbookSort]       = useState("date");
   const [logbookView, setLogbookView]       = useState("climbs");
   const [logbookFiltersOpen, setLogbookFiltersOpen] = useState(false);
+  const [logbookColorFilter, setLogbookColorFilter] = useState("All");
+  const [logbookTickList, setLogbookTickList]       = useState(false);
   const [logbookGymFilter, setLogbookGymFilter]     = useState("All Gyms");
   const [sessionTypeFilter, setSessionTypeFilter]   = useState("all");
   const [sessionSort, setSessionSort]               = useState("date");
@@ -1620,6 +1622,7 @@ export default function App() {
         if (logbookFilter === "incomplete" && c.completed) return false;
         if (logbookScale !== "All Scales" && c.scale !== logbookScale) return false;
         if (logbookGrade !== "All" && c.grade !== logbookGrade) return false;
+        if (logbookColorFilter !== "All" && c.color !== logbookColorFilter) return false;
         return true;
       });
     const photoFirst = (a, b) => (b.photo ? 1 : 0) - (a.photo ? 1 : 0);
@@ -1627,6 +1630,18 @@ export default function App() {
     else if (logbookSort === "easiest") climbs.sort((a, b) => { const d = getGradeIndex(a.grade, a.scale) - getGradeIndex(b.grade, b.scale); return d !== 0 ? d : photoFirst(a, b); });
     else if (logbookSort === "name") climbs.sort((a, b) => { const d = (a.name || a.grade).localeCompare(b.name || b.grade); return d !== 0 ? d : photoFirst(a, b); });
     else climbs.sort((a, b) => { const d = new Date(b.sessionDate) - new Date(a.sessionDate); return d !== 0 ? d : photoFirst(a, b); });
+    if (logbookTickList) {
+      // Keep best entry per unique climb identity (sent beats not-sent; first match wins after sort)
+      const seen = new Map();
+      for (const c of climbs) {
+        const key = c.name?.trim() ? `${c.name.trim()}-${c.grade}-${c.climbType || "boulder"}`
+          : c.projectId ? `pid-${c.projectId}`
+          : c.setClimbId ? `set-${c.setClimbId}`
+          : `solo-${c.id}`;
+        if (!seen.has(key) || (!seen.get(key).completed && c.completed)) seen.set(key, c);
+      }
+      climbs = [...seen.values()];
+    }
     return climbs;
   };
 
@@ -4058,7 +4073,7 @@ export default function App() {
     const logbookGrades = logbookScale === "Custom"
       ? ["All", ...customAllGrades]
       : logbookScale !== "All Scales" ? ["All", ...(GRADES[logbookScale] || [])] : ["All"];
-    const hasClimbFilters   = logbookFilter !== "all" || logbookScale !== "All Scales" || logbookGrade !== "All" || logbookSort !== "date";
+    const hasClimbFilters   = logbookFilter !== "all" || logbookScale !== "All Scales" || logbookGrade !== "All" || logbookSort !== "date" || logbookColorFilter !== "All" || logbookTickList;
     const hasSessionFilters = logbookGymFilter !== "All Gyms" || sessionSort !== "date" || sessionTypeFilter !== "all";
 
     const renderRoutinesPanel = () => {
@@ -5725,9 +5740,23 @@ export default function App() {
                       <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 12 }}>
                         {logbookGrades.map(g => <button key={g} onClick={() => setLogbookGrade(g)} style={{ padding: "5px 10px", borderRadius: 14, border: "2px solid", borderColor: logbookGrade === g ? W.accent : W.border, background: logbookGrade === g ? W.accent + "22" : W.surface, color: logbookGrade === g ? W.accent : W.textDim, cursor: "pointer", fontSize: 11, fontWeight: 700 }}>{g}</button>)}
                       </div>
+                      <Label>Hold Color</Label>
+                      <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 12 }}>
+                        <button onClick={() => setLogbookColorFilter("All")} style={{ padding: "5px 11px", borderRadius: 14, border: "2px solid", borderColor: logbookColorFilter === "All" ? W.accent : W.border, background: logbookColorFilter === "All" ? W.accent + "22" : W.surface, color: logbookColorFilter === "All" ? W.accent : W.textDim, cursor: "pointer", fontSize: 11, fontWeight: 600 }}>All</button>
+                        {CLIMB_COLORS.map(cc => (
+                          <button key={cc.id} onClick={() => setLogbookColorFilter(cc.id)} style={{ padding: "5px 10px", borderRadius: 14, border: "2px solid", borderColor: logbookColorFilter === cc.id ? cc.hex : W.border, background: logbookColorFilter === cc.id ? cc.hex + "22" : W.surface, cursor: "pointer", fontSize: 11, fontWeight: 600, display: "flex", alignItems: "center", gap: 5 }}>
+                            <div style={{ width: 11, height: 11, borderRadius: "50%", background: cc.hex, flexShrink: 0 }} />
+                            <span style={{ color: logbookColorFilter === cc.id ? W.text : W.textDim }}>{cc.label}</span>
+                          </button>
+                        ))}
+                      </div>
                       <Label>Sort</Label>
-                      <div style={{ display: "flex", gap: 8 }}>
+                      <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
                         {[["date", "📅 Newest"], ["hardest", "🔺 Hardest"], ["easiest", "🔻 Easiest"], ["name", "🔤 A–Z"]].map(([val, label]) => <button key={val} onClick={() => setLogbookSort(val)} style={{ padding: "6px 12px", borderRadius: 16, border: "2px solid", borderColor: logbookSort === val ? W.accent : W.border, background: logbookSort === val ? W.accent + "22" : W.surface, color: logbookSort === val ? W.accent : W.textDim, cursor: "pointer", fontSize: 12, fontWeight: 600 }}>{label}</button>)}
+                      </div>
+                      <Label>View</Label>
+                      <div style={{ display: "flex", gap: 8 }}>
+                        <button onClick={() => setLogbookTickList(t => !t)} style={{ padding: "6px 14px", borderRadius: 16, border: "2px solid", borderColor: logbookTickList ? W.accent : W.border, background: logbookTickList ? W.accent + "22" : W.surface, color: logbookTickList ? W.accent : W.textDim, cursor: "pointer", fontSize: 12, fontWeight: 600 }}>📋 Tick List</button>
                       </div>
                     </>
                   )}
@@ -7045,7 +7074,25 @@ export default function App() {
       const totalTimeSec  = Math.floor(totalTimeMs / 1000);
       const gradeColor    = getGradeColor(climb.grade);
       return (
-        <div style={{ position: "fixed", inset: 0, zIndex: 450, background: W.bg, overflowY: "auto", display: "flex", flexDirection: "column" }}>
+        <div
+          onTouchStart={e => { e.currentTarget._swipeY = e.touches[0].clientY; e.currentTarget._swipeScrollTop = e.currentTarget.scrollTop; }}
+          onTouchMove={e => {
+            const dy = e.touches[0].clientY - (e.currentTarget._swipeY || 0);
+            if (dy > 0 && (e.currentTarget._swipeScrollTop || 0) === 0) {
+              e.currentTarget.style.transform = `translateY(${Math.min(dy * 0.45, 110)}px)`;
+              e.currentTarget.style.opacity = `${Math.max(0.55, 1 - dy / 320)}`;
+            }
+          }}
+          onTouchEnd={e => {
+            const dy = e.changedTouches[0].clientY - (e.currentTarget._swipeY || 0);
+            if (dy > 100 && (e.currentTarget._swipeScrollTop || 0) === 0) {
+              setSelectedLogbookClimb(null);
+            } else {
+              e.currentTarget.style.transform = "";
+              e.currentTarget.style.opacity = "";
+            }
+          }}
+          style={{ position: "fixed", inset: 0, zIndex: 450, background: W.bg, overflowY: "auto", display: "flex", flexDirection: "column", transition: "transform 0.05s, opacity 0.05s" }}>
           {/* Header bar */}
           <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "16px 20px 12px", background: W.surface, borderBottom: `1px solid ${W.border}`, position: "sticky", top: 0, zIndex: 2 }}>
             <button onClick={() => setSelectedLogbookClimb(null)} style={{ background: W.surface2, border: `1px solid ${W.border}`, borderRadius: 10, padding: "7px 14px", color: W.text, fontWeight: 700, fontSize: 14, cursor: "pointer" }}>← Back</button>
