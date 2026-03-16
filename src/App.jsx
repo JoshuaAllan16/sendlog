@@ -2560,7 +2560,7 @@ export default function App() {
                 {climb.name && <span style={{ fontWeight: 700, color: W.text, fontSize: 14 }}>{climb.name}</span>}
               </div>
               <div style={{ display: "flex", gap: 12, flexWrap: "wrap", alignItems: "center" }}>
-                <span style={{ fontSize: 12, color: W.textMuted }}><span style={{ fontWeight: 700, color: W.text }}>{climb.tries || 0}</span> falls{climb.climbType !== "rope" && <> · <span style={{ fontWeight: 700, color: W.text }}>{climbAttempts(climb)}</span> attempts</>}</span>
+                <span style={{ fontSize: 12, color: W.textMuted }}>{climb.climbType === "rope" ? <><span style={{ fontWeight: 700, color: W.text }}>{climb.tries || 0}</span> attempts · <span style={{ fontWeight: 700, color: W.text }}>{climb.falls ?? 0}</span> falls{(climb.takes || 0) > 0 && <> · <span style={{ fontWeight: 700, color: W.text }}>{climb.takes}</span> takes</>}</> : <><span style={{ fontWeight: 700, color: W.text }}>{climb.tries || 0}</span> falls · <span style={{ fontWeight: 700, color: W.text }}>{climbAttempts(climb)}</span> attempts</>}</span>
                 {timeSec > 0 && <span style={{ fontSize: 12, color: W.textMuted }}><span style={{ fontWeight: 700, color: W.text }}>{formatDuration(timeSec)}</span> on climb</span>}
                 {climb._sessionCount > 1 && <span style={{ fontSize: 11, color: W.textMuted, fontWeight: 700 }}>🗓 {climb._sessionCount} sessions</span>}
                 <TagChips wallTypes={climb.wallTypes} holdTypes={climb.holdTypes} />
@@ -2601,7 +2601,7 @@ export default function App() {
           </div>
           <div style={{ padding: "10px 14px", display: "flex", gap: 14, alignItems: "center", flexWrap: "wrap" }}>
             {climb.name && <span style={{ fontWeight: 700, color: W.text, fontSize: 13 }}>{climb.name}</span>}
-            <span style={{ fontSize: 12, color: W.textMuted }}><span style={{ fontWeight: 700, color: W.text }}>{climb.tries || 0}</span> {climb.climbType === "rope" ? "attempts" : "falls"}</span>
+            <span style={{ fontSize: 12, color: W.textMuted }}>{climb.climbType === "rope" ? <><span style={{ fontWeight: 700, color: W.text }}>{climb.tries || 0}</span> attempts · <span style={{ fontWeight: 700, color: W.text }}>{climb.falls ?? 0}</span> falls{(climb.takes || 0) > 0 && <> · <span style={{ fontWeight: 700, color: W.text }}>{climb.takes}</span> takes</>}</> : <><span style={{ fontWeight: 700, color: W.text }}>{climb.tries || 0}</span> falls · <span style={{ fontWeight: 700, color: W.text }}>{climbAttempts(climb)}</span> attempts</>}</span>
             {timeSec > 0 && <span style={{ fontSize: 12, color: W.textMuted }}><span style={{ fontWeight: 700, color: W.text }}>{formatDuration(timeSec)}</span> on climb</span>}
             {climb._sessionCount > 1 && <span style={{ fontSize: 11, color: W.textMuted, fontWeight: 700 }}>🗓 {climb._sessionCount} sessions</span>}
             <TagChips wallTypes={climb.wallTypes} holdTypes={climb.holdTypes} />
@@ -2621,7 +2621,7 @@ export default function App() {
               {climb.isProject && <span style={{ background: W.pink, color: W.pinkDark, borderRadius: 6, padding: "1px 7px", fontSize: 10, fontWeight: 700 }}>PROJECT</span>}
               {climb.tries === 0 && climb.completed && <span style={{ background: W.yellow, color: W.yellowDark, borderRadius: 6, padding: "1px 7px", fontSize: 10, fontWeight: 700 }}>⚡ FLASH</span>}
             </div>
-            <div style={{ fontSize: 12, color: W.textMuted, marginTop: 2 }}>{climb.grade} · {climb.climbType === "rope" ? `${climb.tries} ${climb.tries === 1 ? "attempt" : "attempts"} · ${climb.falls ?? climb.tries} ${(climb.falls ?? climb.tries) === 1 ? "fall" : "falls"}` : `${climb.tries} ${climb.tries === 1 ? "fall" : "falls"}`} · {climb.completed ? "✓ Completed" : "✗ Not completed"}</div>
+            <div style={{ fontSize: 12, color: W.textMuted, marginTop: 2 }}>{climb.grade} · {climb.climbType === "rope" ? `${climb.tries || 0} ${(climb.tries || 0) === 1 ? "attempt" : "attempts"} · ${climb.falls ?? 0} ${(climb.falls ?? 0) === 1 ? "fall" : "falls"}${(climb.takes || 0) > 0 ? ` · ${climb.takes} ${climb.takes === 1 ? "take" : "takes"}` : ""}` : `${climb.tries || 0} ${(climb.tries || 0) === 1 ? "fall" : "falls"} · ${climbAttempts(climb)} ${climbAttempts(climb) === 1 ? "attempt" : "attempts"}`} · {climb.completed ? "✓ Completed" : "✗ Not completed"}</div>
             <TagChips wallTypes={climb.wallTypes} holdTypes={climb.holdTypes} />
             {!inlineEditing && climb.comments && <div style={{ fontSize: 12, color: W.textDim, marginTop: 3, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{climb.comments}</div>}
             {(climb.attemptLog || []).length > 0 && (
@@ -2773,10 +2773,12 @@ export default function App() {
           const hasWorkout    = (session.workoutTotalSec || 0) > 0;
           const hasFingerboard = (session.fingerboardTotalSec || 0) > 0;
           const hasFitness     = (session.fitnessSections || []).length > 0;
+          const sessionFlashes = (session.climbs || []).filter(c => c.completed && c.tries === 0 && c.climbType !== "speed-session").length;
           const typeChips  = [
             hasBoulder    && { label: "🪨 Boulder", bg: W.green,  tc: W.greenDark  },
             hasRope       && { label: "🪢 Rope",    bg: W.purple, tc: W.purpleDark },
             hasSpeed      && { label: "⚡ Speed",   bg: W.yellow, tc: W.yellowDark },
+            sessionFlashes > 0 && { label: `⚡ ${sessionFlashes} flash${sessionFlashes > 1 ? "es" : ""}`, bg: W.yellow, tc: W.yellowDark },
             hasWarmup     && { label: `🔥 ${formatDuration(session.warmupTotalSec)}`, bg: W.pink, tc: W.pinkDark },
             hasWorkout    && { label: `💪 ${formatDuration(session.workoutTotalSec)}`, bg: W.purple, tc: W.purpleDark },
             hasFingerboard && { label: `🤲 ${formatDuration(session.fingerboardTotalSec)}`, bg: W.yellow, tc: W.yellowDark },
@@ -3194,8 +3196,12 @@ export default function App() {
     ];
     const primaryBtns   = allTypeButtons.filter(b => selectedTypes.includes(b.type)).sort((a, b) => { const ai = sessionTypeOrder.indexOf(a.type); const bi = sessionTypeOrder.indexOf(b.type); return (ai === -1 ? 999 : ai) - (bi === -1 ? 999 : bi); });
     const secondaryBtns = allTypeButtons.filter(b => !selectedTypes.includes(b.type));
+    const hasClimbing = selectedTypes.some(t => ["boulder","rope","speed"].includes(t));
+    const hasFitness = selectedTypes.some(t => ["workout","fingerboard","fitness"].includes(t));
     const allClimbs = activeSession?.climbs || [];
     const speedSessions = allClimbs.filter(c => c.climbType === "speed-session");
+    const hasAnyClimbActivity = !!(activeSession?.boulderStartedAt || activeSession?.ropeStartedAt || speedSessions.length > 0);
+    const hasAnyFitnessActivity = !!(activeSession?.workoutStartedAt || activeSession?.fingerboardStartedAt || (activeSession?.fitnessSections || []).length > 0);
     const boulderClimbs = allClimbs.filter(c => c.climbType !== "speed-session" && (c.climbType === "boulder" || !c.climbType));
     const ropeClimbs    = allClimbs.filter(c => c.climbType === "rope");
     const regularSends = allClimbs.filter(c => c.climbType !== "speed-session" && c.completed).length;
@@ -3237,8 +3243,144 @@ export default function App() {
         )}
         {showClimbForm && ClimbFormPanel({ isActiveSession: true, onSave: saveClimbToActiveSession, onCancel: () => { setShowClimbForm(false); setPhotoPreview(null); setEditingClimbId(null); } })}
 
+        {/* ══ TRAINING ROUTINE PICKER (top-level, works regardless of section visibility) ══ */}
+        {!showClimbForm && trainingPickerType && (() => {
+          const isWarmup = trainingPickerType === "warmup";
+          const isWorkout = trainingPickerType === "workout";
+          const isFb = trainingPickerType === "fingerboard";
+          const routines = isWarmup ? warmupTemplates : isWorkout ? workoutRoutines : fingerboardRoutines;
+          const accentC = isWarmup ? W.pinkDark : isWorkout ? W.accentDark : W.yellowDark;
+          const bgC = isWarmup ? W.pink : isWorkout ? `${W.accent}22` : W.yellow;
+          const label = isWarmup ? "Warm Up" : isWorkout ? "Workout" : "Fingerboard";
+          const alreadyStarted = isWarmup ? !!activeSession?.warmupStartedAt : isWorkout ? !!activeSession?.workoutStartedAt : !!activeSession?.fingerboardStartedAt;
+          const handleRoutineSelect = (routine) => {
+            const items = (routine?.items || []).map(item => ({ ...item, id: Date.now() + Math.random(), checked: false }));
+            if (!alreadyStarted) {
+              if (isWarmup) {
+                setActiveSession(s => {
+                  const now = Date.now(), upd = {};
+                  if (s.boulderActiveStart) { upd.boulderTotalSec = (s.boulderTotalSec||0)+Math.max(0,Math.floor((now-s.boulderActiveStart)/1000)); upd.boulderActiveStart=null; upd.boulderPausedAt=now; }
+                  if (s.ropeActiveStart)    { upd.ropeTotalSec    = (s.ropeTotalSec   ||0)+Math.max(0,Math.floor((now-s.ropeActiveStart)   /1000)); upd.ropeActiveStart   =null; upd.ropePausedAt   =now; }
+                  return { ...s, ...upd, warmupStartedAt: now, warmupActiveStart: now, warmupTotalSec: 0, warmupPausedAt: null, warmupEndedAt: null, warmupChecklist: items };
+                });
+              } else if (isWorkout) {
+                setActiveSession(s => {
+                  const now = Date.now(), upd = {};
+                  if (s.boulderActiveStart)     { upd.boulderTotalSec=(s.boulderTotalSec||0)+Math.max(0,Math.floor((now-s.boulderActiveStart)/1000)); upd.boulderActiveStart=null; upd.boulderPausedAt=now; }
+                  if (s.ropeActiveStart)        { upd.ropeTotalSec=(s.ropeTotalSec||0)+Math.max(0,Math.floor((now-s.ropeActiveStart)/1000)); upd.ropeActiveStart=null; upd.ropePausedAt=now; }
+                  if (s.warmupActiveStart)      { upd.warmupTotalSec=(s.warmupTotalSec||0)+Math.max(0,Math.floor((now-s.warmupActiveStart)/1000)); upd.warmupActiveStart=null; upd.warmupPausedAt=now; }
+                  if (s.fingerboardActiveStart) { upd.fingerboardTotalSec=(s.fingerboardTotalSec||0)+Math.max(0,Math.floor((now-s.fingerboardActiveStart)/1000)); upd.fingerboardActiveStart=null; upd.fingerboardPausedAt=now; }
+                  return { ...s, ...upd, workoutStartedAt: now, workoutActiveStart: now, workoutTotalSec: 0, workoutPausedAt: null, workoutEndedAt: null, workoutChecklist: items };
+                });
+              } else {
+                setActiveSession(s => {
+                  const now = Date.now(), upd = {};
+                  if (s.boulderActiveStart)  { upd.boulderTotalSec=(s.boulderTotalSec||0)+Math.max(0,Math.floor((now-s.boulderActiveStart)/1000)); upd.boulderActiveStart=null; upd.boulderPausedAt=now; }
+                  if (s.ropeActiveStart)     { upd.ropeTotalSec=(s.ropeTotalSec||0)+Math.max(0,Math.floor((now-s.ropeActiveStart)/1000)); upd.ropeActiveStart=null; upd.ropePausedAt=now; }
+                  if (s.warmupActiveStart)   { upd.warmupTotalSec=(s.warmupTotalSec||0)+Math.max(0,Math.floor((now-s.warmupActiveStart)/1000)); upd.warmupActiveStart=null; upd.warmupPausedAt=now; }
+                  if (s.workoutActiveStart)  { upd.workoutTotalSec=(s.workoutTotalSec||0)+Math.max(0,Math.floor((now-s.workoutActiveStart)/1000)); upd.workoutActiveStart=null; upd.workoutPausedAt=now; }
+                  return { ...s, ...upd, fingerboardStartedAt: now, fingerboardActiveStart: now, fingerboardTotalSec: 0, fingerboardPausedAt: null, fingerboardEndedAt: null, fingerboardChecklist: items };
+                });
+              }
+            } else {
+              const key = isWarmup ? "warmupChecklist" : isWorkout ? "workoutChecklist" : "fingerboardChecklist";
+              setActiveSession(s => ({ ...s, [key]: [...(s[key] || []), ...items] }));
+            }
+            setTrainingPickerType(null);
+          };
+          return (
+            <div style={{ marginBottom: 14, background: W.surface, border: `2px solid ${accentC}44`, borderRadius: 14, padding: "16px" }}>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
+                <div style={{ fontWeight: 800, fontSize: 16, color: W.text }}>{label} Routines</div>
+                <button onClick={() => setTrainingPickerType(null)} style={{ background: "none", border: "none", color: W.textDim, fontSize: 20, cursor: "pointer", padding: "0 4px", lineHeight: 1 }}>×</button>
+              </div>
+              {routines.length === 0 && <div style={{ color: W.textDim, fontSize: 13, textAlign: "center", padding: "12px 0" }}>No {label.toLowerCase()} routines yet. Add one in Settings.</div>}
+              {routines.map(r => (
+                <div key={r.id} onClick={() => handleRoutineSelect(r)} style={{ background: W.surface2, border: `1px solid ${accentC}33`, borderRadius: 12, padding: "12px 14px", marginBottom: 8, cursor: "pointer" }}>
+                  <div style={{ fontWeight: 700, fontSize: 14, color: W.text }}>{r.name}</div>
+                  {r.description && <div style={{ fontSize: 11, color: W.textMuted, marginTop: 2 }}>{r.description}</div>}
+                  <div style={{ fontSize: 11, color: accentC, marginTop: 4, fontWeight: 600 }}>{(r.items || []).length} tasks {alreadyStarted ? "· tap to add to session" : "· tap to start"}</div>
+                </div>
+              ))}
+              {!alreadyStarted && (
+                <button onClick={() => handleRoutineSelect(null)} style={{ width: "100%", padding: "10px", background: bgC, border: `1.5px solid ${accentC}44`, borderRadius: 10, color: accentC, fontWeight: 700, fontSize: 13, cursor: "pointer", marginTop: 4 }}>Start Empty</button>
+              )}
+            </div>
+          );
+        })()}
+
+        {/* ══ WARMUP SECTION (standalone — active, shown before climbing) ═══ */}
+        {!showClimbForm && activeSession?.warmupStartedAt && !activeSession?.warmupEndedAt && (() => {
+          const ws = activeSession;
+          const isActive = !!ws.warmupActiveStart;
+          const isEnded  = !!ws.warmupEndedAt;
+          const totalSec = (ws.warmupTotalSec || 0) + (isActive ? Math.max(0, Math.floor((Date.now() - ws.warmupActiveStart) / 1000)) : 0);
+          const checklist = ws.warmupChecklist || [];
+          const doneCount = checklist.filter(i => i.checked).length;
+          return (
+            <div style={{ marginBottom: 16 }}>
+              <div style={{ borderRadius: 14, border: `2px solid ${W.pinkDark}55`, marginBottom: 10, overflow: "hidden", background: W.surface }}>
+                <div style={{ background: W.pink, padding: "14px" }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 6 }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 7 }}>
+                      <div style={{ fontWeight: 800, color: W.pinkDark, fontSize: 18 }}>🔥 Warm Up</div>
+                      {isActive && <span style={{ background: `${W.pinkDark}33`, color: W.pinkDark, borderRadius: 6, padding: "1px 7px", fontSize: 10, fontWeight: 800 }}>ACTIVE</span>}
+                      {!isActive && totalSec > 0 && <span style={{ background: `${W.pinkDark}22`, color: W.pinkDark, borderRadius: 6, padding: "1px 7px", fontSize: 10, fontWeight: 800 }}>PAUSED</span>}
+                    </div>
+                    <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+                      <button onClick={() => setTrainingPickerType("warmup")} style={{ background: "none", border: `1px solid ${W.pinkDark}44`, borderRadius: 7, color: W.pinkDark, fontSize: 11, cursor: "pointer", padding: "3px 8px", lineHeight: 1, fontWeight: 700 }}>+ Routine</button>
+                      <button onClick={() => setActiveSession(s => ({ ...s, collapsedSections: { ...(s.collapsedSections || {}), warmup: !s.collapsedSections?.warmup } }))} style={{ background: "none", border: `1px solid ${W.pinkDark}44`, borderRadius: 7, color: W.pinkDark, fontSize: 14, cursor: "pointer", padding: "3px 9px", lineHeight: 1 }}>{activeSession.collapsedSections?.warmup ? "▼" : "▲"}</button>
+                    </div>
+                  </div>
+                  <div style={{ fontSize: 48, fontWeight: 900, color: W.pinkDark, fontVariantNumeric: "tabular-nums", letterSpacing: 1, lineHeight: 1, marginBottom: 8 }}>{formatDuration(totalSec)}</div>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
+                    <div style={{ flex: 1, height: 4, borderRadius: 2, background: `${W.pinkDark}33`, overflow: "hidden" }}>
+                      <div style={{ height: "100%", width: `${checklist.length ? (doneCount / checklist.length) * 100 : 0}%`, background: W.pinkDark, borderRadius: 2, transition: "width 0.3s ease" }} />
+                    </div>
+                    <span style={{ fontSize: 11, fontWeight: 700, color: W.pinkDark, flexShrink: 0 }}>{doneCount}/{checklist.length}</span>
+                  </div>
+                  <div style={{ display: "flex", gap: 6, justifyContent: "flex-end" }}>
+                    {isActive
+                      ? <button onClick={pauseWarmupSession}  style={{ background: W.pinkDark, border: "none", color: W.pink, fontSize: 12, fontWeight: 700, cursor: "pointer", padding: "7px 14px", borderRadius: 8 }}>Pause</button>
+                      : <button onClick={resumeWarmupSession} style={{ background: W.pinkDark, border: "none", color: W.pink, fontSize: 12, fontWeight: 700, cursor: "pointer", padding: "7px 14px", borderRadius: 8 }}>Resume</button>
+                    }
+                    {doneCount < checklist.length && <button onClick={completeAllWarmupItems} style={{ background: `${W.pinkDark}33`, border: `1px solid ${W.pinkDark}44`, color: W.pinkDark, fontSize: 12, fontWeight: 700, cursor: "pointer", padding: "7px 14px", borderRadius: 8 }}>✓ All</button>}
+                    <button onClick={endWarmupSection} style={{ background: `${W.pinkDark}22`, border: `1px solid ${W.pinkDark}44`, color: W.pinkDark, fontSize: 12, fontWeight: 700, cursor: "pointer", padding: "7px 14px", borderRadius: 8 }}>Done</button>
+                  </div>
+                </div>
+              </div>
+              {!activeSession.collapsedSections?.warmup && <div style={{ borderLeft: `3px solid ${W.pinkDark}44`, paddingLeft: 10, marginLeft: 2 }}>
+                {checklist.map(item => {
+                  const restRemain = routineRestTimer?.itemId === item.id ? Math.max(0, Math.ceil((routineRestTimer.endsAt - Date.now()) / 1000)) : 0;
+                  return (
+                  <div key={item.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "9px 12px", marginBottom: 6, background: item.checked ? W.pink : W.surface2, border: `1px solid ${item.checked ? W.pinkDark + "44" : W.border}`, borderRadius: 10, cursor: "pointer" }}
+                    onClick={() => toggleWarmupItem(item.id)}>
+                    <div style={{ width: 20, height: 20, borderRadius: 6, border: `2px solid ${item.checked ? W.pinkDark : W.border}`, background: item.checked ? W.pinkDark : "transparent", flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                      {item.checked && <span style={{ fontSize: 11, color: "#fff", fontWeight: 900 }}>✓</span>}
+                    </div>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <span style={{ fontSize: 13, fontWeight: 600, color: item.checked ? W.pinkDark : W.text, textDecoration: item.checked ? "line-through" : "none" }}>{item.text}</span>
+                      {item.detail && <div style={{ fontSize: 11, color: W.textMuted, marginTop: 1 }}>{item.detail}</div>}
+                      {restRemain > 0 && <div style={{ fontSize: 11, fontWeight: 700, color: W.pinkDark, marginTop: 2 }}>⏱ Rest: {restRemain}s</div>}
+                    </div>
+                    {item.restDuration > 0 && !restRemain && <span style={{ fontSize: 10, color: W.textMuted, fontWeight: 600 }}>{item.restDuration}s rest</span>}
+                    <button onClick={e => { e.stopPropagation(); removeWarmupItem(item.id); }} style={{ background: "transparent", border: "none", color: W.textDim, fontSize: 15, cursor: "pointer", padding: "0 4px", lineHeight: 1 }}>×</button>
+                  </div>
+                  );
+                })}
+                <div style={{ display: "flex", gap: 8, marginTop: 4 }}>
+                  <input value={warmupNewItemText} onChange={e => setWarmupNewItemText(e.target.value)}
+                    onKeyDown={e => { if (e.key === "Enter" && warmupNewItemText.trim()) { addWarmupItem(warmupNewItemText.trim()); setWarmupNewItemText(""); } }}
+                    placeholder="Add a warmup task…" style={{ flex: 1, padding: "8px 12px", borderRadius: 10, border: `1px solid ${W.border}`, background: W.surface, color: W.text, fontSize: 13, outline: "none" }} />
+                  <button onClick={() => { if (warmupNewItemText.trim()) { addWarmupItem(warmupNewItemText.trim()); setWarmupNewItemText(""); } }} style={{ padding: "8px 14px", borderRadius: 10, border: `1px solid ${W.pinkDark}55`, background: W.pink, color: W.pinkDark, fontWeight: 700, fontSize: 13, cursor: "pointer" }}>+</button>
+                </div>
+              </div>}
+            </div>
+          );
+        })()}
+
         {/* ══ CLIMBING SECTION ══════════════════════════════════════ */}
-        {!showClimbForm && (() => {
+        {!showClimbForm && hasClimbing && (() => {
           const isCollapsed = !!activeSession?.collapsedSections?.climbingSection;
           const climbTotalSec = (() => {
             let t = (activeSession?.boulderTotalSec || 0) + (activeSession?.ropeTotalSec || 0);
@@ -3262,11 +3404,27 @@ export default function App() {
                     <button onClick={() => setActiveSession(s => ({ ...s, collapsedSections: { ...(s.collapsedSections || {}), climbingSection: !s.collapsedSections?.climbingSection } }))} style={{ background: "none", border: `1px solid ${W.accentDark}44`, borderRadius: 8, color: W.accent, fontSize: 15, cursor: "pointer", padding: "4px 10px", lineHeight: 1, marginTop: 2 }}>{isCollapsed ? "▼" : "▲"}</button>
                   </div>
                   {regularTotal > 0 && <div style={{ fontSize: 12, color: W.textMuted, fontWeight: 600, marginBottom: 10 }}>{regularSends} sends · {regularTotal} climbs{speedSessions.length > 0 ? ` · ${speedSessions.reduce((t, s) => t + (s.attempts||[]).length, 0)} speed attempts` : ""}</div>}
-                  <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                    {!activeSession?.boulderEndedAt && <button onClick={() => openClimbForm(null, null, "boulder")} style={{ padding: "8px 14px", background: W.green, border: `1.5px solid ${W.greenDark}`, borderRadius: 10, color: W.greenDark, fontWeight: 700, fontSize: 13, cursor: "pointer" }}>+ Boulder</button>}
-                    {!activeSession?.ropeEndedAt && <button onClick={() => openClimbForm(null, null, "rope")} style={{ padding: "8px 14px", background: W.purple, border: `1.5px solid ${W.purpleDark}`, borderRadius: 10, color: W.purpleDark, fontWeight: 700, fontSize: 13, cursor: "pointer" }}>+ Rope</button>}
-                    <button onClick={addSpeedSession} style={{ padding: "8px 14px", background: W.yellow, border: `1.5px solid ${W.yellowDark}`, borderRadius: 10, color: W.yellowDark, fontWeight: 700, fontSize: 13, cursor: "pointer" }}>+ Speed</button>
-                  </div>
+                  {hasAnyClimbActivity ? (
+                    <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                      {!activeSession?.boulderEndedAt && <button onClick={() => openClimbForm(null, null, "boulder")} style={{ padding: "8px 14px", background: W.green, border: `1.5px solid ${W.greenDark}`, borderRadius: 10, color: W.greenDark, fontWeight: 700, fontSize: 13, cursor: "pointer" }}>+ Boulder</button>}
+                      {!activeSession?.ropeEndedAt && <button onClick={() => openClimbForm(null, null, "rope")} style={{ padding: "8px 14px", background: W.purple, border: `1.5px solid ${W.purpleDark}`, borderRadius: 10, color: W.purpleDark, fontWeight: 700, fontSize: 13, cursor: "pointer" }}>+ Rope</button>}
+                      <button onClick={addSpeedSession} style={{ padding: "8px 14px", background: W.yellow, border: `1.5px solid ${W.yellowDark}`, borderRadius: 10, color: W.yellowDark, fontWeight: 700, fontSize: 13, cursor: "pointer" }}>+ Speed</button>
+                    </div>
+                  ) : (
+                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginTop: 4 }}>
+                      {[
+                        { id: "boulder", label: "Bouldering", icon: "🪨", bg: W.green,  tc: W.greenDark,  fn: () => openClimbForm(null, null, "boulder") },
+                        { id: "rope",    label: "Rope",        icon: "🪢", bg: W.purple, tc: W.purpleDark, fn: () => openClimbForm(null, null, "rope") },
+                        { id: "speed",   label: "Speed",       icon: "⚡", bg: W.yellow, tc: W.yellowDark, fn: addSpeedSession },
+                        { id: "warmup",  label: "Warm Up",     icon: "🔥", bg: W.pink,   tc: W.pinkDark,   fn: startWarmupSection, disabled: !!activeSession?.warmupStartedAt },
+                      ].map(opt => (
+                        <button key={opt.id} onClick={opt.disabled ? undefined : opt.fn} style={{ padding: "16px 10px", background: opt.disabled ? W.surface2 : opt.bg, border: `1.5px solid ${opt.disabled ? W.border : opt.tc}`, borderRadius: 14, cursor: opt.disabled ? "default" : "pointer", display: "flex", flexDirection: "column", alignItems: "center", gap: 6, opacity: opt.disabled ? 0.45 : 1 }}>
+                          <span style={{ fontSize: 26 }}>{opt.icon}</span>
+                          <span style={{ fontWeight: 800, fontSize: 12, color: opt.disabled ? W.textDim : opt.tc }}>{opt.label}</span>
+                        </button>
+                      ))}
+                    </div>
+                  )}
                 </div>
               </div>
               {!isCollapsed && (
@@ -3328,12 +3486,11 @@ export default function App() {
         })()}
 
         {/* ══ TRAINING SECTION ══════════════════════════════════════ */}
-        {!showClimbForm && (() => {
+        {!showClimbForm && hasFitness && (() => {
           const orangeColor = "#f97316";
           const isCollapsedT = !!activeSession?.collapsedSections?.trainingSection;
           const trainTotalSec = (() => {
-            let t = (activeSession?.warmupTotalSec || 0) + (activeSession?.workoutTotalSec || 0) + (activeSession?.fingerboardTotalSec || 0);
-            if (activeSession?.warmupActiveStart) t += Math.max(0, Math.floor((Date.now() - activeSession.warmupActiveStart) / 1000));
+            let t = (activeSession?.workoutTotalSec || 0) + (activeSession?.fingerboardTotalSec || 0);
             if (activeSession?.workoutActiveStart) t += Math.max(0, Math.floor((Date.now() - activeSession.workoutActiveStart) / 1000));
             if (activeSession?.fingerboardActiveStart) t += Math.max(0, Math.floor((Date.now() - activeSession.fingerboardActiveStart) / 1000));
             (activeSession?.fitnessSections || []).forEach(sec => {
@@ -3354,169 +3511,37 @@ export default function App() {
                   </div>
                   {(() => {
                     const parts = [];
-                    if (activeSession?.warmupStartedAt) parts.push(activeSession?.warmupEndedAt ? "✓ Warm Up" : "Warm Up");
                     if (activeSession?.workoutStartedAt) parts.push(activeSession?.workoutEndedAt ? "✓ Workout" : "Workout");
                     if (activeSession?.fingerboardStartedAt) parts.push(activeSession?.fingerboardEndedAt ? "✓ Fingerboard" : "Fingerboard");
                     const bt = (activeSession?.fitnessSections || []).length;
                     if (bt > 0) parts.push(`${(activeSession?.fitnessSections || []).filter(s => s.endedAt).length}/${bt} blocks`);
                     return parts.length > 0 ? <div style={{ fontSize: 12, color: W.textMuted, fontWeight: 600, marginBottom: 10 }}>{parts.join(" · ")}</div> : null;
                   })()}
-                  <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                    <button onClick={() => setTrainingPickerType("warmup")} style={{ padding: "8px 14px", background: W.pink, border: `1.5px solid ${W.pinkDark}`, borderRadius: 10, color: W.pinkDark, fontWeight: 700, fontSize: 13, cursor: "pointer" }}>+ Warm Up</button>
-                    <button onClick={() => setTrainingPickerType("workout")} style={{ padding: "8px 14px", background: `${W.accent}22`, border: `1.5px solid ${W.accentDark}`, borderRadius: 10, color: W.accentDark, fontWeight: 700, fontSize: 13, cursor: "pointer" }}>+ Workout</button>
-                    <button onClick={() => setTrainingPickerType("fingerboard")} style={{ padding: "8px 14px", background: W.yellow, border: `1.5px solid ${W.yellowDark}`, borderRadius: 10, color: W.yellowDark, fontWeight: 700, fontSize: 13, cursor: "pointer" }}>+ Fingerboard</button>
-                    <button onClick={startFitnessSession} style={{ padding: "8px 14px", background: `${orangeColor}18`, border: `1.5px solid ${orangeColor}`, borderRadius: 10, color: orangeColor, fontWeight: 700, fontSize: 13, cursor: "pointer" }}>+ Block</button>
-                  </div>
+                  {hasAnyFitnessActivity ? (
+                    <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                      <button onClick={() => setTrainingPickerType("workout")} style={{ padding: "8px 14px", background: `${W.accent}22`, border: `1.5px solid ${W.accentDark}`, borderRadius: 10, color: W.accentDark, fontWeight: 700, fontSize: 13, cursor: "pointer" }}>+ Workout</button>
+                      <button onClick={() => setTrainingPickerType("fingerboard")} style={{ padding: "8px 14px", background: W.yellow, border: `1.5px solid ${W.yellowDark}`, borderRadius: 10, color: W.yellowDark, fontWeight: 700, fontSize: 13, cursor: "pointer" }}>+ Fingerboard</button>
+                      <button onClick={startFitnessSession} style={{ padding: "8px 14px", background: `${orangeColor}18`, border: `1.5px solid ${orangeColor}`, borderRadius: 10, color: orangeColor, fontWeight: 700, fontSize: 13, cursor: "pointer" }}>+ Block</button>
+                    </div>
+                  ) : (
+                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginTop: 4 }}>
+                      {[
+                        { id: "workout",     label: "Workout",     icon: "💪", bg: `${W.accent}22`, tc: W.accentDark, fn: () => setTrainingPickerType("workout") },
+                        { id: "fingerboard", label: "Fingerboard", icon: "🤲", bg: W.yellow,        tc: W.yellowDark, fn: () => setTrainingPickerType("fingerboard") },
+                        { id: "warmup",      label: "Warm Up",     icon: "🔥", bg: W.pink,          tc: W.pinkDark,   fn: startWarmupSection, disabled: !!activeSession?.warmupStartedAt },
+                        { id: "exercise",    label: "Exercise",    icon: "🏋️", bg: `${orangeColor}18`, tc: orangeColor, fn: startFitnessSession },
+                      ].map(opt => (
+                        <button key={opt.id} onClick={opt.disabled ? undefined : opt.fn} style={{ padding: "16px 10px", background: opt.disabled ? W.surface2 : opt.bg, border: `1.5px solid ${opt.disabled ? W.border : opt.tc}`, borderRadius: 14, cursor: opt.disabled ? "default" : "pointer", display: "flex", flexDirection: "column", alignItems: "center", gap: 6, opacity: opt.disabled ? 0.45 : 1 }}>
+                          <span style={{ fontSize: 26 }}>{opt.icon}</span>
+                          <span style={{ fontWeight: 800, fontSize: 12, color: opt.disabled ? W.textDim : opt.tc }}>{opt.label}</span>
+                        </button>
+                      ))}
+                    </div>
+                  )}
                 </div>
               </div>
               {!isCollapsedT && (
                 <div>
-                  {/* Training Routine Picker */}
-                  {trainingPickerType && (() => {
-                    const isWarmup = trainingPickerType === "warmup";
-                    const isWorkout = trainingPickerType === "workout";
-                    const isFb = trainingPickerType === "fingerboard";
-                    const routines = isWarmup ? warmupTemplates : isWorkout ? workoutRoutines : fingerboardRoutines;
-                    const accentC = isWarmup ? W.pinkDark : isWorkout ? W.accentDark : W.yellowDark;
-                    const bgC = isWarmup ? W.pink : isWorkout ? `${W.accent}22` : W.yellow;
-                    const label = isWarmup ? "Warm Up" : isWorkout ? "Workout" : "Fingerboard";
-                    const alreadyStarted = isWarmup ? !!activeSession?.warmupStartedAt : isWorkout ? !!activeSession?.workoutStartedAt : !!activeSession?.fingerboardStartedAt;
-                    const handleRoutineSelect = (routine) => {
-                      const items = (routine?.items || []).map(item => ({ ...item, id: Date.now() + Math.random(), checked: false }));
-                      if (!alreadyStarted) {
-                        if (isWarmup) {
-                          setActiveSession(s => {
-                            const now = Date.now(), upd = {};
-                            if (s.boulderActiveStart) { upd.boulderTotalSec = (s.boulderTotalSec||0)+Math.max(0,Math.floor((now-s.boulderActiveStart)/1000)); upd.boulderActiveStart=null; upd.boulderPausedAt=now; }
-                            if (s.ropeActiveStart)    { upd.ropeTotalSec    = (s.ropeTotalSec   ||0)+Math.max(0,Math.floor((now-s.ropeActiveStart)   /1000)); upd.ropeActiveStart   =null; upd.ropePausedAt   =now; }
-                            return { ...s, ...upd, warmupStartedAt: now, warmupActiveStart: now, warmupTotalSec: 0, warmupPausedAt: null, warmupEndedAt: null, warmupChecklist: items };
-                          });
-                        } else if (isWorkout) {
-                          setActiveSession(s => {
-                            const now = Date.now(), upd = {};
-                            if (s.boulderActiveStart)     { upd.boulderTotalSec=(s.boulderTotalSec||0)+Math.max(0,Math.floor((now-s.boulderActiveStart)/1000)); upd.boulderActiveStart=null; upd.boulderPausedAt=now; }
-                            if (s.ropeActiveStart)        { upd.ropeTotalSec=(s.ropeTotalSec||0)+Math.max(0,Math.floor((now-s.ropeActiveStart)/1000)); upd.ropeActiveStart=null; upd.ropePausedAt=now; }
-                            if (s.warmupActiveStart)      { upd.warmupTotalSec=(s.warmupTotalSec||0)+Math.max(0,Math.floor((now-s.warmupActiveStart)/1000)); upd.warmupActiveStart=null; upd.warmupPausedAt=now; }
-                            if (s.fingerboardActiveStart) { upd.fingerboardTotalSec=(s.fingerboardTotalSec||0)+Math.max(0,Math.floor((now-s.fingerboardActiveStart)/1000)); upd.fingerboardActiveStart=null; upd.fingerboardPausedAt=now; }
-                            return { ...s, ...upd, workoutStartedAt: now, workoutActiveStart: now, workoutTotalSec: 0, workoutPausedAt: null, workoutEndedAt: null, workoutChecklist: items };
-                          });
-                        } else {
-                          setActiveSession(s => {
-                            const now = Date.now(), upd = {};
-                            if (s.boulderActiveStart)  { upd.boulderTotalSec=(s.boulderTotalSec||0)+Math.max(0,Math.floor((now-s.boulderActiveStart)/1000)); upd.boulderActiveStart=null; upd.boulderPausedAt=now; }
-                            if (s.ropeActiveStart)     { upd.ropeTotalSec=(s.ropeTotalSec||0)+Math.max(0,Math.floor((now-s.ropeActiveStart)/1000)); upd.ropeActiveStart=null; upd.ropePausedAt=now; }
-                            if (s.warmupActiveStart)   { upd.warmupTotalSec=(s.warmupTotalSec||0)+Math.max(0,Math.floor((now-s.warmupActiveStart)/1000)); upd.warmupActiveStart=null; upd.warmupPausedAt=now; }
-                            if (s.workoutActiveStart)  { upd.workoutTotalSec=(s.workoutTotalSec||0)+Math.max(0,Math.floor((now-s.workoutActiveStart)/1000)); upd.workoutActiveStart=null; upd.workoutPausedAt=now; }
-                            return { ...s, ...upd, fingerboardStartedAt: now, fingerboardActiveStart: now, fingerboardTotalSec: 0, fingerboardPausedAt: null, fingerboardEndedAt: null, fingerboardChecklist: items };
-                          });
-                        }
-                      } else {
-                        // Already started — append items to existing checklist
-                        const key = isWarmup ? "warmupChecklist" : isWorkout ? "workoutChecklist" : "fingerboardChecklist";
-                        setActiveSession(s => ({ ...s, [key]: [...(s[key] || []), ...items] }));
-                      }
-                      setTrainingPickerType(null);
-                    };
-                    return (
-                      <div style={{ marginBottom: 14, background: W.surface, border: `2px solid ${accentC}44`, borderRadius: 14, padding: "16px" }}>
-                        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
-                          <div style={{ fontWeight: 800, fontSize: 16, color: W.text }}>{label} Routines</div>
-                          <button onClick={() => setTrainingPickerType(null)} style={{ background: "none", border: "none", color: W.textDim, fontSize: 20, cursor: "pointer", padding: "0 4px", lineHeight: 1 }}>×</button>
-                        </div>
-                        {routines.length === 0 && <div style={{ color: W.textDim, fontSize: 13, textAlign: "center", padding: "12px 0" }}>No {label.toLowerCase()} routines yet. Add one in Settings.</div>}
-                        {routines.map(r => (
-                          <div key={r.id} onClick={() => handleRoutineSelect(r)} style={{ background: W.surface2, border: `1px solid ${accentC}33`, borderRadius: 12, padding: "12px 14px", marginBottom: 8, cursor: "pointer" }}>
-                            <div style={{ fontWeight: 700, fontSize: 14, color: W.text }}>{r.name}</div>
-                            {r.description && <div style={{ fontSize: 11, color: W.textMuted, marginTop: 2 }}>{r.description}</div>}
-                            <div style={{ fontSize: 11, color: accentC, marginTop: 4, fontWeight: 600 }}>{(r.items || []).length} tasks {alreadyStarted ? "· tap to add to session" : "· tap to start"}</div>
-                          </div>
-                        ))}
-                        {!alreadyStarted && (
-                          <button onClick={() => handleRoutineSelect(null)} style={{ width: "100%", padding: "10px", background: bgC, border: `1.5px solid ${accentC}44`, borderRadius: 10, color: accentC, fontWeight: 700, fontSize: 13, cursor: "pointer", marginTop: 4 }}>Start Empty</button>
-                        )}
-                      </div>
-                    );
-                  })()}
-
-        {/* ── Warm Up Section ──────────────────────────────────── */}
-        {!showClimbForm && activeSession?.warmupStartedAt && (() => {
-          const ws = activeSession;
-          const isActive = !!ws.warmupActiveStart;
-          const isEnded  = !!ws.warmupEndedAt;
-          const elapsed  = isActive ? Math.max(0, Math.floor((sessionTimer * 1000 - (ws.warmupActiveStart - (sessionActiveStart || 0))) / 1000)) : 0;
-          const totalSec = (ws.warmupTotalSec || 0) + (isActive ? Math.max(0, Math.floor((Date.now() - ws.warmupActiveStart) / 1000)) : 0);
-          const checklist = ws.warmupChecklist || [];
-          const doneCount = checklist.filter(i => i.checked).length;
-          return (
-            <div style={{ marginBottom: 16 }}>
-              {/* Header card — BoulderRopeSessionCard style */}
-              <div style={{ borderRadius: 14, border: `2px solid ${W.pinkDark}55`, marginBottom: 10, overflow: "hidden", background: W.surface }}>
-                <div style={{ background: W.pink, padding: "14px" }}>
-                  {/* Row 1: label + badge + collapse */}
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 6 }}>
-                    <div style={{ display: "flex", alignItems: "center", gap: 7 }}>
-                      <div style={{ fontWeight: 800, color: W.pinkDark, fontSize: 18 }}>🔥 Warm Up</div>
-                      {isEnded  && <span style={{ background: W.pinkDark, color: W.pink, borderRadius: 6, padding: "1px 7px", fontSize: 10, fontWeight: 800 }}>DONE</span>}
-                      {isActive && <span style={{ background: `${W.pinkDark}33`, color: W.pinkDark, borderRadius: 6, padding: "1px 7px", fontSize: 10, fontWeight: 800 }}>ACTIVE</span>}
-                      {!isActive && !isEnded && totalSec > 0 && <span style={{ background: `${W.pinkDark}22`, color: W.pinkDark, borderRadius: 6, padding: "1px 7px", fontSize: 10, fontWeight: 800 }}>PAUSED</span>}
-                    </div>
-                    <button onClick={() => setActiveSession(s => ({ ...s, collapsedSections: { ...(s.collapsedSections || {}), warmup: !s.collapsedSections?.warmup } }))} style={{ background: "none", border: `1px solid ${W.pinkDark}44`, borderRadius: 7, color: W.pinkDark, fontSize: 14, cursor: "pointer", padding: "3px 9px", lineHeight: 1 }}>
-                      {activeSession.collapsedSections?.warmup ? "▼" : "▲"}
-                    </button>
-                  </div>
-                  {/* Row 2: big timer */}
-                  <div style={{ fontSize: 48, fontWeight: 900, color: W.pinkDark, fontVariantNumeric: "tabular-nums", letterSpacing: 1, lineHeight: 1, marginBottom: 8 }}>{formatDuration(totalSec)}</div>
-                  {/* Row 3: progress bar + task count */}
-                  <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
-                    <div style={{ flex: 1, height: 4, borderRadius: 2, background: `${W.pinkDark}33`, overflow: "hidden" }}>
-                      <div style={{ height: "100%", width: `${checklist.length ? (doneCount / checklist.length) * 100 : 0}%`, background: W.pinkDark, borderRadius: 2, transition: "width 0.3s ease" }} />
-                    </div>
-                    <span style={{ fontSize: 11, fontWeight: 700, color: W.pinkDark, flexShrink: 0 }}>{doneCount}/{checklist.length}</span>
-                  </div>
-                  {/* Row 4: action buttons */}
-                  <div style={{ display: "flex", gap: 6, justifyContent: "flex-end" }}>
-                    {!isEnded && (isActive
-                      ? <button onClick={pauseWarmupSession}  style={{ background: W.pinkDark, border: "none", color: W.pink, fontSize: 12, fontWeight: 700, cursor: "pointer", padding: "7px 14px", borderRadius: 8 }}>Pause</button>
-                      : <button onClick={resumeWarmupSession} style={{ background: W.pinkDark, border: "none", color: W.pink, fontSize: 12, fontWeight: 700, cursor: "pointer", padding: "7px 14px", borderRadius: 8 }}>Resume</button>
-                    )}
-                    {!isEnded && doneCount < checklist.length && <button onClick={completeAllWarmupItems} style={{ background: `${W.pinkDark}33`, border: `1px solid ${W.pinkDark}44`, color: W.pinkDark, fontSize: 12, fontWeight: 700, cursor: "pointer", padding: "7px 14px", borderRadius: 8 }}>✓ All</button>}
-                    {!isEnded && <button onClick={endWarmupSection} style={{ background: `${W.pinkDark}22`, border: `1px solid ${W.pinkDark}44`, color: W.pinkDark, fontSize: 12, fontWeight: 700, cursor: "pointer", padding: "7px 14px", borderRadius: 8 }}>Done</button>}
-                  </div>
-                </div>
-              </div>
-              {/* Checklist — hidden when collapsed */}
-              {!activeSession.collapsedSections?.warmup && <div style={{ borderLeft: `3px solid ${W.pinkDark}44`, paddingLeft: 10, marginLeft: 2 }}>
-                {checklist.map(item => {
-                  const restRemain = routineRestTimer?.itemId === item.id ? Math.max(0, Math.ceil((routineRestTimer.endsAt - Date.now()) / 1000)) : 0;
-                  return (
-                  <div key={item.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "9px 12px", marginBottom: 6, background: item.checked ? W.pink : W.surface2, border: `1px solid ${item.checked ? W.pinkDark + "44" : W.border}`, borderRadius: 10, cursor: "pointer" }}
-                    onClick={() => toggleWarmupItem(item.id)}>
-                    <div style={{ width: 20, height: 20, borderRadius: 6, border: `2px solid ${item.checked ? W.pinkDark : W.border}`, background: item.checked ? W.pinkDark : "transparent", flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center" }}>
-                      {item.checked && <span style={{ fontSize: 11, color: "#fff", fontWeight: 900 }}>✓</span>}
-                    </div>
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <span style={{ fontSize: 13, fontWeight: 600, color: item.checked ? W.pinkDark : W.text, textDecoration: item.checked ? "line-through" : "none" }}>{item.text}</span>
-                      {item.detail && <div style={{ fontSize: 11, color: W.textMuted, marginTop: 1 }}>{item.detail}</div>}
-                      {restRemain > 0 && <div style={{ fontSize: 11, fontWeight: 700, color: W.pinkDark, marginTop: 2 }}>⏱ Rest: {restRemain}s</div>}
-                    </div>
-                    {item.restDuration > 0 && !restRemain && <span style={{ fontSize: 10, color: W.textMuted, fontWeight: 600 }}>{item.restDuration}s rest</span>}
-                    {!isEnded && <button onClick={e => { e.stopPropagation(); removeWarmupItem(item.id); }} style={{ background: "transparent", border: "none", color: W.textDim, fontSize: 15, cursor: "pointer", padding: "0 4px", lineHeight: 1 }}>×</button>}
-                  </div>
-                  );
-                })}
-                {!isEnded && (
-                  <div style={{ display: "flex", gap: 8, marginTop: 4 }}>
-                    <input value={warmupNewItemText} onChange={e => setWarmupNewItemText(e.target.value)}
-                      onKeyDown={e => { if (e.key === "Enter" && warmupNewItemText.trim()) { addWarmupItem(warmupNewItemText.trim()); setWarmupNewItemText(""); } }}
-                      placeholder="Add a warmup task…" style={{ flex: 1, padding: "8px 12px", borderRadius: 10, border: `1px solid ${W.border}`, background: W.surface, color: W.text, fontSize: 13, outline: "none" }} />
-                    <button onClick={() => { if (warmupNewItemText.trim()) { addWarmupItem(warmupNewItemText.trim()); setWarmupNewItemText(""); } }} style={{ padding: "8px 14px", borderRadius: 10, border: `1px solid ${W.pinkDark}55`, background: W.pink, color: W.pinkDark, fontWeight: 700, fontSize: 13, cursor: "pointer" }}>+</button>
-                  </div>
-                )}
-              </div>}
-            </div>
-          );
-        })()}
-
         {/* ── Workout Section ──────────────────────────────────── */}
         {!showClimbForm && activeSession?.workoutStartedAt && (() => {
           const ws = activeSession;
@@ -3836,6 +3861,44 @@ export default function App() {
             </div>
           );
         })()}
+        {/* ══ WARMUP SECTION (ended — shown at bottom) ══ */}
+        {!showClimbForm && activeSession?.warmupStartedAt && activeSession?.warmupEndedAt && (() => {
+          const ws = activeSession;
+          const totalSec = ws.warmupTotalSec || 0;
+          const checklist = ws.warmupChecklist || [];
+          const doneCount = checklist.filter(i => i.checked).length;
+          const isCollapsedW = !!activeSession.collapsedSections?.warmup;
+          return (
+            <div style={{ marginBottom: 16, opacity: 0.8 }}>
+              <div style={{ borderRadius: 14, border: `2px solid ${W.pinkDark}33`, overflow: "hidden", background: W.surface }}>
+                <div style={{ background: W.pink, padding: "10px 14px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 7 }}>
+                    <div style={{ fontWeight: 800, color: W.pinkDark, fontSize: 16 }}>🔥 Warm Up</div>
+                    <span style={{ background: W.pinkDark, color: W.pink, borderRadius: 6, padding: "1px 7px", fontSize: 10, fontWeight: 800 }}>DONE</span>
+                    <span style={{ fontSize: 12, color: W.pinkDark, fontWeight: 700 }}>{formatDuration(totalSec)} · {doneCount}/{checklist.length}</span>
+                  </div>
+                  <button onClick={() => setActiveSession(s => ({ ...s, collapsedSections: { ...(s.collapsedSections || {}), warmup: !s.collapsedSections?.warmup } }))} style={{ background: "none", border: `1px solid ${W.pinkDark}44`, borderRadius: 7, color: W.pinkDark, fontSize: 14, cursor: "pointer", padding: "3px 9px", lineHeight: 1 }}>{isCollapsedW ? "▼" : "▲"}</button>
+                </div>
+                {!isCollapsedW && checklist.length > 0 && (
+                  <div style={{ padding: "8px 14px", display: "flex", flexWrap: "wrap", gap: 6 }}>
+                    {checklist.map(item => (
+                      <span key={item.id} style={{ fontSize: 11, color: item.checked ? W.pinkDark : W.textDim, fontWeight: item.checked ? 700 : 400, textDecoration: item.checked ? "line-through" : "none", background: W.surface2, borderRadius: 6, padding: "2px 8px", border: `1px solid ${W.border}` }}>{item.text}</span>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          );
+        })()}
+
+        {/* Hidden section add buttons */}
+        {!showClimbForm && (!hasClimbing || !hasFitness) && (
+          <div style={{ display: "flex", gap: 10, marginBottom: 16 }}>
+            {!hasClimbing && <button onClick={() => setActiveSession(s => ({ ...s, sessionTypes: [...new Set([...(s.sessionTypes || []), "boulder"])] }))} style={{ flex: 1, padding: "10px", background: W.surface2, border: `1.5px solid ${W.border}`, borderRadius: 12, color: W.textMuted, fontWeight: 700, fontSize: 13, cursor: "pointer" }}>+ Add Climbing</button>}
+            {!hasFitness && <button onClick={() => setActiveSession(s => ({ ...s, sessionTypes: [...new Set([...(s.sessionTypes || []), "fitness"])] }))} style={{ flex: 1, padding: "10px", background: W.surface2, border: `1.5px solid ${W.border}`, borderRadius: 12, color: W.textMuted, fontWeight: 700, fontSize: 13, cursor: "pointer" }}>+ Add Fitness</button>}
+          </div>
+        )}
+
         {!showClimbForm && (
           <div style={{ marginTop: 16, marginBottom: 4 }}>
             <div style={{ fontSize: 11, fontWeight: 700, color: W.textMuted, textTransform: "uppercase", letterSpacing: 1.2, marginBottom: 6 }}>Session Notes</div>
@@ -4155,7 +4218,7 @@ export default function App() {
                   <div style={{ background: gradeClr, color: "#fff", borderRadius: 10, padding: "6px 12px", fontWeight: 900, fontSize: 20, flexShrink: 0, boxShadow: "0 2px 8px rgba(0,0,0,0.4)" }}>{c.grade}</div>
                   <div style={{ flex: 1, minWidth: 0 }}>
                     {c.name && <div style={{ fontSize: 13, fontWeight: 800, color: "#fff", textShadow: "0 1px 3px rgba(0,0,0,0.8)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{c.name}</div>}
-                    <div style={{ fontSize: 11, color: "rgba(255,255,255,0.75)", marginTop: 2 }}>{c.tries || 0} falls{c.climbType !== "rope" && ` · ${climbAttempts(c)} attempts`}</div>
+                    <div style={{ fontSize: 11, color: "rgba(255,255,255,0.75)", marginTop: 2 }}>{c.climbType === "rope" ? `${c.tries || 0} attempts · ${c.falls ?? 0} falls${(c.takes || 0) > 0 ? ` · ${c.takes} takes` : ""}` : `${c.tries || 0} falls · ${climbAttempts(c)} attempts`}</div>
                     <div style={{ display: "flex", alignItems: "center", gap: 4, marginTop: 4, flexWrap: "wrap" }}>
                       {colorHex && <div style={{ width: 10, height: 10, borderRadius: "50%", background: colorHex, border: "1.5px solid rgba(255,255,255,0.8)", flexShrink: 0 }} />}
                       {c.section && <span style={{ fontSize: 10, color: "rgba(255,255,255,0.8)", fontWeight: 700 }}>📌 {c.section}</span>}
@@ -4173,7 +4236,7 @@ export default function App() {
                     {c.name && <div style={{ fontSize: 13, fontWeight: 700, color: W.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{c.name}</div>}
                     <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: c.name ? 3 : 0 }}>
                       {colorHex && <div style={{ width: 10, height: 10, borderRadius: "50%", background: colorHex, border: `1px solid ${W.border}`, flexShrink: 0 }} />}
-                      <span style={{ fontSize: 11, color: W.textMuted }}>{c.tries || 0} falls{c.climbType !== "rope" && ` · ${climbAttempts(c)} attempts`}</span>
+                      <span style={{ fontSize: 11, color: W.textMuted }}>{c.climbType === "rope" ? `${c.tries || 0} attempts · ${c.falls ?? 0} falls${(c.takes || 0) > 0 ? ` · ${c.takes} takes` : ""}` : `${c.tries || 0} falls · ${climbAttempts(c)} attempts`}</span>
                       {c.section && <span style={{ fontSize: 11, color: W.accent, fontWeight: 700 }}>📌 {c.section}</span>}
                     </div>
                   </div>
@@ -6029,7 +6092,7 @@ export default function App() {
                                       <div style={{ background: isOffWall ? "rgba(80,80,80,0.85)" : gradeClr, color: "#fff", borderRadius: 8, padding: "3px 10px", fontWeight: 900, fontSize: 17, letterSpacing: 0.3, boxShadow: "0 1px 5px rgba(0,0,0,0.5)" }}>{c.grade}</div>
                                       {colorHex && <div style={{ width: 14, height: 14, borderRadius: "50%", background: colorHex, border: "2px solid rgba(255,255,255,0.8)", flexShrink: 0 }} />}
                                     </div>
-                                    <div style={{ fontSize: 11, color: "rgba(255,255,255,0.75)" }}>{c.tries || 0} {c.climbType === "rope" ? "attempts" : "falls"}{c._sessionCount > 1 ? ` · 🗓 ${c._sessionCount}` : ""}</div>
+                                    <div style={{ fontSize: 11, color: "rgba(255,255,255,0.75)" }}>{c.climbType === "rope" ? `${c.tries || 0} attempts · ${c.falls ?? 0} falls${(c.takes || 0) > 0 ? ` · ${c.takes} takes` : ""}` : `${c.tries || 0} falls · ${climbAttempts(c)} attempts`}{c._sessionCount > 1 ? ` · 🗓 ${c._sessionCount}` : ""}</div>
                                     {c.section && <div style={{ fontSize: 10, color: "rgba(255,255,255,0.7)", fontWeight: 700, marginTop: 2 }}>📌 {c.section}</div>}
                                   </div>
                                 </div>
@@ -6047,7 +6110,7 @@ export default function App() {
                                       <span style={{ fontWeight: 900, fontSize: 20, color: isOffWall ? W.textMuted : gradeClr }}>{c.grade}</span>
                                       {colorHex && <div style={{ width: 10, height: 10, borderRadius: "50%", background: colorHex, flexShrink: 0, border: `1px solid ${W.border}` }} />}
                                     </div>
-                                    <div style={{ fontSize: 11, color: W.textMuted, marginBottom: 3 }}>{c.tries || 0} {c.climbType === "rope" ? "attempts" : "falls"}{c._sessionCount > 1 ? ` · 🗓 ${c._sessionCount}` : ""}</div>
+                                    <div style={{ fontSize: 11, color: W.textMuted, marginBottom: 3 }}>{c.climbType === "rope" ? `${c.tries || 0} attempts · ${c.falls ?? 0} falls${(c.takes || 0) > 0 ? ` · ${c.takes} takes` : ""}` : `${c.tries || 0} falls · ${climbAttempts(c)} attempts`}{c._sessionCount > 1 ? ` · 🗓 ${c._sessionCount}` : ""}</div>
                                     {c.section && <div style={{ fontSize: 11, color: W.accent, fontWeight: 700 }}>📌 {c.section}</div>}
                                   </div>
                                 </div>
@@ -6066,7 +6129,7 @@ export default function App() {
                                         {isOffWall && <span style={{ fontSize: 10, color: W.textMuted, fontWeight: 800 }}>🚫 Off Wall</span>}
                                       </div>
                                       <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
-                                        <span style={{ fontSize: 12, color: W.textMuted }}>{c.tries || 0} {c.climbType === "rope" ? "attempts" : "falls"}{c._sessionCount > 1 ? ` · 🗓 ${c._sessionCount}` : ""}</span>
+                                        <span style={{ fontSize: 12, color: W.textMuted }}>{c.climbType === "rope" ? `${c.tries || 0} attempts · ${c.falls ?? 0} falls${(c.takes || 0) > 0 ? ` · ${c.takes} takes` : ""}` : `${c.tries || 0} falls · ${climbAttempts(c)} attempts`}{c._sessionCount > 1 ? ` · 🗓 ${c._sessionCount}` : ""}</span>
                                         {c.section && <span style={{ fontSize: 11, color: W.accent, fontWeight: 700 }}>📌 {c.section}</span>}
                                       </div>
                                     </div>
