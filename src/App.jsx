@@ -5920,12 +5920,11 @@ export default function App() {
           if (selectedGym) {
             const loc = selectedGym;
             const allEntries = gymSets[loc] || [];
-            const activeUnsorted = allEntries.filter(e => !e.removed).sort((a, b) => new Date(b.setDate) - new Date(a.setDate));
+            const activeByGrade = allEntries.filter(e => !e.removed).sort((a, b) => getGradeIndex(b.grade, b.scale) - getGradeIndex(a.grade, a.scale));
             const active = gymSetSortBySection
-              ? [...activeUnsorted].sort((a, b) => (a.section || "").localeCompare(b.section || ""))
-              : activeUnsorted;
-            const removed = allEntries.filter(e => e.removed);
-            const showRemoved = gymSetShowRemoved[loc];
+              ? [...activeByGrade].sort((a, b) => (a.section || "").localeCompare(b.section || ""))
+              : activeByGrade;
+            const removed = allEntries.filter(e => e.removed).sort((a, b) => getGradeIndex(b.grade, b.scale) - getGradeIndex(a.grade, a.scale));
             const gs = gymScales[loc] || {};
             const boulderScales = [...Object.keys(GRADES), ...(customBoulderGrades.length ? ["Custom"] : [])];
             const ropeScales    = [...Object.keys(ROPE_GRADES), ...(customRopeGrades.length ? ["Custom"] : [])];
@@ -6077,29 +6076,61 @@ export default function App() {
                   );
                 })}
                 {removed.length > 0 && (
-                  <button onClick={() => setGymSetShowRemoved(p => ({ ...p, [loc]: !showRemoved }))} style={{ width: "100%", padding: "8px", background: "transparent", border: `1px solid ${W.border}`, borderRadius: 10, color: W.textMuted, fontSize: 12, fontWeight: 600, cursor: "pointer", marginTop: 4, marginBottom: showRemoved ? 8 : 0 }}>
-                    {showRemoved ? "Hide removed" : `Show ${removed.length} removed`}
-                  </button>
-                )}
-                {showRemoved && removed.map(entry => {
-                  const gradeClr = getGradeColor(entry.grade);
-                  const colorEntry = CLIMB_COLORS.find(cc => cc.id === entry.color);
-                  const colorHex = colorEntry?.hex;
-                  return (
-                    <div key={entry.id} onClick={() => setSelectedSetClimb(entry)} style={{ borderRadius: 14, border: `1px solid ${W.border}`, borderLeft: `4px solid ${gradeClr}40`, marginBottom: 10, cursor: "pointer", background: W.surface2, overflow: "hidden", display: "flex", alignItems: "stretch", minHeight: 72, opacity: 0.6 }}>
-                      <div style={{ background: gradeClr + "0a", display: "flex", alignItems: "center", justifyContent: "center", padding: "0 14px", minWidth: 56, borderRight: `1px solid ${W.border}` }}>
-                        <div style={{ fontWeight: 900, fontSize: 17, color: W.textMuted, textAlign: "center" }}>{entry.grade}</div>
-                      </div>
-                      <div style={{ flex: 1, padding: "10px 12px", minWidth: 0 }}>
-                        <div style={{ display: "flex", alignItems: "center", gap: 7, marginBottom: 3 }}>
-                          {colorHex && <div style={{ width: 13, height: 13, borderRadius: "50%", background: colorHex, border: `1.5px solid ${W.border}`, flexShrink: 0 }} />}
-                          {entry.name && <span style={{ fontWeight: 700, color: W.textMuted, fontSize: 14 }}>{entry.name}</span>}
+                  <>
+                    <div style={{ fontSize: 12, fontWeight: 800, color: W.textMuted, textTransform: "uppercase", letterSpacing: 1, marginTop: 20, marginBottom: 10 }}>Off the Wall · {removed.length}</div>
+                    {removed.map(entry => {
+                      const entryAttempts = sessions.flatMap(s => (s.climbs || []).filter(c => c.setClimbId === entry.id));
+                      const entrySends = entryAttempts.filter(c => c.completed).length;
+                      const entryPhoto = entryAttempts.find(c => c.photo)?.photo;
+                      const gradeClr = getGradeColor(entry.grade);
+                      const colorEntry = CLIMB_COLORS.find(cc => cc.id === entry.color);
+                      const colorHex = colorEntry?.hex;
+                      if (entryPhoto) {
+                        return (
+                          <div key={entry.id} onClick={() => setSelectedSetClimb(entry)} style={{ borderRadius: 16, overflow: "hidden", border: `1px solid ${W.border}`, marginBottom: 12, cursor: "pointer", background: W.surface, opacity: 0.7 }}>
+                            <div style={{ position: "relative" }}>
+                              <img src={entryPhoto} alt="" style={{ width: "100%", height: 190, objectFit: "cover", display: "block", filter: "grayscale(40%)" }} />
+                              <div style={{ position: "absolute", inset: 0, background: "linear-gradient(to bottom, rgba(0,0,0,0.08) 0%, rgba(0,0,0,0.65) 100%)" }} />
+                              <div style={{ position: "absolute", top: 10, right: 10 }}>
+                                <span style={{ background: "rgba(0,0,0,0.6)", color: "#fff", borderRadius: 8, padding: "3px 10px", fontSize: 11, fontWeight: 800 }}>Off Wall</span>
+                              </div>
+                              <div style={{ position: "absolute", bottom: 12, left: 14, display: "flex", alignItems: "center", gap: 8 }}>
+                                <div style={{ background: gradeClr, color: "#fff", borderRadius: 10, padding: "4px 13px", fontWeight: 900, fontSize: 20, letterSpacing: 0.3, boxShadow: "0 2px 8px rgba(0,0,0,0.4)" }}>{entry.grade}</div>
+                                {colorHex && <div style={{ width: 24, height: 24, borderRadius: "50%", background: colorHex, border: "2.5px solid rgba(255,255,255,0.9)", boxShadow: "0 1px 5px rgba(0,0,0,0.5)" }} />}
+                              </div>
+                            </div>
+                            <div style={{ padding: "10px 14px", display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
+                              {entry.name && <span style={{ fontWeight: 700, color: W.textMuted, fontSize: 13 }}>{entry.name}</span>}
+                              <span style={{ fontSize: 12, color: W.textDim }}><span style={{ fontWeight: 700, color: W.textMuted }}>{entryAttempts.length}</span> attempts · <span style={{ fontWeight: 700, color: entrySends > 0 ? W.greenDark : W.textMuted }}>{entrySends}</span> sends</span>
+                            </div>
+                          </div>
+                        );
+                      }
+                      return (
+                        <div key={entry.id} onClick={() => setSelectedSetClimb(entry)} style={{ borderRadius: 14, border: `1px solid ${W.border}`, borderLeft: `4px solid ${gradeClr}`, marginBottom: 10, cursor: "pointer", background: W.surface, overflow: "hidden", opacity: 0.65 }}>
+                          <div style={{ display: "flex", alignItems: "stretch", minHeight: 72 }}>
+                            <div style={{ background: gradeClr + "1a", display: "flex", alignItems: "center", justifyContent: "center", padding: "0 14px", minWidth: 56, borderRight: `1px solid ${gradeClr}28` }}>
+                              <div style={{ fontWeight: 900, fontSize: 17, color: gradeClr, textAlign: "center" }}>{entry.grade}</div>
+                            </div>
+                            <div style={{ flex: 1, padding: "10px 12px", minWidth: 0 }}>
+                              <div style={{ display: "flex", alignItems: "center", gap: 7, marginBottom: 3 }}>
+                                {colorHex && <div style={{ width: 13, height: 13, borderRadius: "50%", background: colorHex, border: `1.5px solid ${W.border}`, flexShrink: 0 }} />}
+                                {entry.name && <span style={{ fontWeight: 700, color: W.textMuted, fontSize: 14 }}>{entry.name}</span>}
+                              </div>
+                              <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
+                                <span style={{ fontSize: 12, color: W.textDim }}><span style={{ fontWeight: 700, color: W.textMuted }}>{entryAttempts.length}</span> attempts · <span style={{ fontWeight: 700, color: entrySends > 0 ? W.greenDark : W.textMuted }}>{entrySends}</span> sends</span>
+                                {entry.section && <span style={{ fontSize: 11, color: W.textMuted, fontWeight: 700 }}>📌 {entry.section}</span>}
+                              </div>
+                            </div>
+                            <div style={{ padding: "0 12px", display: "flex", alignItems: "center", flexShrink: 0 }}>
+                              <span style={{ background: W.surface2, color: W.textMuted, borderRadius: 8, padding: "3px 9px", fontSize: 11, fontWeight: 800, whiteSpace: "nowrap" }}>Off Wall</span>
+                            </div>
+                          </div>
                         </div>
-                        <div style={{ fontSize: 12, color: W.textDim }}>Removed from wall</div>
-                      </div>
-                    </div>
-                  );
-                })}
+                      );
+                    })}
+                  </>
+                )}
               </div>
             );
           }
@@ -7249,6 +7280,8 @@ export default function App() {
       const totalTimeMs   = relatedEntries.reduce((t, { climb: c }) => t + (c.attemptLog || []).reduce((s, a) => s + (a.duration || 0), 0), 0);
       const totalTimeSec  = Math.floor(totalTimeMs / 1000);
       const gradeColor    = getGradeColor(climb.grade);
+      const setClimbEntry = climb.setClimbId ? Object.values(gymSets).flat().find(e => e.id === climb.setClimbId) : null;
+      const isOffWall     = setClimbEntry?.removed || false;
       const colorEntry    = CLIMB_COLORS.find(cc => cc.id === climb.color);
       return (
         <div
@@ -7319,12 +7352,54 @@ export default function App() {
                 </div>
               ))}
             </div>
+            {/* Send rate bar for multi-session climbs */}
+            {relatedEntries.length > 1 && (
+              <div style={{ background: W.surface, border: `1px solid ${W.border}`, borderRadius: 14, padding: "14px 16px", marginBottom: 20 }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+                  <div style={{ fontSize: 12, fontWeight: 700, color: W.textMuted, textTransform: "uppercase", letterSpacing: 0.5 }}>Send Rate</div>
+                  <div style={{ fontSize: 14, fontWeight: 900, color: totalSends > 0 ? W.greenDark : W.textMuted }}>{totalSends}/{relatedEntries.length} sessions</div>
+                </div>
+                <div style={{ height: 8, borderRadius: 4, background: W.surface2, overflow: "hidden" }}>
+                  <div style={{ height: "100%", width: `${Math.round((totalSends / relatedEntries.length) * 100)}%`, background: totalSends > 0 ? W.greenDark : W.border, borderRadius: 4, transition: "width 0.3s" }} />
+                </div>
+              </div>
+            )}
             {totalTimeSec > 0 && (
               <div style={{ background: W.surface, border: `1px solid ${W.border}`, borderRadius: 14, padding: "14px 16px", marginBottom: 20, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                 <div style={{ fontSize: 13, fontWeight: 700, color: W.textMuted, textTransform: "uppercase", letterSpacing: 0.5 }}>Total Time on Climb</div>
                 <div style={{ fontSize: 22, fontWeight: 900, color: W.text }}>{formatDuration(totalTimeSec)}</div>
               </div>
             )}
+            {/* Project progress block */}
+            {climb.isProject && climb.projectId && (() => {
+              const proj = projects.find(p => p.id === climb.projectId);
+              if (!proj) return null;
+              const avgSendTries = (() => {
+                const sent = completedProjects.filter(p => getProjectTotalTries(p.id) > 0);
+                if (!sent.length) return null;
+                return Math.round(sent.reduce((sum, p) => sum + getProjectTotalTries(p.id), 0) / sent.length);
+              })();
+              const daysSinceAdded = proj.dateAdded ? Math.floor((Date.now() - new Date(proj.dateAdded)) / 86400000) : null;
+              const progressPct = avgSendTries && totalAttempts > 0 ? Math.min(100, Math.round(totalAttempts / avgSendTries * 100)) : null;
+              return (
+                <div style={{ background: W.pink, border: `1px solid ${W.pinkDark}30`, borderRadius: 14, padding: "14px 16px", marginBottom: 20 }}>
+                  <div style={{ fontSize: 12, fontWeight: 800, color: W.pinkDark, textTransform: "uppercase", letterSpacing: 1, marginBottom: 10 }}>🎯 Project Progress</div>
+                  <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginBottom: avgSendTries ? 10 : 0 }}>
+                    {daysSinceAdded !== null && <span style={{ fontSize: 12, color: W.pinkDark, fontWeight: 700 }}>{daysSinceAdded === 0 ? "Started today" : `${daysSinceAdded} day${daysSinceAdded !== 1 ? "s" : ""} working`}</span>}
+                    <span style={{ fontSize: 12, color: W.pinkDark, fontWeight: 700 }}>{totalAttempts} total attempt{totalAttempts !== 1 ? "s" : ""}</span>
+                    {proj.completed && <span style={{ background: W.greenDark, color: "#fff", borderRadius: 6, padding: "1px 8px", fontSize: 11, fontWeight: 800 }}>✓ Sent</span>}
+                  </div>
+                  {progressPct != null && !proj.completed && (
+                    <>
+                      <div style={{ height: 8, borderRadius: 4, background: "rgba(0,0,0,0.12)", overflow: "hidden", marginBottom: 4 }}>
+                        <div style={{ height: "100%", width: `${progressPct}%`, background: progressPct >= 80 ? W.redDark : W.pinkDark, borderRadius: 4, transition: "width 0.3s" }} />
+                      </div>
+                      <div style={{ fontSize: 10, color: W.pinkDark, fontWeight: 600 }}>{progressPct}% of avg send ({avgSendTries} tries)</div>
+                    </>
+                  )}
+                </div>
+              );
+            })()}
             {/* Tags */}
             {((climb.wallTypes || []).length > 0 || (climb.holdTypes || []).length > 0) && (
               <div style={{ marginBottom: 20 }}><TagChips wallTypes={climb.wallTypes} holdTypes={climb.holdTypes} /></div>
@@ -7392,6 +7467,20 @@ export default function App() {
                 </div>
               );
             })}
+            {/* Wall status toggle — only for set climbs */}
+            {setClimbEntry && (
+              <div style={{ marginTop: 16, paddingTop: 16, borderTop: `1px solid ${W.border}` }}>
+                <button
+                  onClick={() => {
+                    const loc = setClimbEntry.location;
+                    setGymSets(prev => ({ ...prev, [loc]: (prev[loc] || []).map(e => e.id === setClimbEntry.id ? { ...e, removed: !e.removed, removedDate: !e.removed ? new Date().toISOString() : null } : e) }));
+                  }}
+                  style={{ width: "100%", padding: "13px", borderRadius: 14, border: `2px solid ${isOffWall ? W.border : "#f87171"}`, background: isOffWall ? W.surface2 : "#fca5a5", color: isOffWall ? W.textMuted : "#b91c1c", fontWeight: 700, fontSize: 14, cursor: "pointer" }}
+                >
+                  {isOffWall ? "↩ Mark as Back on Wall" : "🚫 Mark as No Longer on Wall"}
+                </button>
+              </div>
+            )}
           </div>
           {/* Share modal */}
           {showClimbShare && (
