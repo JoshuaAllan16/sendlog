@@ -345,6 +345,8 @@ export default function App() {
   const [gymSets, setGymSets] = useState({});
   const [gymSetStaleWeeks, setGymSetStaleWeeks] = useState(8);
   const [selectedSetClimb, setSelectedSetClimb] = useState(null);
+  const [gymScales, setGymScales] = useState({}); // { [location]: { boulder: "V-Scale", rope: "French" } }
+  const [selectedGym, setSelectedGym] = useState(null);
   const [selectedLogbookClimb, setSelectedLogbookClimb] = useState(null);
   const [boulderQuickPanel, setBoulderQuickPanel] = useState(null); // null | "projects" | "set"
   const [quickPanelSelected, setQuickPanelSelected] = useState([]); // array of selected item IDs
@@ -482,6 +484,7 @@ export default function App() {
           setSessions(userData.sessions || []);
           setProjects(userData.projects || []);
           setGymSets(userData.gymSets || {});
+          setGymScales(userData.profile?.gymScales || {});
           setPreferredScale(userData.profile?.preferredScale || "V-Scale");
           setPreferredRopeScale(userData.profile?.preferredRopeScale || "French");
           setProfilePic(userData.profile?.profilePic || null);
@@ -555,7 +558,7 @@ export default function App() {
     setSaveStatus("saving");
     saveTimeoutRef.current = setTimeout(async () => {
       const userData = {
-        profile: { displayName: editDisplayName || currentUser.displayName, preferredScale, preferredRopeScale, profilePic, customBoulderGrades, customRopeGrades, customBoulderScaleName, customRopeScaleName, hiddenLocations, customLocations, mainGym, following: socialFollowing, colorTheme, mutedUsers, notifPrefs, isPrivate, pendingFollowRequests, defaultWarmupItems, autoEndWarmup, warmupTemplates, activeWarmupTemplateId, defaultWorkoutItems, defaultFingerboardItems, workoutRoutines, fingerboardRoutines, activeWorkoutRoutineId, activeFingerboardRoutineId, sessionTypeOrder, gymSetStaleWeeks },
+        profile: { displayName: editDisplayName || currentUser.displayName, preferredScale, preferredRopeScale, profilePic, customBoulderGrades, customRopeGrades, customBoulderScaleName, customRopeScaleName, hiddenLocations, customLocations, mainGym, following: socialFollowing, colorTheme, mutedUsers, notifPrefs, isPrivate, pendingFollowRequests, defaultWarmupItems, autoEndWarmup, warmupTemplates, activeWarmupTemplateId, defaultWorkoutItems, defaultFingerboardItems, workoutRoutines, fingerboardRoutines, activeWorkoutRoutineId, activeFingerboardRoutineId, sessionTypeOrder, gymSetStaleWeeks, gymScales },
         sessions,
         projects,
         gymSets,
@@ -565,7 +568,7 @@ export default function App() {
       setTimeout(() => setSaveStatus(""), 2000);
     }, 1000);
     return () => clearTimeout(saveTimeoutRef.current);
-  }, [sessions, projects, gymSets, editDisplayName, preferredScale, preferredRopeScale, profilePic, customBoulderGrades, customRopeGrades, customBoulderScaleName, customRopeScaleName, hiddenLocations, customLocations, mainGym, socialFollowing, colorTheme, mutedUsers, notifPrefs, isPrivate, pendingFollowRequests, defaultWarmupItems, autoEndWarmup, warmupTemplates, activeWarmupTemplateId, defaultWorkoutItems, defaultFingerboardItems, workoutRoutines, fingerboardRoutines, activeWorkoutRoutineId, activeFingerboardRoutineId, sessionTypeOrder, gymSetStaleWeeks]);
+  }, [sessions, projects, gymSets, editDisplayName, preferredScale, preferredRopeScale, profilePic, customBoulderGrades, customRopeGrades, customBoulderScaleName, customRopeScaleName, hiddenLocations, customLocations, mainGym, socialFollowing, colorTheme, mutedUsers, notifPrefs, isPrivate, pendingFollowRequests, defaultWarmupItems, autoEndWarmup, warmupTemplates, activeWarmupTemplateId, defaultWorkoutItems, defaultFingerboardItems, workoutRoutines, fingerboardRoutines, activeWorkoutRoutineId, activeFingerboardRoutineId, sessionTypeOrder, gymSetStaleWeeks, gymScales]);
 
   useEffect(() => {
     if (timerRunning) {
@@ -850,7 +853,12 @@ export default function App() {
     setActiveSession({ location: defaultLocation, climbs: [], collapsedSections: { boulder: false, rope: false } });
     setSessionTimer(0); setSessionActiveStart(null); setSessionPausedSec(0); setShowMoreClimbTypes(false); setScreen("session");
   };
-  const beginTimer = () => { setActiveSession(s => ({ ...s, location: pendingLocation, sessionTypes })); setSessionStarted(true); setSessionActiveStart(Date.now()); setTimerRunning(true); setShowMoreClimbTypes(false); };
+  const beginTimer = () => {
+    setActiveSession(s => ({ ...s, location: pendingLocation, sessionTypes }));
+    setSessionStarted(true); setSessionActiveStart(Date.now()); setTimerRunning(true); setShowMoreClimbTypes(false);
+    if (gymScales[pendingLocation]?.boulder) setPreferredScale(gymScales[pendingLocation].boulder);
+    if (gymScales[pendingLocation]?.rope) setPreferredRopeScale(gymScales[pendingLocation].rope);
+  };
   const toggleSessionTimer = () => {
     if (timerRunning) {
       setSessionPausedSec(s => s + (sessionActiveStart ? Math.floor((Date.now() - sessionActiveStart) / 1000) : 0));
@@ -4884,7 +4892,7 @@ export default function App() {
 
         {profileTab === "climbing" && (
           <div style={{ display: "flex", background: W.surface2, borderRadius: 10, padding: 3, marginBottom: 18, border: `1px solid ${W.border}` }}>
-            {[{ id: "logbook", label: "Logbook" }, { id: "sets", label: "Sets" }, { id: "projects", label: "Projects" }].map(tab => (
+            {[{ id: "logbook", label: "Logbook" }, { id: "sets", label: "Gyms" }, { id: "projects", label: "Projects" }].map(tab => (
               <button key={tab.id} onClick={() => setClimbingSubTab(tab.id)} style={{ flex: 1, padding: "8px 4px", borderRadius: 8, border: "none", background: climbingSubTab === tab.id ? `linear-gradient(135deg, ${W.accent}, ${W.accentDark})` : "transparent", color: climbingSubTab === tab.id ? "#fff" : W.textDim, fontWeight: 700, fontSize: 13, cursor: "pointer" }}>{tab.label}</button>
             ))}
           </div>
@@ -5822,70 +5830,144 @@ export default function App() {
         )}
 
         {profileTab === "climbing" && climbingSubTab === "sets" && (() => {
-          const locations = Object.keys(gymSets).filter(loc => (gymSets[loc] || []).length > 0);
-          if (locations.length === 0) return (
+          // All known gym locations (from sets + all sessions + customLocations)
+          const allLocations = [...new Set([
+            ...Object.keys(gymSets).filter(loc => (gymSets[loc] || []).length > 0),
+            ...sessions.map(s => s.location).filter(Boolean),
+            ...customLocations,
+          ])].filter(Boolean).sort();
+
+          // ── Gym detail page ─────────────────────────────────────
+          if (selectedGym) {
+            const loc = selectedGym;
+            const allEntries = gymSets[loc] || [];
+            const active  = allEntries.filter(e => !e.removed).sort((a, b) => new Date(b.setDate) - new Date(a.setDate));
+            const removed = allEntries.filter(e => e.removed);
+            const showRemoved = gymSetShowRemoved[loc];
+            const gs = gymScales[loc] || {};
+            const boulderScales = [...Object.keys(GRADES), ...(customBoulderGrades.length ? ["Custom"] : [])];
+            const ropeScales    = [...Object.keys(ROPE_GRADES), ...(customRopeGrades.length ? ["Custom"] : [])];
+            const setGymScale = (type, val) => setGymScales(p => ({ ...p, [loc]: { ...(p[loc] || {}), [type]: val } }));
+            return (
+              <div>
+                {/* Header */}
+                <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 18 }}>
+                  <button onClick={() => setSelectedGym(null)} style={{ background: W.surface2, border: `1px solid ${W.border}`, borderRadius: 10, padding: "7px 14px", color: W.text, fontWeight: 700, fontSize: 14, cursor: "pointer" }}>← Back</button>
+                  <div style={{ fontWeight: 900, fontSize: 18, color: W.text, flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>📍 {loc}</div>
+                </div>
+                {/* Grading scheme */}
+                <div style={{ background: W.surface, border: `1px solid ${W.border}`, borderRadius: 14, padding: "14px 16px", marginBottom: 18 }}>
+                  <div style={{ fontWeight: 800, fontSize: 13, color: W.text, marginBottom: 12 }}>Grading Scheme</div>
+                  <div style={{ marginBottom: 10 }}>
+                    <div style={{ fontSize: 11, fontWeight: 700, color: W.textMuted, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 6 }}>Boulder</div>
+                    <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                      {boulderScales.map(s => (
+                        <button key={s} onClick={() => setGymScale("boulder", s)} style={{ padding: "5px 11px", borderRadius: 12, border: "2px solid", borderColor: gs.boulder === s ? W.accent : W.border, background: gs.boulder === s ? W.accent + "22" : W.surface, color: gs.boulder === s ? W.accent : W.textDim, cursor: "pointer", fontSize: 12, fontWeight: 700 }}>{s}</button>
+                      ))}
+                    </div>
+                  </div>
+                  <div>
+                    <div style={{ fontSize: 11, fontWeight: 700, color: W.textMuted, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 6 }}>Rope</div>
+                    <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                      {ropeScales.map(s => (
+                        <button key={s} onClick={() => setGymScale("rope", s)} style={{ padding: "5px 11px", borderRadius: 12, border: "2px solid", borderColor: gs.rope === s ? W.accent : W.border, background: gs.rope === s ? W.accent + "22" : W.surface, color: gs.rope === s ? W.accent : W.textDim, cursor: "pointer", fontSize: 12, fontWeight: 700 }}>{s}</button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+                {/* Active set */}
+                <div style={{ fontWeight: 800, fontSize: 14, color: W.text, marginBottom: 10 }}>{active.length} Active on Wall</div>
+                {active.length === 0 && <div style={{ color: W.textDim, fontSize: 13, textAlign: "center", padding: "16px 0 8px" }}>No active climbs. Log a session here to track the set.</div>}
+                {active.map(entry => {
+                  const entryAttempts = sessions.flatMap(s => (s.climbs || []).filter(c => c.setClimbId === entry.id));
+                  const entrySends = entryAttempts.filter(c => c.completed).length;
+                  const entrySessionCount = new Set(sessions.filter(s => (s.climbs || []).some(c => c.setClimbId === entry.id)).map(s => s.id)).size;
+                  const daysOnWall = entry.setDate ? Math.floor((Date.now() - new Date(entry.setDate)) / 86400000) : null;
+                  const ageLabel = daysOnWall === null ? null : daysOnWall === 0 ? "Set today" : daysOnWall === 1 ? "1 day on wall" : daysOnWall < 7 ? `${daysOnWall} days on wall` : daysOnWall < 14 ? "1 week on wall" : `${Math.floor(daysOnWall / 7)} weeks on wall`;
+                  const isStale = daysOnWall !== null && daysOnWall >= gymSetStaleWeeks * 7;
+                  return (
+                    <div key={entry.id} onClick={() => setSelectedSetClimb(entry)} style={{ background: isStale ? "#78350f18" : W.surface, border: `1px solid ${isStale ? "#b45309" : W.border}`, borderRadius: 14, padding: "12px 14px", marginBottom: 8, cursor: "pointer", display: "flex", alignItems: "center", gap: 12 }}>
+                      <div style={{ width: 44, height: 44, borderRadius: 10, display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 900, fontSize: 13, background: getGradeColor(entry.grade) + "30", color: getGradeColor(entry.grade), border: `1.5px solid ${getGradeColor(entry.grade)}60`, flexShrink: 0 }}>{entry.grade}</div>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                          {entry.color && <ColorDot colorId={entry.color} size={9} />}
+                          <div style={{ fontWeight: 700, fontSize: 14, color: W.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{entry.name || entry.grade}</div>
+                          {ageLabel && <span style={{ marginLeft: "auto", fontSize: 10, color: isStale ? "#b45309" : W.textMuted, fontWeight: 700, whiteSpace: "nowrap" }}>{ageLabel}</span>}
+                        </div>
+                        <div style={{ fontSize: 11, color: W.textMuted, marginTop: 2 }}>
+                          {entrySessionCount} session{entrySessionCount !== 1 ? "s" : ""} · {entryAttempts.length} lap{entryAttempts.length !== 1 ? "s" : ""} · {entrySends} send{entrySends !== 1 ? "s" : ""}{entryAttempts.length > 0 ? ` · ${Math.round((entrySends / entryAttempts.length) * 100)}%` : ""}
+                        </div>
+                      </div>
+                      <span style={{ color: W.textMuted, fontSize: 16 }}>›</span>
+                    </div>
+                  );
+                })}
+                {removed.length > 0 && (
+                  <button onClick={() => setGymSetShowRemoved(p => ({ ...p, [loc]: !showRemoved }))} style={{ width: "100%", padding: "8px", background: "transparent", border: `1px solid ${W.border}`, borderRadius: 10, color: W.textMuted, fontSize: 12, fontWeight: 600, cursor: "pointer", marginTop: 4, marginBottom: showRemoved ? 8 : 0 }}>
+                    {showRemoved ? "Hide removed" : `Show ${removed.length} removed`}
+                  </button>
+                )}
+                {showRemoved && removed.map(entry => (
+                  <div key={entry.id} onClick={() => setSelectedSetClimb(entry)} style={{ background: W.surface2, border: `1px solid ${W.border}`, borderRadius: 14, padding: "12px 14px", marginBottom: 8, cursor: "pointer", display: "flex", alignItems: "center", gap: 12, opacity: 0.55 }}>
+                    <div style={{ width: 44, height: 44, borderRadius: 10, display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 900, fontSize: 13, background: W.surface2, color: W.textMuted, border: `1.5px solid ${W.border}`, flexShrink: 0 }}>{entry.grade}</div>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                        {entry.color && <ColorDot colorId={entry.color} size={9} />}
+                        <div style={{ fontWeight: 700, fontSize: 14, color: W.textMuted, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{entry.name || entry.grade}</div>
+                      </div>
+                      <div style={{ fontSize: 11, color: W.textMuted, marginTop: 2 }}>Removed from wall</div>
+                    </div>
+                    <span style={{ color: W.textMuted, fontSize: 16 }}>›</span>
+                  </div>
+                ))}
+              </div>
+            );
+          }
+
+          // ── Gym cards list ───────────────────────────────────────
+          if (allLocations.length === 0) return (
             <div style={{ textAlign: "center", color: W.textDim, padding: "40px 20px" }}>
               <div style={{ fontSize: 32, marginBottom: 10 }}>🏟️</div>
-              <div style={{ fontSize: 15, fontWeight: 700, color: W.text, marginBottom: 6 }}>No gym sets yet</div>
-              <div style={{ fontSize: 13 }}>Climbs you log during sessions are automatically tracked here by gym.</div>
+              <div style={{ fontSize: 15, fontWeight: 700, color: W.text, marginBottom: 6 }}>No gyms yet</div>
+              <div style={{ fontSize: 13 }}>Log a session at a gym to track its set here.</div>
             </div>
           );
           return (
             <div>
-              {locations.map(loc => {
+              {allLocations.map(loc => {
                 const allEntries = gymSets[loc] || [];
-                const active = allEntries.filter(e => !e.removed).sort((a, b) => new Date(b.setDate) - new Date(a.setDate));
-                const removed = allEntries.filter(e => e.removed);
-                const showRemoved = gymSetShowRemoved[loc];
+                const active = allEntries.filter(e => !e.removed);
+                const activeSends = active.filter(entry =>
+                  sessions.some(s => (s.climbs || []).some(c => c.setClimbId === entry.id && c.completed))
+                ).length;
+                const gs = gymScales[loc] || {};
+                const hasScale = gs.boulder || gs.rope;
                 return (
-                  <div key={loc} style={{ marginBottom: 22 }}>
-                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
-                      <div style={{ fontWeight: 800, fontSize: 15, color: W.text }}>📍 {loc}</div>
-                      <div style={{ fontSize: 11, color: W.textMuted, fontWeight: 600 }}>{active.length} on wall</div>
+                  <div key={loc} onClick={() => setSelectedGym(loc)} style={{ background: W.surface, border: `1px solid ${W.border}`, borderRadius: 16, padding: "16px 18px", marginBottom: 12, cursor: "pointer" }}>
+                    <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: hasScale || active.length > 0 ? 12 : 0 }}>
+                      <div style={{ fontWeight: 900, fontSize: 16, color: W.text }}>📍 {loc}</div>
+                      <span style={{ color: W.textMuted, fontSize: 16, lineHeight: 1 }}>›</span>
                     </div>
-                    {active.length === 0 && <div style={{ color: W.textDim, fontSize: 13, textAlign: "center", padding: "12px 0" }}>No active climbs</div>}
-                    {active.map(entry => {
-                      const entryAttempts = sessions.flatMap(s => (s.climbs || []).filter(c => c.setClimbId === entry.id));
-                      const entrySends = entryAttempts.filter(c => c.completed).length;
-                      const entrySessionCount = new Set(sessions.filter(s => (s.climbs || []).some(c => c.setClimbId === entry.id)).map(s => s.id)).size;
-                      const daysOnWall = entry.setDate ? Math.floor((Date.now() - new Date(entry.setDate)) / 86400000) : null;
-                      const ageLabel = daysOnWall === null ? null : daysOnWall === 0 ? "Set today" : daysOnWall === 1 ? "1 day on wall" : daysOnWall < 7 ? `${daysOnWall} days on wall` : daysOnWall < 14 ? "1 week on wall" : `${Math.floor(daysOnWall / 7)} weeks on wall`;
-                      const isStale = daysOnWall !== null && daysOnWall >= gymSetStaleWeeks * 7;
-                      return (
-                        <div key={entry.id} onClick={() => setSelectedSetClimb(entry)} style={{ background: isStale ? "#78350f18" : W.surface, border: `1px solid ${isStale ? "#b45309" : W.border}`, borderRadius: 14, padding: "12px 14px", marginBottom: 8, cursor: "pointer", display: "flex", alignItems: "center", gap: 12 }}>
-                          <div style={{ width: 44, height: 44, borderRadius: 10, display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 900, fontSize: 13, background: getGradeColor(entry.grade) + "30", color: getGradeColor(entry.grade), border: `1.5px solid ${getGradeColor(entry.grade)}60`, flexShrink: 0 }}>{entry.grade}</div>
-                          <div style={{ flex: 1, minWidth: 0 }}>
-                            <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                              {entry.color && <ColorDot colorId={entry.color} size={9} />}
-                              <div style={{ fontWeight: 700, fontSize: 14, color: W.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{entry.name || entry.grade}</div>
-                              {ageLabel && <span style={{ marginLeft: "auto", fontSize: 10, color: isStale ? "#b45309" : W.textMuted, fontWeight: 700, whiteSpace: "nowrap" }}>{ageLabel}</span>}
-                            </div>
-                            <div style={{ fontSize: 11, color: W.textMuted, marginTop: 2 }}>
-                              {entrySessionCount} session{entrySessionCount !== 1 ? "s" : ""} · {entryAttempts.length} lap{entryAttempts.length !== 1 ? "s" : ""} · {entrySends} send{entrySends !== 1 ? "s" : ""}{entryAttempts.length > 0 ? ` · ${Math.round((entrySends / entryAttempts.length) * 100)}%` : ""}
-                            </div>
-                          </div>
-                          <span style={{ color: W.textMuted, fontSize: 16 }}>›</span>
-                        </div>
-                      );
-                    })}
-                    {removed.length > 0 && (
-                      <button onClick={() => setGymSetShowRemoved(p => ({ ...p, [loc]: !showRemoved }))} style={{ width: "100%", padding: "8px", background: "transparent", border: `1px solid ${W.border}`, borderRadius: 10, color: W.textMuted, fontSize: 12, fontWeight: 600, cursor: "pointer", marginTop: 4, marginBottom: showRemoved ? 8 : 0 }}>
-                        {showRemoved ? `Hide removed` : `Show ${removed.length} removed`}
-                      </button>
-                    )}
-                    {showRemoved && removed.map(entry => (
-                      <div key={entry.id} onClick={() => setSelectedSetClimb(entry)} style={{ background: W.surface2, border: `1px solid ${W.border}`, borderRadius: 14, padding: "12px 14px", marginBottom: 8, cursor: "pointer", display: "flex", alignItems: "center", gap: 12, opacity: 0.55 }}>
-                        <div style={{ width: 44, height: 44, borderRadius: 10, display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 900, fontSize: 13, background: W.surface2, color: W.textMuted, border: `1.5px solid ${W.border}`, flexShrink: 0 }}>{entry.grade}</div>
-                        <div style={{ flex: 1, minWidth: 0 }}>
-                          <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                            {entry.color && <ColorDot colorId={entry.color} size={9} />}
-                            <div style={{ fontWeight: 700, fontSize: 14, color: W.textMuted, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{entry.name || entry.grade}</div>
-                          </div>
-                          <div style={{ fontSize: 11, color: W.textMuted, marginTop: 2 }}>Removed from wall</div>
-                        </div>
-                        <span style={{ color: W.textMuted, fontSize: 16 }}>›</span>
+                    {hasScale && (
+                      <div style={{ display: "flex", gap: 6, marginBottom: 12, flexWrap: "wrap" }}>
+                        {gs.boulder && <span style={{ background: W.accent + "22", color: W.accent, borderRadius: 8, padding: "3px 10px", fontSize: 11, fontWeight: 700 }}>🪨 {gs.boulder}</span>}
+                        {gs.rope   && <span style={{ background: W.purple + "22", color: W.purpleDark, borderRadius: 8, padding: "3px 10px", fontSize: 11, fontWeight: 700 }}>🧗 {gs.rope}</span>}
                       </div>
-                    ))}
+                    )}
+                    {active.length > 0 ? (
+                      <div style={{ display: "flex", gap: 0, background: W.surface2, borderRadius: 12, overflow: "hidden", border: `1px solid ${W.border}` }}>
+                        <div style={{ flex: 1, padding: "10px 8px", textAlign: "center", borderRight: `1px solid ${W.border}` }}>
+                          <div style={{ fontWeight: 900, fontSize: 22, color: W.text }}>{active.length}</div>
+                          <div style={{ fontSize: 11, color: W.textMuted, marginTop: 1 }}>Active Climbs</div>
+                        </div>
+                        <div style={{ flex: 1, padding: "10px 8px", textAlign: "center" }}>
+                          <div style={{ fontWeight: 900, fontSize: 22, color: activeSends > 0 ? W.greenDark : W.textMuted }}>{activeSends}</div>
+                          <div style={{ fontSize: 11, color: W.textMuted, marginTop: 1 }}>Climbs Sent</div>
+                        </div>
+                      </div>
+                    ) : (
+                      <div style={{ fontSize: 12, color: W.textDim }}>No active set — tap to configure</div>
+                    )}
                   </div>
                 );
               })}
@@ -6686,7 +6768,7 @@ export default function App() {
 
       {screen === "session" && sessionStarted && activeLocationDropdownOpen && (
         <div style={{ padding: "10px 20px 12px", background: W.navBg, borderBottom: `1px solid ${W.border}`, position: "sticky", top: 0, zIndex: 49 }} onClick={e => e.stopPropagation()}>
-          <LocationDropdown value={activeSession?.location || ""} onChange={v => { setActiveSession(s => ({ ...s, location: v })); addCustomLocation(v); setActiveLocationDropdownOpen(false); }} open={activeLocationDropdownOpen} setOpen={setActiveLocationDropdownOpen} knownLocations={knownLocations} onRemove={loc => setHiddenLocations(h => [...h, loc])} />
+          <LocationDropdown value={activeSession?.location || ""} onChange={v => { setActiveSession(s => ({ ...s, location: v })); addCustomLocation(v); setActiveLocationDropdownOpen(false); if (gymScales[v]?.boulder) setPreferredScale(gymScales[v].boulder); if (gymScales[v]?.rope) setPreferredRopeScale(gymScales[v].rope); }} open={activeLocationDropdownOpen} setOpen={setActiveLocationDropdownOpen} knownLocations={knownLocations} onRemove={loc => setHiddenLocations(h => [...h, loc])} />
         </div>
       )}
       <div style={{ flex: 1, overflowY: "auto", paddingBottom: screen === "sessionSummary" ? 0 : 80 }} onClick={() => { setLocationDropdownOpen(false); setActiveLocationDropdownOpen(false); }}>
