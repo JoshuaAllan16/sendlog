@@ -325,7 +325,7 @@ export const ActiveClimbCard = ({ climb, onEdit, onStartClimbing, onEndAttempt, 
       marginBottom: isActivelyClimbing ? 14 : 10,
       overflow: "hidden",
       boxShadow: isActivelyClimbing ? `0 0 0 2px ${W.greenDark}, 0 8px 28px ${W.greenDark}44` : hasPhoto ? "0 4px 14px rgba(0,0,0,0.28)" : "none",
-      background: !isRope && !hasPhoto ? `linear-gradient(135deg, ${getGradeColor(climb.grade)}18 0%, ${W.surface} 60%)` : W.surface,
+      background: !isRope && !hasPhoto ? `linear-gradient(135deg, ${getGradeColor(climb.grade)}${isActivelyClimbing ? "50" : "2e"} 0%, ${W.surface} ${isActivelyClimbing ? "70%" : "55%"})` : W.surface,
     }}>
       {/* Photo background */}
       {hasPhoto && <>
@@ -356,7 +356,7 @@ export const ActiveClimbCard = ({ climb, onEdit, onStartClimbing, onEndAttempt, 
                 <div style={{ fontSize: 28, fontWeight: 800, color: showReady ? T.accent : T.textMuted, fontVariantNumeric: "tabular-nums", lineHeight: 1 }}>{formatDuration(restSec)}</div>
               </>) : (
                 /* No timer yet — grade badge on left */
-                <div style={{ width: 46, height: 46, borderRadius: 12, display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 900, fontSize: 15, background: getGradeColor(climb.grade) + (hasPhoto ? "dd" : "30"), color: hasPhoto ? "#fff" : getGradeColor(climb.grade), border: `2px solid ${getGradeColor(climb.grade)}${hasPhoto ? "ff" : "60"}` }}>{climb.grade}</div>
+                <div style={{ width: 46, height: 46, borderRadius: 12, display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 900, fontSize: 15, background: getGradeColor(climb.grade) + (hasPhoto || isActivelyClimbing ? "dd" : "30"), color: hasPhoto || isActivelyClimbing ? "#fff" : getGradeColor(climb.grade), border: `2px solid ${getGradeColor(climb.grade)}${hasPhoto || isActivelyClimbing ? "ff" : "60"}`, boxShadow: isActivelyClimbing && !hasPhoto ? `0 2px 10px ${getGradeColor(climb.grade)}66` : "none" }}>{climb.grade}</div>
               )}
             </div>
 
@@ -369,7 +369,7 @@ export const ActiveClimbCard = ({ climb, onEdit, onStartClimbing, onEndAttempt, 
               </div>
               {/* grade + color dot + name */}
               <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap", justifyContent: "flex-end" }}>
-                {hasBoulderTimer && <div style={{ background: getGradeColor(climb.grade) + (hasPhoto ? "dd" : "30"), color: hasPhoto ? "#fff" : getGradeColor(climb.grade), border: `1.5px solid ${getGradeColor(climb.grade)}${hasPhoto ? "ff" : "60"}`, borderRadius: 8, padding: "2px 8px", fontWeight: 900, fontSize: 12 }}>{climb.grade}</div>}
+                {hasBoulderTimer && <div style={{ background: getGradeColor(climb.grade) + (hasPhoto || isActivelyClimbing ? "dd" : "30"), color: hasPhoto || isActivelyClimbing ? "#fff" : getGradeColor(climb.grade), border: `1.5px solid ${getGradeColor(climb.grade)}${hasPhoto || isActivelyClimbing ? "ff" : "60"}`, borderRadius: 8, padding: "2px 8px", fontWeight: 900, fontSize: 12, boxShadow: isActivelyClimbing && !hasPhoto ? `0 1px 8px ${getGradeColor(climb.grade)}55` : "none" }}>{climb.grade}</div>}
                 {climb.color && <ColorDot colorId={climb.color} size={12} />}
                 {climb.name && <span style={{ fontWeight: 700, color: T.text, fontSize: 14, textAlign: "right" }}>{climb.name}</span>}
               </div>
