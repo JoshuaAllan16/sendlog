@@ -325,6 +325,7 @@ export const ActiveClimbCard = ({ climb, onEdit, onStartClimbing, onEndAttempt, 
       marginBottom: isActivelyClimbing ? 14 : 10,
       overflow: "hidden",
       boxShadow: isActivelyClimbing ? `0 0 0 2px ${W.greenDark}, 0 8px 28px ${W.greenDark}44` : hasPhoto ? "0 4px 14px rgba(0,0,0,0.28)" : "none",
+      background: !isRope && !hasPhoto ? `linear-gradient(135deg, ${getGradeColor(climb.grade)}18 0%, ${W.surface} 60%)` : W.surface,
     }}>
       {/* Photo background */}
       {hasPhoto && <>
@@ -334,7 +335,7 @@ export const ActiveClimbCard = ({ climb, onEdit, onStartClimbing, onEndAttempt, 
           : "linear-gradient(to bottom, rgba(0,0,0,0.6) 0%, rgba(0,0,0,0.38) 45%, rgba(0,0,0,0.68) 100%)", zIndex: 1 }} />
       </>}
 
-      <div style={{ position: "relative", zIndex: 2, background: hasPhoto ? "transparent" : W.surface }}>
+      <div style={{ position: "relative", zIndex: 2, background: "transparent" }}>
 
         {/* ── BOULDER HEADER: left = timer, right = grade/color/name ── */}
         {!isRope && (
