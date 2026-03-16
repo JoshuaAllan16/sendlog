@@ -366,6 +366,7 @@ export default function App() {
   const [logbookFiltersOpen, setLogbookFiltersOpen] = useState(false);
   const [logbookColorFilter, setLogbookColorFilter]     = useState("All");
   const [logbookSectionFilter, setLogbookSectionFilter] = useState("All");
+  const [gymSetSortBySection, setGymSetSortBySection]   = useState(false);
   const [logbookTickList, setLogbookTickList]           = useState(false);
   const [logbookSearch, setLogbookSearch]               = useState("");
   const [showAddGym, setShowAddGym]                     = useState(false);
@@ -2437,6 +2438,7 @@ export default function App() {
               <span style={{ fontSize: 12, color: W.textMuted }}><span style={{ fontWeight: 700, color: W.text }}>{climb.tries || 0}</span> {climb.climbType === "rope" ? "attempts" : "falls"}</span>
               {timeSec > 0 && <span style={{ fontSize: 12, color: W.textMuted }}><span style={{ fontWeight: 700, color: W.text }}>{formatDuration(timeSec)}</span> on climb</span>}
               <TagChips wallTypes={climb.wallTypes} holdTypes={climb.holdTypes} />
+              {climb.section && <span style={{ fontSize: 11, color: W.accent, fontWeight: 700 }}>📌 {climb.section}</span>}
             </div>
           </div>
           <div style={{ padding: "0 12px", display: "flex", alignItems: "center", flexShrink: 0 }}>
@@ -2470,6 +2472,7 @@ export default function App() {
             <span style={{ fontSize: 12, color: W.textMuted }}><span style={{ fontWeight: 700, color: W.text }}>{climb.tries || 0}</span> {climb.climbType === "rope" ? "attempts" : "falls"}</span>
             {timeSec > 0 && <span style={{ fontSize: 12, color: W.textMuted }}><span style={{ fontWeight: 700, color: W.text }}>{formatDuration(timeSec)}</span> on climb</span>}
             <TagChips wallTypes={climb.wallTypes} holdTypes={climb.holdTypes} />
+            {climb.section && <span style={{ fontSize: 11, color: W.accent, fontWeight: 700 }}>📌 {climb.section}</span>}
           </div>
         </div>
       );
@@ -5489,6 +5492,31 @@ export default function App() {
                   { icon: "🐢", label: "Longest Climb Rest",  value: formatRestSec(displayStats.maxClimbRestSec),    sub: "single longest gap",                 bg: W.surface2,  tc: W.accentDark },
                   ...(displayStats.speedPB != null ? [{ icon: "⚡", label: "Speed PB", value: `${displayStats.speedPB.toFixed(2)}s`, sub: selLabel || tfLabels[statsTimeFrame], bg: W.yellow, tc: W.yellowDark }] : []),
                 ])}
+                {(() => {
+                  const allSections = [...new Set(sessions.flatMap(s => (s.climbs || []).map(c => c.section).filter(Boolean)))];
+                  if (!allSections.length) return null;
+                  const sectionData = allSections.map(sec => {
+                    const secClimbs = sessions.flatMap(s => (s.climbs || []).filter(c => c.section === sec));
+                    return { sec, total: secClimbs.length, sends: secClimbs.filter(c => c.completed).length };
+                  }).sort((a, b) => b.total - a.total);
+                  const maxTotal = sectionData[0]?.total || 1;
+                  return (
+                    <div style={{ background: W.surface, borderRadius: 16, padding: "16px", border: `1px solid ${W.border}`, marginBottom: 16 }}>
+                      <div style={{ fontSize: 11, fontWeight: 700, color: W.textMuted, textTransform: "uppercase", letterSpacing: 1, marginBottom: 12 }}>Section Breakdown</div>
+                      {sectionData.map(d => (
+                        <div key={d.sec} style={{ marginBottom: 10 }}>
+                          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
+                            <span style={{ fontSize: 13, fontWeight: 700, color: W.text }}>📌 {d.sec}</span>
+                            <span style={{ fontSize: 12, color: W.textMuted }}>{d.sends}/{d.total} sent</span>
+                          </div>
+                          <div style={{ height: 6, borderRadius: 3, background: W.surface2, overflow: "hidden" }}>
+                            <div style={{ height: "100%", width: `${(d.total / maxTotal) * 100}%`, background: W.accent, borderRadius: 3 }} />
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  );
+                })()}
               </div>
             )}
 
@@ -5872,7 +5900,10 @@ export default function App() {
           if (selectedGym) {
             const loc = selectedGym;
             const allEntries = gymSets[loc] || [];
-            const active  = allEntries.filter(e => !e.removed).sort((a, b) => new Date(b.setDate) - new Date(a.setDate));
+            const activeUnsorted = allEntries.filter(e => !e.removed).sort((a, b) => new Date(b.setDate) - new Date(a.setDate));
+            const active = gymSetSortBySection
+              ? [...activeUnsorted].sort((a, b) => (a.section || "").localeCompare(b.section || ""))
+              : activeUnsorted;
             const removed = allEntries.filter(e => e.removed);
             const showRemoved = gymSetShowRemoved[loc];
             const gs = gymScales[loc] || {};
@@ -5885,18 +5916,13 @@ export default function App() {
               <div>
                 {/* Header */}
                 <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 16 }}>
-                  <button onClick={() => { setSelectedGym(null); setGymDetailsOpen(false); setGymSectionInput(""); }} style={{ background: W.surface2, border: `1px solid ${W.border}`, borderRadius: 10, padding: "7px 14px", color: W.text, fontWeight: 700, fontSize: 14, cursor: "pointer" }}>← Back</button>
-                  <div style={{ fontWeight: 900, fontSize: 17, color: W.text, flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>📍 {loc}</div>
+                  <button onClick={() => { setSelectedGym(null); setGymDetailsOpen(false); setGymSectionInput(""); setGymSetSortBySection(false); }} style={{ background: W.surface2, border: `1px solid ${W.border}`, borderRadius: 10, padding: "7px 14px", color: W.text, fontWeight: 700, fontSize: 14, cursor: "pointer" }}>←</button>
+                  <div style={{ fontWeight: 900, fontSize: 17, color: W.text, flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{loc}</div>
+                  {wallSections.length > 0 && <button onClick={() => setGymSetSortBySection(o => !o)} style={{ background: gymSetSortBySection ? W.accent + "22" : W.surface2, border: `1px solid ${gymSetSortBySection ? W.accent : W.border}`, borderRadius: 10, padding: "7px 10px", color: gymSetSortBySection ? W.accent : W.textMuted, fontWeight: 700, fontSize: 11, cursor: "pointer", flexShrink: 0 }}>📌 Section</button>}
                   <button onClick={() => setGymDetailsOpen(o => !o)} style={{ background: gymDetailsOpen ? W.accent + "22" : W.surface2, border: `1px solid ${gymDetailsOpen ? W.accent : W.border}`, borderRadius: 10, padding: "7px 13px", color: gymDetailsOpen ? W.accent : W.text, fontWeight: 700, fontSize: 13, cursor: "pointer", flexShrink: 0 }}>⚙ Details</button>
                 </div>
 
-                {/* Summary strip */}
-                <div style={{ display: "flex", gap: 8, marginBottom: gymDetailsOpen ? 14 : 16, flexWrap: "wrap" }}>
-                  {gs.boulder && <span style={{ background: W.accent + "22", color: W.accent, borderRadius: 8, padding: "3px 10px", fontSize: 11, fontWeight: 700 }}>🪨 {gs.boulder}</span>}
-                  {gs.rope    && <span style={{ background: W.purple + "22", color: W.purpleDark, borderRadius: 8, padding: "3px 10px", fontSize: 11, fontWeight: 700 }}>🧗 {gs.rope}</span>}
-                  {wallSections.length > 0 && <span style={{ background: W.surface2, color: W.textMuted, borderRadius: 8, padding: "3px 10px", fontSize: 11, fontWeight: 700 }}>{wallSections.length} section{wallSections.length !== 1 ? "s" : ""}</span>}
-                  {gs.hours && <span style={{ background: W.surface2, color: W.textMuted, borderRadius: 8, padding: "3px 10px", fontSize: 11, fontWeight: 600 }}>🕐 {gs.hours}</span>}
-                </div>
+                {gs.hours && <div style={{ fontSize: 12, color: W.textMuted, marginBottom: gymDetailsOpen ? 14 : 16, fontWeight: 600 }}>{gs.hours}</div>}
 
                 {/* Gym details edit panel */}
                 {gymDetailsOpen && (
@@ -7509,84 +7535,224 @@ export default function App() {
 
     {/* Climb Stats Modal */}
     {selectedSetClimb && (() => {
-      const sc = selectedSetClimb;
-      // Look up set entry — works whether sc is a session climb (has setClimbId) or a set entry directly (sc.id matches)
-      const setEntry = (gymSets[sc.location] || []).find(e => e.id === sc.setClimbId || e.id === sc.id);
-      const entry = setEntry || sc;
-      // Cross-session stats (only available when we have a set entry)
-      const allAttempts = setEntry ? sessions.flatMap(s => (s.climbs || []).filter(c => c.setClimbId === setEntry.id)) : [];
-      const sessionsClimbed = setEntry ? new Set(sessions.filter(s => (s.climbs || []).some(c => c.setClimbId === setEntry.id)).map(s => s.id)).size : 0;
-      const sends = setEntry ? allAttempts.filter(c => c.completed).length : 0;
-      const flashes = setEntry ? allAttempts.filter(c => c.completed && c.tries === 0).length : 0;
-      const sendRate = allAttempts.length ? Math.round((sends / allAttempts.length) * 100) : 0;
-      const setDate = setEntry?.setDate ? new Date(setEntry.setDate).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : null;
+      const entry = selectedSetClimb;
+      const relatedEntries = sessions.flatMap(s =>
+        (s.climbs || []).filter(c => c.setClimbId === entry.id).map(c => ({ climb: c, session: s }))
+      ).sort((a, b) => new Date(b.session.date) - new Date(a.session.date));
+      const totalAttempts = relatedEntries.reduce((t, { climb: c }) => t + (c.tries || 0), 0);
+      const totalSends    = relatedEntries.filter(({ climb: c }) => c.completed).length;
+      const totalTimeMs   = relatedEntries.reduce((t, { climb: c }) => t + (c.attemptLog || []).reduce((s, a) => s + (a.duration || 0), 0), 0);
+      const totalTimeSec  = Math.floor(totalTimeMs / 1000);
+      const gradeColor    = getGradeColor(entry.grade);
+      const colorEntry    = CLIMB_COLORS.find(cc => cc.id === entry.color);
+      const entryPhoto    = relatedEntries.find(({ climb: c }) => c.photo)?.climb.photo;
       return (
-        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.6)", zIndex: 400, display: "flex", alignItems: "flex-end", justifyContent: "center" }} onClick={() => { setSelectedSetClimb(null); setDeleteSetConfirm(false); }}>
-          <div style={{ background: W.bg, borderRadius: "20px 20px 0 0", padding: "24px 20px 36px", width: "100%", maxWidth: 480, border: `1px solid ${W.border}` }} onClick={e => e.stopPropagation()}>
-            {/* Header */}
-            <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 18 }}>
-              <div style={{ width: 48, height: 48, borderRadius: 12, display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 900, fontSize: 14, background: getGradeColor(entry.grade) + "30", color: getGradeColor(entry.grade), border: `1.5px solid ${getGradeColor(entry.grade)}60` }}>{entry.grade}</div>
-              <div style={{ flex: 1 }}>
-                <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                  {entry.color && <ColorDot colorId={entry.color} size={10} />}
-                  <div style={{ fontWeight: 800, fontSize: 17, color: W.text }}>{entry.name || entry.grade}</div>
-                </div>
-                {setEntry && <div style={{ fontSize: 12, color: W.textMuted, marginTop: 2 }}>{setEntry.location}{setDate ? ` · Set ${setDate}` : ""}</div>}
-                {!setEntry && sc.sessionLocation && <div style={{ fontSize: 12, color: W.textMuted, marginTop: 2 }}>{sc.sessionLocation}</div>}
-              </div>
-              {setEntry?.removed && <span style={{ background: "#fca5a5", color: "#b91c1c", borderRadius: 8, padding: "3px 9px", fontSize: 11, fontWeight: 700 }}>Off Wall</span>}
+        <div
+          onTouchStart={e => { e.currentTarget._swipeY = e.touches[0].clientY; e.currentTarget._swipeScrollTop = e.currentTarget.scrollTop; }}
+          onTouchMove={e => {
+            const dy = e.touches[0].clientY - (e.currentTarget._swipeY || 0);
+            if (dy > 0 && (e.currentTarget._swipeScrollTop || 0) === 0) {
+              e.currentTarget.style.transform = `translateY(${Math.min(dy * 0.45, 110)}px)`;
+              e.currentTarget.style.opacity = `${Math.max(0.55, 1 - dy / 320)}`;
+            }
+          }}
+          onTouchEnd={e => {
+            const dy = e.changedTouches[0].clientY - (e.currentTarget._swipeY || 0);
+            if (dy > 100 && (e.currentTarget._swipeScrollTop || 0) === 0) {
+              setSelectedSetClimb(null); setDeleteSetConfirm(false); setShowClimbShare(false);
+            } else {
+              e.currentTarget.style.transform = "";
+              e.currentTarget.style.opacity = "";
+            }
+          }}
+          style={{ position: "fixed", inset: 0, zIndex: 450, background: W.bg, overflowY: "auto", display: "flex", flexDirection: "column", transition: "transform 0.05s, opacity 0.05s" }}>
+          {/* Header bar */}
+          <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "16px 20px 12px", background: W.surface, borderBottom: `1px solid ${W.border}`, position: "sticky", top: 0, zIndex: 2 }}>
+            <button onClick={() => { setSelectedSetClimb(null); setDeleteSetConfirm(false); setShowClimbShare(false); }} style={{ background: W.surface2, border: `1px solid ${W.border}`, borderRadius: 10, padding: "7px 14px", color: W.text, fontWeight: 700, fontSize: 14, cursor: "pointer" }}>←</button>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ fontWeight: 900, fontSize: 18, color: W.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{entry.name || entry.grade}</div>
+              <div style={{ fontSize: 12, color: W.textMuted }}>{entry.grade}{entry.climbType === "rope" ? " · Rope" : ""}{entry.location ? ` · ${entry.location}` : ""}</div>
             </div>
-            {/* Stats */}
-            {setEntry ? (
-              <>
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: 8, marginBottom: 18 }}>
-                  {[["Sessions", sessionsClimbed], ["Laps", allAttempts.length], ["Sends", sends], ["Flashes", flashes]].map(([label, val]) => (
-                    <div key={label} style={{ background: W.surface2, borderRadius: 12, padding: "10px 8px", textAlign: "center", border: `1px solid ${W.border}` }}>
-                      <div style={{ fontSize: 20, fontWeight: 900, color: W.text }}>{val}</div>
-                      <div style={{ fontSize: 10, color: W.textMuted, fontWeight: 600, marginTop: 2 }}>{label}</div>
+            <div style={{ width: 44, height: 44, borderRadius: 10, display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 900, fontSize: 13, background: gradeColor + "30", color: gradeColor, border: `1.5px solid ${gradeColor}60`, flexShrink: 0 }}>{entry.grade}</div>
+            <button onClick={() => setShowClimbShare(true)} style={{ background: W.surface2, border: `1px solid ${W.border}`, borderRadius: 10, width: 40, height: 40, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18, cursor: "pointer", flexShrink: 0 }} title="Share">⬆</button>
+          </div>
+          <div style={{ padding: "20px" }}>
+            {/* Photo */}
+            {entryPhoto && (() => {
+              return (
+                <div style={{ marginBottom: 20, borderRadius: 16, overflow: "hidden", border: `1px solid ${W.border}`, position: "relative" }}>
+                  <img src={entryPhoto} alt="" style={{ width: "100%", maxHeight: 300, objectFit: "cover", display: "block" }} />
+                  <div style={{ position: "absolute", inset: 0, background: "linear-gradient(to bottom, rgba(0,0,0,0.06) 0%, rgba(0,0,0,0.60) 100%)", borderRadius: 16 }} />
+                  <button onClick={() => setLightboxPhoto({ photos: [{ src: entryPhoto, grade: entry.grade, name: entry.name, colorId: entry.color }], idx: 0 })} style={{ position: "absolute", top: 10, right: 10, background: "rgba(0,0,0,0.55)", border: "1.5px solid rgba(255,255,255,0.4)", borderRadius: 8, color: "#fff", fontSize: 18, width: 36, height: 36, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", lineHeight: 1 }}>⤢</button>
+                  <div style={{ position: "absolute", bottom: 14, left: 14, display: "flex", alignItems: "center", gap: 8 }}>
+                    <div style={{ background: gradeColor, color: "#fff", borderRadius: 10, padding: "5px 15px", fontWeight: 900, fontSize: 22, boxShadow: "0 2px 8px rgba(0,0,0,0.45)" }}>{entry.grade}</div>
+                    {colorEntry?.hex && <div style={{ width: 26, height: 26, borderRadius: "50%", background: colorEntry.hex, border: "2.5px solid rgba(255,255,255,0.9)", boxShadow: "0 1px 5px rgba(0,0,0,0.5)", flexShrink: 0 }} />}
+                  </div>
+                </div>
+              );
+            })()}
+            {/* Stats grid */}
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10, marginBottom: 20 }}>
+              {[
+                { label: "Total Attempts", value: totalAttempts },
+                { label: "Total Sends",    value: totalSends },
+                { label: "Sessions",       value: relatedEntries.length },
+              ].map(({ label, value }) => (
+                <div key={label} style={{ background: W.surface, border: `1px solid ${W.border}`, borderRadius: 14, padding: "14px 10px", textAlign: "center" }}>
+                  <div style={{ fontSize: 26, fontWeight: 900, color: W.text }}>{value}</div>
+                  <div style={{ fontSize: 10, color: W.textMuted, fontWeight: 700, marginTop: 3, textTransform: "uppercase", letterSpacing: 0.5 }}>{label}</div>
+                </div>
+              ))}
+            </div>
+            {totalTimeSec > 0 && (
+              <div style={{ background: W.surface, border: `1px solid ${W.border}`, borderRadius: 14, padding: "14px 16px", marginBottom: 20, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <div style={{ fontSize: 13, fontWeight: 700, color: W.textMuted, textTransform: "uppercase", letterSpacing: 0.5 }}>Total Time on Climb</div>
+                <div style={{ fontSize: 22, fontWeight: 900, color: W.text }}>{formatDuration(totalTimeSec)}</div>
+              </div>
+            )}
+            {/* Tags */}
+            {((entry.wallTypes || []).length > 0 || (entry.holdTypes || []).length > 0) && (
+              <div style={{ marginBottom: 20 }}><TagChips wallTypes={entry.wallTypes} holdTypes={entry.holdTypes} /></div>
+            )}
+            {entry.section && (
+              <div style={{ marginBottom: 20 }}>
+                <span style={{ background: W.accent + "18", color: W.accent, borderRadius: 8, padding: "4px 12px", fontSize: 12, fontWeight: 700 }}>📌 {entry.section}</span>
+              </div>
+            )}
+            {/* Notes from sessions */}
+            {(() => {
+              const withNotes = relatedEntries.filter(({ climb: c }) => c.comments);
+              if (!withNotes.length) return null;
+              return (
+                <div style={{ marginBottom: 20 }}>
+                  <div style={{ fontSize: 13, fontWeight: 800, color: W.textMuted, textTransform: "uppercase", letterSpacing: 1, marginBottom: 10 }}>Notes</div>
+                  {withNotes.slice(0, 5).map(({ climb: c, session: s }, i) => (
+                    <div key={`note-${s.id}-${i}`} style={{ background: W.surface, border: `1px solid ${W.border}`, borderLeft: `3px solid ${W.accentDark}`, borderRadius: 12, padding: "10px 14px", marginBottom: 8 }}>
+                      <div style={{ fontSize: 11, color: W.textMuted, fontWeight: 700, marginBottom: 5 }}>{formatDate(s.date?.slice(0, 10))}</div>
+                      <div style={{ fontSize: 13, color: W.text, fontStyle: "italic", lineHeight: 1.4 }}>"{c.comments}"</div>
                     </div>
                   ))}
                 </div>
-                {allAttempts.length > 0 && (
-                  <div style={{ background: W.surface2, borderRadius: 12, padding: "10px 14px", marginBottom: 14, border: `1px solid ${W.border}`, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                    <span style={{ fontSize: 13, color: W.textMuted, fontWeight: 600 }}>Send rate</span>
-                    <span style={{ fontSize: 16, fontWeight: 800, color: sends > 0 ? "#16a34a" : W.textMuted }}>{sendRate}%</span>
+              );
+            })()}
+            {/* Last 10 attempts graphic */}
+            {relatedEntries.length > 0 && (() => {
+              const last10 = relatedEntries.slice(0, 10).reverse();
+              return (
+                <div style={{ background: W.surface, border: `1px solid ${W.border}`, borderRadius: 14, padding: "14px 16px", marginBottom: 20 }}>
+                  <div style={{ fontSize: 11, fontWeight: 800, color: W.textMuted, textTransform: "uppercase", letterSpacing: 0.8, marginBottom: 10 }}>Last {last10.length} Session{last10.length !== 1 ? "s" : ""}</div>
+                  <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                    {last10.map(({ climb: c, session: s }, i) => (
+                      <div key={`att-${s.id}-${i}`} style={{ width: 38, height: 38, borderRadius: 10, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 20, fontWeight: 900, background: c.completed ? W.green : W.red, color: c.completed ? W.greenDark : W.redDark, border: `1.5px solid ${c.completed ? W.greenDark + "80" : W.redDark + "80"}`, flexShrink: 0 }} title={formatDate(s.date?.slice(0, 10))}>
+                        {c.completed ? "✓" : "✗"}
+                      </div>
+                    ))}
                   </div>
-                )}
-                {!setEntry.removed ? (
-                  <button onClick={() => { setGymSets(prev => { const loc = setEntry.location; return { ...prev, [loc]: (prev[loc] || []).map(e => e.id === setEntry.id ? { ...e, removed: true, removedDate: new Date().toISOString() } : e) }; }); setSelectedSetClimb(null); }} style={{ width: "100%", padding: "13px", background: "#fca5a5", border: "1px solid #f87171", borderRadius: 14, color: "#b91c1c", fontWeight: 700, fontSize: 14, cursor: "pointer", marginBottom: 10 }}>
-                    Remove from Wall
+                </div>
+              );
+            })()}
+            {/* Session history */}
+            <div style={{ fontSize: 13, fontWeight: 800, color: W.textMuted, textTransform: "uppercase", letterSpacing: 1, marginBottom: 10 }}>Session History</div>
+            {relatedEntries.length === 0 && <div style={{ textAlign: "center", color: W.textDim, padding: "20px 0" }}>No history yet. Log a session at this gym to start tracking.</div>}
+            {relatedEntries.map(({ climb: c, session: s }, i) => {
+              const timeMs = (c.attemptLog || []).reduce((t, a) => t + (a.duration || 0), 0);
+              const timeSec = Math.floor(timeMs / 1000);
+              return (
+                <div key={`${s.id}-${c.id}-${i}`} style={{ background: W.surface, border: `1px solid ${W.border}`, borderRadius: 14, padding: "14px 16px", marginBottom: 10 }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 6 }}>
+                    <div>
+                      <div style={{ fontWeight: 700, fontSize: 14, color: W.text }}>{formatDate(s.date?.slice(0, 10))}</div>
+                      <div style={{ fontSize: 12, color: W.textMuted, marginTop: 2 }}>📍 {s.location}</div>
+                    </div>
+                    <span style={{ background: c.completed ? W.green : W.red, color: c.completed ? W.greenDark : W.redDark, borderRadius: 8, padding: "3px 10px", fontSize: 11, fontWeight: 800 }}>{c.completed ? "✓ Sent" : "Not Sent"}</span>
+                  </div>
+                  <div style={{ display: "flex", gap: 16, flexWrap: "wrap" }}>
+                    <div style={{ fontSize: 12, color: W.textMuted }}><span style={{ fontWeight: 700, color: W.text }}>{c.tries || 0}</span> {c.climbType === "rope" ? "attempts" : "falls"}</div>
+                    {timeSec > 0 && <div style={{ fontSize: 12, color: W.textMuted }}><span style={{ fontWeight: 700, color: W.text }}>{formatDuration(timeSec)}</span> on climb</div>}
+                  </div>
+                  {c.comments && <div style={{ fontSize: 12, color: W.textDim, marginTop: 6, fontStyle: "italic" }}>{c.comments}</div>}
+                </div>
+              );
+            })}
+            {/* Gym actions */}
+            <div style={{ marginTop: 20, paddingTop: 20, borderTop: `1px solid ${W.border}` }}>
+              {!entry.removed ? (
+                <button onClick={() => { setGymSets(prev => { const loc = entry.location; return { ...prev, [loc]: (prev[loc] || []).map(e => e.id === entry.id ? { ...e, removed: true, removedDate: new Date().toISOString() } : e) }; }); setSelectedSetClimb(null); }} style={{ width: "100%", padding: "13px", background: "#fca5a5", border: "1px solid #f87171", borderRadius: 14, color: "#b91c1c", fontWeight: 700, fontSize: 14, cursor: "pointer", marginBottom: 10 }}>
+                  Remove from Wall
+                </button>
+              ) : (
+                <>
+                  <button onClick={() => { setGymSets(prev => { const loc = entry.location; return { ...prev, [loc]: (prev[loc] || []).map(e => e.id === entry.id ? { ...e, removed: false, removedDate: null } : e) }; }); setSelectedSetClimb(null); }} style={{ width: "100%", padding: "13px", background: W.surface2, border: `1px solid ${W.border}`, borderRadius: 14, color: W.textMuted, fontWeight: 700, fontSize: 14, cursor: "pointer", marginBottom: 8 }}>
+                    Put Back on Wall
                   </button>
-                ) : (
-                  <>
-                    <button onClick={() => { setGymSets(prev => { const loc = setEntry.location; return { ...prev, [loc]: (prev[loc] || []).map(e => e.id === setEntry.id ? { ...e, removed: false, removedDate: null } : e) }; }); setSelectedSetClimb(null); }} style={{ width: "100%", padding: "13px", background: W.surface2, border: `1px solid ${W.border}`, borderRadius: 14, color: W.textMuted, fontWeight: 700, fontSize: 14, cursor: "pointer", marginBottom: 8 }}>
-                      Put Back on Wall
-                    </button>
-                    {!deleteSetConfirm
-                      ? <button onClick={() => setDeleteSetConfirm(true)} style={{ width: "100%", padding: "11px", background: "transparent", border: "1px solid #f87171", borderRadius: 14, color: "#b91c1c", fontWeight: 700, fontSize: 13, cursor: "pointer", marginBottom: 10, opacity: 0.8 }}>Delete Permanently</button>
-                      : <div style={{ background: "#fca5a5", borderRadius: 14, padding: "12px", marginBottom: 10, border: "1px solid #f87171" }}>
-                          <div style={{ fontSize: 13, fontWeight: 700, color: "#b91c1c", marginBottom: 8 }}>Delete this climb and all its history?</div>
-                          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
-                            <button onClick={() => setDeleteSetConfirm(false)} style={{ padding: "9px", background: "transparent", border: `1px solid ${W.border}`, borderRadius: 10, color: W.textMuted, cursor: "pointer", fontWeight: 600 }}>Cancel</button>
-                            <button onClick={() => { setGymSets(prev => { const loc = setEntry.location; return { ...prev, [loc]: (prev[loc] || []).filter(e => e.id !== setEntry.id) }; }); setSelectedSetClimb(null); setDeleteSetConfirm(false); }} style={{ padding: "9px", background: "#b91c1c", border: "none", borderRadius: 10, color: "#fff", cursor: "pointer", fontWeight: 700 }}>Delete Forever</button>
-                          </div>
+                  {!deleteSetConfirm
+                    ? <button onClick={() => setDeleteSetConfirm(true)} style={{ width: "100%", padding: "11px", background: "transparent", border: "1px solid #f87171", borderRadius: 14, color: "#b91c1c", fontWeight: 700, fontSize: 13, cursor: "pointer", marginBottom: 10, opacity: 0.8 }}>Delete Permanently</button>
+                    : <div style={{ background: "#fca5a5", borderRadius: 14, padding: "12px", marginBottom: 10, border: "1px solid #f87171" }}>
+                        <div style={{ fontSize: 13, fontWeight: 700, color: "#b91c1c", marginBottom: 8 }}>Delete this climb and all its history?</div>
+                        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+                          <button onClick={() => setDeleteSetConfirm(false)} style={{ padding: "9px", background: "transparent", border: `1px solid ${W.border}`, borderRadius: 10, color: W.textMuted, cursor: "pointer", fontWeight: 600 }}>Cancel</button>
+                          <button onClick={() => { setGymSets(prev => { const loc = entry.location; return { ...prev, [loc]: (prev[loc] || []).filter(e => e.id !== entry.id) }; }); setSelectedSetClimb(null); setDeleteSetConfirm(false); }} style={{ padding: "9px", background: "#b91c1c", border: "none", borderRadius: 10, color: "#fff", cursor: "pointer", fontWeight: 700 }}>Delete Forever</button>
                         </div>
-                    }
-                  </>
-                )}
-              </>
-            ) : (
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 18 }}>
-                {[["Falls", sc.tries ?? 0], ["Sent", sc.completed ? "✓" : "✗"]].map(([label, val]) => (
-                  <div key={label} style={{ background: W.surface2, borderRadius: 12, padding: "10px 8px", textAlign: "center", border: `1px solid ${W.border}` }}>
-                    <div style={{ fontSize: 24, fontWeight: 900, color: label === "Sent" ? (sc.completed ? "#16a34a" : W.textMuted) : W.text }}>{val}</div>
-                    <div style={{ fontSize: 10, color: W.textMuted, fontWeight: 600, marginTop: 2 }}>{label}</div>
-                  </div>
-                ))}
-              </div>
-            )}
-            <button onClick={() => { setSelectedSetClimb(null); setDeleteSetConfirm(false); }} style={{ width: "100%", padding: "11px", background: "transparent", border: `1px solid ${W.border}`, borderRadius: 14, color: W.textMuted, fontWeight: 600, fontSize: 13, cursor: "pointer" }}>Close</button>
+                      </div>
+                  }
+                </>
+              )}
+            </div>
           </div>
+          {/* Share modal */}
+          {showClimbShare && (
+            <div onClick={() => setShowClimbShare(false)} style={{ position: "fixed", inset: 0, zIndex: 700, background: "rgba(0,0,0,0.82)", display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
+              <div onClick={e => e.stopPropagation()} style={{ background: W.bg, borderRadius: 20, overflow: "hidden", width: "100%", maxWidth: 340, boxShadow: "0 8px 40px rgba(0,0,0,0.5)" }}>
+                {entryPhoto ? (
+                  <div style={{ position: "relative", height: 200 }}>
+                    <img src={entryPhoto} alt="" style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
+                    <div style={{ position: "absolute", inset: 0, background: "linear-gradient(to bottom, transparent 35%, rgba(0,0,0,0.72))" }} />
+                    <div style={{ position: "absolute", bottom: 14, left: 14, display: "flex", alignItems: "center", gap: 8 }}>
+                      <div style={{ background: gradeColor, color: "#fff", borderRadius: 8, padding: "5px 14px", fontWeight: 900, fontSize: 22, boxShadow: "0 2px 8px rgba(0,0,0,0.4)" }}>{entry.grade}</div>
+                      {colorEntry && <div style={{ width: 22, height: 22, borderRadius: "50%", background: colorEntry.hex, border: "2.5px solid rgba(255,255,255,0.85)" }} />}
+                    </div>
+                  </div>
+                ) : (
+                  <div style={{ background: gradeColor + "25", padding: "22px 20px 14px", borderBottom: `1px solid ${W.border}`, display: "flex", alignItems: "center", gap: 12 }}>
+                    <div style={{ background: gradeColor, color: "#fff", borderRadius: 12, padding: "8px 20px", fontWeight: 900, fontSize: 26 }}>{entry.grade}</div>
+                    {colorEntry && <div style={{ width: 24, height: 24, borderRadius: "50%", background: colorEntry.hex, border: `2px solid ${W.border}`, flexShrink: 0 }} />}
+                    {colorEntry && <span style={{ fontSize: 13, color: W.textMuted, fontWeight: 600 }}>{colorEntry.label}</span>}
+                  </div>
+                )}
+                <div style={{ padding: "16px 18px 20px" }}>
+                  {entry.name && <div style={{ fontWeight: 900, fontSize: 20, color: W.text, marginBottom: 2 }}>{entry.name}</div>}
+                  {entry.location && <div style={{ fontSize: 12, color: W.textMuted, marginBottom: 14 }}>📍 {entry.location}</div>}
+                  <div style={{ display: "flex", gap: 0, marginBottom: 16, background: W.surface, borderRadius: 14, overflow: "hidden", border: `1px solid ${W.border}` }}>
+                    {[
+                      { val: relatedEntries.length, label: "Sessions" },
+                      { val: totalAttempts, label: "Attempts" },
+                      { val: totalSends, label: "Sends", color: totalSends > 0 ? W.greenDark : undefined },
+                      ...(totalTimeSec > 0 ? [{ val: formatDuration(totalTimeSec), label: "Time" }] : []),
+                    ].map((s, i, arr) => (
+                      <div key={i} style={{ flex: 1, padding: "10px 4px", textAlign: "center", borderRight: i < arr.length - 1 ? `1px solid ${W.border}` : "none" }}>
+                        <div style={{ fontWeight: 900, fontSize: 18, color: s.color || W.text }}>{s.val}</div>
+                        <div style={{ fontSize: 10, color: W.textMuted, marginTop: 1 }}>{s.label}</div>
+                      </div>
+                    ))}
+                  </div>
+                  <div style={{ fontSize: 11, color: W.textMuted, textAlign: "center", marginBottom: 14, fontWeight: 600, letterSpacing: 0.3 }}>Logged with SendLog</div>
+                  <div style={{ display: "flex", gap: 8 }}>
+                    {typeof navigator?.share === "function" && (
+                      <button onClick={() => {
+                        const text = `${entry.name ? entry.name + " — " : ""}${entry.grade}${entry.location ? " at " + entry.location : ""}\n${totalSends > 0 ? `✓ Sent ${totalSends}×` : "Still projecting"} · ${totalAttempts} attempts · ${relatedEntries.length} session${relatedEntries.length !== 1 ? "s" : ""}\n\nLogged with SendLog`;
+                        navigator.share({ title: entry.name || entry.grade, text }).catch(() => {});
+                      }} style={{ flex: 1, padding: "11px", background: `linear-gradient(135deg, ${W.accent}, ${W.accentDark})`, border: "none", borderRadius: 12, color: "#fff", fontWeight: 700, fontSize: 13, cursor: "pointer" }}>Share</button>
+                    )}
+                    <button onClick={() => {
+                      const text = `${entry.name ? entry.name + " — " : ""}${entry.grade}${entry.location ? " at " + entry.location : ""}\n${totalSends > 0 ? `✓ Sent ${totalSends}×` : "Still projecting"} · ${totalAttempts} attempts · ${relatedEntries.length} session${relatedEntries.length !== 1 ? "s" : ""}\n\nLogged with SendLog`;
+                      navigator.clipboard?.writeText(text);
+                      setShowClimbShare(false);
+                    }} style={{ flex: 1, padding: "11px", background: W.surface2, border: `1px solid ${W.border}`, borderRadius: 12, color: W.text, fontWeight: 700, fontSize: 13, cursor: "pointer" }}>Copy Text</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       );
     })()}
