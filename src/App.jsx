@@ -231,6 +231,7 @@ export default function App() {
   const timerRef           = useRef(null);
   const fileRef            = useRef();
   const picRef             = useRef();
+  const lbPhotoRef         = useRef();
   const sessionInitialized = useRef(false); // prevents persist effect from clearing active:climb before checkSession reads it
 
   const [showClimbForm, setShowClimbForm]       = useState(false);
@@ -368,8 +369,10 @@ export default function App() {
   const [logbookSectionFilter, setLogbookSectionFilter] = useState(() => localStorage.getItem("lb:section") || "All");
   const [gymSetSortBySection, setGymSetSortBySection]   = useState(false);
   const [logbookTickList, setLogbookTickList]           = useState(() => localStorage.getItem("lb:tickList") === "true");
+  const [logbookTileView, setLogbookTileView]           = useState(() => localStorage.getItem("lb:tileView") !== "false");
   const [logbookSearch, setLogbookSearch]               = useState("");
   const [logbookSearchOpen, setLogbookSearchOpen]       = useState(false);
+  const [longPressPhotoTarget, setLongPressPhotoTarget] = useState(null); // { climbId, sessionId }
   const [showAddGym, setShowAddGym]                     = useState(false);
   const [addGymInput, setAddGymInput]                   = useState("");
   const [showClimbShare, setShowClimbShare]         = useState(false);
@@ -450,7 +453,8 @@ export default function App() {
     localStorage.setItem("lb:color", logbookColorFilter);
     localStorage.setItem("lb:section", logbookSectionFilter);
     localStorage.setItem("lb:tickList", logbookTickList);
-  }, [logbookFilter, logbookScale, logbookGrade, logbookSort, logbookColorFilter, logbookSectionFilter, logbookTickList]);
+    localStorage.setItem("lb:tileView", logbookTileView);
+  }, [logbookFilter, logbookScale, logbookGrade, logbookSort, logbookColorFilter, logbookSectionFilter, logbookTickList, logbookTileView]);
 
   // ── SHARED: restore active:climb from localStorage ─────────
   // Called from both checkSession (auto-login) and handleLogin (manual login after logout/close).
@@ -1568,6 +1572,11 @@ export default function App() {
     setEditingClimbId(null); setEditingSessionId(null); setShowClimbForm(false);
   };
 
+  const addPhotoToLogbookClimb = (climbId, sessionId, dataUrl) => {
+    setSessions(prev => prev.map(s => s.id === sessionId ? { ...s, climbs: (s.climbs || []).map(c => c.id === climbId ? { ...c, photo: dataUrl } : c) } : s));
+    setSelectedLogbookClimb(prev => prev && prev.id === climbId ? { ...prev, photo: dataUrl } : prev);
+  };
+
   const deactivateProject    = (id) => setProjects(prev => prev.map(p => p.id === id ? { ...p, active: false } : p));
   const reactivateProject    = (id) => setProjects(prev => prev.map(p => p.id === id ? { ...p, active: true, completed: false, dateSent: null } : p));
   const updateProjectNotes   = (id, notes) => setProjects(prev => prev.map(p => p.id === id ? { ...p, notes } : p));
@@ -1650,7 +1659,7 @@ export default function App() {
   const getProjectPhoto = (pid) => { const c = sessions.flatMap(s => s.climbs || []).find(c => c.projectId === pid && c.photo); return c ? c.photo : null; };
 
   const getLogbookClimbs = () => {
-    const rawClimbs = sessions.flatMap(s => (s.climbs || []).map(c => ({ ...c, sessionDate: s.date, sessionLocation: s.location })));
+    const rawClimbs = sessions.flatMap(s => (s.climbs || []).map(c => ({ ...c, sessionDate: s.date, sessionLocation: s.location, _sessionId: s.id })));
 
     // Pre-aggregate set climb metadata across ALL sessions
     const setMeta = {};
@@ -3911,15 +3920,37 @@ export default function App() {
             <span style={{ background: W.surface2, color: W.textMuted, borderRadius: 8, padding: "4px 12px", fontSize: 12, fontWeight: 700 }}>🔁 {stats.totalTries} tries</span>
           </div>
         </div>
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 16 }}>
-          {[{ icon: "⚡", label: "Flash Rate", value: `${stats.flashRate}%`, bg: W.yellow, tc: W.yellowDark }, { icon: "📊", label: "Avg Tries", value: stats.avgTries, bg: W.green, tc: W.greenDark }, { icon: "⚡", label: "Flashes", value: stats.flashes, bg: W.goldLight, tc: W.yellowDark }, { icon: "🎯", label: "Projects", value: (session.climbs || []).filter(c => c.isProject).length, bg: W.pink, tc: W.pinkDark }].map(s => (
-            <div key={s.label} style={{ background: s.bg, borderRadius: 12, padding: "12px 14px", border: `1px solid ${W.border}` }}>
-              <div style={{ fontSize: 16 }}>{s.icon}</div>
-              <div style={{ fontSize: 18, fontWeight: 800, color: s.tc, marginTop: 2 }}>{s.value}</div>
-              <div style={{ fontSize: 11, color: W.textMuted }}>{s.label}</div>
+        {(() => {
+          const climbs = (session.climbs || []).filter(c => c.climbType !== "speed-session");
+          const totalAttempts = climbs.reduce((s, c) => s + (c.tries || 0), 0);
+          const mostAttempts  = climbs.length ? Math.max(...climbs.map(c => c.tries || 0)) : 0;
+          const sendRate      = climbs.length ? Math.round((climbs.filter(c => c.completed).length / climbs.length) * 100) : 0;
+          const longestClimbMs = climbs.length ? Math.max(...climbs.map(c => (c.attemptLog || []).reduce((s, a) => s + (a.duration || 0), 0))) : 0;
+          const longestClimbSec = Math.round(longestClimbMs / 1000);
+          const typeTimes = [session.boulderTotalSec || 0, session.ropeTotalSec || 0, session.warmupTotalSec || 0].filter(t => t > 0);
+          const longestTypeSec = typeTimes.length ? Math.max(...typeTimes) : 0;
+          const statCells = [
+            { label: "Session Time",    value: formatDuration(session.duration || 0) },
+            { label: "Longest Climb",   value: longestClimbSec > 0 ? formatDuration(longestClimbSec) : "—" },
+            { label: "Longest Type",    value: longestTypeSec > 0 ? formatDuration(longestTypeSec) : "—" },
+            { label: "Total Attempts",  value: totalAttempts },
+            { label: "Max Attempts",    value: mostAttempts },
+            { label: "Climbs",          value: climbs.length },
+            { label: "Send Rate",       value: `${sendRate}%` },
+            { label: "Flash Rate",      value: `${stats.flashRate}%` },
+            { label: "Avg Attempts",    value: stats.avgTries },
+          ];
+          return (
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8, marginBottom: 16 }}>
+              {statCells.map(s => (
+                <div key={s.label} style={{ background: W.surface2, borderRadius: 12, padding: "10px 10px", border: `1px solid ${W.border}`, textAlign: "center" }}>
+                  <div style={{ fontSize: 17, fontWeight: 800, color: W.text }}>{s.value}</div>
+                  <div style={{ fontSize: 10, color: W.textMuted, marginTop: 2, fontWeight: 600 }}>{s.label}</div>
+                </div>
+              ))}
             </div>
-          ))}
-        </div>
+          );
+        })()}
         {(() => {
           // Time breakdown pie — multi-type sessions
           const boulderSec = session.boulderTotalSec || 0;
@@ -4065,37 +4096,41 @@ export default function App() {
         {!readOnly && showClimbForm && editingClimbId ? (
           <ClimbFormPanel onSave={() => saveClimbToFinishedSession(session.id)} onCancel={() => { setShowClimbForm(false); setEditingClimbId(null); setEditingSessionId(null); }} />
         ) : (
-          (session.climbs || []).map(c => (
-            <ClimbRow key={c.id} climb={c}
-              onEdit={readOnly ? null : (climb => { setEditingClimbId(climb.id); setEditingSessionId(session.id); setClimbForm({ name: climb.name || "", grade: climb.grade, scale: climb.scale, tries: climb.tries, completed: climb.completed, isProject: climb.isProject, comments: climb.comments, photo: climb.photo, projectId: climb.projectId, color: climb.color || null, wallTypes: climb.wallTypes || [], holdTypes: climb.holdTypes || [] }); setPhotoPreview(climb.photo); setShowClimbForm(true); })}
-              onInlineSave={readOnly ? null : (climbId, changes) => saveClimbInlineEdit(session.id, climbId, changes)}
-              onRemove={readOnly ? null : (climbId => removeClimbFromSession(session.id, climbId))}
-              onClimbClick={(climb) => setSelectedSetClimb(climb)}
-            />
-          ))
-        )}
-        {(() => {
-          const climbsWithPhotos = (session.climbs || []).filter(c => c.photo);
-          if (!climbsWithPhotos.length) return null;
-          return (
-            <div style={{ marginTop: 24 }}>
-              <div style={{ fontSize: 13, fontWeight: 700, color: W.textMuted, textTransform: "uppercase", letterSpacing: 1, marginBottom: 12 }}>Photos</div>
-              <div style={{ display: "flex", gap: 10, overflowX: "auto", paddingBottom: 8 }}>
-                {climbsWithPhotos.map((c, ci) => {
-                  const colorHex = CLIMB_COLORS.find(cc => cc.id === c.color)?.hex;
-                  return (
-                    <div key={c.id} onClick={() => setLightboxPhoto({ photos: climbsWithPhotos.map(p => ({ src: p.photo, grade: p.grade, name: p.name, colorId: p.color })), idx: ci })} style={{ position: "relative", flexShrink: 0, cursor: "pointer" }}>
-                      <img src={c.photo} alt={c.name || c.grade} style={{ width: 150, height: 150, objectFit: "cover", borderRadius: 14, display: "block" }} />
-                      <div style={{ position: "absolute", bottom: 8, left: 8, background: getGradeColor(c.grade) + "ee", borderRadius: 7, padding: "3px 9px", fontSize: 12, fontWeight: 800, color: "#fff", textShadow: "0 1px 3px rgba(0,0,0,0.4)" }}>{c.grade}</div>
-                      {colorHex && <div style={{ position: "absolute", bottom: 8, right: c.name ? 90 : 8, width: 16, height: 16, borderRadius: "50%", background: colorHex, border: "2px solid rgba(255,255,255,0.85)", boxShadow: "0 1px 3px rgba(0,0,0,0.5)" }} />}
-                      {c.name && <div style={{ position: "absolute", bottom: 8, right: 8, background: "rgba(0,0,0,0.55)", borderRadius: 7, padding: "3px 8px", fontSize: 10, color: "#fff", maxWidth: 80, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{c.name}</div>}
-                    </div>
-                  );
-                })}
+          (session.climbs || []).map((c, ci) => {
+            const gradeClr  = getGradeColor(c.grade);
+            const colorHex  = CLIMB_COLORS.find(cc => cc.id === c.color)?.hex;
+            const allPhotos = (session.climbs || []).filter(x => x.photo);
+            const photoIdx  = allPhotos.findIndex(x => x.id === c.id);
+            return c.photo ? (
+              <div key={c.id} onClick={() => setLightboxPhoto({ photos: allPhotos.map(p => ({ src: p.photo, grade: p.grade, name: p.name, colorId: p.color })), idx: photoIdx })} style={{ position: "relative", borderRadius: 14, overflow: "hidden", border: `1.5px solid ${W.border}`, marginBottom: 10, cursor: "pointer", height: 160 }}>
+                <img src={c.photo} alt={c.name || c.grade} style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
+                <div style={{ position: "absolute", inset: 0, background: "linear-gradient(to right, rgba(0,0,0,0.7) 0%, rgba(0,0,0,0.2) 60%, rgba(0,0,0,0.1) 100%)" }} />
+                <div style={{ position: "absolute", inset: 0, padding: "12px 14px", display: "flex", alignItems: "center", gap: 12 }}>
+                  <div style={{ background: gradeClr, color: "#fff", borderRadius: 10, padding: "6px 12px", fontWeight: 900, fontSize: 20, flexShrink: 0, boxShadow: "0 2px 8px rgba(0,0,0,0.4)" }}>{c.grade}</div>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    {c.name && <div style={{ fontSize: 13, fontWeight: 800, color: "#fff", textShadow: "0 1px 3px rgba(0,0,0,0.8)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{c.name}</div>}
+                    <div style={{ fontSize: 11, color: "rgba(255,255,255,0.75)", marginTop: 2 }}>{c.tries || 0} {c.climbType === "rope" ? "attempts" : "falls"}</div>
+                    {colorHex && <div style={{ display: "flex", alignItems: "center", gap: 4, marginTop: 4 }}><div style={{ width: 10, height: 10, borderRadius: "50%", background: colorHex, border: "1.5px solid rgba(255,255,255,0.8)" }} /></div>}
+                  </div>
+                  <span style={{ background: c.completed ? "#16a34a" : "#dc2626", color: "#fff", borderRadius: 8, padding: "4px 10px", fontSize: 12, fontWeight: 800, flexShrink: 0 }}>{c.completed ? "✓" : "✗"}</span>
+                </div>
               </div>
-            </div>
-          );
-        })()}
+            ) : (
+              <div key={c.id} style={{ background: W.surface, borderRadius: 14, border: `1.5px solid ${W.border}`, borderLeft: `4px solid ${gradeClr}`, marginBottom: 10, padding: "12px 14px", display: "flex", alignItems: "center", gap: 12 }}>
+                <div style={{ fontWeight: 900, fontSize: 22, color: gradeClr, flexShrink: 0, minWidth: 42 }}>{c.grade}</div>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  {c.name && <div style={{ fontSize: 13, fontWeight: 700, color: W.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{c.name}</div>}
+                  <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: c.name ? 3 : 0 }}>
+                    {colorHex && <div style={{ width: 10, height: 10, borderRadius: "50%", background: colorHex, border: `1px solid ${W.border}`, flexShrink: 0 }} />}
+                    <span style={{ fontSize: 11, color: W.textMuted }}>{c.tries || 0} {c.climbType === "rope" ? "attempts" : "falls"}</span>
+                    {c.isProject && <span style={{ background: W.pink, color: W.pinkDark, borderRadius: 6, padding: "1px 6px", fontSize: 10, fontWeight: 800 }}>🎯</span>}
+                  </div>
+                </div>
+                <span style={{ background: c.completed ? W.green : W.red, color: c.completed ? W.greenDark : W.redDark, borderRadius: 8, padding: "4px 10px", fontSize: 12, fontWeight: 800, flexShrink: 0 }}>{c.completed ? "✓" : "✗"}</span>
+              </div>
+            );
+          })
+        )}
         {/* Comments section — only on read-only (someone else's) sessions */}
         {readOnly && (
           <div style={{ marginTop: 24 }}>
@@ -5833,6 +5868,7 @@ export default function App() {
                     <Label>View</Label>
                     <div style={{ display: "flex", gap: 8 }}>
                       <button onClick={() => setLogbookTickList(t => !t)} style={{ padding: "6px 14px", borderRadius: 16, border: "2px solid", borderColor: logbookTickList ? W.accent : W.border, background: logbookTickList ? W.accent + "22" : W.surface, color: logbookTickList ? W.accent : W.textDim, cursor: "pointer", fontSize: 12, fontWeight: 600 }}>📋 Tick List</button>
+                      <button onClick={() => setLogbookTileView(t => !t)} style={{ padding: "6px 14px", borderRadius: 16, border: "2px solid", borderColor: logbookTileView ? W.accent : W.border, background: logbookTileView ? W.accent + "22" : W.surface, color: logbookTileView ? W.accent : W.textDim, cursor: "pointer", fontSize: 12, fontWeight: 600 }}>{logbookTileView ? "⊞ Tiles" : "☰ List"}</button>
                     </div>
                   </div>
                 </>
@@ -5853,6 +5889,24 @@ export default function App() {
                 </div>
               )}
             </div>
+            <input ref={lbPhotoRef} type="file" accept="image/*" style={{ display: "none" }} onChange={e => {
+              const file = e.target.files?.[0]; e.target.value = "";
+              if (!file || !longPressPhotoTarget) return;
+              const reader = new FileReader();
+              reader.onload = ev => {
+                const img = new Image();
+                img.onload = () => {
+                  const MAX = 900; const canvas = document.createElement("canvas");
+                  const scale = Math.min(1, MAX / Math.max(img.width, img.height));
+                  canvas.width = Math.round(img.width * scale); canvas.height = Math.round(img.height * scale);
+                  canvas.getContext("2d").drawImage(img, 0, 0, canvas.width, canvas.height);
+                  addPhotoToLogbookClimb(longPressPhotoTarget.climbId, longPressPhotoTarget.sessionId, canvas.toDataURL("image/jpeg", 0.75));
+                  setLongPressPhotoTarget(null);
+                };
+                img.src = ev.target.result;
+              };
+              reader.readAsDataURL(file);
+            }} />
             <div style={{ fontSize: 12, color: W.textMuted, marginBottom: 12, fontWeight: 600 }}>{logbookClimbs.length} climb{logbookClimbs.length !== 1 ? "s" : ""} found</div>
             {logbookClimbs.length === 0 ? <div style={{ textAlign: "center", color: W.textDim, padding: "30px 0" }}>No climbs match your filters.</div>
               : (() => {
@@ -5860,6 +5914,11 @@ export default function App() {
                   const hasMore = logbookClimbs.length > visible.length;
                   return (
                     <>
+                      {!logbookTileView ? (
+                        visible.map((c, i) => (
+                          <ClimbRow key={`${c.id}-${i}`} climb={c} onEdit={() => {}} onRemove={() => {}} onInlineSave={() => {}} onClimbClick={() => setSelectedLogbookClimb(c)} />
+                        ))
+                      ) : (
                       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
                         {visible.map((c, i) => {
                           const showHeader = logbookSort === "date" && (i === 0 || logbookClimbs[i - 1].sessionDate !== c.sessionDate);
@@ -5867,6 +5926,9 @@ export default function App() {
                           const colorEntry = CLIMB_COLORS.find(cc => cc.id === c.color);
                           const colorHex = colorEntry?.hex;
                           const isOffWall = c.setClimbId ? Object.values(gymSets).flat().some(e => e.id === c.setClimbId && e.removed) : false;
+                          let lpTimer = null;
+                          const handleLPStart = () => { lpTimer = setTimeout(() => { setLongPressPhotoTarget({ climbId: c.id, sessionId: c._sessionId }); lbPhotoRef.current?.click(); }, 600); };
+                          const handleLPEnd   = () => { clearTimeout(lpTimer); };
                           return (
                             <Fragment key={`${c.id}-${i}`}>
                               {showHeader && (
@@ -5898,7 +5960,7 @@ export default function App() {
                                   </div>
                                 </div>
                               ) : (
-                                <div onClick={() => setSelectedLogbookClimb(c)} style={{ background: W.surface, borderRadius: 14, border: `1.5px solid ${c.isProject ? W.pinkDark + "50" : W.border}`, borderTop: `3px solid ${isOffWall ? W.border : gradeClr}`, cursor: "pointer", overflow: "hidden", minHeight: 120 }}>
+                                <div onClick={() => setSelectedLogbookClimb(c)} onTouchStart={handleLPStart} onTouchEnd={handleLPEnd} onTouchMove={handleLPEnd} style={{ background: W.surface, borderRadius: 14, border: `1.5px solid ${c.isProject ? W.pinkDark + "50" : W.border}`, borderTop: `3px solid ${isOffWall ? W.border : gradeClr}`, cursor: "pointer", overflow: "hidden", minHeight: 120 }}>
                                   {(c.isProject || isOffWall) && (
                                     <div style={{ display: "flex", gap: 4, flexWrap: "wrap", padding: "5px 8px 0" }}>
                                       {c.isProject && <span style={{ background: W.pink, color: W.pinkDark, borderRadius: 6, padding: "2px 6px", fontSize: 10, fontWeight: 800 }}>🎯 Project</span>}
@@ -5923,6 +5985,7 @@ export default function App() {
                           );
                         })}
                       </div>
+                      )}
                       {hasMore && (
                         <button onClick={() => setLogbookClimbPage(p => p + 1)} style={{ width: "100%", padding: "13px", background: "transparent", border: `1px solid ${W.border}`, borderRadius: 14, color: W.textMuted, fontSize: 14, fontWeight: 600, cursor: "pointer", marginTop: 8, marginBottom: 8 }}>
                           Load more ({logbookClimbs.length - visible.length} remaining)
