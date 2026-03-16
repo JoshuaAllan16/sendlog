@@ -3254,8 +3254,11 @@ export default function App() {
           </div>
         )}
         {showClimbForm && ClimbFormPanel({ isActiveSession: true, onSave: saveClimbToActiveSession, onCancel: () => { setShowClimbForm(false); setPhotoPreview(null); setEditingClimbId(null); } })}
-        {!showClimbForm && boulderAddMode && (() => {
+        {!showClimbForm && boulderAddMode && <div style={{ position: "fixed", inset: 0, zIndex: 400, background: "rgba(0,0,0,0.55)", display: "flex", flexDirection: "column", justifyContent: "flex-end" }} onClick={e => { if (e.target === e.currentTarget) { setBoulderAddMode(null); setSetPickerSelected(new Set()); } }}>
+          <div style={{ background: W.surface, borderRadius: "24px 24px 0 0", maxHeight: "90vh", overflowY: "auto", padding: "0 20px" }}>
+        {(() => {
           const location = activeSession?.location;
+          const gradeRank = (grade, scale) => { const list = GRADES[scale] || GRADES["V-Scale"]; const idx = list.indexOf(grade); return idx >= 0 ? idx : -1; };
           const gymEntries = (gymSets[location] || []).filter(e => !e.removed && (e.climbType === "boulder" || !e.climbType));
           const inSessionIds = new Set((activeSession?.climbs || []).map(c => c.setClimbId).filter(Boolean));
           const getEntryPhoto = (entryId) => sessions.flatMap(s => (s.climbs||[]).filter(c => c.setClimbId === entryId && c.photo)).map(c => c.photo)[0] || null;
@@ -3323,12 +3326,12 @@ export default function App() {
                   <div style={{ fontWeight: 900, fontSize: 20, color: W.text }}>Add Boulder</div>
                 </div>
                 {/* Add from Current Set — tall green */}
-                <button onClick={() => setBoulderAddMode("set-picker")} style={{ width: "100%", marginBottom: 14, background: `linear-gradient(135deg, #16a34a, #166534)`, border: "2px solid #15803d", borderRadius: 20, cursor: "pointer", padding: "0", overflow: "hidden", display: "flex", flexDirection: "column", minHeight: 200, textAlign: "left" }}>
+                <button onClick={() => location ? setBoulderAddMode("set-picker") : null} style={{ width: "100%", marginBottom: 14, background: location ? `linear-gradient(135deg, #16a34a, #166534)` : W.surface2, border: location ? "2px solid #15803d" : `2px solid ${W.border}`, borderRadius: 20, cursor: location ? "pointer" : "default", padding: "0", overflow: "hidden", display: "flex", flexDirection: "column", minHeight: 200, textAlign: "left", opacity: location ? 1 : 0.7 }}>
                   <div style={{ padding: "22px 24px 12px", display: "flex", alignItems: "center", gap: 12 }}>
                     <span style={{ fontSize: 34 }}>🏟️</span>
                     <div>
-                      <div style={{ fontWeight: 900, fontSize: 22, color: "#fff", letterSpacing: 0.3 }}>Add from Current Set</div>
-                      <div style={{ fontSize: 13, color: "rgba(255,255,255,0.75)", marginTop: 2 }}>{gymEntries.length} climbs in set at {location || "current gym"}</div>
+                      <div style={{ fontWeight: 900, fontSize: 22, color: location ? "#fff" : W.text, letterSpacing: 0.3 }}>Add from Current Set</div>
+                      <div style={{ fontSize: 13, color: location ? "rgba(255,255,255,0.75)" : W.textMuted, marginTop: 2 }}>{location ? `${gymEntries.length} climbs in set at ${location}` : "Set a session location first"}</div>
                     </div>
                   </div>
                   {quickEntry ? (
@@ -3351,7 +3354,15 @@ export default function App() {
                   )}
                 </button>
                 {/* Create New Boulder — blue/accent */}
-                <button onClick={() => { setNewBoulderStep(0); setNewBoulderVisited(new Set([0])); setBoulderAddMode("new-boulder"); }} style={{ width: "100%", background: `linear-gradient(135deg, ${W.accent}, ${W.accentDark})`, border: `2px solid ${W.accentDark}`, borderRadius: 20, cursor: "pointer", padding: "22px 24px", display: "flex", alignItems: "center", gap: 12, textAlign: "left" }}>
+                <button onClick={() => {
+                  // pre-fill grade from median of current gym set (improvement 3)
+                  if (gymEntries.length > 0) {
+                    const sorted = [...gymEntries].sort((a, b) => gradeRank(a.grade, a.scale) - gradeRank(b.grade, b.scale));
+                    const medianGrade = sorted[Math.floor(sorted.length / 2)]?.grade;
+                    if (medianGrade) setClimbForm(f => ({ ...f, grade: medianGrade }));
+                  }
+                  setNewBoulderStep(0); setNewBoulderVisited(new Set([0])); setBoulderAddMode("new-boulder");
+                }} style={{ width: "100%", background: `linear-gradient(135deg, ${W.accent}, ${W.accentDark})`, border: `2px solid ${W.accentDark}`, borderRadius: 20, cursor: "pointer", padding: "22px 24px", display: "flex", alignItems: "center", gap: 12, textAlign: "left" }}>
                   <span style={{ fontSize: 34 }}>✏️</span>
                   <div>
                     <div style={{ fontWeight: 900, fontSize: 22, color: "#fff", letterSpacing: 0.3 }}>Create New Boulder</div>
@@ -3382,7 +3393,7 @@ export default function App() {
                   <div key={sec} style={{ marginBottom: 18 }}>
                     {sec && <div style={{ fontSize: 11, fontWeight: 800, color: W.accent, textTransform: "uppercase", letterSpacing: 1.2, marginBottom: 8 }}>📌 {sec}</div>}
                     <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
-                      {(sectionGroups[sec] || []).sort((a, b) => getGradeRank(b.grade, b.scale) - getGradeRank(a.grade, a.scale)).map(entry => {
+                      {(sectionGroups[sec] || []).sort((a, b) => gradeRank(b.grade, b.scale) - gradeRank(a.grade, a.scale)).map(entry => {
                         const gradeColor = GRADE_COLORS[entry.grade] || GRADE_COLORS.default;
                         const colorEntry = CLIMB_COLORS.find(c => c.id === entry.color);
                         const photo = getEntryPhoto(entry.id);
@@ -3450,13 +3461,15 @@ export default function App() {
               if (newBoulderStep === 0) return (
                 <div>
                   <div style={{ fontSize: 11, fontWeight: 700, color: W.textMuted, textTransform: "uppercase", letterSpacing: 1, marginBottom: 10 }}>Photo (optional)</div>
-                  <label htmlFor={fileInputId} style={{ display: "block", cursor: "pointer" }}>
-                    <div style={{ width: "100%", height: 200, borderRadius: 16, overflow: "hidden", border: photoPreview ? "none" : `2px dashed ${W.border}`, background: W.surface2, display: "flex", alignItems: "center", justifyContent: "center", position: "relative" }}>
-                      {photoPreview ? <img src={photoPreview} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : <div style={{ textAlign: "center", color: W.textDim }}><div style={{ fontSize: 36, marginBottom: 6 }}>📷</div><div style={{ fontSize: 13, fontWeight: 600 }}>Tap to add photo</div></div>}
-                    </div>
-                  </label>
+                  <div style={{ position: "relative" }}>
+                    <label htmlFor={fileInputId} style={{ display: "block", cursor: photoPreview ? "default" : "pointer" }}>
+                      <div style={{ width: "100%", height: 200, borderRadius: 16, overflow: "hidden", border: photoPreview ? "none" : `2px dashed ${W.border}`, background: W.surface2, display: "flex", alignItems: "center", justifyContent: "center", position: "relative" }}>
+                        {photoPreview ? <img src={photoPreview} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : <div style={{ textAlign: "center", color: W.textDim }}><div style={{ fontSize: 36, marginBottom: 6 }}>📷</div><div style={{ fontSize: 13, fontWeight: 600 }}>Tap to add photo</div></div>}
+                      </div>
+                    </label>
+                    {photoPreview && <button onClick={e => { e.stopPropagation(); setPhotoPreview(null); }} style={{ position: "absolute", top: 8, left: 8, width: 28, height: 28, borderRadius: "50%", background: "rgba(0,0,0,0.65)", border: "none", color: "#fff", fontSize: 14, fontWeight: 900, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", lineHeight: 1, zIndex: 10 }}>✕</button>}
+                  </div>
                   <input id={fileInputId} type="file" accept="image/*" style={{ display: "none" }} onChange={e => { const f = e.target.files?.[0]; if (!f) return; const r = new FileReader(); r.onload = ev => { const img = new Image(); img.onload = () => { const maxD = 900; const sc = Math.min(1, maxD / Math.max(img.width, img.height)); const c = document.createElement("canvas"); c.width = img.width * sc; c.height = img.height * sc; c.getContext("2d").drawImage(img, 0, 0, c.width, c.height); setPhotoPreview(c.toDataURL("image/jpeg", 0.75)); }; img.src = ev.target.result; }; r.readAsDataURL(f); e.target.value = ""; }} />
-                  {photoPreview && <button onClick={() => setPhotoPreview(null)} style={{ width: "100%", marginTop: 8, padding: "8px", background: "transparent", border: `1px solid ${W.border}`, borderRadius: 10, color: W.textMuted, fontSize: 12, cursor: "pointer", fontWeight: 600 }}>Remove Photo</button>}
                   <div style={{ fontSize: 11, fontWeight: 700, color: W.textMuted, textTransform: "uppercase", letterSpacing: 1, marginTop: 18, marginBottom: 8 }}>Climb Name (optional)</div>
                   <input value={climbForm.name || ""} onChange={e => setClimbForm(f => ({ ...f, name: e.target.value }))} placeholder="e.g. The Crimp Problem…" style={{ width: "100%", boxSizing: "border-box", padding: "14px 16px", background: W.surface2, border: `1px solid ${W.border}`, borderRadius: 14, color: W.text, fontSize: 16, fontWeight: 600, outline: "none" }} />
                 </div>
@@ -3538,6 +3551,8 @@ export default function App() {
           }
           return null;
         })()}
+          </div>
+        </div>}
 
         {/* ══ TRAINING ROUTINE PICKER (top-level, works regardless of section visibility) ══ */}
         {!showClimbForm && trainingPickerType && (() => {
