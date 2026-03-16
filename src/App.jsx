@@ -1042,17 +1042,24 @@ export default function App() {
     }) };
   });
   // ── Warm-up section ─────────────────────────────────────────
-  const startWarmupSection = () => setActiveSession(s => {
-    const now = Date.now();
-    const updates = {};
-    if (s.boulderActiveStart) { updates.boulderTotalSec = (s.boulderTotalSec || 0) + Math.max(0, Math.floor((now - s.boulderActiveStart) / 1000)); updates.boulderActiveStart = null; updates.boulderPausedAt = now; }
-    if (s.ropeActiveStart)    { updates.ropeTotalSec    = (s.ropeTotalSec    || 0) + Math.max(0, Math.floor((now - s.ropeActiveStart)    / 1000)); updates.ropeActiveStart    = null; updates.ropePausedAt    = now; }
-    const activeTpl = warmupTemplates.find(t => t.id === activeWarmupTemplateId) || warmupTemplates[0];
-    const tplItems = activeTpl?.items || defaultWarmupItems;
-    const notesNote = activeTpl?.name ? `Warmup: ${activeTpl.name}` : null;
-    const notesUpdate = !s.notes && notesNote ? { notes: notesNote } : {};
-    return { ...s, ...updates, ...notesUpdate, warmupStartedAt: now, warmupActiveStart: now, warmupTotalSec: 0, warmupPausedAt: null, warmupEndedAt: null, warmupTemplateName: activeTpl?.name || null, warmupTemplateId: activeTpl?.id || null, warmupChecklist: tplItems.map(item => ({ ...item, id: Date.now() + Math.random(), checked: false })) };
-  });
+  const startWarmupSection = () => {
+    if (warmupTemplates.length > 1) {
+      // Multiple routines — show picker first; timer starts only after selection
+      setTrainingPickerType("warmup");
+      return;
+    }
+    setActiveSession(s => {
+      const now = Date.now();
+      const updates = {};
+      if (s.boulderActiveStart) { updates.boulderTotalSec = (s.boulderTotalSec || 0) + Math.max(0, Math.floor((now - s.boulderActiveStart) / 1000)); updates.boulderActiveStart = null; updates.boulderPausedAt = now; }
+      if (s.ropeActiveStart)    { updates.ropeTotalSec    = (s.ropeTotalSec    || 0) + Math.max(0, Math.floor((now - s.ropeActiveStart)    / 1000)); updates.ropeActiveStart    = null; updates.ropePausedAt    = now; }
+      const activeTpl = warmupTemplates.find(t => t.id === activeWarmupTemplateId) || warmupTemplates[0];
+      const tplItems = activeTpl?.items || defaultWarmupItems;
+      const notesNote = activeTpl?.name ? `Warmup: ${activeTpl.name}` : null;
+      const notesUpdate = !s.notes && notesNote ? { notes: notesNote } : {};
+      return { ...s, ...updates, ...notesUpdate, warmupStartedAt: now, warmupActiveStart: now, warmupTotalSec: 0, warmupPausedAt: null, warmupEndedAt: null, warmupTemplateName: activeTpl?.name || null, warmupTemplateId: activeTpl?.id || null, warmupChecklist: tplItems.map(item => ({ ...item, id: Date.now() + Math.random(), checked: false })) };
+    });
+  };
   const pauseWarmupSession = () => setActiveSession(s => {
     const now = Date.now();
     const elapsed = s.warmupActiveStart ? Math.max(0, Math.floor((now - s.warmupActiveStart) / 1000)) : 0;
