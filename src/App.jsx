@@ -1622,10 +1622,11 @@ export default function App() {
         if (logbookGrade !== "All" && c.grade !== logbookGrade) return false;
         return true;
       });
-    if (logbookSort === "hardest") climbs.sort((a, b) => getGradeIndex(b.grade, b.scale) - getGradeIndex(a.grade, a.scale));
-    else if (logbookSort === "easiest") climbs.sort((a, b) => getGradeIndex(a.grade, a.scale) - getGradeIndex(b.grade, b.scale));
-    else if (logbookSort === "name") climbs.sort((a, b) => (a.name || a.grade).localeCompare(b.name || b.grade));
-    else climbs.sort((a, b) => new Date(b.sessionDate) - new Date(a.sessionDate));
+    const photoFirst = (a, b) => (b.photo ? 1 : 0) - (a.photo ? 1 : 0);
+    if (logbookSort === "hardest") climbs.sort((a, b) => { const d = getGradeIndex(b.grade, b.scale) - getGradeIndex(a.grade, a.scale); return d !== 0 ? d : photoFirst(a, b); });
+    else if (logbookSort === "easiest") climbs.sort((a, b) => { const d = getGradeIndex(a.grade, a.scale) - getGradeIndex(b.grade, b.scale); return d !== 0 ? d : photoFirst(a, b); });
+    else if (logbookSort === "name") climbs.sort((a, b) => { const d = (a.name || a.grade).localeCompare(b.name || b.grade); return d !== 0 ? d : photoFirst(a, b); });
+    else climbs.sort((a, b) => { const d = new Date(b.sessionDate) - new Date(a.sessionDate); return d !== 0 ? d : photoFirst(a, b); });
     return climbs;
   };
 
@@ -2334,7 +2335,7 @@ export default function App() {
               <button onClick={() => fileRef.current.click()} style={{ position: "absolute", bottom: 8, right: 8, background: "rgba(0,0,0,0.55)", border: "none", borderRadius: 7, color: "#fff", fontSize: 11, fontWeight: 700, padding: "4px 10px", cursor: "pointer" }}>Change</button>
             </>
           ) : (
-            <div onClick={() => fileRef.current.click()} style={{ color: W.textDim, fontSize: 13, cursor: "pointer", padding: "0" }}>📷 Tap to upload</div>
+            <div onClick={() => fileRef.current.click()} style={{ color: W.textDim, fontSize: 13, cursor: "pointer" }}>📷 Tap to upload</div>
           )}
         </div>
         <input ref={fileRef} type="file" accept="image/*" style={{ display: "none" }} onChange={e => { const f = e.target.files[0]; if (!f) return; const r = new FileReader(); r.onload = ev => { const img = new Image(); img.onload = () => { const MAX = 900; const scale = Math.min(1, MAX / Math.max(img.width, img.height)); const canvas = document.createElement("canvas"); canvas.width = Math.round(img.width * scale); canvas.height = Math.round(img.height * scale); canvas.getContext("2d").drawImage(img, 0, 0, canvas.width, canvas.height); setPhotoPreview(canvas.toDataURL("image/jpeg", 0.75)); }; img.src = ev.target.result; }; r.readAsDataURL(f); }} />
@@ -2371,12 +2372,13 @@ export default function App() {
     const handleInlineSave = () => { onInlineSave(climb.id, { name: inlineName, tries: inlineTries, completed: inlineCompleted, comments: inlineComments, grade: inlineGrade, scale: inlineScale, ...(climb.climbType === "rope" ? { falls: inlineFalls } : {}) }); setInlineEditing(false); };
     // No-photo logbook card
     if (!climb.photo && onClimbClick && !onEdit && !onInlineSave && !onRemove && !inlineEditing) {
-      const colorHex   = CLIMB_COLORS.find(cc => cc.id === climb.color)?.hex;
-      const colorLabel = CLIMB_COLORS.find(cc => cc.id === climb.color)?.label;
+      const colorEntry = CLIMB_COLORS.find(cc => cc.id === climb.color);
+      const colorHex   = colorEntry?.hex;
+      const colorLabel = colorEntry?.label;
       const timeSec    = Math.floor((climb.attemptLog || []).reduce((t, a) => t + (a.duration || 0), 0) / 1000);
       const gradeClr   = getGradeColor(climb.grade);
       return (
-        <div onClick={() => onClimbClick(climb)} style={{ borderRadius: 14, border: `1px solid ${W.border}`, borderLeft: `4px solid ${gradeClr}`, marginBottom: 10, cursor: "pointer", background: W.surface, overflow: "hidden", display: "flex", alignItems: "stretch" }}>
+        <div onClick={() => onClimbClick(climb)} style={{ borderRadius: 14, border: `1px solid ${W.border}`, borderLeft: `4px solid ${gradeClr}`, marginBottom: 10, cursor: "pointer", background: W.surface, overflow: "hidden", display: "flex", alignItems: "stretch", minHeight: 72 }}>
           <div style={{ background: gradeClr + "1a", display: "flex", alignItems: "center", justifyContent: "center", padding: "0 14px", minWidth: 56, borderRight: `1px solid ${gradeClr}28` }}>
             <div style={{ fontWeight: 900, fontSize: 17, color: gradeClr, textAlign: "center" }}>{climb.grade}</div>
           </div>
@@ -2400,8 +2402,9 @@ export default function App() {
     }
     // Photo-card layout for logbook view
     if (climb.photo && onClimbClick && !onEdit && !onInlineSave && !onRemove && !inlineEditing) {
-      const colorHex   = CLIMB_COLORS.find(cc => cc.id === climb.color)?.hex;
-      const colorLabel = CLIMB_COLORS.find(cc => cc.id === climb.color)?.label;
+      const colorEntry = CLIMB_COLORS.find(cc => cc.id === climb.color);
+      const colorHex   = colorEntry?.hex;
+      const colorLabel = colorEntry?.label;
       const timeSec    = Math.floor((climb.attemptLog || []).reduce((t, a) => t + (a.duration || 0), 0) / 1000);
       return (
         <div onClick={() => onClimbClick(climb)} style={{ borderRadius: 16, overflow: "hidden", border: `1px solid ${W.border}`, marginBottom: 12, cursor: "pointer", background: W.surface }}>
@@ -7096,8 +7099,9 @@ export default function App() {
               <div style={{ marginBottom: 20 }}><TagChips wallTypes={climb.wallTypes} holdTypes={climb.holdTypes} /></div>
             )}
             {/* Notes from sessions */}
-            {relatedEntries.some(({ climb: c }) => c.comments) && (() => {
+            {(() => {
               const withNotes = relatedEntries.filter(({ climb: c }) => c.comments);
+              if (!withNotes.length) return null;
               return (
                 <div style={{ marginBottom: 20 }}>
                   <div style={{ fontSize: 13, fontWeight: 800, color: W.textMuted, textTransform: "uppercase", letterSpacing: 1, marginBottom: 10 }}>Notes</div>
