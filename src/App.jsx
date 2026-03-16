@@ -1551,7 +1551,7 @@ export default function App() {
 
   const saveClimbToFinishedSession = (sessionId) => {
     setSessions(prev => prev.map(s => s.id === sessionId ? { ...s, climbs: (s.climbs || []).map(c => c.id === editingClimbId ? { ...c, ...climbForm, photo: photoPreview } : c) } : s));
-    setSelectedSession(prev => ({ ...prev, climbs: (prev.climbs || []).map(c => c.id === editingClimbId ? { ...c, ...climbForm, photo: photoPreview } : c) }));
+    setSelectedSession(prev => prev ? { ...prev, climbs: (prev.climbs || []).map(c => c.id === editingClimbId ? { ...c, ...climbForm, photo: photoPreview } : c) } : null);
     if (climbForm.isProject && climbForm.completed && climbForm.projectId) setProjects(prev => prev.map(p => p.id === climbForm.projectId ? { ...p, completed: true, active: false, dateSent: new Date().toISOString() } : p));
     setEditingClimbId(null); setEditingSessionId(null); setShowClimbForm(false);
   };
@@ -1660,6 +1660,7 @@ export default function App() {
     }).filter(c => {
       if (logbookFilter === "completed" && !c.completed) return false;
       if (logbookFilter === "incomplete" && c.completed) return false;
+      if (logbookFilter === "projects" && !c.isProject) return false;
       if (logbookScale !== "All Scales" && c.scale !== logbookScale) return false;
       if (logbookGrade !== "All" && c.grade !== logbookGrade) return false;
       if (logbookColorFilter !== "All" && c.color !== logbookColorFilter) return false;
@@ -2292,8 +2293,9 @@ export default function App() {
             <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
               {WALL_TYPES.map(t => { const sel = climbForm.wallTypes.includes(t); return (<button key={t} onClick={() => setClimbForm(f => ({ ...f, wallTypes: toggleArr(f.wallTypes, t) }))} style={{ flex: 1, padding: "9px", borderRadius: 10, border: "2px solid", borderColor: sel ? W.purpleDark : W.border, background: sel ? W.purple : W.surface, color: sel ? W.purpleDark : W.textDim, cursor: "pointer", fontWeight: 700, fontSize: 13 }}>{t}</button>); })}
             </div>
-            {isActiveSession && (() => {
-              const sections = gymScales[activeSession?.location]?.wallSections || [];
+            {(() => {
+              const loc = isActiveSession ? activeSession?.location : sessions.find(s => s.id === editingSessionId)?.location;
+              const sections = (loc ? gymScales[loc]?.wallSections : null) || [];
               if (!sections.length) return null;
               return (<>
                 <Label>Section</Label>
@@ -2456,27 +2458,33 @@ export default function App() {
       const timeSec    = Math.floor((climb.attemptLog || []).reduce((t, a) => t + (a.duration || 0), 0) / 1000);
       const gradeClr   = getGradeColor(climb.grade);
       return (
-        <div onClick={() => onClimbClick(climb)} style={{ borderRadius: 14, border: `1px solid ${W.border}`, borderLeft: `4px solid ${gradeClr}`, marginBottom: 10, cursor: "pointer", background: W.surface, overflow: "hidden", display: "flex", alignItems: "stretch", minHeight: 72 }}>
-          <div style={{ background: gradeClr + "1a", display: "flex", alignItems: "center", justifyContent: "center", padding: "0 14px", minWidth: 56, borderRight: `1px solid ${gradeClr}28` }}>
-            <div style={{ fontWeight: 900, fontSize: 17, color: gradeClr, textAlign: "center" }}>{climb.grade}</div>
-          </div>
-          <div style={{ flex: 1, padding: "10px 12px", minWidth: 0 }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 7, marginBottom: 3, flexWrap: "wrap" }}>
-              {colorHex && <div style={{ width: 13, height: 13, borderRadius: "50%", background: colorHex, border: `1.5px solid ${W.border}`, flexShrink: 0 }} title={colorLabel} />}
-              {colorLabel && <span style={{ fontSize: 12, color: W.textMuted, fontWeight: 600 }}>{colorLabel}</span>}
-              {climb.name && <span style={{ fontWeight: 700, color: W.text, fontSize: 14 }}>{climb.name}</span>}
+        <div onClick={() => onClimbClick(climb)} style={{ borderRadius: 14, border: `1px solid ${climb.isProject ? W.pinkDark + "60" : W.border}`, borderLeft: `4px solid ${climb.isProject ? W.pinkDark : gradeClr}`, marginBottom: 10, cursor: "pointer", background: W.surface, overflow: "hidden" }}>
+          {climb.isProject && (
+            <div style={{ background: W.pink, padding: "5px 14px", display: "flex", alignItems: "center", gap: 6, borderBottom: `1px solid ${W.pinkDark}30` }}>
+              <span style={{ fontSize: 11, fontWeight: 900, color: W.pinkDark, letterSpacing: 1.2, textTransform: "uppercase" }}>🎯 Project</span>
             </div>
-            <div style={{ display: "flex", gap: 12, flexWrap: "wrap", alignItems: "center" }}>
-              <span style={{ fontSize: 12, color: W.textMuted }}><span style={{ fontWeight: 700, color: W.text }}>{climb.tries || 0}</span> {climb.climbType === "rope" ? "attempts" : "falls"}</span>
-              {timeSec > 0 && <span style={{ fontSize: 12, color: W.textMuted }}><span style={{ fontWeight: 700, color: W.text }}>{formatDuration(timeSec)}</span> on climb</span>}
-              {climb._sessionCount > 1 && <span style={{ fontSize: 11, color: W.textMuted, fontWeight: 700 }}>🗓 {climb._sessionCount} sessions</span>}
-              <TagChips wallTypes={climb.wallTypes} holdTypes={climb.holdTypes} />
-              {climb.section && <span style={{ fontSize: 11, color: W.accent, fontWeight: 700 }}>📌 {climb.section}</span>}
-              {climb.isProject && <span style={{ background: W.pink, color: W.pinkDark, borderRadius: 6, padding: "1px 7px", fontSize: 10, fontWeight: 700 }}>🎯 PROJECT</span>}
+          )}
+          <div style={{ display: "flex", alignItems: "stretch", minHeight: 72 }}>
+            <div style={{ background: gradeClr + "1a", display: "flex", alignItems: "center", justifyContent: "center", padding: "0 14px", minWidth: 56, borderRight: `1px solid ${gradeClr}28` }}>
+              <div style={{ fontWeight: 900, fontSize: 17, color: gradeClr, textAlign: "center" }}>{climb.grade}</div>
             </div>
-          </div>
-          <div style={{ padding: "0 12px", display: "flex", alignItems: "center", flexShrink: 0 }}>
-            <span style={{ background: climb.completed ? W.green : W.red, color: climb.completed ? W.greenDark : W.redDark, borderRadius: 8, padding: "3px 9px", fontSize: 11, fontWeight: 800, whiteSpace: "nowrap" }}>{climb.completed ? "✓ Sent" : "Not Sent"}</span>
+            <div style={{ flex: 1, padding: "10px 12px", minWidth: 0 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 7, marginBottom: 3, flexWrap: "wrap" }}>
+                {colorHex && <div style={{ width: 13, height: 13, borderRadius: "50%", background: colorHex, border: `1.5px solid ${W.border}`, flexShrink: 0 }} title={colorLabel} />}
+                {colorLabel && <span style={{ fontSize: 12, color: W.textMuted, fontWeight: 600 }}>{colorLabel}</span>}
+                {climb.name && <span style={{ fontWeight: 700, color: W.text, fontSize: 14 }}>{climb.name}</span>}
+              </div>
+              <div style={{ display: "flex", gap: 12, flexWrap: "wrap", alignItems: "center" }}>
+                <span style={{ fontSize: 12, color: W.textMuted }}><span style={{ fontWeight: 700, color: W.text }}>{climb.tries || 0}</span> {climb.climbType === "rope" ? "attempts" : "falls"}</span>
+                {timeSec > 0 && <span style={{ fontSize: 12, color: W.textMuted }}><span style={{ fontWeight: 700, color: W.text }}>{formatDuration(timeSec)}</span> on climb</span>}
+                {climb._sessionCount > 1 && <span style={{ fontSize: 11, color: W.textMuted, fontWeight: 700 }}>🗓 {climb._sessionCount} sessions</span>}
+                <TagChips wallTypes={climb.wallTypes} holdTypes={climb.holdTypes} />
+                {climb.section && <span style={{ fontSize: 11, color: W.accent, fontWeight: 700 }}>📌 {climb.section}</span>}
+              </div>
+            </div>
+            <div style={{ padding: "0 12px", display: "flex", alignItems: "center", flexShrink: 0 }}>
+              <span style={{ background: climb.completed ? W.green : W.red, color: climb.completed ? W.greenDark : W.redDark, borderRadius: 8, padding: "3px 9px", fontSize: 11, fontWeight: 800, whiteSpace: "nowrap" }}>{climb.completed ? "✓ Sent" : "Not Sent"}</span>
+            </div>
           </div>
         </div>
       );
@@ -2495,6 +2503,11 @@ export default function App() {
             <div style={{ position: "absolute", top: 10, right: 10 }}>
               <span style={{ background: climb.completed ? "#16a34a" : "#dc2626", color: "#fff", borderRadius: 8, padding: "3px 10px", fontSize: 11, fontWeight: 800 }}>{climb.completed ? "✓ Sent" : "Not Sent"}</span>
             </div>
+            {climb.isProject && (
+              <div style={{ position: "absolute", top: 10, left: 10 }}>
+                <span style={{ background: W.pinkDark, color: "#fff", borderRadius: 8, padding: "4px 12px", fontSize: 11, fontWeight: 800, letterSpacing: 0.5, boxShadow: "0 2px 8px rgba(0,0,0,0.4)" }}>🎯 Project</span>
+              </div>
+            )}
             <div style={{ position: "absolute", bottom: 12, left: 14, display: "flex", alignItems: "center", gap: 8 }}>
               <div style={{ background: getGradeColor(climb.grade), color: "#fff", borderRadius: 10, padding: "4px 13px", fontWeight: 900, fontSize: 20, letterSpacing: 0.3, boxShadow: "0 2px 8px rgba(0,0,0,0.4)" }}>{climb.grade}</div>
               {colorHex && <div style={{ width: 24, height: 24, borderRadius: "50%", background: colorHex, border: "2.5px solid rgba(255,255,255,0.9)", boxShadow: "0 1px 5px rgba(0,0,0,0.5)", flexShrink: 0 }} title={colorLabel} />}
@@ -2508,7 +2521,6 @@ export default function App() {
             {climb._sessionCount > 1 && <span style={{ fontSize: 11, color: W.textMuted, fontWeight: 700 }}>🗓 {climb._sessionCount} sessions</span>}
             <TagChips wallTypes={climb.wallTypes} holdTypes={climb.holdTypes} />
             {climb.section && <span style={{ fontSize: 11, color: W.accent, fontWeight: 700 }}>📌 {climb.section}</span>}
-            {climb.isProject && <span style={{ background: W.pink, color: W.pinkDark, borderRadius: 6, padding: "1px 7px", fontSize: 10, fontWeight: 700 }}>🎯 PROJECT</span>}
           </div>
         </div>
       );
@@ -5766,14 +5778,14 @@ export default function App() {
             </div>
             <div style={{ marginBottom: 14 }}>
               <button onClick={() => setLogbookFiltersOpen(o => !o)} style={{ width: "100%", padding: "11px 14px", background: W.surface2, border: `1px solid ${W.border}`, borderRadius: logbookFiltersOpen ? "12px 12px 0 0" : "12px", cursor: "pointer", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                <div style={{ display: "flex", alignItems: "center", gap: 8 }}><span>🔽</span><span style={{ fontWeight: 700, color: W.text, fontSize: 13 }}>Filters</span>{hasClimbFilters && <span style={{ background: W.accent, color: "#fff", borderRadius: 20, padding: "2px 8px", fontSize: 10, fontWeight: 700 }}>Active</span>}</div>
+                <div style={{ display: "flex", alignItems: "center", gap: 8 }}><span style={{ fontWeight: 700, color: W.text, fontSize: 13 }}>Filters</span>{hasClimbFilters && <span style={{ background: W.accent, color: "#fff", borderRadius: 20, padding: "2px 8px", fontSize: 10, fontWeight: 700 }}>Active</span>}</div>
                 <span style={{ color: W.textMuted, fontSize: 16 }}>⌄</span>
               </button>
               {logbookFiltersOpen && (
                 <div style={{ background: W.surface, border: `1px solid ${W.border}`, borderTop: "none", borderRadius: "0 0 12px 12px", padding: "14px" }}>
                   <Label>Status</Label>
                   <div style={{ display: "flex", gap: 8, marginBottom: 12, flexWrap: "wrap" }}>
-                    {[["all", "All"], ["completed", "✓ Sent"], ["incomplete", "✗ Not Sent"]].map(([val, label]) => <button key={val} onClick={() => setLogbookFilter(val)} style={{ padding: "6px 12px", borderRadius: 16, border: "2px solid", borderColor: logbookFilter === val ? W.accent : W.border, background: logbookFilter === val ? W.accent + "22" : W.surface, color: logbookFilter === val ? W.accent : W.textDim, cursor: "pointer", fontSize: 12, fontWeight: 600 }}>{label}</button>)}
+                    {[["all", "All"], ["completed", "✓ Sent"], ["incomplete", "✗ Not Sent"], ["projects", "🎯 Projects"]].map(([val, label]) => <button key={val} onClick={() => setLogbookFilter(val)} style={{ padding: "6px 12px", borderRadius: 16, border: "2px solid", borderColor: logbookFilter === val ? (val === "projects" ? W.pinkDark : W.accent) : W.border, background: logbookFilter === val ? (val === "projects" ? W.pink : W.accent + "22") : W.surface, color: logbookFilter === val ? (val === "projects" ? W.pinkDark : W.accent) : W.textDim, cursor: "pointer", fontSize: 12, fontWeight: 600 }}>{label}</button>)}
                   </div>
                   <Label>Scale</Label>
                   <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 12 }}>
@@ -5841,7 +5853,7 @@ export default function App() {
           <div>
             <div style={{ marginBottom: 14 }}>
               <button onClick={() => setLogbookFiltersOpen(o => !o)} style={{ width: "100%", padding: "11px 14px", background: W.surface2, border: `1px solid ${W.border}`, borderRadius: logbookFiltersOpen ? "12px 12px 0 0" : "12px", cursor: "pointer", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                <div style={{ display: "flex", alignItems: "center", gap: 8 }}><span>🔽</span><span style={{ fontWeight: 700, color: W.text, fontSize: 13 }}>Filters</span>{hasSessionFilters && <span style={{ background: W.accent, color: "#fff", borderRadius: 20, padding: "2px 8px", fontSize: 10, fontWeight: 700 }}>Active</span>}</div>
+                <div style={{ display: "flex", alignItems: "center", gap: 8 }}><span style={{ fontWeight: 700, color: W.text, fontSize: 13 }}>Filters</span>{hasSessionFilters && <span style={{ background: W.accent, color: "#fff", borderRadius: 20, padding: "2px 8px", fontSize: 10, fontWeight: 700 }}>Active</span>}</div>
                 <span style={{ color: W.textMuted, fontSize: 16 }}>⌄</span>
               </button>
               {logbookFiltersOpen && (
