@@ -498,6 +498,30 @@ export const SessionSummaryScreen = ({
           </div>
         );
       })()}
+      {(() => {
+        const climbsWithSection = (session.climbs || []).filter(c => c.climbType !== "speed-session" && c.section);
+        if (!climbsWithSection.length) return null;
+        const sectionMap = {};
+        for (const c of climbsWithSection) {
+          if (!sectionMap[c.section]) sectionMap[c.section] = { total: 0, sends: 0 };
+          sectionMap[c.section].total++;
+          if (c.completed) sectionMap[c.section].sends++;
+        }
+        return (
+          <div style={{ background: W.surface, borderRadius: 16, padding: "16px", border: `1px solid ${W.border}`, marginBottom: 16 }}>
+            <div style={{ fontSize: 11, fontWeight: 700, color: W.textMuted, textTransform: "uppercase", letterSpacing: 1, marginBottom: 10 }}>By Section</div>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+              {Object.entries(sectionMap).map(([sec, s]) => (
+                <div key={sec} style={{ background: W.surface2, borderRadius: 10, padding: "10px 12px" }}>
+                  <div style={{ fontSize: 12, fontWeight: 800, color: W.accent, marginBottom: 2 }}>📌 {sec}</div>
+                  <div style={{ fontSize: 18, fontWeight: 900, color: W.text, lineHeight: 1 }}>{s.sends}/{s.total}</div>
+                  <div style={{ fontSize: 10, color: W.textMuted, marginTop: 2 }}>sends</div>
+                </div>
+              ))}
+            </div>
+          </div>
+        );
+      })()}
       {(session.climbs || []).filter(c => c.climbType !== "speed-session").length > 0 && (
         <div style={{ background: W.surface, borderRadius: 16, padding: "16px", border: `1px solid ${W.border}`, marginBottom: 20 }}>
           <div style={{ fontSize: 11, fontWeight: 700, color: W.textMuted, textTransform: "uppercase", letterSpacing: 1, marginBottom: 10 }}>Climbs This Session</div>
