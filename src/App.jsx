@@ -336,7 +336,7 @@ export default function App() {
   const [climbingSubTab, setClimbingSubTab] = useState("logbook");
   const [trainingSubTab, setTrainingSubTab] = useState("overview");
 
-  const blankForm = { name: "", grade: GRADES[preferredScale]?.[2] || "V3", scale: preferredScale, isProject: false, comments: "", photo: null, color: null, wallTypes: [], holdTypes: [], climbType: "boulder", ropeStyle: "lead", speedTime: "", setClimbId: null };
+  const blankForm = { name: "", grade: GRADES[preferredScale]?.[2] || "V3", scale: preferredScale, isProject: false, comments: "", photo: null, color: null, wallTypes: [], holdTypes: [], climbType: "boulder", ropeStyle: "lead", speedTime: "", setClimbId: null, section: null };
 
   const [climbForm, setClimbForm]   = useState(blankForm);
   const [photoPreview, setPhotoPreview] = useState(null);
@@ -345,8 +345,10 @@ export default function App() {
   const [gymSets, setGymSets] = useState({});
   const [gymSetStaleWeeks, setGymSetStaleWeeks] = useState(8);
   const [selectedSetClimb, setSelectedSetClimb] = useState(null);
-  const [gymScales, setGymScales] = useState({}); // { [location]: { boulder: "V-Scale", rope: "French" } }
+  const [gymScales, setGymScales] = useState({}); // { [location]: { boulder, rope, wallSections, hours, notes } }
   const [selectedGym, setSelectedGym] = useState(null);
+  const [gymDetailsOpen, setGymDetailsOpen] = useState(false);
+  const [gymSectionInput, setGymSectionInput] = useState("");
   const [selectedLogbookClimb, setSelectedLogbookClimb] = useState(null);
   const [boulderQuickPanel, setBoulderQuickPanel] = useState(null); // null | "projects" | "set"
   const [quickPanelSelected, setQuickPanelSelected] = useState([]); // array of selected item IDs
@@ -1482,7 +1484,7 @@ export default function App() {
         let setClimbId = climbForm.setClimbId || null;
         if (location && !setClimbId && (climbForm.climbType === "boulder" || climbForm.climbType === "rope")) {
           setClimbId = Date.now() + 2;
-          const newSetClimb = { id: setClimbId, name: climbForm.name, grade: climbForm.grade, scale: climbForm.scale, color: climbForm.color, wallTypes: climbForm.wallTypes, holdTypes: climbForm.holdTypes, climbType: climbForm.climbType || "boulder", setDate: new Date().toISOString(), location, removed: false, removedDate: null };
+          const newSetClimb = { id: setClimbId, name: climbForm.name, grade: climbForm.grade, scale: climbForm.scale, color: climbForm.color, wallTypes: climbForm.wallTypes, holdTypes: climbForm.holdTypes, climbType: climbForm.climbType || "boulder", setDate: new Date().toISOString(), location, removed: false, removedDate: null, section: climbForm.section || null };
           setGymSets(prev => ({ ...prev, [location]: [...(prev[location] || []), newSetClimb] }));
         }
         const newClimb = { ...climbForm, photo: photoPreview, projectId: pid, id: Date.now(), loggedAt: Date.now(), tries: climbForm.climbType === "speed" ? 1 : 0, completed: climbForm.climbType === "speed" ? climbForm.completed : false, ...(speedGrade ? { grade: speedGrade, scale: "Speed" } : {}), ...(setClimbId ? { setClimbId } : {}) };
@@ -2253,6 +2255,16 @@ export default function App() {
             <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
               {WALL_TYPES.map(t => { const sel = climbForm.wallTypes.includes(t); return (<button key={t} onClick={() => setClimbForm(f => ({ ...f, wallTypes: toggleArr(f.wallTypes, t) }))} style={{ flex: 1, padding: "9px", borderRadius: 10, border: "2px solid", borderColor: sel ? W.purpleDark : W.border, background: sel ? W.purple : W.surface, color: sel ? W.purpleDark : W.textDim, cursor: "pointer", fontWeight: 700, fontSize: 13 }}>{t}</button>); })}
             </div>
+            {isActiveSession && (() => {
+              const sections = gymScales[activeSession?.location]?.wallSections || [];
+              if (!sections.length) return null;
+              return (<>
+                <Label>Section</Label>
+                <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 12 }}>
+                  {sections.map(sec => { const sel = climbForm.section === sec; return (<button key={sec} onClick={() => setClimbForm(f => ({ ...f, section: sel ? null : sec }))} style={{ padding: "6px 14px", borderRadius: 20, border: "2px solid", borderColor: sel ? W.accentDark : W.border, background: sel ? W.accent + "22" : W.surface, color: sel ? W.accentDark : W.textDim, cursor: "pointer", fontWeight: 700, fontSize: 12 }}>{sec}</button>); })}
+                </div>
+              </>);
+            })()}
             <Label>Climb Identifier</Label>
             <div style={{ display: "flex", flexWrap: "wrap", gap: 7, marginBottom: 12 }}>
               {HOLD_TYPES.map(t => { const sel = climbForm.holdTypes.includes(t); return (<button key={t} onClick={() => setClimbForm(f => ({ ...f, holdTypes: toggleArr(f.holdTypes, t) }))} style={{ padding: "6px 14px", borderRadius: 20, border: "2px solid", borderColor: sel ? W.accentDark : W.border, background: sel ? W.accent + "22" : W.surface, color: sel ? W.accentDark : W.textDim, cursor: "pointer", fontWeight: 700, fontSize: 12 }}>{t}</button>); })}
@@ -5830,14 +5842,18 @@ export default function App() {
         )}
 
         {profileTab === "climbing" && climbingSubTab === "sets" && (() => {
-          // All known gym locations (from sets + all sessions + customLocations)
+          // All known locations, home gym first then alphabetical
           const allLocations = [...new Set([
             ...Object.keys(gymSets).filter(loc => (gymSets[loc] || []).length > 0),
             ...sessions.map(s => s.location).filter(Boolean),
             ...customLocations,
-          ])].filter(Boolean).sort();
+          ])].filter(Boolean).sort((a, b) => {
+            if (a === mainGym) return -1;
+            if (b === mainGym) return 1;
+            return a.localeCompare(b);
+          });
 
-          // ── Gym detail page ─────────────────────────────────────
+          // ── Gym detail page ────────────────────────────────────────
           if (selectedGym) {
             const loc = selectedGym;
             const allEntries = gymSets[loc] || [];
@@ -5847,34 +5863,75 @@ export default function App() {
             const gs = gymScales[loc] || {};
             const boulderScales = [...Object.keys(GRADES), ...(customBoulderGrades.length ? ["Custom"] : [])];
             const ropeScales    = [...Object.keys(ROPE_GRADES), ...(customRopeGrades.length ? ["Custom"] : [])];
-            const setGymScale = (type, val) => setGymScales(p => ({ ...p, [loc]: { ...(p[loc] || {}), [type]: val } }));
+            const setGymField = (field, val) => setGymScales(p => ({ ...p, [loc]: { ...(p[loc] || {}), [field]: val } }));
+            const wallSections = gs.wallSections || [];
+
             return (
               <div>
                 {/* Header */}
-                <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 18 }}>
-                  <button onClick={() => setSelectedGym(null)} style={{ background: W.surface2, border: `1px solid ${W.border}`, borderRadius: 10, padding: "7px 14px", color: W.text, fontWeight: 700, fontSize: 14, cursor: "pointer" }}>← Back</button>
-                  <div style={{ fontWeight: 900, fontSize: 18, color: W.text, flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>📍 {loc}</div>
+                <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 16 }}>
+                  <button onClick={() => { setSelectedGym(null); setGymDetailsOpen(false); setGymSectionInput(""); }} style={{ background: W.surface2, border: `1px solid ${W.border}`, borderRadius: 10, padding: "7px 14px", color: W.text, fontWeight: 700, fontSize: 14, cursor: "pointer" }}>← Back</button>
+                  <div style={{ fontWeight: 900, fontSize: 17, color: W.text, flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>📍 {loc}</div>
+                  <button onClick={() => setGymDetailsOpen(o => !o)} style={{ background: gymDetailsOpen ? W.accent + "22" : W.surface2, border: `1px solid ${gymDetailsOpen ? W.accent : W.border}`, borderRadius: 10, padding: "7px 13px", color: gymDetailsOpen ? W.accent : W.text, fontWeight: 700, fontSize: 13, cursor: "pointer", flexShrink: 0 }}>⚙ Details</button>
                 </div>
-                {/* Grading scheme */}
-                <div style={{ background: W.surface, border: `1px solid ${W.border}`, borderRadius: 14, padding: "14px 16px", marginBottom: 18 }}>
-                  <div style={{ fontWeight: 800, fontSize: 13, color: W.text, marginBottom: 12 }}>Grading Scheme</div>
-                  <div style={{ marginBottom: 10 }}>
-                    <div style={{ fontSize: 11, fontWeight: 700, color: W.textMuted, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 6 }}>Boulder</div>
-                    <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-                      {boulderScales.map(s => (
-                        <button key={s} onClick={() => setGymScale("boulder", s)} style={{ padding: "5px 11px", borderRadius: 12, border: "2px solid", borderColor: gs.boulder === s ? W.accent : W.border, background: gs.boulder === s ? W.accent + "22" : W.surface, color: gs.boulder === s ? W.accent : W.textDim, cursor: "pointer", fontSize: 12, fontWeight: 700 }}>{s}</button>
-                      ))}
+
+                {/* Summary strip */}
+                <div style={{ display: "flex", gap: 8, marginBottom: gymDetailsOpen ? 14 : 16, flexWrap: "wrap" }}>
+                  {gs.boulder && <span style={{ background: W.accent + "22", color: W.accent, borderRadius: 8, padding: "3px 10px", fontSize: 11, fontWeight: 700 }}>🪨 {gs.boulder}</span>}
+                  {gs.rope    && <span style={{ background: W.purple + "22", color: W.purpleDark, borderRadius: 8, padding: "3px 10px", fontSize: 11, fontWeight: 700 }}>🧗 {gs.rope}</span>}
+                  {wallSections.length > 0 && <span style={{ background: W.surface2, color: W.textMuted, borderRadius: 8, padding: "3px 10px", fontSize: 11, fontWeight: 700 }}>{wallSections.length} section{wallSections.length !== 1 ? "s" : ""}</span>}
+                  {gs.hours && <span style={{ background: W.surface2, color: W.textMuted, borderRadius: 8, padding: "3px 10px", fontSize: 11, fontWeight: 600 }}>🕐 {gs.hours}</span>}
+                </div>
+
+                {/* Gym details edit panel */}
+                {gymDetailsOpen && (
+                  <div style={{ background: W.surface, border: `1px solid ${W.border}`, borderRadius: 14, padding: "16px", marginBottom: 18 }}>
+                    {/* Wall sections */}
+                    <div style={{ marginBottom: 16 }}>
+                      <div style={{ fontSize: 12, fontWeight: 800, color: W.text, marginBottom: 8 }}>Wall Sections</div>
+                      <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 8 }}>
+                        {wallSections.map((sec, i) => (
+                          <span key={i} style={{ background: W.accent + "18", color: W.accent, borderRadius: 20, padding: "4px 10px", fontSize: 12, fontWeight: 700, display: "flex", alignItems: "center", gap: 5 }}>
+                            {sec}
+                            <button onClick={() => setGymField("wallSections", wallSections.filter((_, j) => j !== i))} style={{ background: "none", border: "none", color: W.accent, fontSize: 14, cursor: "pointer", padding: 0, lineHeight: 1 }}>×</button>
+                          </span>
+                        ))}
+                        {wallSections.length === 0 && <span style={{ fontSize: 12, color: W.textDim }}>No sections added yet</span>}
+                      </div>
+                      <div style={{ display: "flex", gap: 8 }}>
+                        <input value={gymSectionInput} onChange={e => setGymSectionInput(e.target.value)} onKeyDown={e => { if (e.key === "Enter" && gymSectionInput.trim()) { setGymField("wallSections", [...wallSections, gymSectionInput.trim()]); setGymSectionInput(""); } }} placeholder="e.g. Cave, Main Wall…" style={{ flex: 1, padding: "8px 12px", background: W.surface2, border: `1.5px solid ${W.border}`, borderRadius: 10, color: W.text, fontSize: 13, fontFamily: "inherit", outline: "none" }} />
+                        <button onClick={() => { if (gymSectionInput.trim()) { setGymField("wallSections", [...wallSections, gymSectionInput.trim()]); setGymSectionInput(""); } }} style={{ padding: "8px 14px", background: W.accent, border: "none", borderRadius: 10, color: "#fff", fontWeight: 700, fontSize: 13, cursor: "pointer" }}>Add</button>
+                      </div>
+                    </div>
+                    {/* Hours */}
+                    <div style={{ marginBottom: 16 }}>
+                      <div style={{ fontSize: 12, fontWeight: 800, color: W.text, marginBottom: 8 }}>Hours of Operation</div>
+                      <input value={gs.hours || ""} onChange={e => setGymField("hours", e.target.value)} placeholder="e.g. Mon–Fri 6am–11pm, Sat–Sun 8am–9pm" style={{ width: "100%", padding: "9px 12px", background: W.surface2, border: `1.5px solid ${W.border}`, borderRadius: 10, color: W.text, fontSize: 13, fontFamily: "inherit", outline: "none", boxSizing: "border-box" }} />
+                    </div>
+                    {/* Notes */}
+                    <div style={{ marginBottom: 16 }}>
+                      <div style={{ fontSize: 12, fontWeight: 800, color: W.text, marginBottom: 8 }}>Notes</div>
+                      <textarea value={gs.notes || ""} onChange={e => setGymField("notes", e.target.value)} placeholder="Parking, entry code, rules…" rows={3} style={{ width: "100%", padding: "9px 12px", background: W.surface2, border: `1.5px solid ${W.border}`, borderRadius: 10, color: W.text, fontSize: 13, fontFamily: "inherit", outline: "none", resize: "none", boxSizing: "border-box" }} />
+                    </div>
+                    {/* Grading scheme */}
+                    <div style={{ marginBottom: 10 }}>
+                      <div style={{ fontSize: 12, fontWeight: 800, color: W.text, marginBottom: 10 }}>Grading Scheme</div>
+                      <div style={{ marginBottom: 10 }}>
+                        <div style={{ fontSize: 11, fontWeight: 700, color: W.textMuted, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 6 }}>Boulder</div>
+                        <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                          {boulderScales.map(s => <button key={s} onClick={() => setGymField("boulder", s)} style={{ padding: "5px 11px", borderRadius: 12, border: "2px solid", borderColor: gs.boulder === s ? W.accent : W.border, background: gs.boulder === s ? W.accent + "22" : W.surface, color: gs.boulder === s ? W.accent : W.textDim, cursor: "pointer", fontSize: 12, fontWeight: 700 }}>{s}</button>)}
+                        </div>
+                      </div>
+                      <div>
+                        <div style={{ fontSize: 11, fontWeight: 700, color: W.textMuted, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 6 }}>Rope</div>
+                        <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                          {ropeScales.map(s => <button key={s} onClick={() => setGymField("rope", s)} style={{ padding: "5px 11px", borderRadius: 12, border: "2px solid", borderColor: gs.rope === s ? W.accent : W.border, background: gs.rope === s ? W.accent + "22" : W.surface, color: gs.rope === s ? W.accent : W.textDim, cursor: "pointer", fontSize: 12, fontWeight: 700 }}>{s}</button>)}
+                        </div>
+                      </div>
                     </div>
                   </div>
-                  <div>
-                    <div style={{ fontSize: 11, fontWeight: 700, color: W.textMuted, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 6 }}>Rope</div>
-                    <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-                      {ropeScales.map(s => (
-                        <button key={s} onClick={() => setGymScale("rope", s)} style={{ padding: "5px 11px", borderRadius: 12, border: "2px solid", borderColor: gs.rope === s ? W.accent : W.border, background: gs.rope === s ? W.accent + "22" : W.surface, color: gs.rope === s ? W.accent : W.textDim, cursor: "pointer", fontSize: 12, fontWeight: 700 }}>{s}</button>
-                      ))}
-                    </div>
-                  </div>
-                </div>
+                )}
+
                 {/* Active set */}
                 <div style={{ fontWeight: 800, fontSize: 14, color: W.text, marginBottom: 10 }}>{active.length} Active on Wall</div>
                 {active.length === 0 && <div style={{ color: W.textDim, fontSize: 13, textAlign: "center", padding: "16px 0 8px" }}>No active climbs. Log a session here to track the set.</div>}
@@ -5897,6 +5954,7 @@ export default function App() {
                         <div style={{ fontSize: 11, color: W.textMuted, marginTop: 2 }}>
                           {entrySessionCount} session{entrySessionCount !== 1 ? "s" : ""} · {entryAttempts.length} lap{entryAttempts.length !== 1 ? "s" : ""} · {entrySends} send{entrySends !== 1 ? "s" : ""}{entryAttempts.length > 0 ? ` · ${Math.round((entrySends / entryAttempts.length) * 100)}%` : ""}
                         </div>
+                        {entry.section && <div style={{ fontSize: 10, color: W.accent, fontWeight: 700, marginTop: 2 }}>📌 {entry.section}</div>}
                       </div>
                       <span style={{ color: W.textMuted, fontSize: 16 }}>›</span>
                     </div>
@@ -5924,7 +5982,7 @@ export default function App() {
             );
           }
 
-          // ── Gym cards list ───────────────────────────────────────
+          // ── Gym cards grid ─────────────────────────────────────────
           if (allLocations.length === 0) return (
             <div style={{ textAlign: "center", color: W.textDim, padding: "40px 20px" }}>
               <div style={{ fontSize: 32, marginBottom: 10 }}>🏟️</div>
@@ -5933,7 +5991,7 @@ export default function App() {
             </div>
           );
           return (
-            <div>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
               {allLocations.map(loc => {
                 const allEntries = gymSets[loc] || [];
                 const active = allEntries.filter(e => !e.removed);
@@ -5941,32 +5999,30 @@ export default function App() {
                   sessions.some(s => (s.climbs || []).some(c => c.setClimbId === entry.id && c.completed))
                 ).length;
                 const gs = gymScales[loc] || {};
-                const hasScale = gs.boulder || gs.rope;
+                const isHome = loc === mainGym;
                 return (
-                  <div key={loc} onClick={() => setSelectedGym(loc)} style={{ background: W.surface, border: `1px solid ${W.border}`, borderRadius: 16, padding: "16px 18px", marginBottom: 12, cursor: "pointer" }}>
-                    <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: hasScale || active.length > 0 ? 12 : 0 }}>
-                      <div style={{ fontWeight: 900, fontSize: 16, color: W.text }}>📍 {loc}</div>
-                      <span style={{ color: W.textMuted, fontSize: 16, lineHeight: 1 }}>›</span>
-                    </div>
-                    {hasScale && (
-                      <div style={{ display: "flex", gap: 6, marginBottom: 12, flexWrap: "wrap" }}>
-                        {gs.boulder && <span style={{ background: W.accent + "22", color: W.accent, borderRadius: 8, padding: "3px 10px", fontSize: 11, fontWeight: 700 }}>🪨 {gs.boulder}</span>}
-                        {gs.rope   && <span style={{ background: W.purple + "22", color: W.purpleDark, borderRadius: 8, padding: "3px 10px", fontSize: 11, fontWeight: 700 }}>🧗 {gs.rope}</span>}
+                  <div key={loc} onClick={() => setSelectedGym(loc)} style={{ background: W.surface, border: `2px solid ${isHome ? W.accentDark : W.border}`, borderRadius: 16, padding: "14px 12px", cursor: "pointer", position: "relative", minHeight: 110, display: "flex", flexDirection: "column", justifyContent: "space-between" }}>
+                    {isHome && <span style={{ position: "absolute", top: 8, right: 8, background: W.accent, color: "#fff", borderRadius: 6, padding: "1px 7px", fontSize: 9, fontWeight: 800 }}>HOME</span>}
+                    <div>
+                      <div style={{ fontWeight: 800, fontSize: 13, color: W.text, marginBottom: 6, paddingRight: isHome ? 44 : 0, lineHeight: 1.3 }}>📍 {loc}</div>
+                      <div style={{ display: "flex", gap: 4, flexWrap: "wrap", marginBottom: 8 }}>
+                        {gs.boulder && <span style={{ background: W.accent + "22", color: W.accent, borderRadius: 6, padding: "2px 7px", fontSize: 10, fontWeight: 700 }}>{gs.boulder}</span>}
+                        {gs.rope    && <span style={{ background: W.purple + "22", color: W.purpleDark, borderRadius: 6, padding: "2px 7px", fontSize: 10, fontWeight: 700 }}>{gs.rope}</span>}
                       </div>
-                    )}
+                    </div>
                     {active.length > 0 ? (
-                      <div style={{ display: "flex", gap: 0, background: W.surface2, borderRadius: 12, overflow: "hidden", border: `1px solid ${W.border}` }}>
-                        <div style={{ flex: 1, padding: "10px 8px", textAlign: "center", borderRight: `1px solid ${W.border}` }}>
-                          <div style={{ fontWeight: 900, fontSize: 22, color: W.text }}>{active.length}</div>
-                          <div style={{ fontSize: 11, color: W.textMuted, marginTop: 1 }}>Active Climbs</div>
+                      <div style={{ display: "flex", gap: 14 }}>
+                        <div>
+                          <div style={{ fontWeight: 900, fontSize: 20, color: W.text, lineHeight: 1 }}>{active.length}</div>
+                          <div style={{ fontSize: 10, color: W.textMuted, marginTop: 2 }}>Active</div>
                         </div>
-                        <div style={{ flex: 1, padding: "10px 8px", textAlign: "center" }}>
-                          <div style={{ fontWeight: 900, fontSize: 22, color: activeSends > 0 ? W.greenDark : W.textMuted }}>{activeSends}</div>
-                          <div style={{ fontSize: 11, color: W.textMuted, marginTop: 1 }}>Climbs Sent</div>
+                        <div>
+                          <div style={{ fontWeight: 900, fontSize: 20, color: activeSends > 0 ? W.greenDark : W.textMuted, lineHeight: 1 }}>{activeSends}</div>
+                          <div style={{ fontSize: 10, color: W.textMuted, marginTop: 2 }}>Sent</div>
                         </div>
                       </div>
                     ) : (
-                      <div style={{ fontSize: 12, color: W.textDim }}>No active set — tap to configure</div>
+                      <div style={{ fontSize: 11, color: W.textDim }}>No active set</div>
                     )}
                   </div>
                 );
