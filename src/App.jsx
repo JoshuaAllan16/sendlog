@@ -1660,6 +1660,11 @@ export default function App() {
     return sessions.filter(s => new Date(s.date).getTime() >= cutoff);
   };
 
+  // For boulder climbs, tries = falls only; the send attempt is not counted in tries.
+  // This helper returns the true total attempts (falls + 1 if sent).
+  // For rope, tries already counts every attempt including the topped one.
+  const climbAttempts = (c) => (c.tries || 0) + (c.climbType !== "rope" && c.completed ? 1 : 0);
+
   const getStats = (overrideSessions) => {
     const tfSessions = overrideSessions !== undefined ? overrideSessions : getTimeframeSessions();
     const tfClimbs = tfSessions.flatMap(s => s.climbs);
@@ -1667,7 +1672,7 @@ export default function App() {
     const completed = base.filter(c => c.completed);
     const flashes   = completed.filter(c => c.tries === 0);
     const flashRate = base.length ? Math.round((flashes.length / base.length) * 100) : 0;
-    const avgTries  = base.length ? (base.reduce((a, c) => a + c.tries, 0) / base.length).toFixed(1) : "—";
+    const avgTries  = base.length ? (base.reduce((a, c) => a + climbAttempts(c), 0) / base.length).toFixed(1) : "—";
     const vBase     = tfClimbs.filter(c => c.completed && c.scale === preferredScale);
     const boulderGradeList = preferredScale === "Custom" ? customBoulderGrades : (GRADES[preferredScale] || []);
     const bestGrade = vBase.length ? [...vBase].sort((a, b) => boulderGradeList.indexOf(b.grade) - boulderGradeList.indexOf(a.grade))[0]?.grade : "—";
@@ -1676,11 +1681,11 @@ export default function App() {
     const gradeBreakdown = gradeScaleList.length > 0
       ? gradeScaleList.map(g => ({ grade: g, count: completed.filter(c => c.grade === g).length })).filter(g => g.count > 0)
       : [...new Set(completed.map(c => c.grade))].map(g => ({ grade: g, count: completed.filter(c => c.grade === g).length }));
-    const totalAttempts = base.reduce((a, c) => a + c.tries, 0);
+    const totalAttempts = base.reduce((a, c) => a + climbAttempts(c), 0);
     const totalFalls = base.reduce((a, c) => a + (c.climbType === "rope" ? (c.falls ?? c.tries) : c.tries), 0);
     const avgFalls = base.length ? (totalFalls / base.length).toFixed(1) : "—";
     const climbsByDay = {}, attemptsByDay = {}, fallsByDay = {};
-    tfSessions.forEach(s => { const day = s.date.slice(0, 10); const sc = s.climbs || []; climbsByDay[day] = (climbsByDay[day] || 0) + sc.length; attemptsByDay[day] = (attemptsByDay[day] || 0) + sc.reduce((t,c)=>t+c.tries,0); fallsByDay[day] = (fallsByDay[day] || 0) + sc.reduce((t,c)=>t+(c.climbType==="rope"?(c.falls??c.tries):c.tries),0); });
+    tfSessions.forEach(s => { const day = s.date.slice(0, 10); const sc = s.climbs || []; climbsByDay[day] = (climbsByDay[day] || 0) + sc.length; attemptsByDay[day] = (attemptsByDay[day] || 0) + sc.reduce((t,c)=>t+climbAttempts(c),0); fallsByDay[day] = (fallsByDay[day] || 0) + sc.reduce((t,c)=>t+(c.climbType==="rope"?(c.falls??c.tries):c.tries),0); });
     const mostInDay = Object.values(climbsByDay).length ? Math.max(...Object.values(climbsByDay)) : 0;
     const mostAttemptsInDay = Object.values(attemptsByDay).length ? Math.max(...Object.values(attemptsByDay)) : 0;
     const mostFallsInDay = Object.values(fallsByDay).length ? Math.max(...Object.values(fallsByDay)) : 0;
@@ -1710,7 +1715,7 @@ export default function App() {
   };
 
   const getProjectHistory    = (pid) => sessions.flatMap(s => (s.climbs || []).filter(c => c.projectId === pid).map(c => ({ ...c, sessionDate: s.date, sessionLocation: s.location }))).sort((a, b) => new Date(b.sessionDate) - new Date(a.sessionDate));
-  const getProjectTotalTries = (pid) => getProjectHistory(pid).reduce((sum, c) => sum + c.tries, 0);
+  const getProjectTotalTries = (pid) => getProjectHistory(pid).reduce((sum, c) => sum + climbAttempts(c), 0);
   const getProjectTotalTimeMs = (pid) => sessions.flatMap(s => (s.climbs || []).filter(c => c.projectId === pid)).flatMap(c => c.attemptLog || []).reduce((sum, a) => sum + (a.duration || 0), 0);
   const getProjectPhoto = (pid) => { const c = sessions.flatMap(s => s.climbs || []).find(c => c.projectId === pid && c.photo); return c ? c.photo : null; };
 
@@ -1789,8 +1794,8 @@ export default function App() {
     if (sessionTypeFilter !== "all") base = base.filter(s => getSessionType(s) === sessionTypeFilter);
     if (sessionSort === "climbs-desc") return base.sort((a, b) => (b.climbs || []).length - (a.climbs || []).length);
     if (sessionSort === "climbs-asc")  return base.sort((a, b) => (a.climbs || []).length - (b.climbs || []).length);
-    if (sessionSort === "attempts-desc") return base.sort((a, b) => (b.climbs || []).reduce((s, c) => s + c.tries, 0) - (a.climbs || []).reduce((s, c) => s + c.tries, 0));
-    if (sessionSort === "attempts-asc")  return base.sort((a, b) => (a.climbs || []).reduce((s, c) => s + c.tries, 0) - (b.climbs || []).reduce((s, c) => s + c.tries, 0));
+    if (sessionSort === "attempts-desc") return base.sort((a, b) => (b.climbs || []).reduce((s, c) => s + climbAttempts(c), 0) - (a.climbs || []).reduce((s, c) => s + climbAttempts(c), 0));
+    if (sessionSort === "attempts-asc")  return base.sort((a, b) => (a.climbs || []).reduce((s, c) => s + climbAttempts(c), 0) - (b.climbs || []).reduce((s, c) => s + climbAttempts(c), 0));
     if (sessionSort === "flashes-desc") return base.sort((a, b) => (b.climbs || []).filter(c => c.completed && c.tries === 0).length - (a.climbs || []).filter(c => c.completed && c.tries === 0).length);
     if (sessionSort === "flashes-asc")  return base.sort((a, b) => (a.climbs || []).filter(c => c.completed && c.tries === 0).length - (b.climbs || []).filter(c => c.completed && c.tries === 0).length);
     return base;
@@ -1800,12 +1805,12 @@ export default function App() {
     const climbs = (session.climbs || []).filter(c => c.climbType !== "speed-session");
     const sends = climbs.filter(c => c.completed).length;
     const total  = climbs.length;
-    const totalTries = climbs.reduce((s, c) => s + c.tries, 0);
+    const totalTries = climbs.reduce((s, c) => s + climbAttempts(c), 0);
     const flashes    = climbs.filter(c => c.completed && c.tries === 0).length;
     const flashRate  = total ? Math.round((flashes / total) * 100) : 0;
     const avgTries   = total ? (totalTries / total).toFixed(1) : "0";
     const gradeBreakdown = {};
-    climbs.forEach(c => { if (!gradeBreakdown[c.grade]) gradeBreakdown[c.grade] = { completed: 0, attempted: 0, tries: 0, scale: c.scale }; gradeBreakdown[c.grade].attempted++; gradeBreakdown[c.grade].tries += (c.tries || 0); if (c.completed) gradeBreakdown[c.grade].completed++; });
+    climbs.forEach(c => { if (!gradeBreakdown[c.grade]) gradeBreakdown[c.grade] = { completed: 0, attempted: 0, tries: 0, scale: c.scale }; gradeBreakdown[c.grade].attempted++; gradeBreakdown[c.grade].tries += climbAttempts(c); if (c.completed) gradeBreakdown[c.grade].completed++; });
     const sortedByGrade = (arr) => [...arr].sort((a, b) => getGradeIndex(b.grade, b.scale) - getGradeIndex(a.grade, a.scale));
     const hardestAttempted = climbs.length ? sortedByGrade(climbs)[0]?.grade : "—";
     const hardestSent = climbs.filter(c => c.completed).length ? sortedByGrade(climbs.filter(c => c.completed))[0]?.grade : "—";
@@ -3888,7 +3893,7 @@ export default function App() {
                       </div>
                       <div style={{ flex: 1, minWidth: 0 }}>
                         <div style={{ fontWeight: 700, fontSize: 14, color: W.text }}>{c.name || c.grade}</div>
-                        <div style={{ fontSize: 12, color: getGradeColor(c.grade), fontWeight: 700 }}>{c.grade} · {c.tries} {c.tries === 1 ? "try" : "tries"}</div>
+                        <div style={{ fontSize: 12, color: getGradeColor(c.grade), fontWeight: 700 }}>{c.grade} · {climbAttempts(c)} {climbAttempts(c) === 1 ? "attempt" : "attempts"}</div>
                         {similar && <div style={{ fontSize: 10, color: W.accent, fontWeight: 600, marginTop: 2 }}>Already tracked as a project — checking this won't duplicate it</div>}
                       </div>
                     </div>
@@ -3981,8 +3986,8 @@ export default function App() {
         </div>
         {(() => {
           const climbs = (session.climbs || []).filter(c => c.climbType !== "speed-session");
-          const totalAttempts = climbs.reduce((s, c) => s + (c.tries || 0), 0);
-          const mostAttempts  = climbs.length ? Math.max(...climbs.map(c => c.tries || 0)) : 0;
+          const totalAttempts = climbs.reduce((s, c) => s + climbAttempts(c), 0);
+          const mostAttempts  = climbs.length ? Math.max(...climbs.map(c => climbAttempts(c))) : 0;
           const sendRate      = climbs.length ? Math.round((climbs.filter(c => c.completed).length / climbs.length) * 100) : 0;
           const longestClimbMs = climbs.length ? Math.max(...climbs.map(c => (c.attemptLog || []).reduce((s, a) => s + (a.duration || 0), 0))) : 0;
           const longestClimbSec = Math.round(longestClimbMs / 1000);
@@ -5266,7 +5271,7 @@ export default function App() {
                 sends: { boulder: bCls.filter(c => c.completed).length, rope: rCls.filter(c => c.completed).length, speed: 0 },
                 attempts: { boulder: bCls.reduce((t,c)=>t+c.tries,0), rope: rCls.reduce((t,c)=>t+c.tries,0), speed: sCls.reduce((t,c)=>t+(c.attempts?.length||0),0) },
               };
-              return { label, sessions: ss, sends: cls.filter(c => c.completed).length, attempts: cls.reduce((t, c) => t + c.tries, 0), time: totalSec, typeSplit };
+              return { label, sessions: ss, sends: cls.filter(c => c.completed).length, attempts: cls.reduce((t, c) => t + climbAttempts(c), 0), time: totalSec, typeSplit };
             };
             if (statsTimeFrame === "2w") return Array.from({ length: 14 }, (_, i) => { const d = new Date(now); d.setDate(d.getDate() - 13 + i); const key = d.toISOString().slice(0, 10); return mkB(["Su","Mo","Tu","We","Th","Fr","Sa"][d.getDay()], tfSessions.filter(s => s.date.slice(0, 10) === key)); });
             if (statsTimeFrame === "1m") return Array.from({ length: 5 }, (_, i) => { const ws = new Date(now); ws.setDate(ws.getDate() - (4-i)*7); ws.setHours(0,0,0,0); const we = new Date(ws); we.setDate(ws.getDate() + 6); we.setHours(23,59,59,999); const label = `${ws.getMonth()+1}/${ws.getDate()}-${we.getMonth()+1}/${we.getDate()}`; return mkB(label, tfSessions.filter(s => { const d = new Date(s.date); return d >= ws && d <= we; })); });
@@ -5428,7 +5433,7 @@ export default function App() {
             const visGrades = gradeList.filter(g => !hiddenGrades.includes(g));
             const raw = visGrades.map(g => {
               const gc = climbsList.filter(c => c.grade === g);
-              const value = pStat === "attempts" ? gc.reduce((t, c) => t + c.tries, 0) : pStat === "sends" ? gc.filter(c => c.completed).length : gc.filter(c => c.completed && c.tries === 1).length;
+              const value = pStat === "attempts" ? gc.reduce((t, c) => t + climbAttempts(c), 0) : pStat === "sends" ? gc.filter(c => c.completed).length : gc.filter(c => c.completed && c.tries === 1).length;
               return { grade: g, value, color: getGradeColor(g) };
             }).filter(d => d.value > 0);
             const total = raw.reduce((s, d) => s + d.value, 0);
@@ -6317,7 +6322,7 @@ export default function App() {
     const bestGrade  = uCompleted.length
       ? [...uCompleted].sort((a, b) => (GRADES[b.scale || "V-Scale"] || []).indexOf(b.grade) - (GRADES[a.scale || "V-Scale"] || []).indexOf(a.grade))[0]?.grade
       : "—";
-    const totalTries = uClimbs.reduce((t, c) => t + (c.tries || 0), 0);
+    const totalTries = uClimbs.reduce((t, c) => t + climbAttempts(c), 0);
     const recentSessions = (uSessions || []).slice(0, 8);
 
     return (
@@ -7301,7 +7306,7 @@ export default function App() {
           )
           .map(c => ({ climb: c, session: s }))
       ).sort((a, b) => new Date(b.session.date) - new Date(a.session.date));
-      const totalAttempts = relatedEntries.reduce((t, { climb: c }) => t + (c.tries || 0), 0);
+      const totalAttempts = relatedEntries.reduce((t, { climb: c }) => t + climbAttempts(c), 0);
       const totalSends    = relatedEntries.filter(({ climb: c }) => c.completed).length;
       const totalTimeMs   = relatedEntries.reduce((t, { climb: c }) => t + (c.attemptLog || []).reduce((s, a) => s + (a.duration || 0), 0), 0);
       const totalTimeSec  = Math.floor(totalTimeMs / 1000);
@@ -7663,7 +7668,7 @@ export default function App() {
         const related = sessions.flatMap(s => (s.climbs || []).filter(c => c.setClimbId === entry.id).map(c => ({ climb: c })));
         return {
           sends: related.filter(({ climb: c }) => c.completed).length,
-          attempts: related.reduce((t, { climb: c }) => t + (c.tries || 0), 0),
+          attempts: related.reduce((t, { climb: c }) => t + climbAttempts(c), 0),
           sessionCount: related.length,
           photo: sessions.flatMap(s => (s.climbs || []).filter(c => c.setClimbId === entry.id && c.photo)).map(c => c.photo)[0],
         };
@@ -7917,7 +7922,7 @@ export default function App() {
       const relatedEntries = sessions.flatMap(s =>
         (s.climbs || []).filter(c => c.setClimbId === entry.id).map(c => ({ climb: c, session: s }))
       ).sort((a, b) => new Date(b.session.date) - new Date(a.session.date));
-      const totalAttempts = relatedEntries.reduce((t, { climb: c }) => t + (c.tries || 0), 0);
+      const totalAttempts = relatedEntries.reduce((t, { climb: c }) => t + climbAttempts(c), 0);
       const totalSends    = relatedEntries.filter(({ climb: c }) => c.completed).length;
       const totalTimeMs   = relatedEntries.reduce((t, { climb: c }) => t + (c.attemptLog || []).reduce((s, a) => s + (a.duration || 0), 0), 0);
       const totalTimeSec  = Math.floor(totalTimeMs / 1000);
