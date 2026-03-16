@@ -377,6 +377,8 @@ export default function App() {
   const [addGymInput, setAddGymInput]                   = useState("");
   const [showClimbShare, setShowClimbShare]         = useState(false);
   const [logbookClimbEditOpen, setLogbookClimbEditOpen] = useState(false);
+  const [logbookEditOriginal, setLogbookEditOriginal]   = useState(null);
+  const [showUnsavedPrompt, setShowUnsavedPrompt]       = useState(false);
   const [logbookGymFilter, setLogbookGymFilter]     = useState("All Gyms");
   const [sessionTypeFilter, setSessionTypeFilter]   = useState("all");
   const [sessionSort, setSessionSort]               = useState("date");
@@ -4110,7 +4112,10 @@ export default function App() {
                   <div style={{ flex: 1, minWidth: 0 }}>
                     {c.name && <div style={{ fontSize: 13, fontWeight: 800, color: "#fff", textShadow: "0 1px 3px rgba(0,0,0,0.8)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{c.name}</div>}
                     <div style={{ fontSize: 11, color: "rgba(255,255,255,0.75)", marginTop: 2 }}>{c.tries || 0} {c.climbType === "rope" ? "attempts" : "falls"}</div>
-                    {colorHex && <div style={{ display: "flex", alignItems: "center", gap: 4, marginTop: 4 }}><div style={{ width: 10, height: 10, borderRadius: "50%", background: colorHex, border: "1.5px solid rgba(255,255,255,0.8)" }} /></div>}
+                    <div style={{ display: "flex", alignItems: "center", gap: 4, marginTop: 4, flexWrap: "wrap" }}>
+                      {colorHex && <div style={{ width: 10, height: 10, borderRadius: "50%", background: colorHex, border: "1.5px solid rgba(255,255,255,0.8)", flexShrink: 0 }} />}
+                      {c.section && <span style={{ fontSize: 10, color: "rgba(255,255,255,0.8)", fontWeight: 700 }}>📌 {c.section}</span>}
+                    </div>
                   </div>
                   <span style={{ background: c.completed ? "#16a34a" : "#dc2626", color: "#fff", borderRadius: 8, padding: "4px 10px", fontSize: 12, fontWeight: 800, flexShrink: 0 }}>{c.completed ? "✓" : "✗"}</span>
                 </div>
@@ -4124,6 +4129,7 @@ export default function App() {
                     {colorHex && <div style={{ width: 10, height: 10, borderRadius: "50%", background: colorHex, border: `1px solid ${W.border}`, flexShrink: 0 }} />}
                     <span style={{ fontSize: 11, color: W.textMuted }}>{c.tries || 0} {c.climbType === "rope" ? "attempts" : "falls"}</span>
                     {c.isProject && <span style={{ background: W.pink, color: W.pinkDark, borderRadius: 6, padding: "1px 6px", fontSize: 10, fontWeight: 800 }}>🎯</span>}
+                    {c.section && <span style={{ fontSize: 11, color: W.accent, fontWeight: 700 }}>📌 {c.section}</span>}
                   </div>
                 </div>
                 <span style={{ background: c.completed ? W.green : W.red, color: c.completed ? W.greenDark : W.redDark, borderRadius: 8, padding: "4px 10px", fontSize: 12, fontWeight: 800, flexShrink: 0 }}>{c.completed ? "✓" : "✗"}</span>
@@ -7456,18 +7462,30 @@ export default function App() {
           style={{ position: "fixed", inset: 0, zIndex: 450, background: W.bg, overflowY: "auto", display: "flex", flexDirection: "column", transition: "transform 0.05s, opacity 0.05s" }}>
           {/* Header bar */}
           <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "16px 20px 12px", background: W.surface, borderBottom: `1px solid ${W.border}`, position: "sticky", top: 0, zIndex: 2 }}>
-            <button onClick={() => { setSelectedLogbookClimb(null); setShowClimbShare(false); setLogbookClimbEditOpen(false); }} style={{ background: W.surface2, border: `1px solid ${W.border}`, borderRadius: 10, padding: "7px 14px", color: W.text, fontWeight: 700, fontSize: 14, cursor: "pointer" }}>← Back</button>
+            <button onClick={() => { if (logbookClimbEditOpen && logbookEditOriginal && JSON.stringify(climbForm) !== logbookEditOriginal) { setShowUnsavedPrompt(true); } else { setSelectedLogbookClimb(null); setShowClimbShare(false); setLogbookClimbEditOpen(false); setLogbookEditOriginal(null); } }} style={{ background: W.surface2, border: `1px solid ${W.border}`, borderRadius: 10, padding: "7px 14px", color: W.text, fontWeight: 700, fontSize: 14, cursor: "pointer" }}>← Back</button>
             <div style={{ flex: 1, minWidth: 0 }}>
               <div style={{ fontWeight: 900, fontSize: 18, color: W.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{climb.name || climb.grade}</div>
               <div style={{ fontSize: 12, color: W.textMuted }}>{climb.grade}{climb.climbType === "rope" ? " · Rope" : ""}</div>
             </div>
             <div style={{ width: 44, height: 44, borderRadius: 10, display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 900, fontSize: 13, background: gradeColor + "30", color: gradeColor, border: `1.5px solid ${gradeColor}60`, flexShrink: 0 }}>{climb.grade}</div>
-            <button onClick={() => { const ownerSession = sessions.find(s => (s.climbs || []).some(c => c.id === climb.id)); setClimbForm({ name: climb.name || "", grade: climb.grade, scale: climb.scale || preferredScale, tries: climb.tries ?? 0, completed: climb.completed ?? false, isProject: climb.isProject ?? false, comments: climb.comments || "", photo: climb.photo, projectId: climb.projectId || null, color: climb.color || null, wallTypes: climb.wallTypes || [], holdTypes: climb.holdTypes || [], climbType: climb.climbType || "boulder", ropeStyle: climb.ropeStyle || "lead", speedTime: "", setClimbId: climb.setClimbId || null, section: climb.section || null }); setPhotoPreview(climb.photo || null); setEditingClimbId(climb.id); setEditingSessionId(ownerSession?.id || null); setLogbookClimbEditOpen(true); }} style={{ background: logbookClimbEditOpen ? W.accent + "22" : W.surface2, border: `1px solid ${logbookClimbEditOpen ? W.accent : W.border}`, borderRadius: 10, width: 40, height: 40, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16, cursor: "pointer", flexShrink: 0 }} title="Edit">✏️</button>
+            <button onClick={() => { const ownerSession = sessions.find(s => (s.climbs || []).some(c => c.id === climb.id)); const form = { name: climb.name || "", grade: climb.grade, scale: climb.scale || preferredScale, tries: climb.tries ?? 0, completed: climb.completed ?? false, isProject: climb.isProject ?? false, comments: climb.comments || "", photo: climb.photo, projectId: climb.projectId || null, color: climb.color || null, wallTypes: climb.wallTypes || [], holdTypes: climb.holdTypes || [], climbType: climb.climbType || "boulder", ropeStyle: climb.ropeStyle || "lead", speedTime: "", setClimbId: climb.setClimbId || null, section: climb.section || null }; setClimbForm(form); setLogbookEditOriginal(JSON.stringify(form)); setPhotoPreview(climb.photo || null); setEditingClimbId(climb.id); setEditingSessionId(ownerSession?.id || null); setLogbookClimbEditOpen(true); }} style={{ background: logbookClimbEditOpen ? W.accent + "22" : W.surface2, border: `1px solid ${logbookClimbEditOpen ? W.accent : W.border}`, borderRadius: 10, width: 40, height: 40, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16, cursor: "pointer", flexShrink: 0 }} title="Edit">✏️</button>
             <button onClick={() => setShowClimbShare(true)} style={{ background: W.surface2, border: `1px solid ${W.border}`, borderRadius: 10, width: 40, height: 40, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18, cursor: "pointer", flexShrink: 0 }} title="Share">⬆</button>
           </div>
+          {showUnsavedPrompt && (
+            <div style={{ position: "fixed", inset: 0, zIndex: 600, background: "rgba(0,0,0,0.55)", display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }}>
+              <div style={{ background: W.surface, borderRadius: 20, padding: "24px 20px", width: "100%", maxWidth: 340, border: `1px solid ${W.border}` }}>
+                <div style={{ fontWeight: 800, fontSize: 17, color: W.text, marginBottom: 6 }}>Unsaved changes</div>
+                <div style={{ fontSize: 14, color: W.textMuted, marginBottom: 20 }}>You have unsaved edits. Do you want to save before going back?</div>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+                  <button onClick={() => { setShowUnsavedPrompt(false); setLogbookClimbEditOpen(false); setLogbookEditOriginal(null); setPhotoPreview(null); setEditingClimbId(null); setEditingSessionId(null); }} style={{ padding: "11px", background: "transparent", border: `1px solid ${W.border}`, borderRadius: 12, color: W.textMuted, fontWeight: 700, fontSize: 14, cursor: "pointer" }}>Discard</button>
+                  <button onClick={() => { saveClimbToFinishedSession(editingSessionId); setSelectedLogbookClimb(s => s ? { ...s, ...climbForm, photo: photoPreview } : s); setShowUnsavedPrompt(false); setLogbookClimbEditOpen(false); setLogbookEditOriginal(null); }} style={{ padding: "11px", background: `linear-gradient(135deg, ${W.accent}, ${W.accentDark})`, border: "none", borderRadius: 12, color: "#fff", fontWeight: 800, fontSize: 14, cursor: "pointer" }}>Save</button>
+                </div>
+              </div>
+            </div>
+          )}
           {logbookClimbEditOpen && (
             <div style={{ background: W.bg, borderBottom: `1px solid ${W.border}` }}>
-              {ClimbFormPanel({ isActiveSession: false, onSave: () => { saveClimbToFinishedSession(editingSessionId); setSelectedLogbookClimb(s => s ? { ...s, ...climbForm, photo: photoPreview } : s); setLogbookClimbEditOpen(false); }, onCancel: () => { setLogbookClimbEditOpen(false); setPhotoPreview(null); setEditingClimbId(null); setEditingSessionId(null); } })}
+              {ClimbFormPanel({ isActiveSession: false, onSave: () => { saveClimbToFinishedSession(editingSessionId); setSelectedLogbookClimb(s => s ? { ...s, ...climbForm, photo: photoPreview } : s); setLogbookClimbEditOpen(false); setLogbookEditOriginal(null); }, onCancel: () => { setLogbookClimbEditOpen(false); setPhotoPreview(null); setEditingClimbId(null); setEditingSessionId(null); setLogbookEditOriginal(null); } })}
             </div>
           )}
           <div style={{ padding: "20px", display: logbookClimbEditOpen ? "none" : undefined }}>
