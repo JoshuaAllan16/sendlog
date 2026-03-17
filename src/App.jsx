@@ -385,6 +385,13 @@ export default function App() {
   const [logbookTileView, setLogbookTileView]           = useState(() => { const v = localStorage.getItem("lb:tileView"); return (v === "list" || v === "single" || v === "tiles") ? v : (v === "false" ? "list" : "tiles"); });
   const [logbookSearch, setLogbookSearch]               = useState("");
   const [logbookSearchOpen, setLogbookSearchOpen]       = useState(false);
+  const [logbookClimbTypeFilter, setLogbookClimbTypeFilter] = useState(() => { try { const v = localStorage.getItem("lb:climbType"); return v ? JSON.parse(v) : ["boulder","rope"]; } catch { return ["boulder","rope"]; } });
+  const [logbookClimbGymFilter, setLogbookClimbGymFilter]   = useState(() => { try { const v = localStorage.getItem("lb:climbGyms"); return v ? JSON.parse(v) : null; } catch { return null; } });
+  const [logbookGymSectionFilter, setLogbookGymSectionFilter] = useState(() => { try { const v = localStorage.getItem("lb:gymSections"); return v ? JSON.parse(v) : {}; } catch { return {}; } });
+  const [logbookColorMulti, setLogbookColorMulti]           = useState(() => { try { const v = localStorage.getItem("lb:colorMulti"); return v ? JSON.parse(v) : null; } catch { return null; } });
+  const [logbookQuickSort, setLogbookQuickSort]             = useState(() => localStorage.getItem("lb:quickSort") || "date");
+  const [logbookQuickSortDir, setLogbookQuickSortDir]       = useState(() => localStorage.getItem("lb:quickSortDir") || "desc");
+  const [logbookGymExpanded, setLogbookGymExpanded]         = useState({});
   const [longPressPhotoTarget, setLongPressPhotoTarget] = useState(null); // { climbId, sessionId }
   const [showAddGym, setShowAddGym]                     = useState(false);
   const [addGymInput, setAddGymInput]                   = useState("");
@@ -1750,26 +1757,39 @@ export default function App() {
     for (const c of rawClimbs) {
       if (!c.setClimbId) continue;
       const id = c.setClimbId;
-      if (!setMeta[id]) setMeta[id] = { count: 0, completed: false, photo: null, mostRecentDate: "" };
+      if (!setMeta[id]) setMeta[id] = { count: 0, completed: false, photo: null, mostRecentDate: "", totalTries: 0, totalTimeMs: 0 };
       setMeta[id].count++;
       if (c.completed) setMeta[id].completed = true;
       if (!setMeta[id].photo && c.photo) setMeta[id].photo = c.photo;
       if ((c.sessionDate || "") > setMeta[id].mostRecentDate) setMeta[id].mostRecentDate = c.sessionDate;
+      setMeta[id].totalTries += climbAttempts(c);
+      setMeta[id].totalTimeMs += (c.attemptLog || []).reduce((s, a) => s + (a.duration || 0), 0);
     }
 
     // Normalize set climbs: apply merged metadata so filter/sort uses aggregate values
     let climbs = rawClimbs.map(c => {
-      if (!c.setClimbId) return c;
+      if (!c.setClimbId) return { ...c, _totalTries: climbAttempts(c), _totalTimeMs: (c.attemptLog || []).reduce((s, a) => s + (a.duration || 0), 0) };
       const meta = setMeta[c.setClimbId];
-      return { ...c, completed: meta.completed, photo: meta.photo, _sessionCount: meta.count, sessionDate: meta.mostRecentDate };
+      return { ...c, completed: meta.completed, photo: meta.photo, _sessionCount: meta.count, sessionDate: meta.mostRecentDate, _totalTries: meta.totalTries, _totalTimeMs: meta.totalTimeMs };
     }).filter(c => {
       if (logbookFilter === "completed" && !c.completed) return false;
       if (logbookFilter === "incomplete" && c.completed) return false;
       if (logbookFilter === "projects" && !c.isProject) return false;
       if (logbookScale !== "All Scales" && c.scale !== logbookScale) return false;
       if (logbookGrade !== "All" && c.grade !== logbookGrade) return false;
-      if (logbookColorFilter !== "All" && c.color !== logbookColorFilter) return false;
-      if (logbookSectionFilter !== "All" && (c.section || null) !== logbookSectionFilter) return false;
+      // Climb type filter
+      if (logbookClimbTypeFilter.length < 2) {
+        const ct = c.climbType === "rope" ? "rope" : "boulder";
+        if (!logbookClimbTypeFilter.includes(ct)) return false;
+      }
+      // Gym + section filter
+      if (logbookClimbGymFilter !== null) {
+        if (!logbookClimbGymFilter.includes(c.sessionLocation || "")) return false;
+        const sectionsForGym = logbookGymSectionFilter[c.sessionLocation];
+        if (sectionsForGym && sectionsForGym.length > 0 && !sectionsForGym.includes(c.section || null)) return false;
+      }
+      // Multi-select color filter
+      if (logbookColorMulti !== null && !logbookColorMulti.includes(c.color || "")) return false;
       if (logbookSearch.trim()) {
         const q = logbookSearch.trim().toLowerCase();
         if (!(c.name || "").toLowerCase().includes(q) && !(c.grade || "").toLowerCase().includes(q) && !(c.sessionLocation || "").toLowerCase().includes(q)) return false;
@@ -1777,11 +1797,24 @@ export default function App() {
       return true;
     });
     const photoFirst = (a, b) => (b.photo ? 1 : 0) - (a.photo ? 1 : 0);
-    if (logbookSort === "hardest") climbs.sort((a, b) => { const d = getGradeIndex(b.grade, b.scale) - getGradeIndex(a.grade, a.scale); return d !== 0 ? d : photoFirst(a, b); });
-    else if (logbookSort === "easiest") climbs.sort((a, b) => { const d = getGradeIndex(a.grade, a.scale) - getGradeIndex(b.grade, b.scale); return d !== 0 ? d : photoFirst(a, b); });
-    else if (logbookSort === "name") climbs.sort((a, b) => { const d = (a.name || a.grade).localeCompare(b.name || b.grade); return d !== 0 ? d : photoFirst(a, b); });
+    // Legacy sort values kept for backward compat
+    if (logbookSort === "name") climbs.sort((a, b) => { const d = (a.name || a.grade).localeCompare(b.name || b.grade); return d !== 0 ? d : photoFirst(a, b); });
     else if (logbookSort === "projects") climbs.sort((a, b) => { const d = (b.isProject ? 1 : 0) - (a.isProject ? 1 : 0); return d !== 0 ? d : new Date(b.sessionDate) - new Date(a.sessionDate); });
-    else climbs.sort((a, b) => { const d = new Date(b.sessionDate) - new Date(a.sessionDate); return d !== 0 ? d : photoFirst(a, b); });
+    else if (logbookSort === "hardest") climbs.sort((a, b) => { const d = getGradeIndex(b.grade, b.scale) - getGradeIndex(a.grade, a.scale); return d !== 0 ? d : photoFirst(a, b); });
+    else if (logbookSort === "easiest") climbs.sort((a, b) => { const d = getGradeIndex(a.grade, a.scale) - getGradeIndex(b.grade, b.scale); return d !== 0 ? d : photoFirst(a, b); });
+    else if (logbookQuickSort === "grade") {
+      const dir = logbookQuickSortDir === "asc" ? 1 : -1;
+      climbs.sort((a, b) => { const d = dir * (getGradeIndex(b.grade, b.scale) - getGradeIndex(a.grade, a.scale)); return d !== 0 ? d : photoFirst(a, b); });
+    } else if (logbookQuickSort === "attempts") {
+      const dir = logbookQuickSortDir === "asc" ? 1 : -1;
+      climbs.sort((a, b) => dir * ((b._totalTries || 0) - (a._totalTries || 0)));
+    } else if (logbookQuickSort === "time") {
+      const dir = logbookQuickSortDir === "asc" ? 1 : -1;
+      climbs.sort((a, b) => dir * ((b._totalTimeMs || 0) - (a._totalTimeMs || 0)));
+    } else {
+      const dir = logbookQuickSortDir === "asc" ? 1 : -1;
+      climbs.sort((a, b) => { const d = dir * (new Date(b.sessionDate) - new Date(a.sessionDate)); return d !== 0 ? d : photoFirst(a, b); });
+    }
     // Deduplicate set climbs: keep first occurrence per setClimbId after sort
     const seenSetClimbs = new Set();
     climbs = climbs.filter(c => {
@@ -4696,7 +4729,7 @@ export default function App() {
       ? ["All", ...customAllGrades]
       : logbookScale !== "All Scales" ? ["All", ...(GRADES[logbookScale] || [])] : ["All"];
     const hasClimbFilters   = logbookFilter !== "all" || logbookScale !== "All Scales" || logbookGrade !== "All" || logbookSort !== "date" || logbookColorFilter !== "All" || logbookSectionFilter !== "All" || logbookTickList || !!logbookSearch.trim();
-    const activeFilterCount = [logbookFilter !== "all", logbookScale !== "All Scales", logbookGrade !== "All", logbookSort !== "date", logbookColorFilter !== "All", logbookSectionFilter !== "All", logbookTickList].filter(Boolean).length;
+    const activeFilterCount = [logbookFilter !== "all", logbookScale !== "All Scales", logbookGrade !== "All", logbookSort === "name" || logbookSort === "projects", logbookColorMulti !== null, logbookClimbGymFilter !== null, logbookClimbTypeFilter.length < 2, logbookTickList].filter(Boolean).length;
     const hasSessionFilters = logbookGymFilter !== "All Gyms" || sessionSort !== "date" || sessionTypeFilter !== "all";
 
     const renderRoutinesPanel = () => {
@@ -6342,6 +6375,90 @@ export default function App() {
                     <span style={{ color: W.textMuted, fontSize: 16 }}>⌄</span>
                   </button>
                   <div style={{ background: W.surface, border: `1.5px solid ${W.border}`, borderTop: "none", borderRadius: "0 0 12px 12px", padding: "14px" }}>
+                    {/* 1. Climb Type */}
+                    <Label>Climb Type</Label>
+                    <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
+                      {[["boulder","🪨 Boulder"],["rope","🧗 Rope"]].map(([val, label]) => {
+                        const sel = logbookClimbTypeFilter.includes(val);
+                        return <button key={val} onClick={() => {
+                          const next = sel ? logbookClimbTypeFilter.filter(t => t !== val) : [...logbookClimbTypeFilter, val];
+                          const final = next.length === 2 ? ["boulder","rope"] : next;
+                          setLogbookClimbTypeFilter(final); localStorage.setItem("lb:climbType", JSON.stringify(final)); setLogbookClimbPage(1);
+                        }} style={{ padding: "6px 14px", borderRadius: 16, border: "2px solid", borderColor: sel ? W.accent : W.border, background: sel ? W.accent + "22" : W.surface, color: sel ? W.accent : W.textDim, cursor: "pointer", fontSize: 12, fontWeight: 600 }}>{label}</button>;
+                      })}
+                    </div>
+                    {/* 2. Gym Location */}
+                    {(() => {
+                      const gymsWithSessions = [...new Set(sessions.map(s => s.location).filter(Boolean))].sort();
+                      if (!gymsWithSessions.length) return null;
+                      const allGymsSelected = logbookClimbGymFilter === null;
+                      const setGymFilter = (newFilter) => { setLogbookClimbGymFilter(newFilter); localStorage.setItem("lb:climbGyms", JSON.stringify(newFilter)); setLogbookClimbPage(1); };
+                      return (<>
+                        <Label>Gym Location</Label>
+                        <div style={{ marginBottom: 12 }}>
+                          <button onClick={() => setGymFilter(allGymsSelected ? [] : null)} style={{ padding: "5px 12px", borderRadius: 14, border: `2px solid ${W.border}`, background: W.surface2, color: W.textMuted, cursor: "pointer", fontSize: 11, fontWeight: 600, marginBottom: 8 }}>{allGymsSelected ? "Deselect All" : "Select All"}</button>
+                          {gymsWithSessions.map(gym => {
+                            const isGymSelected = logbookClimbGymFilter === null || logbookClimbGymFilter.includes(gym);
+                            const gymSections = [...new Set(sessions.filter(s => s.location === gym).flatMap(s => (s.climbs || []).map(c => c.section).filter(Boolean)))];
+                            const isExpanded = logbookGymExpanded[gym];
+                            const selectedSecs = logbookGymSectionFilter[gym]; // undefined/null = all
+                            return (
+                              <div key={gym} style={{ marginBottom: 4 }}>
+                                <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                                  <button onClick={() => {
+                                    const cur = logbookClimbGymFilter === null ? [...gymsWithSessions] : [...logbookClimbGymFilter];
+                                    const idx = cur.indexOf(gym);
+                                    if (idx >= 0) cur.splice(idx, 1); else cur.push(gym);
+                                    setGymFilter(cur.length === gymsWithSessions.length ? null : cur);
+                                  }} style={{ width: 22, height: 22, borderRadius: 6, border: `2px solid ${isGymSelected ? W.accent : W.border}`, background: isGymSelected ? W.accent : W.surface, color: "#fff", cursor: "pointer", fontSize: 13, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, padding: 0 }}>{isGymSelected ? "✓" : ""}</button>
+                                  <span style={{ fontSize: 13, color: W.text, fontWeight: 600, flex: 1 }}>{gym}</span>
+                                  {gymSections.length > 0 && isGymSelected && <button onClick={() => setLogbookGymExpanded(e => ({ ...e, [gym]: !e[gym] }))} style={{ background: "none", border: "none", color: W.textMuted, cursor: "pointer", fontSize: 12, padding: "0 4px" }}>{isExpanded ? "▲" : "▼"}</button>}
+                                </div>
+                                {isExpanded && gymSections.length > 0 && isGymSelected && (
+                                  <div style={{ paddingLeft: 28, paddingTop: 4, display: "flex", flexWrap: "wrap", gap: 5 }}>
+                                    {gymSections.map(sec => {
+                                      const isSec = !selectedSecs || selectedSecs.includes(sec);
+                                      return <button key={sec} onClick={() => {
+                                        const allSecs = gymSections;
+                                        const cur = selectedSecs ?? [...allSecs];
+                                        const next = isSec ? cur.filter(s => s !== sec) : [...cur, sec];
+                                        const final = next.length === allSecs.length ? null : next;
+                                        setLogbookGymSectionFilter(f => { const u = { ...f, [gym]: final }; localStorage.setItem("lb:gymSections", JSON.stringify(u)); return u; });
+                                        setLogbookClimbPage(1);
+                                      }} style={{ padding: "4px 9px", borderRadius: 12, border: `2px solid ${isSec ? W.accent : W.border}`, background: isSec ? W.accent + "22" : W.surface, color: isSec ? W.accent : W.textDim, cursor: "pointer", fontSize: 11, fontWeight: 600 }}>📌 {sec}</button>;
+                                    })}
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </>);
+                    })()}
+                    {/* 3. Hold Color */}
+                    {(() => {
+                      const colorsWithClimbs = CLIMB_COLORS.filter(cc => sessions.some(s => (s.climbs || []).some(c => c.color === cc.id)));
+                      if (!colorsWithClimbs.length) return null;
+                      const toggleColor = (colorId) => {
+                        const cur = logbookColorMulti ?? colorsWithClimbs.map(cc => cc.id);
+                        const next = cur.includes(colorId) ? cur.filter(id => id !== colorId) : [...cur, colorId];
+                        const final = next.length === colorsWithClimbs.length ? null : next;
+                        setLogbookColorMulti(final); localStorage.setItem("lb:colorMulti", JSON.stringify(final)); setLogbookClimbPage(1);
+                      };
+                      return (<>
+                        <Label>Hold Color</Label>
+                        <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 12 }}>
+                          {colorsWithClimbs.map(cc => {
+                            const sel = logbookColorMulti === null || logbookColorMulti.includes(cc.id);
+                            return <button key={cc.id} onClick={() => toggleColor(cc.id)} style={{ padding: "5px 10px", borderRadius: 14, border: `2px solid ${sel ? cc.hex : W.border}`, background: sel ? cc.hex + "22" : W.surface, cursor: "pointer", fontSize: 11, fontWeight: 600, display: "flex", alignItems: "center", gap: 5 }}>
+                              <div style={{ width: 11, height: 11, borderRadius: "50%", background: cc.hex, flexShrink: 0 }} />
+                              <span style={{ color: sel ? W.text : W.textDim }}>{cc.label}</span>
+                            </button>;
+                          })}
+                        </div>
+                      </>);
+                    })()}
+                    {/* 4. Status */}
                     <Label>Status</Label>
                     <div style={{ display: "flex", gap: 8, marginBottom: 12, flexWrap: "wrap" }}>
                       {[["all", "All"], ["completed", "✓ Sent"], ["incomplete", "✗ Not Sent"], ["projects", "🎯 Projects"]].map(([val, label]) => <button key={val} onClick={() => setLogbookFilter(val)} style={{ padding: "6px 12px", borderRadius: 16, border: "2px solid", borderColor: logbookFilter === val ? (val === "projects" ? W.pinkDark : W.accent) : W.border, background: logbookFilter === val ? (val === "projects" ? W.pink : W.accent + "22") : W.surface, color: logbookFilter === val ? (val === "projects" ? W.pinkDark : W.accent) : W.textDim, cursor: "pointer", fontSize: 12, fontWeight: 600 }}>{label}</button>)}
@@ -6354,30 +6471,9 @@ export default function App() {
                     <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 12 }}>
                       {logbookGrades.map(g => <button key={g} onClick={() => setLogbookGrade(g)} style={{ padding: "5px 10px", borderRadius: 14, border: "2px solid", borderColor: logbookGrade === g ? W.accent : W.border, background: logbookGrade === g ? W.accent + "22" : W.surface, color: logbookGrade === g ? W.accent : W.textDim, cursor: "pointer", fontSize: 11, fontWeight: 700 }}>{g}</button>)}
                     </div>
-                    <Label>Hold Color</Label>
-                    <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 12 }}>
-                      <button onClick={() => setLogbookColorFilter("All")} style={{ padding: "5px 11px", borderRadius: 14, border: "2px solid", borderColor: logbookColorFilter === "All" ? W.accent : W.border, background: logbookColorFilter === "All" ? W.accent + "22" : W.surface, color: logbookColorFilter === "All" ? W.accent : W.textDim, cursor: "pointer", fontSize: 11, fontWeight: 600 }}>All</button>
-                      {CLIMB_COLORS.map(cc => (
-                        <button key={cc.id} onClick={() => setLogbookColorFilter(cc.id)} style={{ padding: "5px 10px", borderRadius: 14, border: "2px solid", borderColor: logbookColorFilter === cc.id ? cc.hex : W.border, background: logbookColorFilter === cc.id ? cc.hex + "22" : W.surface, cursor: "pointer", fontSize: 11, fontWeight: 600, display: "flex", alignItems: "center", gap: 5 }}>
-                          <div style={{ width: 11, height: 11, borderRadius: "50%", background: cc.hex, flexShrink: 0 }} />
-                          <span style={{ color: logbookColorFilter === cc.id ? W.text : W.textDim }}>{cc.label}</span>
-                        </button>
-                      ))}
-                    </div>
-                    {(() => {
-                      const allSections = [...new Set(sessions.flatMap(s => (s.climbs || []).map(c => c.section).filter(Boolean)))];
-                      if (!allSections.length) return null;
-                      return (<>
-                        <Label>Wall Section</Label>
-                        <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 12 }}>
-                          <button onClick={() => setLogbookSectionFilter("All")} style={{ padding: "5px 11px", borderRadius: 14, border: "2px solid", borderColor: logbookSectionFilter === "All" ? W.accent : W.border, background: logbookSectionFilter === "All" ? W.accent + "22" : W.surface, color: logbookSectionFilter === "All" ? W.accent : W.textDim, cursor: "pointer", fontSize: 11, fontWeight: 600 }}>All</button>
-                          {allSections.map(sec => <button key={sec} onClick={() => setLogbookSectionFilter(sec)} style={{ padding: "5px 11px", borderRadius: 14, border: "2px solid", borderColor: logbookSectionFilter === sec ? W.accent : W.border, background: logbookSectionFilter === sec ? W.accent + "22" : W.surface, color: logbookSectionFilter === sec ? W.accent : W.textDim, cursor: "pointer", fontSize: 11, fontWeight: 600 }}>📌 {sec}</button>)}
-                        </div>
-                      </>);
-                    })()}
                     <Label>Sort</Label>
                     <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
-                      {[["date", "📅 Newest"], ["hardest", "🔺 Hardest"], ["easiest", "🔻 Easiest"], ["name", "🔤 A–Z"], ["projects", "🎯 Projects"]].map(([val, label]) => <button key={val} onClick={() => setLogbookSort(val)} style={{ padding: "6px 12px", borderRadius: 16, border: "2px solid", borderColor: logbookSort === val ? W.accent : W.border, background: logbookSort === val ? W.accent + "22" : W.surface, color: logbookSort === val ? W.accent : W.textDim, cursor: "pointer", fontSize: 12, fontWeight: 600 }}>{label}</button>)}
+                      {[["name", "🔤 A–Z"], ["projects", "🎯 Projects"]].map(([val, label]) => <button key={val} onClick={() => { setLogbookSort(logbookSort === val ? "date" : val); setLogbookClimbPage(1); }} style={{ padding: "6px 12px", borderRadius: 16, border: "2px solid", borderColor: logbookSort === val ? W.accent : W.border, background: logbookSort === val ? W.accent + "22" : W.surface, color: logbookSort === val ? W.accent : W.textDim, cursor: "pointer", fontSize: 12, fontWeight: 600 }}>{label}</button>)}
                     </div>
                     <Label>View</Label>
                     <div style={{ display: "flex", gap: 8 }}>
@@ -6405,6 +6501,34 @@ export default function App() {
                   )}
                 </div>
               )}
+            </div>
+            {/* Sort toggle buttons — always visible below filter bar */}
+            <div style={{ display: "flex", gap: 6, marginBottom: 14, flexWrap: "wrap" }}>
+              {[
+                { key: "date",     labelDesc: "↓ Newest",    labelAsc: "↑ Oldest"   },
+                { key: "grade",    labelDesc: "↓ Grade",     labelAsc: "↑ Grade"    },
+                { key: "attempts", labelDesc: "↓ Attempts",  labelAsc: "↑ Attempts" },
+                { key: "time",     labelDesc: "↓ Time",      labelAsc: "↑ Time"     },
+              ].map(({ key, labelDesc, labelAsc }) => {
+                const isSpecialSort = logbookSort === "name" || logbookSort === "projects";
+                const active = !isSpecialSort && logbookQuickSort === key;
+                const isDesc = logbookQuickSortDir === "desc";
+                return (
+                  <button key={key} onClick={() => {
+                    if (active) {
+                      const nd = logbookQuickSortDir === "desc" ? "asc" : "desc";
+                      setLogbookQuickSortDir(nd); localStorage.setItem("lb:quickSortDir", nd);
+                    } else {
+                      setLogbookQuickSort(key); setLogbookQuickSortDir("desc");
+                      setLogbookSort("date");
+                      localStorage.setItem("lb:quickSort", key); localStorage.setItem("lb:quickSortDir", "desc"); localStorage.setItem("lb:sort", "date");
+                    }
+                    setLogbookClimbPage(1);
+                  }} style={{ padding: "7px 13px", borderRadius: 16, border: "2px solid", borderColor: active ? W.accent : W.border, background: active ? W.accent + "22" : W.surface2, color: active ? W.accent : W.textDim, cursor: "pointer", fontSize: 12, fontWeight: 700 }}>
+                    {active ? (isDesc ? labelDesc : labelAsc) : labelDesc}
+                  </button>
+                );
+              })}
             </div>
             <input ref={lbPhotoRef} type="file" accept="image/*" style={{ display: "none" }} onChange={e => {
               const file = e.target.files?.[0]; e.target.value = "";
