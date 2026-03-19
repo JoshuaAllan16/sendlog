@@ -7804,13 +7804,13 @@ export default function App() {
         };
         return (
           <div style={{ position: "fixed", inset: 0, zIndex: 500, background: "rgba(0,0,0,0.7)", display: "flex", flexDirection: "column" }} onClick={e => { if (e.target === e.currentTarget) setSchemeColorPicking(null); }}>
-            <div style={{ background: W.bg, flex: 1, display: "flex", flexDirection: "column", paddingTop: "calc(16px + env(safe-area-inset-top))" }}>
+            <div style={{ background: W.bg, flex: 1, display: "flex", flexDirection: "column", overflow: "hidden", paddingTop: "calc(16px + env(safe-area-inset-top))" }}>
               {/* Header */}
-              <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "0 20px 16px", borderBottom: `1px solid ${W.border}` }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "0 20px 16px", borderBottom: `1px solid ${W.border}`, flexShrink: 0 }}>
                 <button onClick={() => { setShowSchemeBuilder(false); setSchemeEditId(null); setSchemeName(""); setSchemeGrades([]); setSchemeBuilderFor(null); }} style={{ background: "none", border: "none", fontSize: 22, color: W.textMuted, cursor: "pointer", padding: 0 }}>←</button>
                 <div style={{ fontWeight: 800, fontSize: 17, color: W.text }}>{schemeEditId ? "Edit Grading Scheme" : "New Grading Scheme"}</div>
               </div>
-              <div style={{ flex: 1, overflowY: "auto", padding: "20px", paddingBottom: "calc(80px + env(safe-area-inset-bottom))" }}>
+              <div style={{ flex: 1, minHeight: 0, overflowY: "auto", padding: "20px", paddingBottom: "calc(80px + env(safe-area-inset-bottom))" }}>
                 {/* Name */}
                 <div style={{ marginBottom: 20 }}>
                   <div style={{ fontSize: 11, fontWeight: 700, color: W.textMuted, textTransform: "uppercase", letterSpacing: 1, marginBottom: 6 }}>Scheme Name</div>
