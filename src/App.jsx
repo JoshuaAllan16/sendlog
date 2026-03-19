@@ -6712,18 +6712,18 @@ export default function App() {
                       ) : (() => {
                         // Shared per-card data extraction for both tile views
                         const renderCards = (cols) => visible.map((c, i) => {
-                          const showHeader = logbookSort === "date" && (i === 0 || logbookClimbs[i - 1].sessionDate !== c.sessionDate);
+                          const showHeader = cols === 1 && logbookSort === "date" && (i === 0 || logbookClimbs[i - 1].sessionDate !== c.sessionDate);
                           const gradeClr  = getGradeColor(c.grade);
                           const colorHex  = CLIMB_COLORS.find(cc => cc.id === c.color)?.hex;
                           const isOffWall = c.setClimbId ? Object.values(gymSets).flat().some(e => e.id === c.setClimbId && e.removed) : false;
                           let lpTimer = null;
                           const handleLPStart = () => { lpTimer = setTimeout(() => { setLongPressPhotoTarget({ climbId: c.id, sessionId: c._sessionId }); lbPhotoRef.current?.click(); }, 600); };
                           const handleLPEnd   = () => { clearTimeout(lpTimer); };
-                          const headerSpan   = cols === 2 ? { gridColumn: "1 / -1" } : {};
+                          const shortDate = c.sessionDate ? new Date(c.sessionDate).toLocaleDateString("en-US", { month: "short", day: "numeric" }) : "";
                           return (
                             <Fragment key={`${c.id}-${i}`}>
                               {showHeader && (
-                                <div style={{ ...headerSpan, fontSize: 12, fontWeight: 700, color: W.textMuted, marginBottom: 2, marginTop: i > 0 ? 10 : 0 }}>📍 {c.sessionLocation} · {formatDate(c.sessionDate)}</div>
+                                <div style={{ fontSize: 12, fontWeight: 700, color: W.textMuted, marginBottom: 2, marginTop: i > 0 ? 10 : 0 }}>📍 {c.sessionLocation} · {formatDate(c.sessionDate)}</div>
                               )}
                               {cols === 2 ? (
                                 /* ── GYM-SET STYLE TILE (photo or no-photo) ─ */
@@ -6765,6 +6765,7 @@ export default function App() {
                                       ))}
                                     </div>
                                     {c.section && <div style={{ fontSize: 8, color: "rgba(255,255,255,0.6)", textAlign: "center", marginTop: 3 }}>📌 {c.section}</div>}
+                                    {shortDate && <div style={{ fontSize: 8, color: "rgba(255,255,255,0.5)", textAlign: "center", marginTop: 2 }}>📍 {c.sessionLocation ? `${c.sessionLocation} · ` : ""}{shortDate}</div>}
                                   </div>
                                 </div>
                               ) : (
