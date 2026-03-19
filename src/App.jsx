@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, Component, Fragment, startTransition } from "react";
+import { useState, useRef, useEffect, Component, Fragment } from "react";
 import { createClient } from "@supabase/supabase-js";
 import { ThemeCtx, THEMES } from "./theme.js";
 import { ColorDot, TagChips, LocationDropdown, SpeedSessionCard, BoulderRopeSessionCard, ActiveClimbCard } from "./Components.jsx";
@@ -7587,8 +7587,8 @@ export default function App() {
                     const nextTab = ["home","session","profile"][ddx < 0 ? si2 + 1 : si2 - 1];
                     if (nextTab) {
                       swipePeekRef.current = { tab: nextTab, fromRight: ddx < 0 };
-                      // startTransition defers the peek render so it doesn't block the touch loop
-                      startTransition(() => setSwipePeekScreen(nextTab));
+                      // Use rAF so peek renders next frame without blocking current touch event
+                      requestAnimationFrame(() => setSwipePeekScreen(nextTab));
                     }
                   }
                 }
@@ -7647,22 +7647,25 @@ export default function App() {
               const nextTab = STABS[ddx < 0 ? si + 1 : si - 1];
               const vpW = window.innerWidth;
               swipeAnimRef.current = true;
-              // Slide main panel out
-              el.style.transition = "transform 0.22s cubic-bezier(0.4,0,1,1)";
-              el.style.transform = `translateX(${ddx < 0 ? -vpW : vpW}px)`;
-              // Slide peek panel to center
-              if (peekDivRef.current) {
-                peekDivRef.current.style.transition = "transform 0.22s cubic-bezier(0.4,0,1,1)";
-                peekDivRef.current.style.transform = "translateX(0)";
-              }
-              setTimeout(() => {
-                // Switch screen — React batch: main now shows nextTab at 0, peek removed
+              const doSwitch = () => {
                 if (nextTab === "session") { activeSession ? setScreen("session") : goToSessionSetup(); } else setScreen(nextTab);
                 setSwipePeekScreen(null);
                 swipePeekRef.current = null;
                 if (scrollDivRef.current) { scrollDivRef.current.style.transition = "none"; scrollDivRef.current.style.transform = ""; }
                 swipeAnimRef.current = false;
-              }, 220);
+              };
+              if (peekDivRef.current) {
+                // Peek is ready — full sliding transition
+                el.style.transition = "transform 0.22s cubic-bezier(0.4,0,1,1)";
+                el.style.transform = `translateX(${ddx < 0 ? -vpW : vpW}px)`;
+                peekDivRef.current.style.transition = "transform 0.22s cubic-bezier(0.4,0,1,1)";
+                peekDivRef.current.style.transform = "translateX(0)";
+                setTimeout(doSwitch, 220);
+              } else {
+                // Peek not rendered yet — skip animation, switch directly
+                if (el) { el.style.transform = ""; el.style.transition = "none"; }
+                doSwitch();
+              }
             } else {
               const vpW = window.innerWidth;
               // Spring main back
