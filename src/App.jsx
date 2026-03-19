@@ -527,7 +527,7 @@ export default function App() {
           const { username, userData: cachedData } = JSON.parse(sessionResult.value);
           // Always load fresh data from Supabase so following/sessions are never stale
           const freshData = await loadUserData(username).catch(() => null);
-          const userData = freshData || cachedData;
+          const userData = freshData || cachedData || { profile: {}, sessions: [], projects: [] };
           setCurrentUser({ username, ...userData.profile });
           setSessions(userData.sessions || []);
           setProjects(userData.projects || []);
@@ -676,7 +676,7 @@ export default function App() {
       await saveAccountIndex(accounts);
 
       const user = { username: username.toLowerCase(), displayName: displayName.trim() || username };
-      await storage.set("active:session", JSON.stringify({ username: username.toLowerCase(), userData }));
+      await storage.set("active:session", JSON.stringify({ username: username.toLowerCase(), userData: { profile: userData.profile } }));
       setCurrentUser(user);
       setSessions(userData.sessions);
       setProjects(userData.projects);
@@ -709,7 +709,9 @@ export default function App() {
 
       const userData = await loadUserData(username.toLowerCase());
       const safeData = userData || { profile: { displayName: account.displayName }, sessions: [], projects: [] };
-      await storage.set("active:session", JSON.stringify({ username: username.toLowerCase(), userData: safeData }));
+      // Store only profile in localStorage to avoid QuotaExceededError on large accounts
+      const cachedProfile = { profile: safeData.profile };
+      await storage.set("active:session", JSON.stringify({ username: username.toLowerCase(), userData: cachedProfile }));
 
       setCurrentUser({ username: username.toLowerCase(), displayName: safeData.profile?.displayName || username });
       setSessions(safeData.sessions || []);
