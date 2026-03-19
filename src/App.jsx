@@ -2202,28 +2202,28 @@ export default function App() {
     setLeaderboardLoading(true);
     setLeaderboardData(null);
     try {
-      // Load my fresh profile to get who I follow
-      const myData = await loadUserData(currentUser.username);
-      const myFollowing = myData?.profile?.following || [];
-      setSocialFollowing(myFollowing);
+      // Use React state for who I follow (always up-to-date, synced by auto-save)
+      const myFollowing = socialFollowing;
 
-      // For each person I follow, load their full profile and check if they follow me back.
-      // Check profile.following directly — more reliable than the secondary followers: store
+      // Load who follows me via the secondary followers store (updated immediately on follow/unfollow)
+      const myFollowers = await loadFollowersStore(currentUser.username);
+      setSocialFollowers(myFollowers);
+
+      // Mutual = I follow them AND they follow me back
+      const mutuals = myFollowing.filter(u => myFollowers.includes(u));
+
+      // Load sessions for each mutual follow
       const results = await Promise.all(
-        myFollowing.map(async (uname) => {
+        mutuals.map(async (uname) => {
           try {
             const theirData = await loadUserData(uname);
-            const theyFollowMe = (theirData?.profile?.following || []).includes(currentUser.username);
-            return { username: uname, theirData, isMutual: theyFollowMe };
-          } catch { return { username: uname, theirData: null, isMutual: false }; }
+            return { username: uname, theirData };
+          } catch { return { username: uname, theirData: null }; }
         })
       );
 
-      // Refresh followers secondary store for profile display (fire-and-forget)
-      loadFollowersStore(currentUser.username).then(setSocialFollowers).catch(() => {});
-
       const entries = results
-        .filter(r => r.isMutual && r.theirData)
+        .filter(r => r.theirData)
         .map(r => ({
           username: r.username,
           displayName: r.theirData.profile?.displayName || r.username,
