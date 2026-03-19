@@ -3404,7 +3404,7 @@ export default function App() {
           const gradeRank = (grade, scale) => { const list = GRADES[scale] || GRADES["V-Scale"]; const idx = list.indexOf(grade); return idx >= 0 ? idx : -1; };
           const gymEntries = (gymSets[location] || []).filter(e => !e.removed && (e.climbType === "boulder" || !e.climbType));
           const inSessionIds = new Set((activeSession?.climbs || []).map(c => c.setClimbId).filter(Boolean));
-          const getEntryPhoto = (entryId) => sessions.flatMap(s => (s.climbs||[]).filter(c => c.setClimbId === entryId && c.photo)).map(c => c.photo)[0] || null;
+          const getEntryPhoto = (entryId) => sessions.flatMap(s => (s.climbs||[]).filter(c => c.setClimbId === entryId && c.photo)).map(c => c.photo)[0] || Object.values(gymSets).flat().find(e => e.id === entryId)?.photo || null;
           const getEntryStats = (entry) => {
             const related = sessions.flatMap(s => (s.climbs||[]).filter(c => c.setClimbId === entry.id));
             return { sends: related.filter(c => c.completed).length, attempts: related.reduce((t,c) => t + climbAttempts(c), 0), sessionCount: related.length };
@@ -8922,7 +8922,7 @@ export default function App() {
           sends: related.filter(({ climb: c }) => c.completed).length,
           attempts: related.reduce((t, { climb: c }) => t + climbAttempts(c), 0),
           sessionCount: related.length,
-          photo: sessions.flatMap(s => (s.climbs || []).filter(c => c.setClimbId === entry.id && c.photo)).map(c => c.photo)[0],
+          photo: sessions.flatMap(s => (s.climbs || []).filter(c => c.setClimbId === entry.id && c.photo)).map(c => c.photo)[0] || entry.photo || null,
         };
       };
 
