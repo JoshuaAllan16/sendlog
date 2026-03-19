@@ -1452,6 +1452,18 @@ export default function App() {
       final.fingerboardTotalSec = (final.fingerboardTotalSec || 0) + Math.max(0, Math.floor((now - final.fingerboardActiveStart) / 1000));
       final.fingerboardActiveStart = null;
     }
+    // Flush any individual climb timers that are still running (climbingStartedAt set)
+    final.climbs = (final.climbs || []).map(c => {
+      if (c.climbingStartedAt) {
+        const dur = now - c.climbingStartedAt + (c.pausedWorkedMs || 0);
+        return { ...c, climbingStartedAt: null, pausedWorkedMs: 0, attemptLog: [...(c.attemptLog || []), { startedAt: c.climbingStartedAt, duration: dur, falls: c.tries }] };
+      }
+      // Also flush any banked pausedWorkedMs that never made it to attemptLog
+      if ((c.pausedWorkedMs || 0) > 0) {
+        return { ...c, pausedWorkedMs: 0, attemptLog: [...(c.attemptLog || []), { startedAt: now, duration: c.pausedWorkedMs }] };
+      }
+      return c;
+    });
     const finalDuration = sessionActiveStart ? Math.floor((now - sessionActiveStart) / 1000) + sessionPausedSec : sessionPausedSec;
     const rawLoc = (final.location || pendingLocation || "Unknown Gym").trim();
     const location = rawLoc.replace(/\b([a-z])/g, c => c.toUpperCase());
