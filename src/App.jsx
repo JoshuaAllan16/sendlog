@@ -234,6 +234,7 @@ export default function App() {
   const lbPhotoRef         = useRef();
   const sessionInitialized = useRef(false); // prevents persist effect from clearing active:climb before checkSession reads it
   const boulderListRef     = useRef(null);
+  const swipeStartRef      = useRef(null);
 
   const [showClimbForm, setShowClimbForm]       = useState(false);
   const [formProjectPickerOpen, setFormProjectPickerOpen] = useState(false);
@@ -7483,7 +7484,31 @@ export default function App() {
           <LocationDropdown value={activeSession?.location || ""} onChange={v => { setActiveSession(s => ({ ...s, location: v })); addCustomLocation(v); setActiveLocationDropdownOpen(false); if (gymScales[v]?.boulder) setPreferredScale(gymScales[v].boulder); if (gymScales[v]?.rope) setPreferredRopeScale(gymScales[v].rope); }} open={activeLocationDropdownOpen} setOpen={setActiveLocationDropdownOpen} knownLocations={knownLocations} onRemove={loc => setHiddenLocations(h => [...h, loc])} />
         </div>
       )}
-      <div style={{ flex: 1, overflowY: "auto", paddingBottom: screen === "sessionSummary" ? 0 : "calc(80px + env(safe-area-inset-bottom))" }} onClick={() => { setLocationDropdownOpen(false); setActiveLocationDropdownOpen(false); }}>
+      <div style={{ flex: 1, overflowY: "auto", paddingBottom: screen === "sessionSummary" ? 0 : "calc(80px + env(safe-area-inset-bottom))" }}
+        onTouchStart={e => {
+          const t = e.touches[0];
+          swipeStartRef.current = { x: t.clientX, y: t.clientY, ts: Date.now() };
+        }}
+        onTouchEnd={e => {
+          if (!swipeStartRef.current) return;
+          const { x: sx, y: sy, ts } = swipeStartRef.current;
+          swipeStartRef.current = null;
+          const t = e.changedTouches[0];
+          const dx = t.clientX - sx;
+          const dy = t.clientY - sy;
+          if (Math.abs(dx) < 55 || Math.abs(dx) < Math.abs(dy) * 1.5 || Date.now() - ts > 400) return;
+          const tabs = ["home", "session", "profile"];
+          const idx = tabs.indexOf(screen);
+          if (idx === -1) return;
+          if (dx < 0 && idx < tabs.length - 1) {
+            const next = tabs[idx + 1];
+            if (next === "session") { activeSession ? setScreen("session") : goToSessionSetup(); }
+            else setScreen(next);
+          } else if (dx > 0 && idx > 0) {
+            setScreen(tabs[idx - 1]);
+          }
+        }}
+        onClick={() => { setLocationDropdownOpen(false); setActiveLocationDropdownOpen(false); }}>
         {screen === "home"          && <HomeScreen />}
         {screen === "session"       && (sessionStarted ? <ErrorBoundary key="session-active"><ActiveSessionRenderer render={SessionActiveScreen} /></ErrorBoundary> : SessionSetupScreen())}
         {screen === "social"        && SocialScreen()}
