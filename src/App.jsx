@@ -2243,7 +2243,7 @@ export default function App() {
           sessions: r.theirData.sessions || [],
           isMe: false,
         }));
-      entries.push({ username: currentUser.username, displayName: displayName, sessions, isMe: true });
+      entries.push({ username: currentUser.username, displayName: currentUser.displayName || editDisplayName, sessions, isMe: true });
       setLeaderboardData(entries);
     } catch (e) { setLeaderboardData([]); setLbDebug({ error: String(e) }); }
     setLeaderboardLoading(false);
@@ -7133,17 +7133,7 @@ export default function App() {
           <div style={{ textAlign: "center", padding: "48px 20px" }}>
             <div style={{ fontSize: 40, marginBottom: 12 }}>🏆</div>
             <div style={{ color: W.text, fontWeight: 700, fontSize: 16, marginBottom: 8 }}>No friends yet</div>
-            <div style={{ color: W.textMuted, fontSize: 13, marginBottom: 16 }}>Follow climbers who follow you back to compete here.</div>
-            {lbDebug && (
-              <div style={{ textAlign: "left", background: W.surface2, border: `1px solid ${W.border}`, borderRadius: 12, padding: "12px 16px", fontSize: 11, color: W.textMuted, fontFamily: "monospace" }}>
-                <div style={{ fontWeight: 700, color: W.text, marginBottom: 6 }}>Debug info</div>
-                <div>You follow: {lbDebug.following} — {JSON.stringify(lbDebug.followingList)}</div>
-                <div>Followers store: {lbDebug.followers} — {JSON.stringify(lbDebug.followersStore)}</div>
-                <div>Mutual via store: {JSON.stringify(lbDebug.storeMutuals)}</div>
-                <div>Mutual via profile: {JSON.stringify(lbDebug.profileMutuals)}</div>
-                {lbDebug.error && <div style={{ color: "red" }}>Error: {lbDebug.error}</div>}
-              </div>
-            )}
+            <div style={{ color: W.textMuted, fontSize: 13 }}>Follow climbers who follow you back to compete here.</div>
           </div>
         )}
 
