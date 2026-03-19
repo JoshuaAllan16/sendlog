@@ -1,0 +1,30 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <!-- Background -->
+  <rect width="512" height="512" rx="108" fill="#1a0a00"/>
+
+  <!-- Climbing hold / rock shape -->
+  <ellipse cx="256" cy="210" rx="90" ry="76" fill="#6c3a1f"/>
+  <ellipse cx="256" cy="210" rx="90" ry="76" fill="url(#rockGrad)"/>
+
+  <!-- Chalk texture dots -->
+  <circle cx="230" cy="196" r="7" fill="#f5e6d3" opacity="0.6"/>
+  <circle cx="256" cy="188" r="5" fill="#f5e6d3" opacity="0.5"/>
+  <circle cx="278" cy="200" r="6" fill="#f5e6d3" opacity="0.55"/>
+  <circle cx="244" cy="218" r="4" fill="#f5e6d3" opacity="0.45"/>
+  <circle cx="268" cy="215" r="5" fill="#f5e6d3" opacity="0.5"/>
+
+  <!-- Rope arc -->
+  <path d="M 180 210 Q 130 320 190 370 Q 220 395 256 390 Q 292 395 322 370 Q 382 320 332 210"
+        fill="none" stroke="#c47a3a" stroke-width="18" stroke-linecap="round"/>
+
+  <!-- SL text -->
+  <text x="256" y="310" font-family="'Helvetica Neue', Arial, sans-serif" font-weight="900"
+        font-size="88" fill="#f5e6d3" text-anchor="middle" letter-spacing="-2">SL</text>
+
+  <defs>
+    <radialGradient id="rockGrad" cx="40%" cy="35%">
+      <stop offset="0%" stop-color="#a0622e"/>
+      <stop offset="100%" stop-color="#4a1e00"/>
+    </radialGradient>
+  </defs>
+</svg>

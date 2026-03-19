@@ -1,0 +1,19 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git add src/App.jsx)",
+      "Bash(git commit -m \"UI updates and new features\")",
+      "Bash(git push)",
+      "Bash(git commit:*)",
+      "Bash(npm run build)",
+      "Bash(git add src/Components.jsx src/App.jsx)",
+      "Bash(npx tsc:*)",
+      "Bash(npx vite:*)",
+      "Bash(node -e \"const fs = require\\(''fs''\\); const code = fs.readFileSync\\(''src/App.jsx'', ''utf8''\\); console.log\\(''File size:'', code.length, ''chars''\\); console.log\\(''Lines:'', code.split\\(''\\\\n''\\).length\\);\")",
+      "Bash(grep -v \"^$\")",
+      "Bash(git add:*)",
+      "Bash(awk 'NR>=4062 && NR<=4700' src/App.jsx)",
+      "Bash(python3 -c \":*)"
+    ]
+  }
+}
