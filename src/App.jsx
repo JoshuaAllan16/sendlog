@@ -1034,7 +1034,7 @@ export default function App() {
     return {
       ...s, ...updates,
       climbs: (s.climbs || []).map(c => {
-        if (c.id === climbId) return { ...c, climbingStartedAt: now, paused: false, pausedWorkedMs: 0 };
+        if (c.id === climbId) return { ...c, climbingStartedAt: now, paused: false }; // preserve pausedWorkedMs — it accumulates across pauses
         if (c.climbingStartedAt && !c.completed) {
           const dur = now - c.climbingStartedAt + (c.pausedWorkedMs || 0);
           return { ...c, climbingStartedAt: null, pausedWorkedMs: 0, attemptLog: [...(c.attemptLog || []), { startedAt: c.climbingStartedAt, duration: dur, falls: c.tries }] };
@@ -1052,11 +1052,18 @@ export default function App() {
       boulderTotalSec: (s.boulderTotalSec || 0) + elapsed,
       boulderActiveStart: null,
       boulderPausedAt: now,
-      climbs: (s.climbs || []).map(c =>
-        c.climbType !== "rope" && c.climbingStartedAt
-          ? { ...c, climbingStartedAt: null, pausedWorkedMs: 0, attemptLog: [...(c.attemptLog || []), { startedAt: c.climbingStartedAt, duration: now - c.climbingStartedAt + (c.pausedWorkedMs || 0), falls: c.tries }] }
-          : c
-      ),
+      climbs: (s.climbs || []).map(c => {
+        if (c.climbType === "rope") return c;
+        if (c.climbingStartedAt) {
+          const dur = now - c.climbingStartedAt + (c.pausedWorkedMs || 0);
+          return { ...c, climbingStartedAt: null, pausedWorkedMs: 0, attemptLog: [...(c.attemptLog || []), { startedAt: c.climbingStartedAt, duration: dur, falls: c.tries }] };
+        }
+        // Flush paused climbs whose time is banked in pausedWorkedMs but not yet in attemptLog
+        if ((c.pausedWorkedMs || 0) > 0) {
+          return { ...c, pausedWorkedMs: 0, paused: false, attemptLog: [...(c.attemptLog || []), { startedAt: now, duration: c.pausedWorkedMs, falls: c.tries }] };
+        }
+        return c;
+      }),
     };
   });
   const resumeBoulderSession = () => setActiveSession(s => {
@@ -1763,6 +1770,8 @@ export default function App() {
   // This helper returns the true total attempts (falls + 1 if sent).
   // For rope, tries already counts every attempt including the topped one.
   const climbAttempts = (c) => (c.tries || 0) + (c.climbType !== "rope" && c.completed ? 1 : 0);
+  // Total worked time in ms — reads attemptLog plus any pausedWorkedMs not yet flushed (e.g. old saved sessions)
+  const climbTimeMs = (c) => (c.attemptLog || []).reduce((t, a) => t + (a.duration || 0), 0) + (!c.climbingStartedAt ? (c.pausedWorkedMs || 0) : 0);
   const wasAttempted = (c) => c.completed || (c.tries || 0) > 0;
 
   const getStats = (overrideSessions) => {
@@ -1816,7 +1825,7 @@ export default function App() {
 
   const getProjectHistory    = (pid) => sessions.flatMap(s => (s.climbs || []).filter(c => c.projectId === pid).map(c => ({ ...c, sessionDate: s.date, sessionLocation: s.location }))).sort((a, b) => new Date(b.sessionDate) - new Date(a.sessionDate));
   const getProjectTotalTries = (pid) => getProjectHistory(pid).reduce((sum, c) => sum + climbAttempts(c), 0);
-  const getProjectTotalTimeMs = (pid) => sessions.flatMap(s => (s.climbs || []).filter(c => c.projectId === pid)).flatMap(c => c.attemptLog || []).reduce((sum, a) => sum + (a.duration || 0), 0);
+  const getProjectTotalTimeMs = (pid) => sessions.flatMap(s => (s.climbs || []).filter(c => c.projectId === pid)).reduce((sum, c) => sum + climbTimeMs(c), 0);
   const getProjectPhoto = (pid) => { const c = sessions.flatMap(s => s.climbs || []).find(c => c.projectId === pid && c.photo); return c ? c.photo : null; };
 
   const getLogbookClimbs = () => {
@@ -1833,12 +1842,12 @@ export default function App() {
       if (!setMeta[id].photo && c.photo) setMeta[id].photo = c.photo;
       if ((c.sessionDate || "") > setMeta[id].mostRecentDate) setMeta[id].mostRecentDate = c.sessionDate;
       setMeta[id].totalTries += climbAttempts(c);
-      setMeta[id].totalTimeMs += (c.attemptLog || []).reduce((s, a) => s + (a.duration || 0), 0);
+      setMeta[id].totalTimeMs += climbTimeMs(c);
     }
 
     // Normalize set climbs: apply merged metadata so filter/sort uses aggregate values
     let climbs = rawClimbs.map(c => {
-      if (!c.setClimbId) return { ...c, _totalTries: climbAttempts(c), _totalTimeMs: (c.attemptLog || []).reduce((s, a) => s + (a.duration || 0), 0) };
+      if (!c.setClimbId) return { ...c, _totalTries: climbAttempts(c), _totalTimeMs: climbTimeMs(c) };
       const meta = setMeta[c.setClimbId];
       return { ...c, completed: meta.completed, photo: meta.photo, _sessionCount: meta.count, sessionDate: meta.mostRecentDate, _totalTries: meta.totalTries, _totalTimeMs: meta.totalTimeMs };
     }).filter(c => {
@@ -2706,7 +2715,7 @@ export default function App() {
       const colorEntry = CLIMB_COLORS.find(cc => cc.id === climb.color);
       const colorHex   = colorEntry?.hex;
       const colorLabel = colorEntry?.label;
-      const timeSec    = Math.floor((climb.attemptLog || []).reduce((t, a) => t + (a.duration || 0), 0) / 1000);
+      const timeSec    = Math.floor(climbTimeMs(climb) / 1000);
       const gradeClr   = getGradeColor(climb.grade);
       return (
         <div onClick={() => onClimbClick(climb)} style={{ borderRadius: 14, border: `1px solid ${climb.isProject ? W.pinkDark + "60" : W.border}`, borderLeft: `4px solid ${climb.isProject ? W.pinkDark : gradeClr}`, marginBottom: 10, cursor: "pointer", background: W.surface, overflow: "hidden" }}>
@@ -2745,7 +2754,7 @@ export default function App() {
       const colorEntry = CLIMB_COLORS.find(cc => cc.id === climb.color);
       const colorHex   = colorEntry?.hex;
       const colorLabel = colorEntry?.label;
-      const timeSec    = Math.floor((climb.attemptLog || []).reduce((t, a) => t + (a.duration || 0), 0) / 1000);
+      const timeSec    = Math.floor(climbTimeMs(climb) / 1000);
       return (
         <div onClick={() => onClimbClick(climb)} style={{ borderRadius: 16, overflow: "hidden", border: `1px solid ${W.border}`, marginBottom: 12, cursor: "pointer", background: W.surface }}>
           <div style={{ position: "relative" }}>
@@ -4577,7 +4586,7 @@ export default function App() {
           const totalAttempts = climbs.reduce((s, c) => s + climbAttempts(c), 0);
           const mostAttempts  = climbs.length ? Math.max(...climbs.map(c => climbAttempts(c))) : 0;
           const sendRate      = climbs.length ? Math.round((climbs.filter(c => c.completed).length / climbs.length) * 100) : 0;
-          const longestClimbMs = climbs.length ? Math.max(...climbs.map(c => (c.attemptLog || []).reduce((s, a) => s + (a.duration || 0), 0))) : 0;
+          const longestClimbMs = climbs.length ? Math.max(...climbs.map(c => climbTimeMs(c))) : 0;
           const longestClimbSec = Math.round(longestClimbMs / 1000);
           const typeTimes = [session.boulderTotalSec || 0, session.ropeTotalSec || 0, session.warmupTotalSec || 0].filter(t => t > 0);
           const longestTypeSec = typeTimes.length ? Math.max(...typeTimes) : 0;
@@ -8570,7 +8579,7 @@ export default function App() {
       ).sort((a, b) => new Date(b.session.date) - new Date(a.session.date));
       const totalAttempts = relatedEntries.reduce((t, { climb: c }) => t + climbAttempts(c), 0);
       const totalSends    = relatedEntries.filter(({ climb: c }) => c.completed).length;
-      const totalTimeMs   = relatedEntries.reduce((t, { climb: c }) => t + (c.attemptLog || []).reduce((s, a) => s + (a.duration || 0), 0), 0);
+      const totalTimeMs   = relatedEntries.reduce((t, { climb: c }) => t + climbTimeMs(c), 0);
       const totalTimeSec  = Math.floor(totalTimeMs / 1000);
       const gradeColor    = getGradeColor(climb.grade);
       const setClimbEntry = climb.setClimbId
@@ -8749,7 +8758,7 @@ export default function App() {
             <div style={{ fontSize: 13, fontWeight: 800, color: W.textMuted, textTransform: "uppercase", letterSpacing: 1, marginBottom: 10 }}>Session History</div>
             {relatedEntries.length === 0 && <div style={{ textAlign: "center", color: W.textDim, padding: "20px 0" }}>No history found.</div>}
             {relatedEntries.map(({ climb: c, session: s }, i) => {
-              const timeMs = (c.attemptLog || []).reduce((t, a) => t + (a.duration || 0), 0);
+              const timeMs = climbTimeMs(c);
               const timeSec = Math.floor(timeMs / 1000);
               return (
                 <div key={`${s.id}-${c.id}-${i}`} style={{ background: W.surface, border: `1px solid ${W.border}`, borderRadius: 14, padding: "14px 16px", marginBottom: 10 }}>
@@ -9615,7 +9624,7 @@ export default function App() {
       ).sort((a, b) => new Date(b.session.date) - new Date(a.session.date));
       const totalAttempts = relatedEntries.reduce((t, { climb: c }) => t + climbAttempts(c), 0);
       const totalSends    = relatedEntries.filter(({ climb: c }) => c.completed).length;
-      const totalTimeMs   = relatedEntries.reduce((t, { climb: c }) => t + (c.attemptLog || []).reduce((s, a) => s + (a.duration || 0), 0), 0);
+      const totalTimeMs   = relatedEntries.reduce((t, { climb: c }) => t + climbTimeMs(c), 0);
       const totalTimeSec  = Math.floor(totalTimeMs / 1000);
       const gradeColor    = getGradeColor(entry.grade);
       const colorEntry    = CLIMB_COLORS.find(cc => cc.id === entry.color);
@@ -9732,7 +9741,7 @@ export default function App() {
             <div style={{ fontSize: 13, fontWeight: 800, color: W.textMuted, textTransform: "uppercase", letterSpacing: 1, marginBottom: 10 }}>Session History</div>
             {relatedEntries.length === 0 && <div style={{ textAlign: "center", color: W.textDim, padding: "20px 0" }}>No history yet. Log a session at this gym to start tracking.</div>}
             {relatedEntries.map(({ climb: c, session: s }, i) => {
-              const timeMs = (c.attemptLog || []).reduce((t, a) => t + (a.duration || 0), 0);
+              const timeMs = climbTimeMs(c);
               const timeSec = Math.floor(timeMs / 1000);
               return (
                 <div key={`${s.id}-${c.id}-${i}`} style={{ background: W.surface, border: `1px solid ${W.border}`, borderRadius: 14, padding: "14px 16px", marginBottom: 10 }}>
