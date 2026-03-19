@@ -7750,11 +7750,14 @@ export default function App() {
       {showSchemeBuilder && (() => {
         const SCHEME_COLORS = ["#ff4444","#ff8c00","#ffd700","#88cc00","#00cc88","#00aaff","#6644ff","#ff44cc","#ffffff","#aaaaaa","#555555","#000000","#a0522d","#ff69b4","#40e0d0","#ff6347"];
         const PRESETS = [
-          { name: "Traffic Light", colors: ["#4caf50","#cddc39","#ffeb3b","#ffc107","#f44336"] },
-          { name: "Ocean",         colors: ["#b2ebf2","#26c6da","#0097a7","#006064"] },
-          { name: "Fire",          colors: ["#fff176","#ffb300","#ff6d00","#dd2c00"] },
-          { name: "Purples",       colors: ["#e1bee7","#ab47bc","#7b1fa2","#4a148c"] },
-          { name: "Mono",          colors: ["#eeeeee","#9e9e9e","#424242","#111111"] },
+          { name: "Rainbow",    colors: ["#ff0000","#ff7700","#ffee00","#00cc44","#0099ff","#8833ff"] },
+          { name: "Traffic",    colors: ["#00e676","#aeea00","#ffee00","#ff9100","#ff1744"] },
+          { name: "Lava",       colors: ["#fffde7","#ffca28","#ff6f00","#bf360c","#3e0000"] },
+          { name: "Ocean",      colors: ["#e0f7fa","#00e5ff","#0077b6","#023e8a","#03045e"] },
+          { name: "Aurora",     colors: ["#00e5ff","#00e676","#ffee00","#ff4081","#aa00ff"] },
+          { name: "Dusk",       colors: ["#fce4ec","#f48fb1","#ce93d8","#7986cb","#1a237e"] },
+          { name: "Forest",     colors: ["#f9fbe7","#dce775","#43a047","#1b5e20","#0a1f0a"] },
+          { name: "Mono",       colors: ["#f5f5f5","#bdbdbd","#757575","#424242","#111111"] },
         ];
         const lerpColor = (c1, c2, t) => {
           const p = (s, i) => parseInt(s.slice(i,i+2),16);
@@ -7950,34 +7953,65 @@ export default function App() {
                 )}
                 {gymCreateStep === 2 && (
                   <>
-                    {hasBoulder && (
-                      <div style={{ marginBottom: 28 }}>
-                        <div style={{ fontSize: 14, fontWeight: 800, color: W.text, marginBottom: 4 }}>Boulder Grading</div>
-                        <div style={{ fontSize: 12, color: W.textMuted, marginBottom: 12 }}>What grading system does this gym use for bouldering?</div>
-                        <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 8 }}>
-                          {allBoulderScales.map(s => (
-                            <button key={s} onClick={() => setGymCreateBoulderScale(s)} style={{ padding: "7px 14px", borderRadius: 20, border: `2px solid ${gymCreateBoulderScale === s ? W.accent : W.border}`, background: gymCreateBoulderScale === s ? W.accent+"22" : W.surface2, color: gymCreateBoulderScale === s ? W.accent : W.textDim, fontWeight: 700, fontSize: 12, cursor: "pointer" }}>{s}</button>
-                          ))}
-                        </div>
-                        <button onClick={() => { setSchemeBuilderFor("boulder"); setSchemeName(""); setSchemeGrades([]); setSchemeEditId(null); setShowSchemeBuilder(true); }} style={{ display: "flex", alignItems: "center", gap: 6, padding: "8px 14px", background: W.surface2, border: `1px solid ${W.border}`, borderRadius: 10, color: W.textMuted, fontWeight: 700, fontSize: 12, cursor: "pointer" }}>
-                          <span style={{ fontSize: 16 }}>+</span> Create Custom Scheme
-                        </button>
-                      </div>
-                    )}
-                    {hasRope && (
-                      <div style={{ marginBottom: 28 }}>
-                        <div style={{ fontSize: 14, fontWeight: 800, color: W.text, marginBottom: 4 }}>Rope Grading</div>
-                        <div style={{ fontSize: 12, color: W.textMuted, marginBottom: 12 }}>What grading system does this gym use for rope climbing?</div>
-                        <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 8 }}>
-                          {allRopeScales.map(s => (
-                            <button key={s} onClick={() => setGymCreateRopeScale(s)} style={{ padding: "7px 14px", borderRadius: 20, border: `2px solid ${gymCreateRopeScale === s ? W.accent : W.border}`, background: gymCreateRopeScale === s ? W.accent+"22" : W.surface2, color: gymCreateRopeScale === s ? W.accent : W.textDim, fontWeight: 700, fontSize: 12, cursor: "pointer" }}>{s}</button>
-                          ))}
-                        </div>
-                        <button onClick={() => { setSchemeBuilderFor("rope"); setSchemeName(""); setSchemeGrades([]); setSchemeEditId(null); setShowSchemeBuilder(true); }} style={{ display: "flex", alignItems: "center", gap: 6, padding: "8px 14px", background: W.surface2, border: `1px solid ${W.border}`, borderRadius: 10, color: W.textMuted, fontWeight: 700, fontSize: 12, cursor: "pointer" }}>
-                          <span style={{ fontSize: 16 }}>+</span> Create Custom Scheme
-                        </button>
-                      </div>
-                    )}
+                    {(() => {
+                      const scalePreview = (scaleName, type) => {
+                        const builtIn = type === "boulder" ? GRADES[scaleName] : ROPE_GRADES[scaleName];
+                        if (builtIn) return builtIn.map(label => ({ label, color: null }));
+                        const custom = customGradingSchemes.find(s => s.name === scaleName);
+                        return custom ? custom.grades.map(g => ({ label: g.label, color: g.color })) : [];
+                      };
+                      const GradePreview = ({ scaleName, type }) => {
+                        const levels = scalePreview(scaleName, type);
+                        if (!levels.length) return null;
+                        return (
+                          <div style={{ marginTop: 10, marginBottom: 8, padding: "10px 12px", background: W.surface2, borderRadius: 10, border: `1px solid ${W.border}` }}>
+                            <div style={{ fontSize: 10, fontWeight: 700, color: W.textMuted, textTransform: "uppercase", letterSpacing: 1, marginBottom: 6 }}>Grades ({levels.length})</div>
+                            <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                              {levels.map((g, i) => (
+                                <div key={i} style={{ display: "flex", alignItems: "center", gap: 4, background: W.surface, border: `1px solid ${W.border}`, borderRadius: 8, padding: "3px 8px" }}>
+                                  {g.color && <div style={{ width: 8, height: 8, borderRadius: "50%", background: g.color, flexShrink: 0 }} />}
+                                  <span style={{ fontSize: 11, color: W.text, fontWeight: 600 }}>{g.label}</span>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        );
+                      };
+                      return (
+                        <>
+                          {hasBoulder && (
+                            <div style={{ marginBottom: 28 }}>
+                              <div style={{ fontSize: 14, fontWeight: 800, color: W.text, marginBottom: 4 }}>Boulder Grading</div>
+                              <div style={{ fontSize: 12, color: W.textMuted, marginBottom: 12 }}>What grading system does this gym use for bouldering?</div>
+                              <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 4 }}>
+                                {allBoulderScales.map(s => (
+                                  <button key={s} onClick={() => setGymCreateBoulderScale(s)} style={{ padding: "7px 14px", borderRadius: 20, border: `2px solid ${gymCreateBoulderScale === s ? W.accent : W.border}`, background: gymCreateBoulderScale === s ? W.accent+"22" : W.surface2, color: gymCreateBoulderScale === s ? W.accent : W.textDim, fontWeight: 700, fontSize: 12, cursor: "pointer" }}>{s}</button>
+                                ))}
+                              </div>
+                              <GradePreview scaleName={gymCreateBoulderScale} type="boulder" />
+                              <button onClick={() => { setSchemeBuilderFor("boulder"); setSchemeName(""); setSchemeGrades([]); setSchemeEditId(null); setShowSchemeBuilder(true); }} style={{ display: "flex", alignItems: "center", gap: 6, padding: "8px 14px", background: W.surface2, border: `1px solid ${W.border}`, borderRadius: 10, color: W.textMuted, fontWeight: 700, fontSize: 12, cursor: "pointer" }}>
+                                <span style={{ fontSize: 16 }}>+</span> Create Custom Scheme
+                              </button>
+                            </div>
+                          )}
+                          {hasRope && (
+                            <div style={{ marginBottom: 28 }}>
+                              <div style={{ fontSize: 14, fontWeight: 800, color: W.text, marginBottom: 4 }}>Rope Grading</div>
+                              <div style={{ fontSize: 12, color: W.textMuted, marginBottom: 12 }}>What grading system does this gym use for rope climbing?</div>
+                              <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 4 }}>
+                                {allRopeScales.map(s => (
+                                  <button key={s} onClick={() => setGymCreateRopeScale(s)} style={{ padding: "7px 14px", borderRadius: 20, border: `2px solid ${gymCreateRopeScale === s ? W.accent : W.border}`, background: gymCreateRopeScale === s ? W.accent+"22" : W.surface2, color: gymCreateRopeScale === s ? W.accent : W.textDim, fontWeight: 700, fontSize: 12, cursor: "pointer" }}>{s}</button>
+                                ))}
+                              </div>
+                              <GradePreview scaleName={gymCreateRopeScale} type="rope" />
+                              <button onClick={() => { setSchemeBuilderFor("rope"); setSchemeName(""); setSchemeGrades([]); setSchemeEditId(null); setShowSchemeBuilder(true); }} style={{ display: "flex", alignItems: "center", gap: 6, padding: "8px 14px", background: W.surface2, border: `1px solid ${W.border}`, borderRadius: 10, color: W.textMuted, fontWeight: 700, fontSize: 12, cursor: "pointer" }}>
+                                <span style={{ fontSize: 16 }}>+</span> Create Custom Scheme
+                              </button>
+                            </div>
+                          )}
+                        </>
+                      );
+                    })()}
                     {!hasBoulder && !hasRope && (
                       <div style={{ textAlign: "center", padding: "40px 20px", color: W.textMuted, fontSize: 13 }}>No grading schemes needed for the selected activities.</div>
                     )}
