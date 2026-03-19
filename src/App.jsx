@@ -1836,20 +1836,21 @@ export default function App() {
     for (const c of rawClimbs) {
       if (!c.setClimbId) continue;
       const id = c.setClimbId;
-      if (!setMeta[id]) setMeta[id] = { count: 0, completed: false, photo: null, mostRecentDate: "", totalTries: 0, totalTimeMs: 0 };
+      if (!setMeta[id]) setMeta[id] = { count: 0, completed: false, photo: null, mostRecentDate: "", totalTries: 0, totalFalls: 0, totalTimeMs: 0 };
       setMeta[id].count++;
       if (c.completed) setMeta[id].completed = true;
       if (!setMeta[id].photo && c.photo) setMeta[id].photo = c.photo;
       if ((c.sessionDate || "") > setMeta[id].mostRecentDate) setMeta[id].mostRecentDate = c.sessionDate;
       setMeta[id].totalTries += climbAttempts(c);
+      setMeta[id].totalFalls += (c.tries || 0);
       setMeta[id].totalTimeMs += climbTimeMs(c);
     }
 
     // Normalize set climbs: apply merged metadata so filter/sort uses aggregate values
     let climbs = rawClimbs.map(c => {
-      if (!c.setClimbId) return { ...c, _totalTries: climbAttempts(c), _totalTimeMs: climbTimeMs(c) };
+      if (!c.setClimbId) return { ...c, _totalTries: climbAttempts(c), _totalFalls: c.tries || 0, _totalTimeMs: climbTimeMs(c) };
       const meta = setMeta[c.setClimbId];
-      return { ...c, completed: meta.completed, photo: meta.photo, _sessionCount: meta.count, sessionDate: meta.mostRecentDate, _totalTries: meta.totalTries, _totalTimeMs: meta.totalTimeMs };
+      return { ...c, completed: meta.completed, photo: meta.photo, _sessionCount: meta.count, sessionDate: meta.mostRecentDate, _totalTries: meta.totalTries, _totalFalls: meta.totalFalls, _totalTimeMs: meta.totalTimeMs };
     }).filter(c => {
       if (logbookFilter === "completed" && !c.completed) return false;
       if (logbookFilter === "incomplete" && c.completed) return false;
@@ -6755,8 +6756,8 @@ export default function App() {
                                   <div style={{ position: "absolute", bottom: 0, left: 0, right: 0, zIndex: 2, padding: "6px 4px 4px" }}>
                                     <div style={{ display: "flex", justifyContent: "space-around" }}>
                                       {(c.climbType === "rope"
-                                        ? [{ val: c.tries || 0, label: "Att." }, { val: c.falls ?? 0, label: "Falls" }, { val: c._sessionCount || 1, label: "Sess." }]
-                                        : [{ val: c.tries || 0, label: "Falls" }, { val: climbAttempts(c), label: "Att." }, { val: c._sessionCount || 1, label: "Sess." }]
+                                        ? [{ val: c._totalTries || 0, label: "Att." }, { val: c._totalFalls ?? 0, label: "Falls" }, { val: c._sessionCount || 1, label: "Sess." }]
+                                        : [{ val: c._totalFalls ?? 0, label: "Falls" }, { val: c._totalTries || 0, label: "Att." }, { val: c._sessionCount || 1, label: "Sess." }]
                                       ).map((s, si) => (
                                         <div key={si} style={{ textAlign: "center", background: "rgba(0,0,0,0.35)", borderRadius: 6, padding: "3px 5px", minWidth: 34 }}>
                                           <div style={{ fontWeight: 900, fontSize: 13, color: "#fff", lineHeight: 1, textShadow: "0 1px 2px rgba(0,0,0,0.6)" }}>{s.val}</div>
@@ -6783,7 +6784,7 @@ export default function App() {
                                         {isOffWall && <span style={{ fontSize: 10, color: W.textMuted, fontWeight: 800 }}>🚫 Off Wall</span>}
                                       </div>
                                       <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
-                                        <span style={{ fontSize: 12, color: W.textMuted }}>{c.climbType === "rope" ? `${c.tries || 0} attempts · ${c.falls ?? 0} falls${(c.takes || 0) > 0 ? ` · ${c.takes} takes` : ""}` : `${c.tries || 0} falls · ${climbAttempts(c)} attempts`}{c._sessionCount > 1 ? ` · 🗓 ${c._sessionCount}` : ""}</span>
+                                        <span style={{ fontSize: 12, color: W.textMuted }}>{c.climbType === "rope" ? `${c._totalTries || 0} attempts · ${c._totalFalls ?? 0} falls` : `${c._totalFalls ?? 0} falls · ${c._totalTries || 0} attempts`}{c._sessionCount > 1 ? ` · 🗓 ${c._sessionCount}` : ""}</span>
                                         {c.section && <span style={{ fontSize: 11, color: W.accent, fontWeight: 700 }}>📌 {c.section}</span>}
                                       </div>
                                     </div>
