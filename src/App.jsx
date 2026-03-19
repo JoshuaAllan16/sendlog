@@ -234,11 +234,7 @@ export default function App() {
   const lbPhotoRef         = useRef();
   const sessionInitialized = useRef(false); // prevents persist effect from clearing active:climb before checkSession reads it
   const boulderListRef     = useRef(null);
-  const swipeStartRef      = useRef(null);  // { x, y, ts }
-  const swipeLockedRef     = useRef(null);  // null | "h" | "v"
-  const swipeAnimRef       = useRef(false);
-  const screenRef          = useRef(screen);
-  const scrollDivRef       = useRef(null);
+  const swipeStartRef      = useRef(null);
 
   const [showClimbForm, setShowClimbForm]       = useState(false);
   const [formProjectPickerOpen, setFormProjectPickerOpen] = useState(false);
@@ -7290,9 +7286,6 @@ export default function App() {
     );
   };
 
-  // Keep screenRef current so the non-passive touchmove handler sees the latest screen
-  useEffect(() => { screenRef.current = screen; }, [screen]);
-
   // §RENDER
   const backMap  = { sessionDetail: sessionDetailBackTo, calendar: "profile", projectDetail: "profile", userProfile: userProfileBackTo, social: "profile", leaderboard: "profile" };
   const navItems = [
@@ -7491,96 +7484,28 @@ export default function App() {
           <LocationDropdown value={activeSession?.location || ""} onChange={v => { setActiveSession(s => ({ ...s, location: v })); addCustomLocation(v); setActiveLocationDropdownOpen(false); if (gymScales[v]?.boulder) setPreferredScale(gymScales[v].boulder); if (gymScales[v]?.rope) setPreferredRopeScale(gymScales[v].rope); }} open={activeLocationDropdownOpen} setOpen={setActiveLocationDropdownOpen} knownLocations={knownLocations} onRemove={loc => setHiddenLocations(h => [...h, loc])} />
         </div>
       )}
-      <div
-        ref={node => {
-          if (scrollDivRef.current && scrollDivRef.current !== node) {
-            scrollDivRef.current.removeEventListener("touchmove", scrollDivRef.current._swipeMove);
-          }
-          scrollDivRef.current = node;
-          if (!node) return;
-          const STABS = ["home", "session", "profile"];
-          const moveHandler = (e) => {
-            if (!swipeStartRef.current) return;
-            const touch = e.touches[0];
-            const ddx = touch.clientX - swipeStartRef.current.x;
-            const ddy = touch.clientY - swipeStartRef.current.y;
-            if (!swipeLockedRef.current) {
-              if (Math.abs(ddx) > 7 || Math.abs(ddy) > 7) {
-                const si = STABS.indexOf(screenRef.current);
-                const canH = si !== -1 && !swipeAnimRef.current &&
-                  ((ddx < 0 && si < STABS.length - 1) || (ddx > 0 && si > 0));
-                swipeLockedRef.current = (Math.abs(ddx) >= Math.abs(ddy) && canH) ? "h" : "v";
-              }
-              return;
-            }
-            if (swipeLockedRef.current !== "h") return;
-            e.preventDefault();
-            const si = STABS.indexOf(screenRef.current);
-            const atEdge = (si === 0 && ddx > 0) || (si === STABS.length - 1 && ddx < 0);
-            const offset = atEdge ? Math.sign(ddx) * Math.pow(Math.abs(ddx), 0.55) * 5 : ddx;
-            node.style.transform = `translateX(${offset}px)`;
-            node.style.transition = "none";
-          };
-          node._swipeMove = moveHandler;
-          node.addEventListener("touchmove", moveHandler, { passive: false });
-        }}
-        style={{ flex: 1, overflowY: "auto", paddingBottom: screen === "sessionSummary" ? 0 : "calc(80px + env(safe-area-inset-bottom))" }}
+      <div style={{ flex: 1, overflowY: "auto", paddingBottom: screen === "sessionSummary" ? 0 : "calc(80px + env(safe-area-inset-bottom))" }}
         onTouchStart={e => {
-          if (swipeAnimRef.current) return;
-          const touch = e.touches[0];
-          swipeStartRef.current = { x: touch.clientX, y: touch.clientY, ts: Date.now() };
-          swipeLockedRef.current = null;
-          if (scrollDivRef.current) scrollDivRef.current.style.willChange = "transform";
+          const t = e.touches[0];
+          swipeStartRef.current = { x: t.clientX, y: t.clientY, ts: Date.now() };
         }}
         onTouchEnd={e => {
-          const el = scrollDivRef.current;
-          if (!swipeStartRef.current || swipeLockedRef.current !== "h") {
-            swipeStartRef.current = null;
-            swipeLockedRef.current = null;
-            if (el && el.style.transform && el.style.transform !== "translateX(0px)") {
-              el.style.transition = "transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1)";
-              el.style.transform = "translateX(0px)";
-              setTimeout(() => { if (el) { el.style.willChange = "auto"; el.style.transition = ""; } }, 400);
-            }
-            return;
-          }
-          const { x: startX, ts: startTs } = swipeStartRef.current;
+          if (!swipeStartRef.current) return;
+          const { x: sx, y: sy, ts } = swipeStartRef.current;
           swipeStartRef.current = null;
-          swipeLockedRef.current = null;
-          const touch = e.changedTouches[0];
-          const ddx = touch.clientX - startX;
-          const velocity = Math.abs(ddx) / Math.max(Date.now() - startTs, 1);
-          const STABS = ["home", "session", "profile"];
-          const si = STABS.indexOf(screen);
-          if (si === -1) { if (el) { el.style.transform = ""; el.style.willChange = "auto"; } return; }
-          const shouldCommit = (Math.abs(ddx) >= 58 || velocity > 0.45) &&
-            ((ddx < 0 && si < STABS.length - 1) || (ddx > 0 && si > 0));
-          if (shouldCommit) {
-            const nextTab = STABS[ddx < 0 ? si + 1 : si - 1];
-            const vpW = window.innerWidth;
-            swipeAnimRef.current = true;
-            el.style.transition = "transform 0.22s cubic-bezier(0.4, 0, 1, 1)";
-            el.style.transform = `translateX(${ddx < 0 ? -vpW : vpW}px)`;
-            setTimeout(() => {
-              if (!scrollDivRef.current) return;
-              if (nextTab === "session") { activeSession ? setScreen("session") : goToSessionSetup(); }
-              else setScreen(nextTab);
-              scrollDivRef.current.style.transition = "none";
-              scrollDivRef.current.style.transform = `translateX(${ddx < 0 ? vpW : -vpW}px)`;
-              requestAnimationFrame(() => requestAnimationFrame(() => {
-                if (!scrollDivRef.current) return;
-                scrollDivRef.current.style.transition = "transform 0.3s cubic-bezier(0, 0, 0.2, 1)";
-                scrollDivRef.current.style.transform = "translateX(0px)";
-                setTimeout(() => {
-                  if (scrollDivRef.current) { scrollDivRef.current.style.willChange = "auto"; scrollDivRef.current.style.transition = ""; }
-                  swipeAnimRef.current = false;
-                }, 300);
-              }));
-            }, 220);
-          } else {
-            el.style.transition = "transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1)";
-            el.style.transform = "translateX(0px)";
-            setTimeout(() => { if (el) { el.style.willChange = "auto"; el.style.transition = ""; } }, 400);
+          const t = e.changedTouches[0];
+          const dx = t.clientX - sx;
+          const dy = t.clientY - sy;
+          if (Math.abs(dx) < 55 || Math.abs(dx) < Math.abs(dy) * 1.5 || Date.now() - ts > 400) return;
+          const tabs = ["home", "session", "profile"];
+          const idx = tabs.indexOf(screen);
+          if (idx === -1) return;
+          if (dx < 0 && idx < tabs.length - 1) {
+            const next = tabs[idx + 1];
+            if (next === "session") { activeSession ? setScreen("session") : goToSessionSetup(); }
+            else setScreen(next);
+          } else if (dx > 0 && idx > 0) {
+            setScreen(tabs[idx - 1]);
           }
         }}
         onClick={() => { setLocationDropdownOpen(false); setActiveLocationDropdownOpen(false); }}>
