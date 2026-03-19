@@ -7444,7 +7444,7 @@ export default function App() {
     )}
     <div style={{ width: "100%", minHeight: "100vh", background: W.bg, fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif", display: "flex", justifyContent: "center", zoom: 1.1 }}>
     <div style={{ width: "100%", maxWidth: 420, display: "flex", flexDirection: "column" }}>
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "14px 20px", borderBottom: `1px solid ${W.border}`, background: W.navBg, position: "sticky", top: 0, zIndex: 50 }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "14px 20px", paddingTop: "calc(14px + env(safe-area-inset-top))", borderBottom: `1px solid ${W.border}`, background: W.navBg, position: "sticky", top: 0, zIndex: 50 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
           {(backMap[screen] || screen === "session" || screen === "sessionSummary") && (
             <button onClick={() => { if (screen === "session" && sessionStarted && showClimbForm) { setShowClimbForm(false); setPhotoPreview(null); setEditingClimbId(null); setShowNewBoulderForm(false); } else if (screen === "session" && !sessionStarted) setScreen("home"); else if (screen === "sessionSummary") setShowSummaryLeaveWarn(true); else if (backMap[screen]) { setScreen(backMap[screen]); setShowClimbForm(false); if (screen === "calendar" || screen === "projectDetail") setProfileTab("stats"); if (screen === "sessionDetail") setSessionReadOnly(false); } }} style={{ background: "none", border: "none", color: W.accent, fontSize: 16, cursor: "pointer", padding: 0, marginRight: 4 }}>←</button>
@@ -7483,7 +7483,7 @@ export default function App() {
           <LocationDropdown value={activeSession?.location || ""} onChange={v => { setActiveSession(s => ({ ...s, location: v })); addCustomLocation(v); setActiveLocationDropdownOpen(false); if (gymScales[v]?.boulder) setPreferredScale(gymScales[v].boulder); if (gymScales[v]?.rope) setPreferredRopeScale(gymScales[v].rope); }} open={activeLocationDropdownOpen} setOpen={setActiveLocationDropdownOpen} knownLocations={knownLocations} onRemove={loc => setHiddenLocations(h => [...h, loc])} />
         </div>
       )}
-      <div style={{ flex: 1, overflowY: "auto", paddingBottom: screen === "sessionSummary" ? 0 : 80 }} onClick={() => { setLocationDropdownOpen(false); setActiveLocationDropdownOpen(false); }}>
+      <div style={{ flex: 1, overflowY: "auto", paddingBottom: screen === "sessionSummary" ? 0 : "calc(80px + env(safe-area-inset-bottom))" }} onClick={() => { setLocationDropdownOpen(false); setActiveLocationDropdownOpen(false); }}>
         {screen === "home"          && <HomeScreen />}
         {screen === "session"       && (sessionStarted ? <ErrorBoundary key="session-active"><ActiveSessionRenderer render={SessionActiveScreen} /></ErrorBoundary> : SessionSetupScreen())}
         {screen === "social"        && SocialScreen()}
@@ -7568,7 +7568,7 @@ export default function App() {
       {/* Notification panel */}
       {showNotifPanel && (
         <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.55)", zIndex: 200, display: "flex", alignItems: "flex-end", justifyContent: "center" }} onClick={() => setShowNotifPanel(false)}>
-          <div style={{ width: "100%", maxWidth: 420, background: W.surface, borderRadius: "20px 20px 0 0", padding: "20px 20px 40px", maxHeight: "70vh", overflowY: "auto" }} onClick={e => e.stopPropagation()}>
+          <div style={{ width: "100%", maxWidth: 420, background: W.surface, borderRadius: "20px 20px 0 0", padding: "20px 20px 0", paddingBottom: "calc(20px + env(safe-area-inset-bottom))", maxHeight: "70vh", overflowY: "auto" }} onClick={e => e.stopPropagation()}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
               <div style={{ fontWeight: 800, color: W.text, fontSize: 17 }}>Notifications</div>
               <button onClick={() => setShowNotifPanel(false)} style={{ background: "none", border: "none", color: W.textMuted, fontSize: 20, cursor: "pointer", padding: 0 }}>×</button>
@@ -7633,7 +7633,7 @@ export default function App() {
       {/* Follower / Following list modal */}
       {socialUserList && (
         <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.55)", zIndex: 200, display: "flex", alignItems: "flex-end", justifyContent: "center" }} onClick={() => setSocialUserList(null)}>
-          <div style={{ width: "100%", maxWidth: 420, background: W.surface, borderRadius: "20px 20px 0 0", padding: "20px 20px 40px", maxHeight: "60vh", overflowY: "auto" }} onClick={e => e.stopPropagation()}>
+          <div style={{ width: "100%", maxWidth: 420, background: W.surface, borderRadius: "20px 20px 0 0", padding: "20px 20px 0", paddingBottom: "calc(20px + env(safe-area-inset-bottom))", maxHeight: "60vh", overflowY: "auto" }} onClick={e => e.stopPropagation()}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
               <div style={{ fontWeight: 800, color: W.text, fontSize: 17 }}>{socialUserList.type === "following" ? "Following" : "Followers"}</div>
               <button onClick={() => setSocialUserList(null)} style={{ background: "none", border: "none", color: W.textMuted, fontSize: 20, cursor: "pointer", padding: 0 }}>×</button>
@@ -7719,7 +7719,7 @@ export default function App() {
         );
       })()}
 
-      {screen !== "sessionSummary" && <div style={{ position: "fixed", bottom: 0, left: "50%", transform: "translateX(-50%)", width: "100%", maxWidth: 420, background: W.navBg, borderTop: `1px solid ${W.border}`, display: "flex", justifyContent: "space-around", alignItems: "center", padding: "6px 12px 18px", zIndex: 10 }}>
+      {screen !== "sessionSummary" && <div style={{ position: "fixed", bottom: 0, left: "50%", transform: "translateX(-50%)", width: "100%", maxWidth: 420, background: W.navBg, borderTop: `1px solid ${W.border}`, display: "flex", justifyContent: "space-around", alignItems: "center", padding: "6px 12px 0", paddingBottom: "calc(8px + env(safe-area-inset-bottom))", zIndex: 10 }}>
         {navItems.map(item => {
           const isActive = screen === item.id || (item.id === "session" && (screen === "session" || screen === "sessionSummary"));
           return (
@@ -7908,7 +7908,7 @@ export default function App() {
           }}
           style={{ position: "fixed", inset: 0, zIndex: 450, background: W.bg, overflowY: "auto", display: "flex", flexDirection: "column", transition: "transform 0.05s, opacity 0.05s" }}>
           {/* Header bar */}
-          <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "16px 20px 12px", background: W.surface, borderBottom: `1px solid ${W.border}`, position: "sticky", top: 0, zIndex: 2 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "16px 20px 12px", paddingTop: "calc(16px + env(safe-area-inset-top))", background: W.surface, borderBottom: `1px solid ${W.border}`, position: "sticky", top: 0, zIndex: 2 }}>
             <button onClick={() => { if (logbookClimbEditOpen && logbookEditOriginal && JSON.stringify(climbForm) !== logbookEditOriginal) { setShowUnsavedPrompt(true); } else { setSelectedLogbookClimb(null); setShowClimbShare(false); setLogbookClimbEditOpen(false); setLogbookEditOriginal(null); } }} style={{ background: W.surface2, border: `1px solid ${W.border}`, borderRadius: 10, padding: "7px 14px", color: W.text, fontWeight: 700, fontSize: 14, cursor: "pointer" }}>← Back</button>
             <div style={{ flex: 1, minWidth: 0 }}>
               <div style={{ fontWeight: 900, fontSize: 18, color: W.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{climb.name || climb.grade}</div>
@@ -8360,7 +8360,7 @@ export default function App() {
       return (
         <div style={{ position: "fixed", inset: 0, zIndex: 440, background: W.bg, overflowY: "auto", display: "flex", flexDirection: "column" }}>
           {/* Header */}
-          <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "16px 16px 12px", background: W.surface, borderBottom: `1px solid ${W.border}`, position: "sticky", top: 0, zIndex: 2 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "16px 16px 12px", paddingTop: "calc(16px + env(safe-area-inset-top))", background: W.surface, borderBottom: `1px solid ${W.border}`, position: "sticky", top: 0, zIndex: 2 }}>
             <button onClick={() => { setSelectedGym(null); setGymManageMode(false); setGymSelectedIds(new Set()); }} style={{ background: W.surface2, border: `1px solid ${W.border}`, borderRadius: 10, padding: "7px 14px", color: W.text, fontWeight: 700, fontSize: 14, cursor: "pointer" }}>←</button>
             <div style={{ flex: 1, minWidth: 0 }}>
               <div style={{ fontWeight: 900, fontSize: 18, color: W.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{loc}</div>
@@ -8452,7 +8452,7 @@ export default function App() {
           {/* Gym Settings modal */}
           {gymSettingsOpen && (
             <div onClick={() => setGymSettingsOpen(false)} style={{ position: "fixed", inset: 0, zIndex: 500, background: "rgba(0,0,0,0.6)", display: "flex", alignItems: "flex-end", justifyContent: "center" }}>
-              <div onClick={e => e.stopPropagation()} style={{ background: W.bg, borderRadius: "20px 20px 0 0", width: "100%", maxWidth: 480, maxHeight: "80vh", overflowY: "auto", padding: "20px 20px 40px" }}>
+              <div onClick={e => e.stopPropagation()} style={{ background: W.bg, borderRadius: "20px 20px 0 0", width: "100%", maxWidth: 480, maxHeight: "80vh", overflowY: "auto", padding: "20px 20px 0", paddingBottom: "calc(20px + env(safe-area-inset-bottom))" }}>
                 <div style={{ fontWeight: 900, fontSize: 18, color: W.text, marginBottom: 16 }}>⚙️ Gym Settings</div>
                 <div style={{ fontSize: 12, fontWeight: 700, color: W.textMuted, marginBottom: 6 }}>Wall Sections</div>
                 <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 8 }}>
@@ -8523,7 +8523,7 @@ export default function App() {
           }}
           style={{ position: "fixed", inset: 0, zIndex: 450, background: W.bg, overflowY: "auto", display: "flex", flexDirection: "column", transition: "transform 0.05s, opacity 0.05s" }}>
           {/* Header bar */}
-          <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "16px 20px 12px", background: W.surface, borderBottom: `1px solid ${W.border}`, position: "sticky", top: 0, zIndex: 2 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "16px 20px 12px", paddingTop: "calc(16px + env(safe-area-inset-top))", background: W.surface, borderBottom: `1px solid ${W.border}`, position: "sticky", top: 0, zIndex: 2 }}>
             <button onClick={() => { setSelectedSetClimb(null); setDeleteSetConfirm(false); setShowClimbShare(false); }} style={{ background: W.surface2, border: `1px solid ${W.border}`, borderRadius: 10, padding: "7px 14px", color: W.text, fontWeight: 700, fontSize: 14, cursor: "pointer" }}>←</button>
             <div style={{ flex: 1, minWidth: 0 }}>
               <div style={{ fontWeight: 900, fontSize: 18, color: W.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{entry.name || entry.grade}</div>
