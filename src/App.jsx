@@ -9068,6 +9068,7 @@ export default function App() {
           ref={gymOverlayRef}
           style={{ position: "fixed", inset: 0, zIndex: 440, background: W.bg, overflowY: "auto", display: "flex", flexDirection: "column" }}
           onTouchStart={e => {
+            if (showSendClimbs || showSendSingleClimb) return; // modal open — don't intercept touch
             const t = e.touches[0];
             gymSwipeRef.current = { x: t.clientX, y: t.clientY, ts: Date.now(), locked: null };
             const onMove = (me) => {
