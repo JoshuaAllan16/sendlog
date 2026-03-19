@@ -1844,16 +1844,16 @@ export default function App() {
     else if (logbookSort === "hardest") climbs.sort((a, b) => { const d = getGradeIndex(b.grade, b.scale) - getGradeIndex(a.grade, a.scale); return d !== 0 ? d : photoFirst(a, b); });
     else if (logbookSort === "easiest") climbs.sort((a, b) => { const d = getGradeIndex(a.grade, a.scale) - getGradeIndex(b.grade, b.scale); return d !== 0 ? d : photoFirst(a, b); });
     else if (logbookQuickSort === "grade") {
-      const dir = logbookQuickSortDir === "asc" ? 1 : -1;
+      const dir = logbookQuickSortDir === "desc" ? 1 : -1;
       climbs.sort((a, b) => { const d = dir * (getGradeIndex(b.grade, b.scale) - getGradeIndex(a.grade, a.scale)); return d !== 0 ? d : photoFirst(a, b); });
     } else if (logbookQuickSort === "attempts") {
-      const dir = logbookQuickSortDir === "asc" ? 1 : -1;
+      const dir = logbookQuickSortDir === "desc" ? 1 : -1;
       climbs.sort((a, b) => dir * ((b._totalTries || 0) - (a._totalTries || 0)));
     } else if (logbookQuickSort === "time") {
-      const dir = logbookQuickSortDir === "asc" ? 1 : -1;
+      const dir = logbookQuickSortDir === "desc" ? 1 : -1;
       climbs.sort((a, b) => dir * ((b._totalTimeMs || 0) - (a._totalTimeMs || 0)));
     } else {
-      const dir = logbookQuickSortDir === "asc" ? 1 : -1;
+      const dir = logbookQuickSortDir === "desc" ? 1 : -1;
       climbs.sort((a, b) => { const d = dir * (new Date(b.sessionDate) - new Date(a.sessionDate)); return d !== 0 ? d : photoFirst(a, b); });
     }
     // Deduplicate set climbs: keep first occurrence per setClimbId after sort
@@ -6589,11 +6589,11 @@ export default function App() {
             {/* Sort toggle buttons — always visible below filter bar */}
             <div style={{ display: "flex", gap: 6, marginBottom: 14, flexWrap: "wrap" }}>
               {[
-                { key: "date",     labelDesc: "↓ Newest",    labelAsc: "↑ Oldest"   },
-                { key: "grade",    labelDesc: "↓ Grade",     labelAsc: "↑ Grade"    },
-                { key: "attempts", labelDesc: "↓ Attempts",  labelAsc: "↑ Attempts" },
-                { key: "time",     labelDesc: "↓ Time",      labelAsc: "↑ Time"     },
-              ].map(({ key, labelDesc, labelAsc }) => {
+                { key: "date",     baseLabel: "Newest",   labelDesc: "↓ Newest",    labelAsc: "↑ Oldest"   },
+                { key: "grade",    baseLabel: "Grade",    labelDesc: "↓ Grade",     labelAsc: "↑ Grade"    },
+                { key: "attempts", baseLabel: "Attempts", labelDesc: "↓ Attempts",  labelAsc: "↑ Attempts" },
+                { key: "time",     baseLabel: "Time",     labelDesc: "↓ Time",      labelAsc: "↑ Time"     },
+              ].map(({ key, baseLabel, labelDesc, labelAsc }) => {
                 const isSpecialSort = logbookSort === "name" || logbookSort === "projects";
                 const active = !isSpecialSort && logbookQuickSort === key;
                 const isDesc = logbookQuickSortDir === "desc";
@@ -6609,7 +6609,7 @@ export default function App() {
                     }
                     setLogbookClimbPage(1);
                   }} style={{ padding: "7px 13px", borderRadius: 16, border: "2px solid", borderColor: active ? W.accent : W.border, background: active ? W.accent + "22" : W.surface2, color: active ? W.accent : W.textDim, cursor: "pointer", fontSize: 12, fontWeight: 700 }}>
-                    {active ? (isDesc ? labelDesc : labelAsc) : labelDesc}
+                    {active ? (isDesc ? labelDesc : labelAsc) : baseLabel}
                   </button>
                 );
               })}
