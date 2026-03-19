@@ -386,6 +386,7 @@ export default function App() {
   const [selectedGym, setSelectedGym] = useState(null);
   const [gymDetailsOpen, setGymDetailsOpen] = useState(false);
   const [gymSettingsOpen, setGymSettingsOpen] = useState(false);
+  const [confirmDeleteGym, setConfirmDeleteGym] = useState(false);
   const [gymSetView, setGymSetView] = useState("single"); // "single" | "tiles"
   const [editSetClimbOpen, setEditSetClimbOpen] = useState(false);
   const [gymSectionInput, setGymSectionInput] = useState("");
@@ -8952,7 +8953,7 @@ export default function App() {
 
           {/* Gym Settings modal */}
           {gymSettingsOpen && (
-            <div onClick={() => setGymSettingsOpen(false)} style={{ position: "fixed", inset: 0, zIndex: 500, background: "rgba(0,0,0,0.6)", display: "flex", alignItems: "flex-end", justifyContent: "center" }}>
+            <div onClick={() => { setGymSettingsOpen(false); setConfirmDeleteGym(false); }} style={{ position: "fixed", inset: 0, zIndex: 500, background: "rgba(0,0,0,0.6)", display: "flex", alignItems: "flex-end", justifyContent: "center" }}>
               <div onClick={e => e.stopPropagation()} style={{ background: W.bg, borderRadius: "20px 20px 0 0", width: "100%", maxWidth: 480, maxHeight: "80vh", overflowY: "auto", padding: "20px 20px 0", paddingBottom: "calc(20px + env(safe-area-inset-bottom))" }}>
                 <div style={{ fontWeight: 900, fontSize: 18, color: W.text, marginBottom: 16 }}>⚙️ Gym Settings</div>
                 <div style={{ fontSize: 12, fontWeight: 700, color: W.textMuted, marginBottom: 6 }}>Wall Sections</div>
@@ -8970,19 +8971,41 @@ export default function App() {
                 </div>
                 <div style={{ fontSize: 12, fontWeight: 700, color: W.textMuted, marginBottom: 6 }}>Boulder Grading Scale</div>
                 <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 14 }}>
-                  {Object.keys(GRADES).map(scale => (
+                  {getAllBoulderScaleNames().map(scale => (
                     <button key={scale} onClick={() => setGymScales(prev => ({ ...prev, [loc]: { ...(prev[loc] || {}), boulder: scale } }))} style={{ padding: "5px 12px", background: gs.boulder === scale ? W.accent : W.surface2, border: `1px solid ${gs.boulder === scale ? W.accent : W.border}`, borderRadius: 8, color: gs.boulder === scale ? "#fff" : W.textMuted, fontWeight: 700, fontSize: 11, cursor: "pointer" }}>{scale}</button>
                   ))}
                 </div>
                 <div style={{ fontSize: 12, fontWeight: 700, color: W.textMuted, marginBottom: 6 }}>Rope Grading Scale</div>
                 <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 14 }}>
-                  {Object.keys(ROPE_GRADES).map(scale => (
+                  {getAllRopeScaleNames().map(scale => (
                     <button key={scale} onClick={() => setGymScales(prev => ({ ...prev, [loc]: { ...(prev[loc] || {}), rope: scale } }))} style={{ padding: "5px 12px", background: gs.rope === scale ? W.accent : W.surface2, border: `1px solid ${gs.rope === scale ? W.accent : W.border}`, borderRadius: 8, color: gs.rope === scale ? "#fff" : W.textMuted, fontWeight: 700, fontSize: 11, cursor: "pointer" }}>{scale}</button>
                   ))}
                 </div>
                 <div style={{ fontSize: 12, fontWeight: 700, color: W.textMuted, marginBottom: 6 }}>Hours / Notes</div>
                 <textarea value={gs.notes || ""} onChange={e => setGymScales(prev => ({ ...prev, [loc]: { ...(prev[loc] || {}), notes: e.target.value } }))} placeholder="Hours, address, or notes about this gym…" rows={3} style={{ width: "100%", padding: "9px 12px", background: W.surface2, border: `1px solid ${W.border}`, borderRadius: 10, color: W.text, fontSize: 13, fontFamily: "inherit", outline: "none", resize: "none", boxSizing: "border-box" }} />
-                <button onClick={() => setGymSettingsOpen(false)} style={{ width: "100%", marginTop: 16, padding: "13px", background: W.accent, border: "none", borderRadius: 14, color: "#fff", fontWeight: 700, fontSize: 15, cursor: "pointer" }}>Done</button>
+                <button onClick={() => { setGymSettingsOpen(false); setConfirmDeleteGym(false); }} style={{ width: "100%", marginTop: 16, padding: "13px", background: W.accent, border: "none", borderRadius: 14, color: "#fff", fontWeight: 700, fontSize: 15, cursor: "pointer" }}>Done</button>
+                <div style={{ borderTop: `1px solid ${W.border}`, marginTop: 20, paddingTop: 16, marginBottom: 4 }}>
+                  {confirmDeleteGym ? (
+                    <div style={{ background: "rgba(220,50,50,0.08)", border: "1px solid rgba(220,50,50,0.3)", borderRadius: 12, padding: "12px 14px" }}>
+                      <div style={{ fontSize: 13, color: W.text, fontWeight: 700, marginBottom: 4 }}>Delete "{loc}"?</div>
+                      <div style={{ fontSize: 12, color: W.textMuted, marginBottom: 12 }}>This gym will be removed. Sessions logged here keep their location name.</div>
+                      <div style={{ display: "flex", gap: 8 }}>
+                        <button onClick={() => setConfirmDeleteGym(false)} style={{ flex: 1, padding: "10px", background: W.surface2, border: `1px solid ${W.border}`, borderRadius: 10, color: W.text, fontWeight: 700, fontSize: 13, cursor: "pointer" }}>Cancel</button>
+                        <button onClick={() => {
+                          setGyms(prev => prev.filter(g => g.name !== loc));
+                          setCustomLocations(prev => prev.filter(l => l !== loc));
+                          setGymScales(prev => { const n = { ...prev }; delete n[loc]; return n; });
+                          setConfirmDeleteGym(false);
+                          setGymSettingsOpen(false);
+                          setSelectedGym(null);
+                          setGymDetailsOpen(false);
+                        }} style={{ flex: 1, padding: "10px", background: "#dc3232", border: "none", borderRadius: 10, color: "#fff", fontWeight: 700, fontSize: 13, cursor: "pointer" }}>Delete Gym</button>
+                      </div>
+                    </div>
+                  ) : (
+                    <button onClick={() => setConfirmDeleteGym(true)} style={{ width: "100%", padding: "10px", background: "none", border: `1px solid rgba(220,50,50,0.4)`, borderRadius: 10, color: "#dc3232", fontWeight: 700, fontSize: 13, cursor: "pointer", marginBottom: 8 }}>Delete Gym</button>
+                  )}
+                </div>
               </div>
             </div>
           )}
