@@ -239,7 +239,10 @@ export default function App() {
   const swipeAnimRef       = useRef(false);
   const screenRef          = useRef(screen);
   const scrollDivRef       = useRef(null);
+  const peekDivRef         = useRef(null);
+  const swipePeekRef       = useRef(null); // { tab, fromRight } when peek is active
 
+  const [swipePeekScreen, setSwipePeekScreen]   = useState(null); // "home"|"session"|"profile" during swipe
   const [showClimbForm, setShowClimbForm]       = useState(false);
   const [formProjectPickerOpen, setFormProjectPickerOpen] = useState(false);
   const [editingClimbId, setEditingClimbId]     = useState(null);
@@ -7490,136 +7493,195 @@ export default function App() {
           <LocationDropdown value={activeSession?.location || ""} onChange={v => { setActiveSession(s => ({ ...s, location: v })); addCustomLocation(v); setActiveLocationDropdownOpen(false); if (gymScales[v]?.boulder) setPreferredScale(gymScales[v].boulder); if (gymScales[v]?.rope) setPreferredRopeScale(gymScales[v].rope); }} open={activeLocationDropdownOpen} setOpen={setActiveLocationDropdownOpen} knownLocations={knownLocations} onRemove={loc => setHiddenLocations(h => [...h, loc])} />
         </div>
       )}
-      <div
-        ref={node => { scrollDivRef.current = node; }}
-        style={{ flex: 1, overflowY: "auto", paddingBottom: screen === "sessionSummary" ? 0 : "calc(80px + env(safe-area-inset-bottom))" }}
-        onTouchStart={e => {
-          if (swipeAnimRef.current) return;
-          const touch = e.touches[0];
-          swipeStartRef.current = { x: touch.clientX, y: touch.clientY, ts: Date.now() };
-          swipeLockedRef.current = null;
-          // Attach non-passive touchmove on document so we can preventDefault for horizontal swipes
-          const onMove = (me) => {
-            if (!swipeStartRef.current) return;
-            const mt = me.touches[0];
-            const ddx = mt.clientX - swipeStartRef.current.x;
-            const ddy = mt.clientY - swipeStartRef.current.y;
-            if (!swipeLockedRef.current) {
-              if (Math.abs(ddx) > 7 || Math.abs(ddy) > 7) {
-                const si = ["home","session","profile"].indexOf(screenRef.current);
-                const canH = si !== -1 && !swipeAnimRef.current &&
-                  ((ddx < 0 && si < 2) || (ddx > 0 && si > 0));
-                swipeLockedRef.current = (Math.abs(ddx) >= Math.abs(ddy) && canH) ? "h" : "v";
+      {/* Clip container — holds main panel + peek panel side by side during swipe */}
+      <div style={{ flex: 1, position: "relative", overflow: "hidden" }}>
+        {/* Main panel */}
+        <div
+          ref={node => { scrollDivRef.current = node; }}
+          style={{ position: "absolute", inset: 0, overflowY: "auto", paddingBottom: screen === "sessionSummary" ? 0 : "calc(80px + env(safe-area-inset-bottom))" }}
+          onTouchStart={e => {
+            if (swipeAnimRef.current) return;
+            const touch = e.touches[0];
+            swipeStartRef.current = { x: touch.clientX, y: touch.clientY, ts: Date.now() };
+            swipeLockedRef.current = null;
+            // Attach non-passive touchmove on document so we can preventDefault for horizontal swipes
+            const onMove = (me) => {
+              if (!swipeStartRef.current) return;
+              const mt = me.touches[0];
+              const ddx = mt.clientX - swipeStartRef.current.x;
+              const ddy = mt.clientY - swipeStartRef.current.y;
+              if (!swipeLockedRef.current) {
+                if (Math.abs(ddx) > 7 || Math.abs(ddy) > 7) {
+                  const si = ["home","session","profile"].indexOf(screenRef.current);
+                  const canH = si !== -1 && !swipeAnimRef.current &&
+                    ((ddx < 0 && si < 2) || (ddx > 0 && si > 0));
+                  const locked = (Math.abs(ddx) >= Math.abs(ddy) && canH) ? "h" : "v";
+                  swipeLockedRef.current = locked;
+                  // Initiate peek panel on first horizontal lock
+                  if (locked === "h" && !swipePeekRef.current) {
+                    const si2 = ["home","session","profile"].indexOf(screenRef.current);
+                    const nextTab = ["home","session","profile"][ddx < 0 ? si2 + 1 : si2 - 1];
+                    if (nextTab) {
+                      swipePeekRef.current = { tab: nextTab, fromRight: ddx < 0 };
+                      setSwipePeekScreen(nextTab);
+                    }
+                  }
+                }
+                return;
+              }
+              if (swipeLockedRef.current !== "h") return;
+              me.preventDefault();
+              const si = ["home","session","profile"].indexOf(screenRef.current);
+              const atEdge = (si === 0 && ddx > 0) || (si === 2 && ddx < 0);
+              const offset = atEdge ? Math.sign(ddx) * Math.pow(Math.abs(ddx), 0.55) * 5 : ddx;
+              const vpW = window.innerWidth;
+              if (scrollDivRef.current) { scrollDivRef.current.style.transform = `translateX(${offset}px)`; scrollDivRef.current.style.transition = "none"; }
+              // Move peek panel: starts at ±vpW, tracks with drag
+              if (peekDivRef.current && swipePeekRef.current) {
+                const peekBase = swipePeekRef.current.fromRight ? vpW : -vpW;
+                peekDivRef.current.style.transform = `translateX(${peekBase + offset}px)`;
+                peekDivRef.current.style.transition = "none";
+              }
+            };
+            swipeStartRef.current.onMove = onMove;
+            document.addEventListener("touchmove", onMove, { passive: false });
+          }}
+          onTouchEnd={e => {
+            const onMove = swipeStartRef.current?.onMove;
+            if (onMove) document.removeEventListener("touchmove", onMove);
+            const el = scrollDivRef.current;
+            if (!swipeStartRef.current || swipeLockedRef.current !== "h") {
+              swipeStartRef.current = null;
+              swipeLockedRef.current = null;
+              if (el && el.style.transform && el.style.transform !== "translateX(0px)") {
+                el.style.transition = "transform 0.4s cubic-bezier(0.34,1.56,0.64,1)";
+                el.style.transform = "translateX(0px)";
+                setTimeout(() => { if (el) el.style.cssText = el.style.cssText.replace(/transition[^;]*;?/g,"").replace(/transform[^;]*;?/g,""); }, 400);
+              }
+              // Spring peek back if it somehow appeared
+              if (peekDivRef.current && swipePeekRef.current) {
+                const vpW = window.innerWidth;
+                peekDivRef.current.style.transition = "transform 0.4s cubic-bezier(0.34,1.56,0.64,1)";
+                peekDivRef.current.style.transform = `translateX(${swipePeekRef.current.fromRight ? vpW : -vpW}px)`;
+                setTimeout(() => { setSwipePeekScreen(null); swipePeekRef.current = null; }, 400);
               }
               return;
             }
-            if (swipeLockedRef.current !== "h") return;
-            me.preventDefault();
-            const si = ["home","session","profile"].indexOf(screenRef.current);
-            const atEdge = (si === 0 && ddx > 0) || (si === 2 && ddx < 0);
-            const offset = atEdge ? Math.sign(ddx) * Math.pow(Math.abs(ddx), 0.55) * 5 : ddx;
-            if (scrollDivRef.current) { scrollDivRef.current.style.transform = `translateX(${offset}px)`; scrollDivRef.current.style.transition = "none"; }
-          };
-          swipeStartRef.current.onMove = onMove;
-          document.addEventListener("touchmove", onMove, { passive: false });
-        }}
-        onTouchEnd={e => {
-          const onMove = swipeStartRef.current?.onMove;
-          if (onMove) document.removeEventListener("touchmove", onMove);
-          const el = scrollDivRef.current;
-          if (!swipeStartRef.current || swipeLockedRef.current !== "h") {
+            const { x: startX, ts: startTs } = swipeStartRef.current;
             swipeStartRef.current = null;
             swipeLockedRef.current = null;
-            if (el && el.style.transform && el.style.transform !== "translateX(0px)") {
+            const touch = e.changedTouches[0];
+            const ddx = touch.clientX - startX;
+            const velocity = Math.abs(ddx) / Math.max(Date.now() - startTs, 1);
+            const STABS = ["home","session","profile"];
+            const si = STABS.indexOf(screen);
+            if (si === -1) { if (el) { el.style.transform = ""; } return; }
+            const shouldCommit = (Math.abs(ddx) >= 58 || velocity > 0.45) &&
+              ((ddx < 0 && si < 2) || (ddx > 0 && si > 0));
+            if (shouldCommit) {
+              const nextTab = STABS[ddx < 0 ? si + 1 : si - 1];
+              const vpW = window.innerWidth;
+              swipeAnimRef.current = true;
+              // Slide main panel out
+              el.style.transition = "transform 0.22s cubic-bezier(0.4,0,1,1)";
+              el.style.transform = `translateX(${ddx < 0 ? -vpW : vpW}px)`;
+              // Slide peek panel to center
+              if (peekDivRef.current) {
+                peekDivRef.current.style.transition = "transform 0.22s cubic-bezier(0.4,0,1,1)";
+                peekDivRef.current.style.transform = "translateX(0)";
+              }
+              setTimeout(() => {
+                // Switch screen — React batch: main now shows nextTab at 0, peek removed
+                if (nextTab === "session") { activeSession ? setScreen("session") : goToSessionSetup(); } else setScreen(nextTab);
+                setSwipePeekScreen(null);
+                swipePeekRef.current = null;
+                if (scrollDivRef.current) { scrollDivRef.current.style.transition = "none"; scrollDivRef.current.style.transform = ""; }
+                swipeAnimRef.current = false;
+              }, 220);
+            } else {
+              const vpW = window.innerWidth;
+              // Spring main back
               el.style.transition = "transform 0.4s cubic-bezier(0.34,1.56,0.64,1)";
               el.style.transform = "translateX(0px)";
-              setTimeout(() => { if (el) el.style.cssText = el.style.cssText.replace(/transition[^;]*;?/g,"").replace(/transform[^;]*;?/g,""); }, 400);
+              // Spring peek back off-screen
+              if (peekDivRef.current && swipePeekRef.current) {
+                peekDivRef.current.style.transition = "transform 0.4s cubic-bezier(0.34,1.56,0.64,1)";
+                peekDivRef.current.style.transform = `translateX(${swipePeekRef.current.fromRight ? vpW : -vpW}px)`;
+              }
+              setTimeout(() => {
+                if (el) { el.style.transform = ""; el.style.transition = ""; }
+                setSwipePeekScreen(null);
+                swipePeekRef.current = null;
+              }, 400);
             }
-            return;
-          }
-          const { x: startX, ts: startTs } = swipeStartRef.current;
-          swipeStartRef.current = null;
-          swipeLockedRef.current = null;
-          const touch = e.changedTouches[0];
-          const ddx = touch.clientX - startX;
-          const velocity = Math.abs(ddx) / Math.max(Date.now() - startTs, 1);
-          const STABS = ["home","session","profile"];
-          const si = STABS.indexOf(screen);
-          if (si === -1) { if (el) { el.style.transform = ""; } return; }
-          const shouldCommit = (Math.abs(ddx) >= 58 || velocity > 0.45) &&
-            ((ddx < 0 && si < 2) || (ddx > 0 && si > 0));
-          if (shouldCommit) {
-            const nextTab = STABS[ddx < 0 ? si + 1 : si - 1];
-            const vpW = window.innerWidth;
-            swipeAnimRef.current = true;
-            el.style.transition = "transform 0.22s cubic-bezier(0.4,0,1,1)";
-            el.style.transform = `translateX(${ddx < 0 ? -vpW : vpW}px)`;
-            setTimeout(() => {
-              if (!scrollDivRef.current) return;
-              if (nextTab === "session") { activeSession ? setScreen("session") : goToSessionSetup(); } else setScreen(nextTab);
-              scrollDivRef.current.style.transition = "none";
-              scrollDivRef.current.style.transform = `translateX(${ddx < 0 ? vpW : -vpW}px)`;
-              requestAnimationFrame(() => requestAnimationFrame(() => {
-                if (!scrollDivRef.current) return;
-                scrollDivRef.current.style.transition = "transform 0.3s cubic-bezier(0,0,0.2,1)";
-                scrollDivRef.current.style.transform = "translateX(0px)";
-                setTimeout(() => {
-                  if (scrollDivRef.current) { scrollDivRef.current.style.transform = ""; scrollDivRef.current.style.transition = ""; }
-                  swipeAnimRef.current = false;
-                }, 300);
-              }));
-            }, 220);
-          } else {
-            el.style.transition = "transform 0.4s cubic-bezier(0.34,1.56,0.64,1)";
-            el.style.transform = "translateX(0px)";
-            setTimeout(() => { if (el) { el.style.transform = ""; el.style.transition = ""; } }, 400);
-          }
-        }}
-        onTouchCancel={() => {
-          const onMove = swipeStartRef.current?.onMove;
-          if (onMove) document.removeEventListener("touchmove", onMove);
-          swipeStartRef.current = null;
-          swipeLockedRef.current = null;
-          if (scrollDivRef.current) { scrollDivRef.current.style.transform = ""; scrollDivRef.current.style.transition = ""; }
-        }}
-        onClick={() => { setLocationDropdownOpen(false); setActiveLocationDropdownOpen(false); }}>
-        {screen === "home"          && <HomeScreen />}
-        {screen === "session"       && (sessionStarted ? <ErrorBoundary key="session-active"><ActiveSessionRenderer render={SessionActiveScreen} /></ErrorBoundary> : SessionSetupScreen())}
-        {screen === "social"        && SocialScreen()}
-        {screen === "userProfile"   && UserProfileScreen()}
-        {screen === "profile"       && ProfileScreen()}
-        {screen === "sessionDetail" && selectedSession && <SessionDetailScreen session={selectedSession} />}
-        {screen === "calendar"      && <CalendarScreen />}
-        {screen === "projectDetail" && selectedProject && <ProjectDetailScreen
-          project={projects.find(p => p.id === selectedProject.id) || selectedProject}
-          history={getProjectHistory(selectedProject.id)}
-          totalTries={getProjectTotalTries(selectedProject.id)}
-          totalMs={getProjectTotalTimeMs(selectedProject.id)}
-          photo={getProjectPhoto(selectedProject.id)}
-          getGradeIndex={getGradeIndex}
-          updateProjectNotes={updateProjectNotes}
-          markProjectSent={markProjectSent}
-          deactivateProject={deactivateProject}
-          reactivateProject={reactivateProject}
-          setScreen={setScreen}
-          setProfileTab={setProfileTab}
-        />}
-        {screen === "leaderboard"    && LeaderboardScreen()}
-        {screen === "sessionSummary" && sessionSummary && <SessionSummaryScreen
-          session={sessionSummary}
-          getSessionStats={getSessionStats}
-          getGradeIndex={getGradeIndex}
-          leaderboardData={leaderboardData}
-          goToLeaderboard={goToLeaderboard}
-          setSessionSummary={setSessionSummary}
-          setScreen={setScreen}
-          discardSession={discardSession}
-          showSummaryLeaveWarn={showSummaryLeaveWarn}
-          setShowSummaryLeaveWarn={setShowSummaryLeaveWarn}
-          updateSessionNotes={updateSessionNotes}
-          recentSessions={sessions.filter(s => s.id !== sessionSummary.id).slice(0, 5)}
-          allSessions={sessions}
-        />}
+          }}
+          onTouchCancel={() => {
+            const onMove = swipeStartRef.current?.onMove;
+            if (onMove) document.removeEventListener("touchmove", onMove);
+            swipeStartRef.current = null;
+            swipeLockedRef.current = null;
+            if (scrollDivRef.current) { scrollDivRef.current.style.transform = ""; scrollDivRef.current.style.transition = ""; }
+            setSwipePeekScreen(null);
+            swipePeekRef.current = null;
+          }}
+          onClick={() => { setLocationDropdownOpen(false); setActiveLocationDropdownOpen(false); }}>
+          {screen === "home"          && <HomeScreen />}
+          {screen === "session"       && (sessionStarted ? <ErrorBoundary key="session-active"><ActiveSessionRenderer render={SessionActiveScreen} /></ErrorBoundary> : SessionSetupScreen())}
+          {screen === "social"        && SocialScreen()}
+          {screen === "userProfile"   && UserProfileScreen()}
+          {screen === "profile"       && ProfileScreen()}
+          {screen === "sessionDetail" && selectedSession && <SessionDetailScreen session={selectedSession} />}
+          {screen === "calendar"      && <CalendarScreen />}
+          {screen === "projectDetail" && selectedProject && <ProjectDetailScreen
+            project={projects.find(p => p.id === selectedProject.id) || selectedProject}
+            history={getProjectHistory(selectedProject.id)}
+            totalTries={getProjectTotalTries(selectedProject.id)}
+            totalMs={getProjectTotalTimeMs(selectedProject.id)}
+            photo={getProjectPhoto(selectedProject.id)}
+            getGradeIndex={getGradeIndex}
+            updateProjectNotes={updateProjectNotes}
+            markProjectSent={markProjectSent}
+            deactivateProject={deactivateProject}
+            reactivateProject={reactivateProject}
+            setScreen={setScreen}
+            setProfileTab={setProfileTab}
+          />}
+          {screen === "leaderboard"    && LeaderboardScreen()}
+          {screen === "sessionSummary" && sessionSummary && <SessionSummaryScreen
+            session={sessionSummary}
+            getSessionStats={getSessionStats}
+            getGradeIndex={getGradeIndex}
+            leaderboardData={leaderboardData}
+            goToLeaderboard={goToLeaderboard}
+            setSessionSummary={setSessionSummary}
+            setScreen={setScreen}
+            discardSession={discardSession}
+            showSummaryLeaveWarn={showSummaryLeaveWarn}
+            setShowSummaryLeaveWarn={setShowSummaryLeaveWarn}
+            updateSessionNotes={updateSessionNotes}
+            recentSessions={sessions.filter(s => s.id !== sessionSummary.id).slice(0, 5)}
+            allSessions={sessions}
+          />}
+        </div>
+
+        {/* Peek panel — adjacent screen visible during horizontal swipe */}
+        {swipePeekScreen && (
+          <div
+            ref={node => {
+              peekDivRef.current = node;
+              // Set initial off-screen position when panel first mounts
+              if (node && swipePeekRef.current) {
+                const vpW = window.innerWidth;
+                node.style.transform = `translateX(${swipePeekRef.current.fromRight ? vpW : -vpW}px)`;
+                node.style.transition = "none";
+              }
+            }}
+            style={{ position: "absolute", inset: 0, overflowY: "auto", paddingBottom: "calc(80px + env(safe-area-inset-bottom))", pointerEvents: "none" }}>
+            {swipePeekScreen === "home"    && <HomeScreen />}
+            {swipePeekScreen === "session" && (activeSession ? <ErrorBoundary key="session-peek"><ActiveSessionRenderer render={SessionActiveScreen} /></ErrorBoundary> : SessionSetupScreen())}
+            {swipePeekScreen === "profile" && ProfileScreen()}
+          </div>
+        )}
       </div>
 
       {/* Abandoned session recovery popup */}
