@@ -390,6 +390,16 @@ export default function App() {
   const [gymEditName, setGymEditName] = useState("");
   const [gymSetView, setGymSetView] = useState("tiles"); // "single" | "tiles"
   const [gymDetailTab, setGymDetailTab] = useState("overview"); // "overview" | "sets"
+  const [showSendClimbs, setShowSendClimbs] = useState(false);
+  const [sendClimbStep, setSendClimbStep] = useState("select"); // "select" | "friend"
+  const [sendSelectedIds, setSendSelectedIds] = useState(new Set());
+  const [sendMutuals, setSendMutuals] = useState(null);
+  const [sendToUser, setSendToUser] = useState(null);
+  const [sendingClimbs, setSendingClimbs] = useState(false);
+  const [showSendSingleClimb, setShowSendSingleClimb] = useState(false);
+  const [pendingSharedClimbs, setPendingSharedClimbs] = useState(null);
+  const [sharedClimbGym, setSharedClimbGym] = useState("");
+  const [sharedClimbSections, setSharedClimbSections] = useState({});
   const [editSetClimbOpen, setEditSetClimbOpen] = useState(false);
   const [gymSectionInput, setGymSectionInput] = useState("");
   const [gymManageMode, setGymManageMode] = useState(false);
@@ -2007,6 +2017,21 @@ export default function App() {
     } catch { return []; }
   };
 
+  const loadMutuals = async () => {
+    if (!currentUser) return [];
+    try {
+      const myFollowers = await loadFollowersStore(currentUser.username);
+      const results = await Promise.all(
+        socialFollowing.map(async uname => {
+          const theirData = await loadUserData(uname);
+          const isMutual = myFollowers.includes(uname) || (theirData?.profile?.following || []).includes(currentUser.username);
+          return isMutual ? { username: uname, displayName: theirData?.profile?.displayName || uname } : null;
+        })
+      );
+      return results.filter(Boolean);
+    } catch { return []; }
+  };
+
   const updateFollowersStore = async (username, list) => {
     try { await storage.set(`followers:${username}`, JSON.stringify(list)); } catch {}
   };
@@ -2024,6 +2049,19 @@ export default function App() {
       const updated = [notif, ...existing].slice(0, 50);
       await storage.set(`notifications:${toUsername}`, JSON.stringify(updated));
     } catch {}
+  };
+
+  const sendClimbsToFriend = async (strippedClimbs, toUsername) => {
+    const notif = {
+      id: `share_${Date.now()}`,
+      type: "climbShare",
+      from: currentUser.username,
+      fromDisplay: editDisplayName || currentUser.displayName || currentUser.username,
+      climbs: strippedClimbs,
+      at: new Date().toISOString(),
+      read: false,
+    };
+    await addNotification(toUsername, notif);
   };
 
   const loadFollowRequestsFor = async (username) => {
@@ -7288,6 +7326,11 @@ export default function App() {
                     ? <div style={{ fontSize: 13, color: W.text }}><span style={{ fontWeight: 700 }}>{n.fromDisplay}</span> requested to follow you</div>
                     : n.type === "comment"
                     ? <div style={{ fontSize: 13, color: W.text }}><span style={{ fontWeight: 700 }}>{n.fromDisplay}</span> commented on your session</div>
+                    : n.type === "climbShare"
+                    ? <div>
+                        <div style={{ fontSize: 13, color: W.text }}><span style={{ fontWeight: 700 }}>{n.fromDisplay}</span> sent you {n.climbs?.length === 1 ? "a climb" : `${n.climbs?.length} climbs`} 📤</div>
+                        <button onClick={() => { setPendingSharedClimbs(n); setSharedClimbGym(""); setSharedClimbSections({}); setScreen("social"); }} style={{ marginTop: 6, padding: "5px 12px", background: W.accent + "22", border: `1px solid ${W.accent}`, borderRadius: 8, color: W.accent, fontWeight: 700, fontSize: 11, cursor: "pointer" }}>View & Add to Gym</button>
+                      </div>
                     : <div style={{ fontSize: 13, color: W.text }}><span style={{ fontWeight: 700 }}>{n.fromDisplay}</span> logged a session{n.location ? ` at ${n.location}` : ""}</div>
                   }
                   <div style={{ fontSize: 11, color: W.textDim, marginTop: 2 }}>{new Date(n.at).toLocaleDateString()}</div>
@@ -8094,6 +8137,11 @@ export default function App() {
                         ? <div style={{ fontSize: 13, color: W.text }}><span style={{ fontWeight: 700 }}>{n.fromDisplay}</span> requested to follow you</div>
                         : n.type === "comment"
                         ? <div style={{ fontSize: 13, color: W.text }}><span style={{ fontWeight: 700 }}>{n.fromDisplay}</span> commented on your session</div>
+                        : n.type === "climbShare"
+                        ? <div>
+                            <div style={{ fontSize: 13, color: W.text }}><span style={{ fontWeight: 700 }}>{n.fromDisplay}</span> sent you {n.climbs?.length === 1 ? "a climb" : `${n.climbs?.length} climbs`} 📤</div>
+                            <button onClick={() => { setPendingSharedClimbs(n); setSharedClimbGym(""); setSharedClimbSections({}); setShowNotifPanel(false); setScreen("social"); setSocialTab("notifications"); }} style={{ marginTop: 6, padding: "5px 12px", background: W.accent + "22", border: `1px solid ${W.accent}`, borderRadius: 8, color: W.accent, fontWeight: 700, fontSize: 11, cursor: "pointer" }}>View & Add to Gym</button>
+                          </div>
                         : <div style={{ fontSize: 13, color: W.text }}><span style={{ fontWeight: 700 }}>{n.fromDisplay}</span> logged a session{n.location ? ` at ${n.location}` : ""}</div>
                       }
                       <div style={{ fontSize: 11, color: W.textDim, marginTop: 2 }}>{new Date(n.at).toLocaleDateString()}</div>
@@ -8105,6 +8153,104 @@ export default function App() {
           </div>
         </div>
       )}
+
+      {/* Receive Shared Climbs modal */}
+      {pendingSharedClimbs && (() => {
+        const climbs = pendingSharedClimbs.climbs || [];
+        const gymOptions = [...gyms.map(g => g.name), ...customLocations.filter(l => !gyms.find(g => g.name === l))];
+        const selectedGymObj = gymScales[sharedClimbGym] || {};
+        const gymSectionOptions = ["Unknown", ...(selectedGymObj.wallSections || [])];
+        const handleAddToGym = () => {
+          if (!sharedClimbGym) return;
+          const now = Date.now();
+          const newEntries = climbs.map((c, i) => ({
+            id: now + i,
+            name: c.name,
+            grade: c.grade,
+            scale: c.scale,
+            color: c.color,
+            wallTypes: c.wallTypes || [],
+            holdTypes: c.holdTypes || [],
+            climbType: c.climbType || "boulder",
+            photo: c.photo || null,
+            section: sharedClimbSections[c.id] === "Unknown" ? "" : (sharedClimbSections[c.id] || ""),
+            location: sharedClimbGym,
+            setDate: new Date().toISOString(),
+            removed: false,
+            isProject: false,
+          }));
+          setGymSets(prev => ({ ...prev, [sharedClimbGym]: [...(prev[sharedClimbGym] || []), ...newEntries] }));
+          const updated = notifications.map(n => n.id === pendingSharedClimbs.id ? { ...n, read: true, handled: true } : n);
+          setNotifications(updated);
+          storage.set(`notifications:${currentUser.username}`, JSON.stringify(updated)).catch(() => {});
+          setPendingSharedClimbs(null);
+        };
+        return (
+          <div onClick={() => setPendingSharedClimbs(null)} style={{ position: "fixed", inset: 0, zIndex: 600, background: "rgba(0,0,0,0.6)", display: "flex", alignItems: "flex-end", justifyContent: "center" }}>
+            <div onClick={e => e.stopPropagation()} style={{ background: W.bg, borderRadius: "20px 20px 0 0", width: "100%", maxWidth: 480, maxHeight: "88vh", display: "flex", flexDirection: "column", overflow: "hidden", paddingBottom: "env(safe-area-inset-bottom)" }}>
+              {/* Header */}
+              <div style={{ padding: "16px 16px 12px", borderBottom: `1px solid ${W.border}`, flexShrink: 0 }}>
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                  <div style={{ fontWeight: 900, fontSize: 17, color: W.text }}>Climbs from {pendingSharedClimbs.fromDisplay}</div>
+                  <button onClick={() => setPendingSharedClimbs(null)} style={{ background: "none", border: "none", color: W.textMuted, fontSize: 20, cursor: "pointer" }}>×</button>
+                </div>
+                <div style={{ fontSize: 12, color: W.textMuted, marginTop: 3 }}>{climbs.length} climb{climbs.length !== 1 ? "s" : ""} shared with you</div>
+              </div>
+              {/* Scroll area */}
+              <div style={{ flex: 1, minHeight: 0, overflowY: "auto", padding: "14px 16px" }}>
+                {/* Gym picker */}
+                <div style={{ marginBottom: 16 }}>
+                  <div style={{ fontSize: 12, fontWeight: 700, color: W.textMuted, marginBottom: 6 }}>Add to Gym</div>
+                  <select value={sharedClimbGym} onChange={e => { setSharedClimbGym(e.target.value); setSharedClimbSections({}); }} style={{ width: "100%", padding: "10px 12px", background: W.surface2, border: `1px solid ${W.border}`, borderRadius: 10, color: W.text, fontSize: 14, fontFamily: "inherit", appearance: "auto" }}>
+                    <option value="">— Select a gym —</option>
+                    {gymOptions.map(g => <option key={g} value={g}>{g}</option>)}
+                  </select>
+                </div>
+                {/* Climbs list with section pickers */}
+                {climbs.map(c => {
+                  const gradeColor = getGradeColor(c.grade);
+                  const colorEntry = CLIMB_COLORS.find(cc => cc.id === c.color);
+                  return (
+                    <div key={c.id} style={{ background: W.surface, borderRadius: 14, border: `1px solid ${W.border}`, overflow: "hidden", marginBottom: 10 }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 12px" }}>
+                        {c.photo
+                          ? <img src={c.photo} alt="" style={{ width: 44, height: 44, borderRadius: 8, objectFit: "cover", flexShrink: 0 }} />
+                          : <div style={{ width: 44, height: 44, borderRadius: 8, background: gradeColor + "22", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                              <span style={{ fontWeight: 900, fontSize: 13, color: gradeColor }}>{c.grade}</span>
+                            </div>
+                        }
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 2 }}>
+                            <div style={{ background: gradeColor, color: "#fff", borderRadius: 5, padding: "1px 7px", fontWeight: 900, fontSize: 12 }}>{c.grade}</div>
+                            {colorEntry && <div style={{ width: 10, height: 10, borderRadius: "50%", background: colorEntry.hex }} />}
+                          </div>
+                          {c.name && <div style={{ fontSize: 13, fontWeight: 700, color: W.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{c.name}</div>}
+                          {c.section && <div style={{ fontSize: 11, color: W.textMuted }}>Was in: {c.section}</div>}
+                        </div>
+                      </div>
+                      {sharedClimbGym && (
+                        <div style={{ borderTop: `1px solid ${W.border}`, padding: "8px 12px", display: "flex", alignItems: "center", gap: 8 }}>
+                          <span style={{ fontSize: 11, color: W.textMuted, flexShrink: 0 }}>Section:</span>
+                          <select value={sharedClimbSections[c.id] || ""} onChange={e => setSharedClimbSections(prev => ({ ...prev, [c.id]: e.target.value }))} style={{ flex: 1, padding: "5px 8px", background: W.surface2, border: `1px solid ${W.border}`, borderRadius: 8, color: W.text, fontSize: 12, fontFamily: "inherit", appearance: "auto" }}>
+                            <option value="">— Choose section —</option>
+                            {gymSectionOptions.map(s => <option key={s} value={s}>{s}</option>)}
+                          </select>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+              {/* Add button */}
+              <div style={{ padding: "12px 16px 16px", borderTop: `1px solid ${W.border}`, flexShrink: 0 }}>
+                <button disabled={!sharedClimbGym} onClick={handleAddToGym} style={{ width: "100%", padding: "13px", background: sharedClimbGym ? W.accent : W.surface2, border: "none", borderRadius: 14, color: sharedClimbGym ? "#fff" : W.textDim, fontWeight: 700, fontSize: 15, cursor: sharedClimbGym ? "pointer" : "default" }}>
+                  Add {climbs.length} Climb{climbs.length !== 1 ? "s" : ""} to {sharedClimbGym || "Gym"}
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
 
       {/* Comment panel */}
       {commentPanelId && (
@@ -9128,7 +9274,140 @@ export default function App() {
                 )}
               </div>
             )}
+
+            {/* Send Climbs button */}
+            <div style={{ padding: "16px 0 0" }}>
+              <button onClick={async () => {
+                setSendSelectedIds(new Set());
+                setSendClimbStep("select");
+                setSendToUser(null);
+                setSendMutuals(null);
+                setShowSendClimbs(true);
+                const m = await loadMutuals();
+                setSendMutuals(m);
+              }} style={{ width: "100%", padding: "12px", background: W.surface2, border: `1px solid ${W.border}`, borderRadius: 14, color: W.textMuted, fontWeight: 700, fontSize: 13, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}>
+                📤 Send Climbs to a Friend
+              </button>
+            </div>
           </div>
+
+          {/* Send Climbs modal */}
+          {showSendClimbs && (() => {
+            const toggleSend = (id) => setSendSelectedIds(prev => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n; });
+            const toggleSection = (sec) => {
+              const ids = (sectionGroups[sec] || []).map(e => e.id);
+              const allSelected = ids.every(id => sendSelectedIds.has(id));
+              setSendSelectedIds(prev => {
+                const n = new Set(prev);
+                allSelected ? ids.forEach(id => n.delete(id)) : ids.forEach(id => n.add(id));
+                return n;
+              });
+            };
+            const handleSend = async () => {
+              if (!sendToUser || sendSelectedIds.size === 0 || sendingClimbs) return;
+              setSendingClimbs(true);
+              const stripped = [...sendSelectedIds].map(id => {
+                const entry = allEntries.find(e => e.id === id);
+                if (!entry) return null;
+                const { photo } = entryStats(entry);
+                return { id: `shared_${Date.now()}_${id}`, name: entry.name || "", grade: entry.grade || "", scale: entry.scale || "V-Scale", color: entry.color || null, wallTypes: entry.wallTypes || [], holdTypes: entry.holdTypes || [], climbType: entry.climbType || "boulder", photo: photo || null, section: entry.section || null };
+              }).filter(Boolean);
+              await sendClimbsToFriend(stripped, sendToUser.username);
+              setSendingClimbs(false);
+              setShowSendClimbs(false);
+              setSendSelectedIds(new Set());
+              setSendToUser(null);
+            };
+            return (
+              <div onClick={() => setShowSendClimbs(false)} style={{ position: "fixed", inset: 0, zIndex: 500, background: "rgba(0,0,0,0.6)", display: "flex", alignItems: "flex-end", justifyContent: "center" }}>
+                <div onClick={e => e.stopPropagation()} style={{ background: W.bg, borderRadius: "20px 20px 0 0", width: "100%", maxWidth: 480, maxHeight: "85vh", display: "flex", flexDirection: "column", overflow: "hidden", paddingBottom: "env(safe-area-inset-bottom)" }}>
+                  {/* Header */}
+                  <div style={{ padding: "16px 16px 12px", borderBottom: `1px solid ${W.border}`, flexShrink: 0 }}>
+                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 4 }}>
+                      <div style={{ fontWeight: 900, fontSize: 17, color: W.text }}>
+                        {sendClimbStep === "select" ? "Select Climbs" : "Send to Friend"}
+                      </div>
+                      <button onClick={() => setShowSendClimbs(false)} style={{ background: "none", border: "none", color: W.textMuted, fontSize: 20, cursor: "pointer" }}>×</button>
+                    </div>
+                    {sendClimbStep === "select" && sendSelectedIds.size > 0 && (
+                      <div style={{ fontSize: 12, color: W.accent, fontWeight: 700 }}>{sendSelectedIds.size} climb{sendSelectedIds.size !== 1 ? "s" : ""} selected</div>
+                    )}
+                  </div>
+                  {/* Step: Select climbs */}
+                  {sendClimbStep === "select" && (
+                    <>
+                      <div style={{ flex: 1, minHeight: 0, overflowY: "auto", padding: "12px 16px" }}>
+                        {orderedSections.map(sec => {
+                          const entries = sectionGroups[sec] || [];
+                          const secIds = entries.map(e => e.id);
+                          const allSel = secIds.length > 0 && secIds.every(id => sendSelectedIds.has(id));
+                          return (
+                            <div key={sec || "__unsec__"} style={{ marginBottom: 16 }}>
+                              {(sec || orderedSections.length > 1) && (
+                                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
+                                  <div style={{ fontSize: 11, fontWeight: 800, color: W.textMuted, textTransform: "uppercase", letterSpacing: 1.1 }}>{sec || "Other"}</div>
+                                  <button onClick={() => toggleSection(sec)} style={{ padding: "3px 10px", background: allSel ? W.accent + "22" : W.surface2, border: `1px solid ${allSel ? W.accent : W.border}`, borderRadius: 8, color: allSel ? W.accent : W.textMuted, fontWeight: 700, fontSize: 10, cursor: "pointer" }}>
+                                    {allSel ? "Deselect all" : "Select all"}
+                                  </button>
+                                </div>
+                              )}
+                              {entries.map(entry => {
+                                const sel = sendSelectedIds.has(entry.id);
+                                const gradeColor = getGradeColor(entry.grade);
+                                const colorEntry = CLIMB_COLORS.find(cc => cc.id === entry.color);
+                                return (
+                                  <div key={entry.id} onClick={() => toggleSend(entry.id)} style={{ display: "flex", alignItems: "center", gap: 10, padding: "9px 10px", background: sel ? W.accent + "11" : W.surface, border: `1.5px solid ${sel ? W.accent : W.border}`, borderRadius: 12, marginBottom: 6, cursor: "pointer" }}>
+                                    <div style={{ width: 20, height: 20, borderRadius: 6, border: `2px solid ${sel ? W.accent : W.border}`, background: sel ? W.accent : "transparent", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                                      {sel && <span style={{ color: "#fff", fontSize: 12, fontWeight: 900 }}>✓</span>}
+                                    </div>
+                                    <div style={{ background: gradeColor, color: "#fff", borderRadius: 6, padding: "2px 8px", fontWeight: 900, fontSize: 12, flexShrink: 0 }}>{entry.grade}</div>
+                                    {colorEntry && <div style={{ width: 10, height: 10, borderRadius: "50%", background: colorEntry.hex, flexShrink: 0 }} />}
+                                    <div style={{ flex: 1, minWidth: 0, fontSize: 13, color: W.text, fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{entry.name || entry.grade}</div>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          );
+                        })}
+                        {active.length === 0 && <div style={{ textAlign: "center", color: W.textDim, padding: "30px 0", fontSize: 13 }}>No active climbs to share.</div>}
+                      </div>
+                      <div style={{ padding: "12px 16px 16px", flexShrink: 0, borderTop: `1px solid ${W.border}` }}>
+                        <button disabled={sendSelectedIds.size === 0} onClick={() => setSendClimbStep("friend")} style={{ width: "100%", padding: "13px", background: sendSelectedIds.size > 0 ? W.accent : W.surface2, border: "none", borderRadius: 14, color: sendSelectedIds.size > 0 ? "#fff" : W.textDim, fontWeight: 700, fontSize: 15, cursor: sendSelectedIds.size > 0 ? "pointer" : "default" }}>
+                          Next — Choose Friend →
+                        </button>
+                      </div>
+                    </>
+                  )}
+                  {/* Step: Choose friend */}
+                  {sendClimbStep === "friend" && (
+                    <>
+                      <div style={{ flex: 1, minHeight: 0, overflowY: "auto", padding: "12px 16px" }}>
+                        {sendMutuals === null && <div style={{ textAlign: "center", color: W.textMuted, padding: "30px 0", fontSize: 13 }}>Loading friends…</div>}
+                        {sendMutuals !== null && sendMutuals.length === 0 && <div style={{ textAlign: "center", color: W.textDim, padding: "30px 0", fontSize: 13 }}>No mutual follows yet. Follow someone and have them follow back to send climbs.</div>}
+                        {(sendMutuals || []).map(m => (
+                          <div key={m.username} onClick={() => setSendToUser(sendToUser?.username === m.username ? null : m)} style={{ display: "flex", alignItems: "center", gap: 10, padding: "12px 14px", background: sendToUser?.username === m.username ? W.accent + "18" : W.surface, border: `1.5px solid ${sendToUser?.username === m.username ? W.accent : W.border}`, borderRadius: 14, marginBottom: 8, cursor: "pointer" }}>
+                            <div style={{ width: 20, height: 20, borderRadius: "50%", border: `2px solid ${sendToUser?.username === m.username ? W.accent : W.border}`, background: sendToUser?.username === m.username ? W.accent : "transparent", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                              {sendToUser?.username === m.username && <span style={{ color: "#fff", fontSize: 12, fontWeight: 900 }}>✓</span>}
+                            </div>
+                            <div>
+                              <div style={{ fontWeight: 700, fontSize: 14, color: W.text }}>{m.displayName}</div>
+                              <div style={{ fontSize: 12, color: W.textMuted }}>@{m.username}</div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                      <div style={{ padding: "12px 16px 16px", flexShrink: 0, borderTop: `1px solid ${W.border}`, display: "flex", gap: 8 }}>
+                        <button onClick={() => setSendClimbStep("select")} style={{ padding: "13px 18px", background: W.surface2, border: `1px solid ${W.border}`, borderRadius: 14, color: W.textMuted, fontWeight: 700, fontSize: 13, cursor: "pointer" }}>← Back</button>
+                        <button disabled={!sendToUser || sendingClimbs} onClick={handleSend} style={{ flex: 1, padding: "13px", background: sendToUser ? W.accent : W.surface2, border: "none", borderRadius: 14, color: sendToUser ? "#fff" : W.textDim, fontWeight: 700, fontSize: 15, cursor: sendToUser ? "pointer" : "default" }}>
+                          {sendingClimbs ? "Sending…" : `Send ${sendSelectedIds.size} Climb${sendSelectedIds.size !== 1 ? "s" : ""}`}
+                        </button>
+                      </div>
+                    </>
+                  )}
+                </div>
+              </div>
+            );
+          })()}
 
           {/* Gym Settings modal */}
           {gymSettingsOpen && (() => {
@@ -9380,6 +9659,15 @@ export default function App() {
             })}
             {/* Gym actions */}
             <div style={{ marginTop: 20, paddingTop: 20, borderTop: `1px solid ${W.border}` }}>
+              <button onClick={async () => {
+                setSendSelectedIds(new Set([entry.id]));
+                setSendClimbStep("friend");
+                setSendToUser(null);
+                setSendMutuals(null);
+                setShowSendSingleClimb(true);
+                const m = await loadMutuals();
+                setSendMutuals(m);
+              }} style={{ width: "100%", padding: "11px", background: W.surface2, border: `1px solid ${W.border}`, borderRadius: 14, color: W.textMuted, fontWeight: 700, fontSize: 13, cursor: "pointer", marginBottom: 10, display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}>📤 Send to Friend</button>
               {!entry.removed ? (
                 <button onClick={() => { setGymSets(prev => { const loc = entry.location; return { ...prev, [loc]: (prev[loc] || []).map(e => e.id === entry.id ? { ...e, removed: true, removedDate: new Date().toISOString() } : e) }; }); setSelectedSetClimb(null); }} style={{ width: "100%", padding: "13px", background: "#fca5a5", border: "1px solid #f87171", borderRadius: 14, color: "#b91c1c", fontWeight: 700, fontSize: 14, cursor: "pointer", marginBottom: 10 }}>
                   Remove from Wall
@@ -9401,6 +9689,52 @@ export default function App() {
               }
             </div>
           </div>
+          {/* Send to Friend modal (single climb) */}
+          {showSendSingleClimb && (() => {
+            const handleSendSingle = async () => {
+              if (!sendToUser || sendingClimbs) return;
+              setSendingClimbs(true);
+              const { photo } = entryStats(entry);
+              const stripped = [{ id: `shared_${Date.now()}_${entry.id}`, name: entry.name || "", grade: entry.grade || "", scale: entry.scale || "V-Scale", color: entry.color || null, wallTypes: entry.wallTypes || [], holdTypes: entry.holdTypes || [], climbType: entry.climbType || "boulder", photo: photo || null, section: entry.section || null }];
+              await sendClimbsToFriend(stripped, sendToUser.username);
+              setSendingClimbs(false);
+              setShowSendSingleClimb(false);
+              setSendToUser(null);
+            };
+            return (
+              <div onClick={() => setShowSendSingleClimb(false)} style={{ position: "fixed", inset: 0, zIndex: 700, background: "rgba(0,0,0,0.6)", display: "flex", alignItems: "flex-end", justifyContent: "center" }}>
+                <div onClick={e => e.stopPropagation()} style={{ background: W.bg, borderRadius: "20px 20px 0 0", width: "100%", maxWidth: 480, maxHeight: "75vh", display: "flex", flexDirection: "column", overflow: "hidden", paddingBottom: "env(safe-area-inset-bottom)" }}>
+                  <div style={{ padding: "16px 16px 12px", borderBottom: `1px solid ${W.border}`, flexShrink: 0 }}>
+                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                      <div style={{ fontWeight: 900, fontSize: 17, color: W.text }}>Send to Friend</div>
+                      <button onClick={() => setShowSendSingleClimb(false)} style={{ background: "none", border: "none", color: W.textMuted, fontSize: 20, cursor: "pointer" }}>×</button>
+                    </div>
+                    <div style={{ fontSize: 12, color: W.textMuted, marginTop: 4 }}>📤 {entry.name || entry.grade} · {entry.grade}</div>
+                  </div>
+                  <div style={{ flex: 1, minHeight: 0, overflowY: "auto", padding: "12px 16px" }}>
+                    {sendMutuals === null && <div style={{ textAlign: "center", color: W.textMuted, padding: "30px 0", fontSize: 13 }}>Loading friends…</div>}
+                    {sendMutuals !== null && sendMutuals.length === 0 && <div style={{ textAlign: "center", color: W.textDim, padding: "30px 0", fontSize: 13 }}>No mutual follows yet.</div>}
+                    {(sendMutuals || []).map(m => (
+                      <div key={m.username} onClick={() => setSendToUser(sendToUser?.username === m.username ? null : m)} style={{ display: "flex", alignItems: "center", gap: 10, padding: "12px 14px", background: sendToUser?.username === m.username ? W.accent + "18" : W.surface, border: `1.5px solid ${sendToUser?.username === m.username ? W.accent : W.border}`, borderRadius: 14, marginBottom: 8, cursor: "pointer" }}>
+                        <div style={{ width: 20, height: 20, borderRadius: "50%", border: `2px solid ${sendToUser?.username === m.username ? W.accent : W.border}`, background: sendToUser?.username === m.username ? W.accent : "transparent", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                          {sendToUser?.username === m.username && <span style={{ color: "#fff", fontSize: 12, fontWeight: 900 }}>✓</span>}
+                        </div>
+                        <div>
+                          <div style={{ fontWeight: 700, fontSize: 14, color: W.text }}>{m.displayName}</div>
+                          <div style={{ fontSize: 12, color: W.textMuted }}>@{m.username}</div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                  <div style={{ padding: "12px 16px 16px", flexShrink: 0, borderTop: `1px solid ${W.border}` }}>
+                    <button disabled={!sendToUser || sendingClimbs} onClick={handleSendSingle} style={{ width: "100%", padding: "13px", background: sendToUser ? W.accent : W.surface2, border: "none", borderRadius: 14, color: sendToUser ? "#fff" : W.textDim, fontWeight: 700, fontSize: 15, cursor: sendToUser ? "pointer" : "default" }}>
+                      {sendingClimbs ? "Sending…" : "Send Climb"}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            );
+          })()}
           {/* Share modal */}
           {showClimbShare && (
             <div onClick={() => setShowClimbShare(false)} style={{ position: "fixed", inset: 0, zIndex: 700, background: "rgba(0,0,0,0.82)", display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
