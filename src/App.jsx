@@ -387,6 +387,7 @@ export default function App() {
   const [gymDetailsOpen, setGymDetailsOpen] = useState(false);
   const [gymSettingsOpen, setGymSettingsOpen] = useState(false);
   const [confirmDeleteGym, setConfirmDeleteGym] = useState(false);
+  const [gymEditName, setGymEditName] = useState("");
   const [gymSetView, setGymSetView] = useState("single"); // "single" | "tiles"
   const [editSetClimbOpen, setEditSetClimbOpen] = useState(false);
   const [gymSectionInput, setGymSectionInput] = useState("");
@@ -7803,6 +7804,8 @@ export default function App() {
           setCustomGradingSchemes(prev => schemeEditId ? prev.map(s => s.id === schemeEditId ? scheme : s) : [...prev, scheme]);
           if (schemeBuilderFor === "boulder") setGymCreateBoulderScale(scheme.name);
           if (schemeBuilderFor === "rope") setGymCreateRopeScale(scheme.name);
+          if (schemeBuilderFor === "gym-boulder" && selectedGym) setGymScales(prev => ({ ...prev, [selectedGym]: { ...(prev[selectedGym] || {}), boulder: scheme.name } }));
+          if (schemeBuilderFor === "gym-rope" && selectedGym) setGymScales(prev => ({ ...prev, [selectedGym]: { ...(prev[selectedGym] || {}), rope: scheme.name } }));
           setShowSchemeBuilder(false);
           setSchemeEditId(null); setSchemeName(""); setSchemeGrades([]); setSchemeBuilderFor(null);
         };
@@ -8869,7 +8872,7 @@ export default function App() {
               <div style={{ fontSize: 11, color: W.textMuted }}>{active.length} active · {gymSessionCount} sessions</div>
             </div>
             <button onClick={() => { setGymManageMode(m => !m); setGymSelectedIds(new Set()); }} style={{ background: gymManageMode ? W.accent : W.surface2, border: `1px solid ${gymManageMode ? W.accent : W.border}`, borderRadius: 10, padding: "7px 10px", color: gymManageMode ? "#fff" : W.textMuted, fontWeight: 700, fontSize: 12, cursor: "pointer", flexShrink: 0 }}>{gymManageMode ? "Done" : "Manage"}</button>
-            <button onClick={() => setGymSettingsOpen(true)} style={{ background: W.surface2, border: `1px solid ${W.border}`, borderRadius: 10, padding: "7px 10px", color: W.textMuted, fontWeight: 700, fontSize: 12, cursor: "pointer", flexShrink: 0 }}>⚙️</button>
+            <button onClick={() => { setGymEditName(selectedGym); setGymSettingsOpen(true); }} style={{ background: W.surface2, border: `1px solid ${W.border}`, borderRadius: 10, padding: "7px 10px", color: W.textMuted, fontWeight: 700, fontSize: 12, cursor: "pointer", flexShrink: 0 }}>⚙️</button>
           </div>
 
           <div style={{ padding: "16px 16px 80px" }}>
@@ -8952,10 +8955,43 @@ export default function App() {
           </div>
 
           {/* Gym Settings modal */}
-          {gymSettingsOpen && (
+          {gymSettingsOpen && (() => {
+            const gymObj = gyms.find(g => g.name === loc);
+            const gymActivities = gymObj?.activities || [];
+            const toggleSettingsActivity = (id) => setGyms(prev => prev.map(g => g.name === loc ? { ...g, activities: g.activities.includes(id) ? g.activities.filter(x => x !== id) : [...g.activities, id] } : g));
+            const settingsActivities = [
+              { id: "boulder", label: "Bouldering", icon: "🪨" },
+              { id: "rope",    label: "Rope",        icon: "🧗" },
+              { id: "speed",   label: "Speed",       icon: "⚡" },
+              { id: "workout", label: "Workout",     icon: "💪" },
+            ];
+            const saveGymName = () => {
+              const newName = gymEditName.trim();
+              if (!newName || newName === loc) return;
+              setGyms(prev => prev.map(g => g.name === loc ? { ...g, name: newName } : g));
+              setCustomLocations(prev => prev.map(l => l === loc ? newName : l));
+              setGymScales(prev => { const n = { ...prev }; if (n[loc]) { n[newName] = n[loc]; delete n[loc]; } return n; });
+              setGymSets(prev => { const n = { ...prev }; if (n[loc]) { n[newName] = n[loc]; delete n[loc]; } return n; });
+              setSessions(prev => prev.map(s => s.location === loc ? { ...s, location: newName } : s));
+              setSelectedGym(newName);
+            };
+            return (
             <div onClick={() => { setGymSettingsOpen(false); setConfirmDeleteGym(false); }} style={{ position: "fixed", inset: 0, zIndex: 500, background: "rgba(0,0,0,0.6)", display: "flex", alignItems: "flex-end", justifyContent: "center" }}>
               <div onClick={e => e.stopPropagation()} style={{ background: W.bg, borderRadius: "20px 20px 0 0", width: "100%", maxWidth: 480, maxHeight: "80vh", overflowY: "auto", padding: "20px 20px 0", paddingBottom: "calc(20px + env(safe-area-inset-bottom))" }}>
                 <div style={{ fontWeight: 900, fontSize: 18, color: W.text, marginBottom: 16 }}>⚙️ Gym Settings</div>
+                <div style={{ fontSize: 12, fontWeight: 700, color: W.textMuted, marginBottom: 6 }}>Gym Name</div>
+                <input value={gymEditName} onChange={e => setGymEditName(e.target.value)} placeholder="Gym name…" style={{ width: "100%", boxSizing: "border-box", padding: "10px 14px", background: W.surface2, border: `1.5px solid ${W.border}`, borderRadius: 12, color: W.text, fontSize: 15, fontFamily: "inherit", outline: "none", marginBottom: 16 }} />
+                <div style={{ fontSize: 12, fontWeight: 700, color: W.textMuted, marginBottom: 8 }}>Activities</div>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 16 }}>
+                  {settingsActivities.map(a => {
+                    const sel = gymActivities.includes(a.id);
+                    return (
+                      <button key={a.id} onClick={() => toggleSettingsActivity(a.id)} style={{ padding: "10px 12px", background: sel ? W.accent+"22" : W.surface2, border: `2px solid ${sel ? W.accent : W.border}`, borderRadius: 12, cursor: "pointer", display: "flex", alignItems: "center", gap: 8, color: sel ? W.accent : W.textMuted, fontWeight: 700, fontSize: 13 }}>
+                        <span>{a.icon}</span><span>{a.label}</span>
+                      </button>
+                    );
+                  })}
+                </div>
                 <div style={{ fontSize: 12, fontWeight: 700, color: W.textMuted, marginBottom: 6 }}>Wall Sections</div>
                 <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 8 }}>
                   {sections.map(sec => (
@@ -8970,20 +9006,28 @@ export default function App() {
                   <button onClick={() => { if (gymSectionInput.trim()) { setGymScales(prev => ({ ...prev, [loc]: { ...(prev[loc] || {}), wallSections: [...(prev[loc]?.wallSections || []), gymSectionInput.trim()] } })); setGymSectionInput(""); } }} style={{ padding: "7px 14px", background: W.accent, border: "none", borderRadius: 9, color: "#fff", fontWeight: 700, fontSize: 13, cursor: "pointer" }}>Add</button>
                 </div>
                 <div style={{ fontSize: 12, fontWeight: 700, color: W.textMuted, marginBottom: 6 }}>Boulder Grading Scale</div>
-                <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 14 }}>
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 6 }}>
                   {getAllBoulderScaleNames().map(scale => (
                     <button key={scale} onClick={() => setGymScales(prev => ({ ...prev, [loc]: { ...(prev[loc] || {}), boulder: scale } }))} style={{ padding: "5px 12px", background: gs.boulder === scale ? W.accent : W.surface2, border: `1px solid ${gs.boulder === scale ? W.accent : W.border}`, borderRadius: 8, color: gs.boulder === scale ? "#fff" : W.textMuted, fontWeight: 700, fontSize: 11, cursor: "pointer" }}>{scale}</button>
                   ))}
                 </div>
+                {gs.boulder && customGradingSchemes.find(s => s.name === gs.boulder) && (
+                  <button onClick={() => { const s = customGradingSchemes.find(cs => cs.name === gs.boulder); setSchemeEditId(s.id); setSchemeName(s.name); setSchemeGrades(s.grades || []); setSchemeBuilderFor("gym-boulder"); setShowSchemeBuilder(true); }} style={{ marginBottom: 14, padding: "5px 12px", background: "none", border: `1px solid ${W.accent}`, borderRadius: 8, color: W.accent, fontWeight: 700, fontSize: 11, cursor: "pointer" }}>✏️ Edit "{gs.boulder}" scheme</button>
+                )}
+                {!gs.boulder || !customGradingSchemes.find(s => s.name === gs.boulder) ? <div style={{ marginBottom: 14 }} /> : null}
                 <div style={{ fontSize: 12, fontWeight: 700, color: W.textMuted, marginBottom: 6 }}>Rope Grading Scale</div>
-                <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 14 }}>
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 6 }}>
                   {getAllRopeScaleNames().map(scale => (
                     <button key={scale} onClick={() => setGymScales(prev => ({ ...prev, [loc]: { ...(prev[loc] || {}), rope: scale } }))} style={{ padding: "5px 12px", background: gs.rope === scale ? W.accent : W.surface2, border: `1px solid ${gs.rope === scale ? W.accent : W.border}`, borderRadius: 8, color: gs.rope === scale ? "#fff" : W.textMuted, fontWeight: 700, fontSize: 11, cursor: "pointer" }}>{scale}</button>
                   ))}
                 </div>
+                {gs.rope && customGradingSchemes.find(s => s.name === gs.rope) && (
+                  <button onClick={() => { const s = customGradingSchemes.find(cs => cs.name === gs.rope); setSchemeEditId(s.id); setSchemeName(s.name); setSchemeGrades(s.grades || []); setSchemeBuilderFor("gym-rope"); setShowSchemeBuilder(true); }} style={{ marginBottom: 14, padding: "5px 12px", background: "none", border: `1px solid ${W.accent}`, borderRadius: 8, color: W.accent, fontWeight: 700, fontSize: 11, cursor: "pointer" }}>✏️ Edit "{gs.rope}" scheme</button>
+                )}
+                {!gs.rope || !customGradingSchemes.find(s => s.name === gs.rope) ? <div style={{ marginBottom: 14 }} /> : null}
                 <div style={{ fontSize: 12, fontWeight: 700, color: W.textMuted, marginBottom: 6 }}>Hours / Notes</div>
                 <textarea value={gs.notes || ""} onChange={e => setGymScales(prev => ({ ...prev, [loc]: { ...(prev[loc] || {}), notes: e.target.value } }))} placeholder="Hours, address, or notes about this gym…" rows={3} style={{ width: "100%", padding: "9px 12px", background: W.surface2, border: `1px solid ${W.border}`, borderRadius: 10, color: W.text, fontSize: 13, fontFamily: "inherit", outline: "none", resize: "none", boxSizing: "border-box" }} />
-                <button onClick={() => { setGymSettingsOpen(false); setConfirmDeleteGym(false); }} style={{ width: "100%", marginTop: 16, padding: "13px", background: W.accent, border: "none", borderRadius: 14, color: "#fff", fontWeight: 700, fontSize: 15, cursor: "pointer" }}>Done</button>
+                <button onClick={() => { saveGymName(); setGymSettingsOpen(false); setConfirmDeleteGym(false); }} style={{ width: "100%", marginTop: 16, padding: "13px", background: W.accent, border: "none", borderRadius: 14, color: "#fff", fontWeight: 700, fontSize: 15, cursor: "pointer" }}>Done</button>
                 <div style={{ borderTop: `1px solid ${W.border}`, marginTop: 20, paddingTop: 16, marginBottom: 4 }}>
                   {confirmDeleteGym ? (
                     <div style={{ background: "rgba(220,50,50,0.08)", border: "1px solid rgba(220,50,50,0.3)", borderRadius: 12, padding: "12px 14px" }}>
@@ -9008,7 +9052,8 @@ export default function App() {
                 </div>
               </div>
             </div>
-          )}
+            );
+          })()}
         </div>
       );
     })()}
