@@ -388,7 +388,8 @@ export default function App() {
   const [gymSettingsOpen, setGymSettingsOpen] = useState(false);
   const [confirmDeleteGym, setConfirmDeleteGym] = useState(false);
   const [gymEditName, setGymEditName] = useState("");
-  const [gymSetView, setGymSetView] = useState("single"); // "single" | "tiles"
+  const [gymSetView, setGymSetView] = useState("tiles"); // "single" | "tiles"
+  const [gymDetailTab, setGymDetailTab] = useState("overview"); // "overview" | "sets"
   const [editSetClimbOpen, setEditSetClimbOpen] = useState(false);
   const [gymSectionInput, setGymSectionInput] = useState("");
   const [gymManageMode, setGymManageMode] = useState(false);
@@ -6825,7 +6826,7 @@ export default function App() {
                 const isHome = loc === mainGym;
                 const gymTotalSec = sessions.filter(s => s.location === loc).reduce((sum, s) => sum + (s.duration || 0), 0);
                 return (
-                  <div key={loc} onClick={() => setSelectedGym(loc)} style={{ background: W.surface, border: `2px solid ${isHome ? W.accentDark : W.border}`, borderRadius: 16, padding: "14px 12px", cursor: "pointer", position: "relative", minHeight: 120, display: "flex", flexDirection: "column", justifyContent: "space-between" }}>
+                  <div key={loc} onClick={() => { setSelectedGym(loc); setGymDetailTab("overview"); }} style={{ background: W.surface, border: `2px solid ${isHome ? W.accentDark : W.border}`, borderRadius: 16, padding: "14px 12px", cursor: "pointer", position: "relative", minHeight: 120, display: "flex", flexDirection: "column", justifyContent: "space-between" }}>
                     {isHome && <span style={{ position: "absolute", top: 8, right: 8, background: W.accent, color: "#fff", borderRadius: 6, padding: "1px 7px", fontSize: 9, fontWeight: 800 }}>HOME</span>}
                     <div style={{ fontWeight: 800, fontSize: 13, color: W.text, paddingRight: isHome ? 44 : 0, lineHeight: 1.3 }}>{loc}</div>
                     <div style={{ display: "flex", gap: 14 }}>
@@ -8875,82 +8876,254 @@ export default function App() {
             <button onClick={() => { setGymEditName(selectedGym); setGymSettingsOpen(true); }} style={{ background: W.surface2, border: `1px solid ${W.border}`, borderRadius: 10, padding: "7px 10px", color: W.textMuted, fontWeight: 700, fontSize: 12, cursor: "pointer", flexShrink: 0 }}>⚙️</button>
           </div>
 
-          <div style={{ padding: "16px 16px 80px" }}>
-            {/* Stats row */}
-            <div style={{ display: "flex", gap: 0, marginBottom: 16, background: W.surface, borderRadius: 14, overflow: "hidden", border: `1px solid ${W.border}` }}>
-              {[
-                { val: active.length, label: "Active" },
-                { val: active.filter(e => sessions.some(s => (s.climbs || []).some(c => c.setClimbId === e.id && c.completed))).length, label: "Sent", color: W.greenDark },
-                { val: gymSessionCount, label: "Sessions", color: W.accent },
-                { val: lastVisit ? (() => { const d = Math.floor((Date.now() - new Date(lastVisit).getTime()) / 86400000); return d === 0 ? "Today" : d === 1 ? "1d ago" : d < 7 ? `${d}d ago` : d < 31 ? `${Math.floor(d/7)}w ago` : `${Math.floor(d/30)}mo ago`; })() : "—", label: "Last Visit" },
-              ].map((s, i, arr) => (
-                <div key={i} style={{ flex: 1, padding: "10px 2px", textAlign: "center", borderRight: i < arr.length - 1 ? `1px solid ${W.border}` : "none" }}>
-                  <div style={{ fontWeight: 900, fontSize: i === 3 ? 11 : 20, color: s.color || W.text, lineHeight: 1 }}>{s.val}</div>
-                  <div style={{ fontSize: 9, color: W.textMuted, marginTop: 2 }}>{s.label}</div>
-                </div>
+          <div style={{ paddingBottom: 80 }}>
+            {/* Tab toggle */}
+            <div style={{ display: "flex", borderBottom: `1px solid ${W.border}`, background: W.surface, position: "sticky", top: "calc(57px + env(safe-area-inset-top))", zIndex: 1 }}>
+              {[{ id: "overview", label: "Overview" }, { id: "sets", label: "Sets" }].map(t => (
+                <button key={t.id} onClick={() => setGymDetailTab(t.id)} style={{ flex: 1, padding: "11px 0", background: "none", border: "none", borderBottom: `2.5px solid ${gymDetailTab === t.id ? W.accent : "transparent"}`, color: gymDetailTab === t.id ? W.accent : W.textMuted, fontWeight: 700, fontSize: 14, cursor: "pointer" }}>
+                  {t.label}
+                </button>
               ))}
             </div>
 
-            {/* Manage mode bulk-remove bar */}
-            {gymManageMode && gymSelectedIds.size > 0 && (
-              <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
-                <button onClick={() => {
-                  setGymSets(prev => ({ ...prev, [loc]: (prev[loc] || []).map(e => gymSelectedIds.has(e.id) ? { ...e, removed: true, removedDate: new Date().toISOString() } : e) }));
-                  setGymSelectedIds(new Set());
-                }} style={{ flex: 1, padding: "10px", background: "#fca5a5", border: "1px solid #f87171", borderRadius: 12, color: "#b91c1c", fontWeight: 700, fontSize: 13, cursor: "pointer" }}>
-                  Remove {gymSelectedIds.size} from Wall
-                </button>
-                <button onClick={() => setGymSelectedIds(new Set())} style={{ padding: "10px 14px", background: W.surface2, border: `1px solid ${W.border}`, borderRadius: 12, color: W.textMuted, fontWeight: 700, fontSize: 13, cursor: "pointer" }}>Clear</button>
-              </div>
-            )}
+            {/* ── OVERVIEW TAB ── */}
+            {gymDetailTab === "overview" && (() => {
+              const gymTotalSec   = gymSessions.reduce((sum, s) => sum + (s.duration || 0), 0);
+              const gymBoulderSec = gymSessions.reduce((sum, s) => sum + (s.boulderTotalSec || 0), 0);
+              const gymRopeSec    = gymSessions.reduce((sum, s) => sum + (s.ropeTotalSec || 0), 0);
+              const gymSpeedSec   = gymSessions.reduce((sum, s) => sum + (s.climbs || []).filter(c => c.climbType === "speed-session").reduce((a, c) => a + (c.speedTotalSec || 0), 0), 0);
+              const allGymClimbs  = gymSessions.flatMap(s => s.climbs || []);
+              const gymSends      = allGymClimbs.filter(c => c.completed);
+              const gymFlashes    = gymSends.filter(c => (c.tries || 0) === 0);
+              const gymAttempts   = allGymClimbs.reduce((sum, c) => sum + climbAttempts(c), 0);
 
-            {/* View toggle */}
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
-              <div style={{ fontSize: 13, fontWeight: 800, color: W.text }}>Active Climbs</div>
-              <div style={{ display: "flex", gap: 4 }}>
-                {["single", "tiles"].map(v => (
-                  <button key={v} onClick={() => setGymSetView(v)} style={{ padding: "5px 12px", background: gymSetView === v ? W.accent : W.surface2, border: `1px solid ${gymSetView === v ? W.accent : W.border}`, borderRadius: 8, color: gymSetView === v ? "#fff" : W.textMuted, fontWeight: 700, fontSize: 11, cursor: "pointer" }}>
-                    {v === "single" ? "List" : "Tiles"}
-                  </button>
-                ))}
-              </div>
-            </div>
+              // Last 5 sessions
+              const last5 = [...gymSessions].sort((a, b) => new Date(b.date) - new Date(a.date)).slice(0, 5);
 
-            {active.length === 0 && <div style={{ textAlign: "center", color: W.textDim, padding: "30px 0", fontSize: 13 }}>No active climbs on this wall.</div>}
+              // Sends by grade (pie chart)
+              const sendsByGrade = {};
+              for (const c of gymSends) {
+                if (c.grade && c.grade !== "Ungraded") sendsByGrade[c.grade] = (sendsByGrade[c.grade] || 0) + 1;
+              }
+              const gradeOrder = [...Object.keys(GRADES), ...Object.keys(ROPE_GRADES)];
+              const pieSlices = Object.entries(sendsByGrade)
+                .sort((a, b) => (gradeOrder.indexOf(a[0]) - gradeOrder.indexOf(b[0])))
+                .map(([grade, count]) => ({ label: grade, value: count, color: getGradeColor(grade) }));
 
-            {/* Section-grouped active climbs */}
-            {orderedSections.map(sec => {
-              const entries = sectionGroups[sec] || [];
+              // Attempts by wall section (bar chart)
+              const setMap = {};
+              for (const e of allEntries) setMap[e.id] = e.section || null;
+              const attemptsBySection = {};
+              for (const c of allGymClimbs) {
+                if (c.setClimbId && setMap[c.setClimbId]) {
+                  const sec = setMap[c.setClimbId];
+                  attemptsBySection[sec] = (attemptsBySection[sec] || 0) + climbAttempts(c);
+                }
+              }
+              const sectionBars = Object.entries(attemptsBySection).sort((a, b) => b[1] - a[1]);
+              const maxSectionAttempts = sectionBars.length ? sectionBars[0][1] : 1;
+
+              // SVG Pie helper
+              const PieChart = ({ slices, size = 150 }) => {
+                const total = slices.reduce((s, d) => s + d.value, 0);
+                if (!total) return null;
+                const cx = size / 2, cy = size / 2, r = size / 2 - 3;
+                let angle = -Math.PI / 2;
+                const paths = slices.map(d => {
+                  const sweep = (d.value / total) * 2 * Math.PI;
+                  const x1 = cx + r * Math.cos(angle), y1 = cy + r * Math.sin(angle);
+                  const endA = angle + sweep;
+                  const x2 = cx + r * Math.cos(endA), y2 = cy + r * Math.sin(endA);
+                  const largeArc = sweep > Math.PI ? 1 : 0;
+                  const path = `M ${cx} ${cy} L ${x1.toFixed(2)} ${y1.toFixed(2)} A ${r} ${r} 0 ${largeArc} 1 ${x2.toFixed(2)} ${y2.toFixed(2)} Z`;
+                  angle = endA;
+                  return { ...d, path };
+                });
+                return (
+                  <svg width={size} height={size} style={{ display: "block" }}>
+                    {paths.map((s, i) => <path key={i} d={s.path} fill={s.color} stroke={W.bg} strokeWidth={2} />)}
+                  </svg>
+                );
+              };
+
               return (
-                <div key={sec || "__unsectioned__"} style={{ marginBottom: 18 }}>
-                  {(sec || orderedSections.length > 1) && (
-                    <div style={{ fontSize: 10, fontWeight: 800, color: W.textMuted, textTransform: "uppercase", letterSpacing: 1.2, marginBottom: 8, paddingLeft: 2 }}>
-                      {sec || "Other"}
+                <div style={{ padding: "16px 16px 0" }}>
+                  {/* Quick stats row */}
+                  <div style={{ display: "flex", gap: 0, marginBottom: 14, background: W.surface, borderRadius: 14, overflow: "hidden", border: `1px solid ${W.border}` }}>
+                    {[
+                      { val: gymSessionCount, label: "Sessions" },
+                      { val: gymSends.length, label: "Sends", color: W.greenDark },
+                      { val: gymFlashes.length, label: "Flashes", color: W.accent },
+                      { val: gymAttempts, label: "Attempts" },
+                    ].map((s, i, arr) => (
+                      <div key={i} style={{ flex: 1, padding: "10px 2px", textAlign: "center", borderRight: i < arr.length - 1 ? `1px solid ${W.border}` : "none" }}>
+                        <div style={{ fontWeight: 900, fontSize: 18, color: s.color || W.text, lineHeight: 1 }}>{s.val}</div>
+                        <div style={{ fontSize: 9, color: W.textMuted, marginTop: 2 }}>{s.label}</div>
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* Time breakdown */}
+                  <div style={{ background: W.surface, borderRadius: 14, border: `1px solid ${W.border}`, padding: "14px 16px", marginBottom: 14 }}>
+                    <div style={{ fontSize: 12, fontWeight: 800, color: W.textMuted, textTransform: "uppercase", letterSpacing: 1, marginBottom: 10 }}>Time at Gym</div>
+                    <div style={{ display: "flex", alignItems: "baseline", gap: 6, marginBottom: 12 }}>
+                      <div style={{ fontSize: 28, fontWeight: 900, color: W.text, lineHeight: 1 }}>{formatTotalTime(gymTotalSec)}</div>
+                      <div style={{ fontSize: 12, color: W.textMuted }}>total</div>
+                    </div>
+                    <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                      {[
+                        { label: "🪨 Bouldering", sec: gymBoulderSec },
+                        { label: "🧗 Rope", sec: gymRopeSec },
+                        { label: "⚡ Speed", sec: gymSpeedSec },
+                      ].filter(t => t.sec > 0).map((t, i) => {
+                        const pct = gymTotalSec > 0 ? Math.round((t.sec / gymTotalSec) * 100) : 0;
+                        return (
+                          <div key={i}>
+                            <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
+                              <span style={{ fontSize: 12, color: W.text, fontWeight: 600 }}>{t.label}</span>
+                              <span style={{ fontSize: 12, color: W.textMuted }}>{formatTotalTime(t.sec)} · {pct}%</span>
+                            </div>
+                            <div style={{ background: W.surface2, borderRadius: 4, height: 8, overflow: "hidden" }}>
+                              <div style={{ background: W.accent, borderRadius: 4, height: 8, width: `${pct}%`, transition: "width 0.4s ease" }} />
+                            </div>
+                          </div>
+                        );
+                      })}
+                      {gymBoulderSec === 0 && gymRopeSec === 0 && gymSpeedSec === 0 && (
+                        <div style={{ fontSize: 12, color: W.textDim }}>No type-specific time data yet — logged from future sessions.</div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Last 5 sessions */}
+                  <div style={{ background: W.surface, borderRadius: 14, border: `1px solid ${W.border}`, padding: "14px 16px", marginBottom: 14 }}>
+                    <div style={{ fontSize: 12, fontWeight: 800, color: W.textMuted, textTransform: "uppercase", letterSpacing: 1, marginBottom: 10 }}>Recent Sessions</div>
+                    {last5.length === 0 ? (
+                      <div style={{ fontSize: 12, color: W.textDim, padding: "8px 0" }}>No sessions logged here yet.</div>
+                    ) : last5.map((s, i) => {
+                      const climbs = s.climbs || [];
+                      const sends   = climbs.filter(c => c.completed).length;
+                      const flashes = climbs.filter(c => c.completed && (c.tries || 0) === 0).length;
+                      const attempts = climbs.reduce((t, c) => t + climbAttempts(c), 0);
+                      return (
+                        <div key={s.id} style={{ display: "flex", alignItems: "center", paddingTop: i > 0 ? 10 : 0, marginTop: i > 0 ? 10 : 0, borderTop: i > 0 ? `1px solid ${W.border}` : "none" }}>
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <div style={{ fontSize: 13, fontWeight: 700, color: W.text }}>{formatDate(s.date)}</div>
+                            <div style={{ fontSize: 11, color: W.textMuted, marginTop: 2 }}>{formatTotalTime(s.duration || 0)} · {attempts} att · {sends} sends{flashes > 0 ? ` · ${flashes} flash${flashes > 1 ? "es" : ""}` : ""}</div>
+                          </div>
+                          {sends > 0 && <div style={{ fontSize: 11, fontWeight: 800, color: W.greenDark, background: W.green, borderRadius: 8, padding: "3px 8px", flexShrink: 0 }}>{sends}✓</div>}
+                        </div>
+                      );
+                    })}
+                  </div>
+
+                  {/* Sends by grade — pie chart */}
+                  {pieSlices.length > 0 && (
+                    <div style={{ background: W.surface, borderRadius: 14, border: `1px solid ${W.border}`, padding: "14px 16px", marginBottom: 14 }}>
+                      <div style={{ fontSize: 12, fontWeight: 800, color: W.textMuted, textTransform: "uppercase", letterSpacing: 1, marginBottom: 12 }}>Sends by Grade</div>
+                      <div style={{ display: "flex", gap: 16, alignItems: "center" }}>
+                        <PieChart slices={pieSlices} size={130} />
+                        <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 5 }}>
+                          {pieSlices.map((s, i) => (
+                            <div key={i} style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                              <div style={{ width: 10, height: 10, borderRadius: 3, background: s.color, flexShrink: 0 }} />
+                              <span style={{ fontSize: 12, color: W.text, fontWeight: 700 }}>{s.label}</span>
+                              <span style={{ fontSize: 11, color: W.textMuted, marginLeft: "auto" }}>{s.value}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
                     </div>
                   )}
-                  {gymSetView === "tiles" ? (
-                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
-                      {entries.map(e => renderGymCard(e))}
+
+                  {/* Attempts by wall section — bar chart */}
+                  {sectionBars.length > 0 && (
+                    <div style={{ background: W.surface, borderRadius: 14, border: `1px solid ${W.border}`, padding: "14px 16px", marginBottom: 14 }}>
+                      <div style={{ fontSize: 12, fontWeight: 800, color: W.textMuted, textTransform: "uppercase", letterSpacing: 1, marginBottom: 12 }}>Attempts by Section</div>
+                      <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                        {sectionBars.map(([sec, count], i) => (
+                          <div key={i}>
+                            <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
+                              <span style={{ fontSize: 12, color: W.text, fontWeight: 600 }}>{sec}</span>
+                              <span style={{ fontSize: 12, color: W.textMuted }}>{count}</span>
+                            </div>
+                            <div style={{ background: W.surface2, borderRadius: 4, height: 10, overflow: "hidden" }}>
+                              <div style={{ background: W.accent, borderRadius: 4, height: 10, width: `${(count / maxSectionAttempts) * 100}%`, transition: "width 0.4s ease" }} />
+                            </div>
+                          </div>
+                        ))}
+                      </div>
                     </div>
-                  ) : (
-                    <div>{entries.map(e => renderGymCard(e))}</div>
                   )}
                 </div>
               );
-            })}
+            })()}
 
-            {/* Removed section */}
-            {removed.length > 0 && (
-              <>
-                <div style={{ fontSize: 12, fontWeight: 800, color: W.textMuted, textTransform: "uppercase", letterSpacing: 1, marginBottom: 10, marginTop: 8 }}>Removed from Wall</div>
-                {gymSetView === "tiles" ? (
-                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
-                    {removed.map(e => <div key={e.id} style={{ opacity: 0.55 }}>{renderGymCard(e)}</div>)}
+            {/* ── SETS TAB ── */}
+            {gymDetailTab === "sets" && (
+              <div style={{ padding: "12px 16px 0" }}>
+                {/* Manage mode bulk-remove bar */}
+                {gymManageMode && gymSelectedIds.size > 0 && (
+                  <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
+                    <button onClick={() => {
+                      setGymSets(prev => ({ ...prev, [loc]: (prev[loc] || []).map(e => gymSelectedIds.has(e.id) ? { ...e, removed: true, removedDate: new Date().toISOString() } : e) }));
+                      setGymSelectedIds(new Set());
+                    }} style={{ flex: 1, padding: "10px", background: "#fca5a5", border: "1px solid #f87171", borderRadius: 12, color: "#b91c1c", fontWeight: 700, fontSize: 13, cursor: "pointer" }}>
+                      Remove {gymSelectedIds.size} from Wall
+                    </button>
+                    <button onClick={() => setGymSelectedIds(new Set())} style={{ padding: "10px 14px", background: W.surface2, border: `1px solid ${W.border}`, borderRadius: 12, color: W.textMuted, fontWeight: 700, fontSize: 13, cursor: "pointer" }}>Clear</button>
                   </div>
-                ) : (
-                  <div>{removed.map(e => <div key={e.id} style={{ opacity: 0.55 }}>{renderGymCard(e)}</div>)}</div>
                 )}
-              </>
+
+                {/* View toggle */}
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
+                  <div style={{ fontSize: 13, fontWeight: 800, color: W.text }}>Active Climbs</div>
+                  <div style={{ display: "flex", gap: 4 }}>
+                    {["tiles", "single"].map(v => (
+                      <button key={v} onClick={() => setGymSetView(v)} style={{ padding: "5px 12px", background: gymSetView === v ? W.accent : W.surface2, border: `1px solid ${gymSetView === v ? W.accent : W.border}`, borderRadius: 8, color: gymSetView === v ? "#fff" : W.textMuted, fontWeight: 700, fontSize: 11, cursor: "pointer" }}>
+                        {v === "single" ? "List" : "Tiles"}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {active.length === 0 && <div style={{ textAlign: "center", color: W.textDim, padding: "30px 0", fontSize: 13 }}>No active climbs on this wall.</div>}
+
+                {/* Section-grouped active climbs */}
+                {orderedSections.map(sec => {
+                  const entries = sectionGroups[sec] || [];
+                  return (
+                    <div key={sec || "__unsectioned__"} style={{ marginBottom: 18 }}>
+                      {(sec || orderedSections.length > 1) && (
+                        <div style={{ fontSize: 10, fontWeight: 800, color: W.textMuted, textTransform: "uppercase", letterSpacing: 1.2, marginBottom: 8, paddingLeft: 2 }}>
+                          {sec || "Other"}
+                        </div>
+                      )}
+                      {gymSetView === "tiles" ? (
+                        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+                          {entries.map(e => renderGymCard(e))}
+                        </div>
+                      ) : (
+                        <div>{entries.map(e => renderGymCard(e))}</div>
+                      )}
+                    </div>
+                  );
+                })}
+
+                {/* Removed section */}
+                {removed.length > 0 && (
+                  <>
+                    <div style={{ fontSize: 12, fontWeight: 800, color: W.textMuted, textTransform: "uppercase", letterSpacing: 1, marginBottom: 10, marginTop: 8 }}>Removed from Wall</div>
+                    {gymSetView === "tiles" ? (
+                      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+                        {removed.map(e => <div key={e.id} style={{ opacity: 0.55 }}>{renderGymCard(e)}</div>)}
+                      </div>
+                    ) : (
+                      <div>{removed.map(e => <div key={e.id} style={{ opacity: 0.55 }}>{renderGymCard(e)}</div>)}</div>
+                    )}
+                  </>
+                )}
+              </div>
             )}
           </div>
 
