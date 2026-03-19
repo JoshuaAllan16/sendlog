@@ -241,6 +241,8 @@ export default function App() {
   const scrollDivRef       = useRef(null);
   const peekDivRef         = useRef(null);
   const swipePeekRef       = useRef(null); // { tab, fromRight } when peek is active
+  const gymOverlayRef      = useRef(null);
+  const gymSwipeRef        = useRef(null);
 
   const [swipePeekScreen, setSwipePeekScreen]   = useState(null); // "home"|"session"|"profile" during swipe
 
@@ -9040,9 +9042,59 @@ export default function App() {
       };
 
       return (
-        <div style={{ position: "fixed", inset: 0, zIndex: 440, background: W.bg, overflowY: "auto", display: "flex", flexDirection: "column" }}>
+        <div
+          ref={gymOverlayRef}
+          style={{ position: "fixed", inset: 0, zIndex: 440, background: W.bg, overflowY: "auto", display: "flex", flexDirection: "column" }}
+          onTouchStart={e => {
+            const t = e.touches[0];
+            gymSwipeRef.current = { x: t.clientX, y: t.clientY, ts: Date.now(), locked: null };
+            const onMove = (me) => {
+              if (!gymSwipeRef.current) return;
+              const mt = me.touches[0];
+              const ddx = mt.clientX - gymSwipeRef.current.x;
+              const ddy = mt.clientY - gymSwipeRef.current.y;
+              if (!gymSwipeRef.current.locked) {
+                if (Math.abs(ddx) > 7 || Math.abs(ddy) > 7) {
+                  gymSwipeRef.current.locked = (Math.abs(ddx) >= Math.abs(ddy) && ddx > 0) ? "h" : "v";
+                }
+                return;
+              }
+              if (gymSwipeRef.current.locked !== "h") return;
+              me.preventDefault();
+              const offset = Math.max(0, ddx);
+              if (gymOverlayRef.current) { gymOverlayRef.current.style.transform = `translateX(${offset}px)`; gymOverlayRef.current.style.transition = "none"; }
+            };
+            gymSwipeRef.current.onMove = onMove;
+            document.addEventListener("touchmove", onMove, { passive: false });
+          }}
+          onTouchEnd={e => {
+            if (!gymSwipeRef.current) return;
+            const onMove = gymSwipeRef.current.onMove;
+            if (onMove) document.removeEventListener("touchmove", onMove);
+            const { x: startX, ts: startTs, locked } = gymSwipeRef.current;
+            gymSwipeRef.current = null;
+            const touch = e.changedTouches[0];
+            const ddx = touch.clientX - startX;
+            const velocity = Math.abs(ddx) / Math.max(Date.now() - startTs, 1);
+            const el = gymOverlayRef.current;
+            if (!el) return;
+            if (locked === "h" && ddx > 0 && (ddx >= 58 || velocity > 0.45)) {
+              el.style.transition = "transform 0.22s cubic-bezier(0.4,0,1,1)";
+              el.style.transform = `translateX(${window.innerWidth}px)`;
+              setTimeout(() => { setSelectedGym(null); setGymManageMode(false); setGymSelectedIds(new Set()); if (el) { el.style.transform = ""; el.style.transition = ""; } }, 230);
+            } else {
+              el.style.transition = "transform 0.4s cubic-bezier(0.34,1.56,0.64,1)";
+              el.style.transform = "translateX(0px)";
+              setTimeout(() => { if (el) { el.style.transform = ""; el.style.transition = ""; } }, 400);
+            }
+          }}
+          onTouchCancel={() => {
+            if (gymSwipeRef.current?.onMove) document.removeEventListener("touchmove", gymSwipeRef.current.onMove);
+            gymSwipeRef.current = null;
+            if (gymOverlayRef.current) { gymOverlayRef.current.style.transform = ""; gymOverlayRef.current.style.transition = ""; }
+          }}>
           {/* Header */}
-          <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "16px 16px 12px", paddingTop: "calc(16px + env(safe-area-inset-top))", background: W.surface, borderBottom: `1px solid ${W.border}`, position: "sticky", top: 0, zIndex: 2 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "16px 16px 12px", paddingTop: "calc(16px + env(safe-area-inset-top))", background: W.surface, borderBottom: `1px solid ${W.border}`, position: "sticky", top: 0, zIndex: 50 }}>
             <button onClick={() => { setSelectedGym(null); setGymManageMode(false); setGymSelectedIds(new Set()); }} style={{ background: W.surface2, border: `1px solid ${W.border}`, borderRadius: 10, padding: "7px 14px", color: W.text, fontWeight: 700, fontSize: 14, cursor: "pointer" }}>←</button>
             <div style={{ flex: 1, minWidth: 0 }}>
               <div style={{ fontWeight: 900, fontSize: 18, color: W.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{loc}</div>
@@ -9054,7 +9106,7 @@ export default function App() {
 
           <div style={{ paddingBottom: 80 }}>
             {/* Tab toggle */}
-            <div style={{ display: "flex", borderBottom: `1px solid ${W.border}`, background: W.surface, position: "sticky", top: "calc(57px + env(safe-area-inset-top))", zIndex: 1 }}>
+            <div style={{ display: "flex", borderBottom: `1px solid ${W.border}`, background: W.surface, position: "sticky", top: "calc(57px + env(safe-area-inset-top))", zIndex: 49 }}>
               {[{ id: "overview", label: "Overview" }, { id: "sets", label: "Sets" }].map(t => (
                 <button key={t.id} onClick={() => setGymDetailTab(t.id)} style={{ flex: 1, padding: "11px 0", background: "none", border: "none", borderBottom: `2.5px solid ${gymDetailTab === t.id ? W.accent : "transparent"}`, color: gymDetailTab === t.id ? W.accent : W.textMuted, fontWeight: 700, fontSize: 14, cursor: "pointer" }}>
                   {t.label}
