@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, Component, Fragment } from "react";
+import { useState, useRef, useEffect, Component, Fragment, startTransition } from "react";
 import { createClient } from "@supabase/supabase-js";
 import { ThemeCtx, THEMES } from "./theme.js";
 import { ColorDot, TagChips, LocationDropdown, SpeedSessionCard, BoulderRopeSessionCard, ActiveClimbCard } from "./Components.jsx";
@@ -7536,7 +7536,8 @@ export default function App() {
                     const nextTab = ["home","session","profile"][ddx < 0 ? si2 + 1 : si2 - 1];
                     if (nextTab) {
                       swipePeekRef.current = { tab: nextTab, fromRight: ddx < 0 };
-                      setSwipePeekScreen(nextTab);
+                      // startTransition defers the peek render so it doesn't block the touch loop
+                      startTransition(() => setSwipePeekScreen(nextTab));
                     }
                   }
                 }
@@ -7691,7 +7692,7 @@ export default function App() {
             }}
             style={{ position: "absolute", inset: 0, overflowY: "auto", paddingBottom: "calc(80px + env(safe-area-inset-bottom))", pointerEvents: "none" }}>
             {swipePeekScreen === "home"    && <HomeScreen />}
-            {swipePeekScreen === "session" && (activeSession ? <ErrorBoundary key="session-peek"><ActiveSessionRenderer render={SessionActiveScreen} /></ErrorBoundary> : SessionSetupScreen())}
+            {swipePeekScreen === "session" && (sessionStarted ? <ErrorBoundary key="session-peek"><ActiveSessionRenderer render={SessionActiveScreen} /></ErrorBoundary> : SessionSetupScreen())}
             {swipePeekScreen === "profile" && ProfileScreen()}
           </div>
         )}
