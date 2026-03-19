@@ -439,6 +439,7 @@ export default function App() {
   const [leaderboardLoading, setLeaderboardLoading] = useState(false);
   const [lbBoard, setLbBoard]                 = useState("time");
   const [lbTimeFrame, setLbTimeFrame]         = useState("all");
+  const [lbDebug, setLbDebug]                 = useState(null); // diagnostic info for troubleshooting
   const [socialResults, setSocialResults]     = useState(null); // null = not searched yet
   const [socialFeed, setSocialFeed]           = useState([]);
   const [socialFeedLoading, setSocialFeedLoading] = useState(false);
@@ -2201,29 +2202,41 @@ export default function App() {
     setScreen("leaderboard");
     setLeaderboardLoading(true);
     setLeaderboardData(null);
+    setLbDebug(null);
     try {
       // Use React state for who I follow (always up-to-date, synced by auto-save)
       const myFollowing = socialFollowing;
 
-      // Load who follows me via the secondary followers store (updated immediately on follow/unfollow)
+      // Load who follows me via the secondary followers store
       const myFollowers = await loadFollowersStore(currentUser.username);
       setSocialFollowers(myFollowers);
 
-      // Mutual = I follow them AND they follow me back
-      const mutuals = myFollowing.filter(u => myFollowers.includes(u));
-
-      // Load sessions for each mutual follow
+      // Load each person I follow, check mutual via BOTH methods:
+      // 1. followers store (they appear in my followers:me list)
+      // 2. profile.following (my username appears in their profile)
       const results = await Promise.all(
-        mutuals.map(async (uname) => {
+        myFollowing.map(async (uname) => {
           try {
             const theirData = await loadUserData(uname);
-            return { username: uname, theirData };
-          } catch { return { username: uname, theirData: null }; }
+            const inFollowersStore = myFollowers.includes(uname);
+            const inTheirProfile = (theirData?.profile?.following || []).includes(currentUser.username);
+            return { username: uname, theirData, isMutual: inFollowersStore || inTheirProfile };
+          } catch { return { username: uname, theirData: null, isMutual: false }; }
         })
       );
 
+      const debug = {
+        following: myFollowing.length,
+        followers: myFollowers.length,
+        followersStore: myFollowers,
+        followingList: myFollowing,
+        profileMutuals: results.filter(r => (r.theirData?.profile?.following || []).includes(currentUser.username)).map(r => r.username),
+        storeMutuals: results.filter(r => myFollowers.includes(r.username)).map(r => r.username),
+      };
+      setLbDebug(debug);
+
       const entries = results
-        .filter(r => r.theirData)
+        .filter(r => r.isMutual && r.theirData)
         .map(r => ({
           username: r.username,
           displayName: r.theirData.profile?.displayName || r.username,
@@ -2232,7 +2245,7 @@ export default function App() {
         }));
       entries.push({ username: currentUser.username, displayName: displayName, sessions, isMe: true });
       setLeaderboardData(entries);
-    } catch { setLeaderboardData([]); }
+    } catch (e) { setLeaderboardData([]); setLbDebug({ error: String(e) }); }
     setLeaderboardLoading(false);
   };
 
@@ -7120,7 +7133,17 @@ export default function App() {
           <div style={{ textAlign: "center", padding: "48px 20px" }}>
             <div style={{ fontSize: 40, marginBottom: 12 }}>🏆</div>
             <div style={{ color: W.text, fontWeight: 700, fontSize: 16, marginBottom: 8 }}>No friends yet</div>
-            <div style={{ color: W.textMuted, fontSize: 13 }}>Follow climbers who follow you back to compete here.</div>
+            <div style={{ color: W.textMuted, fontSize: 13, marginBottom: 16 }}>Follow climbers who follow you back to compete here.</div>
+            {lbDebug && (
+              <div style={{ textAlign: "left", background: W.surface2, border: `1px solid ${W.border}`, borderRadius: 12, padding: "12px 16px", fontSize: 11, color: W.textMuted, fontFamily: "monospace" }}>
+                <div style={{ fontWeight: 700, color: W.text, marginBottom: 6 }}>Debug info</div>
+                <div>You follow: {lbDebug.following} — {JSON.stringify(lbDebug.followingList)}</div>
+                <div>Followers store: {lbDebug.followers} — {JSON.stringify(lbDebug.followersStore)}</div>
+                <div>Mutual via store: {JSON.stringify(lbDebug.storeMutuals)}</div>
+                <div>Mutual via profile: {JSON.stringify(lbDebug.profileMutuals)}</div>
+                {lbDebug.error && <div style={{ color: "red" }}>Error: {lbDebug.error}</div>}
+              </div>
+            )}
           </div>
         )}
 
