@@ -400,6 +400,11 @@ export default function App() {
   const [pendingSharedClimbs, setPendingSharedClimbs] = useState(null);
   const [sharedClimbGym, setSharedClimbGym] = useState("");
   const [sharedClimbSections, setSharedClimbSections] = useState({});
+  const [toastMsg, setToastMsg] = useState(null);
+  const [notifTypeFilter, setNotifTypeFilter] = useState("all");
+  const [showMergeClimbPicker, setShowMergeClimbPicker] = useState(false);
+  const [mergeTargetId, setMergeTargetId] = useState(null);
+  const [showMergeResult, setShowMergeResult] = useState(false);
   const [editSetClimbOpen, setEditSetClimbOpen] = useState(false);
   const [gymSectionInput, setGymSectionInput] = useState("");
   const [gymManageMode, setGymManageMode] = useState(false);
@@ -7314,9 +7319,16 @@ export default function App() {
               <div style={{ color: W.textMuted, fontSize: 13 }}>You'll see follows and session activity here.</div>
             </div>
           );
+          const notifFiltered = notifTypeFilter === "climbs"
+            ? notifications.map((n, origIdx) => ({ n, origIdx })).filter(({ n }) => n.type === "climbShare")
+            : notifications.map((n, origIdx) => ({ n, origIdx }));
           return (
             <div>
-              {notifications.map((n, i) => (
+              <div style={{ display: "flex", gap: 6, marginBottom: 12 }}>
+                <button onClick={() => setNotifTypeFilter("all")} style={{ padding: "5px 12px", background: notifTypeFilter === "all" ? W.accent : W.surface2, border: `1px solid ${notifTypeFilter === "all" ? W.accent : W.border}`, borderRadius: 20, color: notifTypeFilter === "all" ? "#fff" : W.textMuted, fontSize: 11, fontWeight: 700, cursor: "pointer" }}>All</button>
+                <button onClick={() => setNotifTypeFilter("climbs")} style={{ padding: "5px 12px", background: notifTypeFilter === "climbs" ? W.accent : W.surface2, border: `1px solid ${notifTypeFilter === "climbs" ? W.accent : W.border}`, borderRadius: 20, color: notifTypeFilter === "climbs" ? "#fff" : W.textMuted, fontSize: 11, fontWeight: 700, cursor: "pointer" }}>📤 Shared Climbs</button>
+              </div>
+              {notifFiltered.map(({ n, origIdx: i }) => (
                 <div key={i} style={{ display: "flex", alignItems: "flex-start", gap: 10, padding: "12px 0", borderBottom: `1px solid ${W.border}` }}>
                   <div style={{ width: 8, height: 8, borderRadius: "50%", background: n.read ? W.border : W.accent, flexShrink: 0, marginTop: 5 }} />
                   <div style={{ flex: 1 }}>
@@ -8178,6 +8190,8 @@ export default function App() {
             setDate: new Date().toISOString(),
             removed: false,
             isProject: false,
+            receivedFrom: pendingSharedClimbs.fromDisplay,
+            receivedFromUser: pendingSharedClimbs.from,
           }));
           setGymSets(prev => ({ ...prev, [sharedClimbGym]: [...(prev[sharedClimbGym] || []), ...newEntries] }));
           const updated = notifications.map(n => n.id === pendingSharedClimbs.id ? { ...n, read: true, handled: true } : n);
@@ -8206,6 +8220,16 @@ export default function App() {
                     {gymOptions.map(g => <option key={g} value={g}>{g}</option>)}
                   </select>
                 </div>
+                {/* Batch section selector */}
+                {sharedClimbGym && climbs.length > 1 && (
+                  <div style={{ marginBottom: 12 }}>
+                    <div style={{ fontSize: 11, color: W.textMuted, marginBottom: 5, fontWeight: 600 }}>Quick-assign all to same section:</div>
+                    <select value="" onChange={e => { if (e.target.value) { const all = {}; climbs.forEach(c => { all[c.id] = e.target.value; }); setSharedClimbSections(all); }}} style={{ width: "100%", padding: "8px 12px", background: W.surface2, border: `1px solid ${W.border}`, borderRadius: 10, color: W.text, fontSize: 13, fontFamily: "inherit", appearance: "auto" }}>
+                      <option value="">— Set all climbs to… —</option>
+                      {gymSectionOptions.map(s => <option key={s} value={s}>{s}</option>)}
+                    </select>
+                  </div>
+                )}
                 {/* Climbs list with section pickers */}
                 {climbs.map(c => {
                   const gradeColor = getGradeColor(c.grade);
@@ -8971,6 +8995,8 @@ export default function App() {
               </div>
               {/* Project badge */}
               {entry.isProject && <div style={{ position: "absolute", top: 40, right: 8, background: "rgba(157,23,77,0.9)", color: "#fff", fontSize: 8, fontWeight: 900, letterSpacing: 0.8, borderRadius: 5, padding: "2px 6px", zIndex: 2 }}>🎯 PROJECT</div>}
+              {/* Received-from badge */}
+              {entry.receivedFrom && <div style={{ position: "absolute", top: entry.isProject ? 56 : 40, right: 8, background: "rgba(59,130,246,0.88)", color: "#fff", fontSize: 8, fontWeight: 900, letterSpacing: 0.5, borderRadius: 5, padding: "2px 6px", zIndex: 2, maxWidth: "60%", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>📤 @{entry.receivedFromUser || entry.receivedFrom}</div>}
               {/* Manage mode overlay */}
               {gymManageMode && isSelected && <div style={{ position: "absolute", inset: 0, zIndex: 3, border: `3px solid ${W.accent}`, borderRadius: 14, display: "flex", alignItems: "center", justifyContent: "center", background: `${W.accent}33` }}><div style={{ width: 28, height: 28, borderRadius: "50%", background: W.accent, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16, color: "#fff" }}>✓</div></div>}
               {/* Bottom stats overlay — transparent, text directly on photo */}
@@ -8997,6 +9023,7 @@ export default function App() {
             </div>
             <div style={{ flex: 1, padding: "10px 12px", minWidth: 0 }}>
               {entry.isProject && <div style={{ fontSize: 9, color: "#be185d", fontWeight: 900, letterSpacing: 0.5, marginBottom: 2 }}>🎯 PROJECT</div>}
+              {entry.receivedFrom && <div style={{ fontSize: 9, color: "#3b82f6", fontWeight: 700, marginBottom: 2 }}>📤 @{entry.receivedFromUser || entry.receivedFrom}</div>}
               {entry.name && <div style={{ fontWeight: 800, fontSize: 14, color: W.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{entry.name}</div>}
               <div style={{ fontSize: 11, color: W.textMuted, marginTop: 1 }}>{entry.section ? `${entry.section} · ` : ""}{entry.wallTypes?.join(", ")}</div>
               <div style={{ display: "flex", gap: 8, marginTop: 4 }}>
@@ -9314,9 +9341,12 @@ export default function App() {
               }).filter(Boolean);
               await sendClimbsToFriend(stripped, sendToUser.username);
               setSendingClimbs(false);
+              const _sentTo = sendToUser.username;
               setShowSendClimbs(false);
               setSendSelectedIds(new Set());
               setSendToUser(null);
+              setToastMsg(`Sent to @${_sentTo}`);
+              setTimeout(() => setToastMsg(null), 2500);
             };
             return (
               <div onClick={() => setShowSendClimbs(false)} style={{ position: "fixed", inset: 0, zIndex: 500, background: "rgba(0,0,0,0.6)", display: "flex", alignItems: "flex-end", justifyContent: "center" }}>
@@ -9677,6 +9707,7 @@ export default function App() {
                   Put Back on Wall
                 </button>
               )}
+              <button onClick={() => { setMergeTargetId(null); setShowMergeClimbPicker(true); }} style={{ width: "100%", padding: "11px", background: "transparent", border: `1px solid ${W.border}`, borderRadius: 14, color: W.textMuted, fontWeight: 700, fontSize: 13, cursor: "pointer", marginBottom: 10 }}>🔀 Transfer Session Data to New Climb</button>
               {!deleteSetConfirm
                 ? <button onClick={() => setDeleteSetConfirm(true)} style={{ width: "100%", padding: "11px", background: "transparent", border: "1px solid #f87171", borderRadius: 14, color: "#b91c1c", fontWeight: 700, fontSize: 13, cursor: "pointer", marginBottom: 10, opacity: 0.8 }}>Delete Permanently</button>
                 : <div style={{ background: "#fca5a5", borderRadius: 14, padding: "12px", marginBottom: 10, border: "1px solid #f87171" }}>
@@ -9698,8 +9729,11 @@ export default function App() {
               const stripped = [{ id: `shared_${Date.now()}_${entry.id}`, name: entry.name || "", grade: entry.grade || "", scale: entry.scale || "V-Scale", color: entry.color || null, wallTypes: entry.wallTypes || [], holdTypes: entry.holdTypes || [], climbType: entry.climbType || "boulder", photo: photo || null, section: entry.section || null }];
               await sendClimbsToFriend(stripped, sendToUser.username);
               setSendingClimbs(false);
+              const _sentTo2 = sendToUser.username;
               setShowSendSingleClimb(false);
               setSendToUser(null);
+              setToastMsg(`Sent to @${_sentTo2}`);
+              setTimeout(() => setToastMsg(null), 2500);
             };
             return (
               <div onClick={() => setShowSendSingleClimb(false)} style={{ position: "fixed", inset: 0, zIndex: 700, background: "rgba(0,0,0,0.6)", display: "flex", alignItems: "flex-end", justifyContent: "center" }}>
@@ -9789,10 +9823,120 @@ export default function App() {
               </div>
             </div>
           )}
+
+          {/* Merge Climb Picker */}
+          {showMergeClimbPicker && (() => {
+            const loc = entry.location;
+            const allInGym = (gymSets[loc] || []).filter(e => e.id !== entry.id);
+            // Sort: source section first, then same grade first, then rest
+            const srcSection = entry.section || "";
+            const srcGrade = entry.grade || "";
+            const sorted = [...allInGym].sort((a, b) => {
+              const aSection = (a.section || "") === srcSection ? 0 : 1;
+              const bSection = (b.section || "") === srcSection ? 0 : 1;
+              if (aSection !== bSection) return aSection - bSection;
+              const aGrade = a.grade === srcGrade ? 0 : 1;
+              const bGrade = b.grade === srcGrade ? 0 : 1;
+              return aGrade - bGrade;
+            });
+            // Group by section
+            const sections = [];
+            const seen = new Set();
+            sorted.forEach(e => { const s = e.section || ""; if (!seen.has(s)) { seen.add(s); sections.push(s); }});
+            const bySection = {};
+            sorted.forEach(e => { const s = e.section || ""; if (!bySection[s]) bySection[s] = []; bySection[s].push(e); });
+            const getPhoto = (id) => sessions.flatMap(s => (s.climbs||[]).filter(c => c.setClimbId === id && c.photo)).map(c => c.photo)[0] || null;
+            return (
+              <div onClick={() => setShowMergeClimbPicker(false)} style={{ position: "fixed", inset: 0, zIndex: 800, background: "rgba(0,0,0,0.65)", display: "flex", alignItems: "flex-end", justifyContent: "center" }}>
+                <div onClick={e => e.stopPropagation()} style={{ background: W.bg, borderRadius: "20px 20px 0 0", width: "100%", maxWidth: 480, maxHeight: "88vh", display: "flex", flexDirection: "column", overflow: "hidden", paddingBottom: "env(safe-area-inset-bottom)" }}>
+                  <div style={{ padding: "16px 16px 12px", borderBottom: `1px solid ${W.border}`, flexShrink: 0 }}>
+                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                      <div style={{ fontWeight: 900, fontSize: 17, color: W.text }}>Transfer Session Data</div>
+                      <button onClick={() => setShowMergeClimbPicker(false)} style={{ background: "none", border: "none", color: W.textMuted, fontSize: 20, cursor: "pointer" }}>×</button>
+                    </div>
+                    <div style={{ fontSize: 12, color: W.textMuted, marginTop: 4 }}>Which climb should receive the session data from <span style={{ fontWeight: 700, color: W.text }}>{entry.name || entry.grade}</span>?</div>
+                  </div>
+                  <div style={{ flex: 1, minHeight: 0, overflowY: "auto", padding: "14px 16px" }}>
+                    {allInGym.length === 0 && <div style={{ textAlign: "center", color: W.textMuted, padding: "30px 0", fontSize: 13 }}>No other climbs in this gym.</div>}
+                    {sections.map(sec => (
+                      <div key={sec || "__"} style={{ marginBottom: 16 }}>
+                        {(sec || sections.length > 1) && <div style={{ fontSize: 10, fontWeight: 800, color: W.textMuted, textTransform: "uppercase", letterSpacing: 1.2, marginBottom: 8 }}>{sec || "Other"}{sec === srcSection ? " · same section" : ""}</div>}
+                        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+                          {(bySection[sec] || []).map(e => {
+                            const gc = getGradeColor(e.grade);
+                            const photo = getPhoto(e.id);
+                            const ce = CLIMB_COLORS.find(cc => cc.id === e.color);
+                            const isSel = mergeTargetId === e.id;
+                            return (
+                              <div key={e.id} onClick={() => setMergeTargetId(isSel ? null : e.id)} style={{ border: `2px solid ${isSel ? W.accent : W.border}`, borderRadius: 14, overflow: "hidden", cursor: "pointer", position: "relative", minHeight: 140, background: photo ? "transparent" : W.surface }}>
+                                {photo ? <img src={photo} alt="" style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover" }} /> : <div style={{ position: "absolute", inset: 0, background: `linear-gradient(135deg, ${gc}18, ${W.surface2})` }} />}
+                                <div style={{ position: "absolute", bottom: 0, left: 0, right: 0, height: "55%", background: photo ? "linear-gradient(to top, rgba(0,0,0,0.78) 0%, transparent 100%)" : `linear-gradient(to top, ${W.surface}cc 0%, transparent 100%)`, zIndex: 1 }} />
+                                {isSel && <div style={{ position: "absolute", inset: 0, background: `${W.accent}33`, zIndex: 3, display: "flex", alignItems: "center", justifyContent: "center" }}><div style={{ width: 28, height: 28, borderRadius: "50%", background: W.accent, display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontWeight: 900, fontSize: 16 }}>✓</div></div>}
+                                <div style={{ position: "absolute", top: 6, right: 6, zIndex: 2, display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 2 }}>
+                                  {e.name && <div style={{ fontSize: 9, fontWeight: 800, color: "#fff", textShadow: "0 1px 4px rgba(0,0,0,0.8)", maxWidth: 80, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{e.name}</div>}
+                                  <div style={{ display: "flex", gap: 3, alignItems: "center" }}>
+                                    <div style={{ background: gc, color: "#fff", borderRadius: 5, padding: "1px 6px", fontWeight: 900, fontSize: 11, boxShadow: "0 1px 3px rgba(0,0,0,0.4)" }}>{e.grade}</div>
+                                    {e.grade === srcGrade && <div style={{ background: W.accent + "cc", color: "#fff", borderRadius: 4, padding: "1px 4px", fontSize: 8, fontWeight: 800 }}>same</div>}
+                                    {ce && <div style={{ width: 11, height: 11, borderRadius: "50%", background: ce.hex, border: "1px solid rgba(255,255,255,0.8)" }} />}
+                                  </div>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                  {mergeTargetId && (
+                    <div style={{ padding: "12px 16px 16px", borderTop: `1px solid ${W.border}`, flexShrink: 0 }}>
+                      <button onClick={() => {
+                        // Transfer: update all sessions where setClimbId === entry.id → mergeTargetId
+                        const targetEntry = (gymSets[loc] || []).find(e => e.id === mergeTargetId);
+                        if (!targetEntry) return;
+                        setSessions(prev => prev.map(s => ({
+                          ...s,
+                          climbs: (s.climbs || []).map(c => {
+                            if (c.setClimbId !== entry.id) return c;
+                            return { ...c, setClimbId: targetEntry.id, name: targetEntry.name || c.name, wallTypes: targetEntry.wallTypes?.length ? targetEntry.wallTypes : c.wallTypes, holdTypes: targetEntry.holdTypes?.length ? targetEntry.holdTypes : c.holdTypes, section: targetEntry.section || c.section };
+                          }),
+                        })));
+                        setShowMergeClimbPicker(false);
+                        setShowMergeResult(true);
+                      }} style={{ width: "100%", padding: "14px", background: `linear-gradient(135deg, ${W.accent}, ${W.accentDark})`, border: "none", borderRadius: 14, color: "#fff", fontWeight: 800, fontSize: 15, cursor: "pointer" }}>Confirm Transfer</button>
+                    </div>
+                  )}
+                </div>
+              </div>
+            );
+          })()}
+
+          {/* Merge Result — delete source option */}
+          {showMergeResult && (
+            <div style={{ position: "fixed", inset: 0, zIndex: 810, background: "rgba(0,0,0,0.65)", display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }}>
+              <div style={{ background: W.bg, borderRadius: 20, width: "100%", maxWidth: 380, padding: 24, boxShadow: "0 8px 40px rgba(0,0,0,0.45)" }}>
+                <div style={{ fontSize: 32, textAlign: "center", marginBottom: 12 }}>✅</div>
+                <div style={{ fontWeight: 900, fontSize: 18, color: W.text, textAlign: "center", marginBottom: 8 }}>Session data transferred!</div>
+                <div style={{ fontSize: 13, color: W.textMuted, textAlign: "center", marginBottom: 20 }}>Would you like to delete <span style={{ fontWeight: 700, color: W.text }}>{entry.name || entry.grade}</span> from the gym now?</div>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+                  <button onClick={() => {
+                    setGymSets(prev => { const l = entry.location; return { ...prev, [l]: (prev[l] || []).filter(e2 => e2.id !== entry.id) }; });
+                    setShowMergeResult(false);
+                    setSelectedSetClimb(null);
+                  }} style={{ padding: "12px", background: "#b91c1c", border: "none", borderRadius: 12, color: "#fff", fontWeight: 700, fontSize: 14, cursor: "pointer" }}>Yes, Delete It</button>
+                  <button onClick={() => { setShowMergeResult(false); setSelectedSetClimb(null); }} style={{ padding: "12px", background: W.surface2, border: `1px solid ${W.border}`, borderRadius: 12, color: W.textMuted, fontWeight: 700, fontSize: 14, cursor: "pointer" }}>Keep It</button>
+                </div>
+              </div>
+            </div>
+          )}
+
         </div>
       );
     })()}
 
+      {/* Toast */}
+      {toastMsg && (
+        <div style={{ position: "fixed", bottom: 88, left: "50%", transform: "translateX(-50%)", background: W.text, color: W.bg, borderRadius: 20, padding: "10px 20px", fontSize: 13, fontWeight: 700, zIndex: 9999, pointerEvents: "none", whiteSpace: "nowrap", boxShadow: "0 4px 20px rgba(0,0,0,0.3)" }}>{toastMsg}</div>
+      )}
     </ThemeCtx.Provider>
     </ErrorBoundary>
   );
