@@ -243,6 +243,26 @@ export default function App() {
   const swipePeekRef       = useRef(null); // { tab, fromRight } when peek is active
 
   const [swipePeekScreen, setSwipePeekScreen]   = useState(null); // "home"|"session"|"profile" during swipe
+
+  // Gyms & custom grading schemes
+  const [gyms, setGyms] = useState([]);
+  const [customGradingSchemes, setCustomGradingSchemes] = useState([]);
+  const [showGymCreate, setShowGymCreate] = useState(false);
+  const [gymCreateStep, setGymCreateStep] = useState(1);
+  const [gymCreateName, setGymCreateName] = useState("");
+  const [gymCreateActivities, setGymCreateActivities] = useState([]);
+  const [gymCreateId, setGymCreateId] = useState(null);
+  const [gymCreateBoulderScale, setGymCreateBoulderScale] = useState("V-Scale");
+  const [gymCreateRopeScale, setGymCreateRopeScale] = useState("French");
+  const [showSchemeBuilder, setShowSchemeBuilder] = useState(false);
+  const [schemeEditId, setSchemeEditId] = useState(null);
+  const [schemeName, setSchemeName] = useState("");
+  const [schemeGrades, setSchemeGrades] = useState([]);
+  const [schemeNewGrade, setSchemeNewGrade] = useState("");
+  const [schemeColorPicking, setSchemeColorPicking] = useState(null);
+  const [schemeBuilderFor, setSchemeBuilderFor] = useState(null);
+  const [schemeDragState, setSchemeDragState] = useState(null);
+
   const [showClimbForm, setShowClimbForm]       = useState(false);
   const [formProjectPickerOpen, setFormProjectPickerOpen] = useState(false);
   const [editingClimbId, setEditingClimbId]     = useState(null);
@@ -556,6 +576,8 @@ export default function App() {
           setCustomLocations(userData.profile?.customLocations || []);
           setMainGym(userData.profile?.mainGym || "");
           setSocialFollowing(userData.profile?.following || []);
+          setGyms(userData.profile?.gyms || []);
+          setCustomGradingSchemes(userData.profile?.customGradingSchemes || []);
           setColorTheme(userData.profile?.colorTheme || "espresso");
           setMutedUsers(userData.profile?.mutedUsers || []);
           setNotifPrefs(userData.profile?.notifPrefs || { follows: true, sessions: true });
@@ -615,7 +637,7 @@ export default function App() {
     setSaveStatus("saving");
     saveTimeoutRef.current = setTimeout(async () => {
       const userData = {
-        profile: { displayName: editDisplayName || currentUser.displayName, preferredScale, preferredRopeScale, profilePic, customBoulderGrades, customRopeGrades, customBoulderScaleName, customRopeScaleName, hiddenLocations, customLocations, mainGym, following: socialFollowing, colorTheme, mutedUsers, notifPrefs, isPrivate, pendingFollowRequests, defaultWarmupItems, autoEndWarmup, warmupTemplates, activeWarmupTemplateId, defaultWorkoutItems, defaultFingerboardItems, workoutRoutines, fingerboardRoutines, activeWorkoutRoutineId, activeFingerboardRoutineId, sessionTypeOrder, gymSetStaleWeeks, gymScales },
+        profile: { displayName: editDisplayName || currentUser.displayName, preferredScale, preferredRopeScale, profilePic, customBoulderGrades, customRopeGrades, customBoulderScaleName, customRopeScaleName, hiddenLocations, customLocations, mainGym, following: socialFollowing, colorTheme, mutedUsers, notifPrefs, isPrivate, pendingFollowRequests, defaultWarmupItems, autoEndWarmup, warmupTemplates, activeWarmupTemplateId, defaultWorkoutItems, defaultFingerboardItems, workoutRoutines, fingerboardRoutines, activeWorkoutRoutineId, activeFingerboardRoutineId, sessionTypeOrder, gymSetStaleWeeks, gymScales, gyms, customGradingSchemes },
         sessions,
         projects,
         gymSets,
@@ -739,6 +761,8 @@ export default function App() {
       setCustomLocations(safeData.profile?.customLocations || []);
       setMainGym(safeData.profile?.mainGym || "");
       setSocialFollowing(safeData.profile?.following || []);
+      setGyms(safeData.profile?.gyms || []);
+      setCustomGradingSchemes(safeData.profile?.customGradingSchemes || []);
       setColorTheme(safeData.profile?.colorTheme || "espresso");
       setMutedUsers(safeData.profile?.mutedUsers || []);
       setNotifPrefs(safeData.profile?.notifPrefs || { follows: true, sessions: true });
@@ -902,6 +926,9 @@ export default function App() {
     return ordered;
   })();
   const addCustomLocation = (loc) => { const trimmed = loc?.trim(); if (trimmed && !sessions.some(s => s.location?.toLowerCase() === trimmed.toLowerCase()) && !customLocations.some(c => c.toLowerCase() === trimmed.toLowerCase())) setCustomLocations(prev => [...prev, trimmed]); };
+  const getGymByName = (name) => gyms.find(g => g.name === name);
+  const getAllBoulderScaleNames = () => [...Object.keys(GRADES), ...customGradingSchemes.filter(s => s.applicableTo?.includes("boulder")).map(s => s.name)];
+  const getAllRopeScaleNames = () => [...Object.keys(ROPE_GRADES), ...customGradingSchemes.filter(s => s.applicableTo?.includes("rope")).map(s => s.name)];
   const allGyms = ["All Gyms", ...new Set(sessions.map(s => s.location).filter(Boolean))];
 
   const goToSessionSetup = () => {
@@ -3225,6 +3252,8 @@ export default function App() {
     const hasClimbing = sessionTypes.some(t => ["boulder","rope","speed"].includes(t));
     const hasTraining = sessionTypes.some(t => ["warmup","workout","fingerboard","fitness"].includes(t));
     const activeOpts = tab === "climbing" ? climbingOpts : tab === "training" ? trainingOpts : [];
+    const currentGym = gyms.find(g => g.name === pendingLocation);
+    const gymActs = currentGym?.activities || null;
     return (
       <div style={{ padding: "32px 20px" }}>
         {/* Location */}
@@ -3235,9 +3264,9 @@ export default function App() {
         {/* Session type card */}
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 24 }}>
           {[
-            { key: "climbing", label: "Climbing", icon: "🧗", defaultType: "boulder" },
-            { key: "training", label: "Fitness",  icon: "🏋️", defaultType: "fitness" },
-          ].map(({ key, label, icon, defaultType }) => {
+            { key: "climbing", label: "Climbing", icon: "🧗", defaultType: "boulder", show: !gymActs || gymActs.some(a => ["boulder","rope","speed"].includes(a)) },
+            { key: "training", label: "Fitness",  icon: "🏋️", defaultType: "fitness", show: !gymActs || gymActs.includes("workout") },
+          ].filter(x => x.show).map(({ key, label, icon, defaultType }) => {
             const sel = key === "climbing" ? hasClimbing : hasTraining;
             return (
               <button key={key} onClick={() => {
@@ -5313,6 +5342,35 @@ export default function App() {
               </button>
               {settingsGradingOpen && (
                 <div style={{ padding: "12px", borderTop: `1px solid ${W.border}` }}>
+                  {/* Custom Grading Schemes */}
+                  <div style={{ marginBottom: 18 }}>
+                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
+                      <div style={{ fontSize: 11, fontWeight: 700, color: W.textMuted, textTransform: "uppercase", letterSpacing: 1.2 }}>Custom Schemes</div>
+                      <button onClick={() => { setSchemeName(""); setSchemeGrades([]); setSchemeEditId(null); setSchemeBuilderFor(null); setShowSchemeBuilder(true); }} style={{ display: "flex", alignItems: "center", gap: 4, padding: "5px 10px", background: W.accent+"22", border: `1px solid ${W.accent}`, borderRadius: 8, color: W.accent, fontWeight: 700, fontSize: 11, cursor: "pointer" }}>+ New</button>
+                    </div>
+                    {customGradingSchemes.length === 0 ? (
+                      <div style={{ fontSize: 12, color: W.textDim, padding: "8px 0" }}>No custom schemes yet. Create one above or during gym setup.</div>
+                    ) : (
+                      customGradingSchemes.map(scheme => (
+                        <div key={scheme.id} style={{ display: "flex", alignItems: "center", gap: 8, padding: "10px 12px", background: W.surface, border: `1px solid ${W.border}`, borderRadius: 10, marginBottom: 6 }}>
+                          <div style={{ flex: 1 }}>
+                            <div style={{ fontSize: 13, fontWeight: 700, color: W.text }}>{scheme.name}</div>
+                            <div style={{ display: "flex", gap: 4, marginTop: 4, flexWrap: "wrap" }}>
+                              {(scheme.grades || []).slice(0, 6).map(g => (
+                                <div key={g.id} style={{ display: "flex", alignItems: "center", gap: 3 }}>
+                                  <div style={{ width: 10, height: 10, borderRadius: "50%", background: g.color || "#888" }} />
+                                  <span style={{ fontSize: 10, color: W.textMuted }}>{g.label}</span>
+                                </div>
+                              ))}
+                              {(scheme.grades || []).length > 6 && <span style={{ fontSize: 10, color: W.textDim }}>+{scheme.grades.length-6} more</span>}
+                            </div>
+                          </div>
+                          <button onClick={() => { setSchemeEditId(scheme.id); setSchemeName(scheme.name); setSchemeGrades(scheme.grades || []); setSchemeBuilderFor(null); setShowSchemeBuilder(true); }} style={{ padding: "6px 12px", background: W.surface2, border: `1px solid ${W.border}`, borderRadius: 8, color: W.textMuted, fontWeight: 700, fontSize: 11, cursor: "pointer" }}>Edit</button>
+                          <button onClick={() => setCustomGradingSchemes(prev => prev.filter(s => s.id !== scheme.id))} style={{ background: "none", border: "none", color: W.textMuted, fontSize: 18, cursor: "pointer", padding: "0 4px" }}>×</button>
+                        </div>
+                      ))
+                    )}
+                  </div>
                   {/* Boulder grading */}
                   <div style={{ marginBottom: 14 }}>
                     <div style={{ fontSize: 11, fontWeight: 700, color: W.textMuted, textTransform: "uppercase", letterSpacing: 1.2, marginBottom: 8 }}>Boulder Grading</div>
@@ -6794,20 +6852,10 @@ export default function App() {
                 );
               })}
               {/* Add gym card */}
-              {showAddGym ? (
-                <div style={{ background: W.surface, border: `2px solid ${W.accent}`, borderRadius: 16, padding: "14px 12px", minHeight: 110, display: "flex", flexDirection: "column", justifyContent: "center", gap: 8 }}>
-                  <input autoFocus value={addGymInput} onChange={e => setAddGymInput(e.target.value)} onKeyDown={e => { if (e.key === "Enter" && addGymInput.trim()) { addCustomLocation(addGymInput.trim()); setShowAddGym(false); setAddGymInput(""); } if (e.key === "Escape") { setShowAddGym(false); setAddGymInput(""); } }} placeholder="Gym name…" style={{ padding: "7px 10px", background: W.surface2, border: `1.5px solid ${W.border}`, borderRadius: 9, color: W.text, fontSize: 13, fontFamily: "inherit", outline: "none" }} />
-                  <div style={{ display: "flex", gap: 6 }}>
-                    <button onClick={() => { if (addGymInput.trim()) { addCustomLocation(addGymInput.trim()); } setShowAddGym(false); setAddGymInput(""); }} style={{ flex: 1, padding: "6px", background: W.accent, border: "none", borderRadius: 8, color: "#fff", fontWeight: 700, fontSize: 12, cursor: "pointer" }}>Add</button>
-                    <button onClick={() => { setShowAddGym(false); setAddGymInput(""); }} style={{ flex: 1, padding: "6px", background: W.surface2, border: `1px solid ${W.border}`, borderRadius: 8, color: W.textMuted, fontWeight: 700, fontSize: 12, cursor: "pointer" }}>Cancel</button>
-                  </div>
-                </div>
-              ) : (
-                <div onClick={() => setShowAddGym(true)} style={{ background: W.surface, border: `2px dashed ${W.border}`, borderRadius: 16, padding: "14px 12px", cursor: "pointer", minHeight: 110, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 6 }}>
-                  <div style={{ fontSize: 32, color: W.textMuted, lineHeight: 1 }}>+</div>
-                  <div style={{ fontSize: 11, color: W.textMuted, fontWeight: 700 }}>Add Gym</div>
-                </div>
-              )}
+              <div onClick={() => { setGymCreateStep(1); setGymCreateName(""); setGymCreateActivities([]); setGymCreateId(null); setGymCreateBoulderScale("V-Scale"); setGymCreateRopeScale("French"); setShowGymCreate(true); }} style={{ background: W.surface, border: `2px dashed ${W.border}`, borderRadius: 16, padding: "14px 12px", cursor: "pointer", minHeight: 110, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 6 }}>
+                <div style={{ fontSize: 32, color: W.textMuted, lineHeight: 1 }}>+</div>
+                <div style={{ fontSize: 11, color: W.textMuted, fontWeight: 700 }}>Add Gym</div>
+              </div>
             </div>
           );
         })()}
@@ -7697,6 +7745,250 @@ export default function App() {
           </div>
         )}
       </div>
+
+      {/* Scheme Builder Modal */}
+      {showSchemeBuilder && (() => {
+        const SCHEME_COLORS = ["#ff4444","#ff8c00","#ffd700","#88cc00","#00cc88","#00aaff","#6644ff","#ff44cc","#ffffff","#aaaaaa","#555555","#000000","#a0522d","#ff69b4","#40e0d0","#ff6347"];
+        const PRESETS = [
+          { name: "Traffic Light", colors: ["#4caf50","#cddc39","#ffeb3b","#ffc107","#f44336"] },
+          { name: "Ocean",         colors: ["#b2ebf2","#26c6da","#0097a7","#006064"] },
+          { name: "Fire",          colors: ["#fff176","#ffb300","#ff6d00","#dd2c00"] },
+          { name: "Purples",       colors: ["#e1bee7","#ab47bc","#7b1fa2","#4a148c"] },
+          { name: "Mono",          colors: ["#eeeeee","#9e9e9e","#424242","#111111"] },
+        ];
+        const lerpColor = (c1, c2, t) => {
+          const p = (s, i) => parseInt(s.slice(i,i+2),16);
+          const r = Math.round(p(c1,1)+(p(c2,1)-p(c1,1))*t).toString(16).padStart(2,'0');
+          const g = Math.round(p(c1,3)+(p(c2,3)-p(c1,3))*t).toString(16).padStart(2,'0');
+          const b = Math.round(p(c1,5)+(p(c2,5)-p(c1,5))*t).toString(16).padStart(2,'0');
+          return `#${r}${g}${b}`;
+        };
+        const applyPreset = (preset) => {
+          if (schemeGrades.length === 0) return;
+          const n = schemeGrades.length;
+          setSchemeGrades(schemeGrades.map((g, i) => {
+            const t = n === 1 ? 0 : i / (n-1);
+            const cols = preset.colors;
+            const seg = (cols.length-1)*t;
+            const idx = Math.min(Math.floor(seg), cols.length-2);
+            return { ...g, color: lerpColor(cols[idx], cols[idx+1], seg-idx) };
+          }));
+        };
+        const addGrade = () => {
+          if (!schemeNewGrade.trim()) return;
+          setSchemeGrades(prev => [...prev, { id: `g${Date.now()}`, label: schemeNewGrade.trim(), color: "#888888" }]);
+          setSchemeNewGrade("");
+        };
+        const deleteGrade = (id) => setSchemeGrades(prev => prev.filter(g => g.id !== id));
+        const changeColor = (id, color) => { setSchemeGrades(prev => prev.map(g => g.id === id ? { ...g, color } : g)); setSchemeColorPicking(null); };
+        const moveGrade = (idx, dir) => {
+          const newArr = [...schemeGrades];
+          const target = idx + dir;
+          if (target < 0 || target >= newArr.length) return;
+          [newArr[idx], newArr[target]] = [newArr[target], newArr[idx]];
+          setSchemeGrades(newArr);
+        };
+        const saveScheme = () => {
+          if (!schemeName.trim() || schemeGrades.length === 0) return;
+          const scheme = {
+            id: schemeEditId || `cgs_${Date.now()}`,
+            name: schemeName.trim(),
+            applicableTo: ["boulder","rope"],
+            grades: schemeGrades,
+          };
+          setCustomGradingSchemes(prev => schemeEditId ? prev.map(s => s.id === schemeEditId ? scheme : s) : [...prev, scheme]);
+          if (schemeBuilderFor === "boulder") setGymCreateBoulderScale(scheme.name);
+          if (schemeBuilderFor === "rope") setGymCreateRopeScale(scheme.name);
+          setShowSchemeBuilder(false);
+          setSchemeEditId(null); setSchemeName(""); setSchemeGrades([]); setSchemeBuilderFor(null);
+        };
+        return (
+          <div style={{ position: "fixed", inset: 0, zIndex: 500, background: "rgba(0,0,0,0.7)", display: "flex", flexDirection: "column" }} onClick={e => { if (e.target === e.currentTarget) setSchemeColorPicking(null); }}>
+            <div style={{ background: W.bg, flex: 1, display: "flex", flexDirection: "column", paddingTop: "calc(16px + env(safe-area-inset-top))" }}>
+              {/* Header */}
+              <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "0 20px 16px", borderBottom: `1px solid ${W.border}` }}>
+                <button onClick={() => { setShowSchemeBuilder(false); setSchemeEditId(null); setSchemeName(""); setSchemeGrades([]); setSchemeBuilderFor(null); }} style={{ background: "none", border: "none", fontSize: 22, color: W.textMuted, cursor: "pointer", padding: 0 }}>←</button>
+                <div style={{ fontWeight: 800, fontSize: 17, color: W.text }}>{schemeEditId ? "Edit Grading Scheme" : "New Grading Scheme"}</div>
+              </div>
+              <div style={{ flex: 1, overflowY: "auto", padding: "20px", paddingBottom: "calc(80px + env(safe-area-inset-bottom))" }}>
+                {/* Name */}
+                <div style={{ marginBottom: 20 }}>
+                  <div style={{ fontSize: 11, fontWeight: 700, color: W.textMuted, textTransform: "uppercase", letterSpacing: 1, marginBottom: 6 }}>Scheme Name</div>
+                  <input value={schemeName} onChange={e => setSchemeName(e.target.value)} placeholder="e.g. My Gym Grades" style={{ width: "100%", boxSizing: "border-box", padding: "10px 14px", background: W.surface2, border: `1.5px solid ${W.border}`, borderRadius: 12, color: W.text, fontSize: 15, fontFamily: "inherit" }} />
+                </div>
+                {/* Add grade */}
+                <div style={{ marginBottom: 16 }}>
+                  <div style={{ fontSize: 11, fontWeight: 700, color: W.textMuted, textTransform: "uppercase", letterSpacing: 1, marginBottom: 6 }}>Grade Levels <span style={{ color: W.textDim, fontWeight: 400, textTransform: "none", letterSpacing: 0 }}>(easiest → hardest)</span></div>
+                  <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
+                    <input value={schemeNewGrade} onChange={e => setSchemeNewGrade(e.target.value)} onKeyDown={e => e.key === "Enter" && addGrade()} placeholder="e.g. Yellow, V1, Easy…" style={{ flex: 1, padding: "9px 12px", background: W.surface2, border: `1.5px solid ${W.border}`, borderRadius: 10, color: W.text, fontSize: 13, fontFamily: "inherit" }} />
+                    <button onClick={addGrade} style={{ padding: "9px 16px", background: W.accent, border: "none", borderRadius: 10, color: "#fff", fontWeight: 700, fontSize: 13, cursor: "pointer" }}>+ Add</button>
+                  </div>
+                  {/* Grade list */}
+                  {schemeGrades.length === 0 ? (
+                    <div style={{ textAlign: "center", padding: "20px", color: W.textDim, fontSize: 13 }}>No grades yet. Add some above.</div>
+                  ) : (
+                    <div>
+                      {schemeGrades.map((g, idx) => (
+                        <div key={g.id} style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 10px", background: W.surface, border: `1px solid ${W.border}`, borderRadius: 10, marginBottom: 6, position: "relative" }}>
+                          {/* Up/down reorder */}
+                          <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+                            <button onClick={() => moveGrade(idx, -1)} disabled={idx === 0} style={{ background: "none", border: "none", color: idx === 0 ? W.border : W.textMuted, fontSize: 10, cursor: idx === 0 ? "default" : "pointer", padding: "1px 4px", lineHeight: 1 }}>▲</button>
+                            <button onClick={() => moveGrade(idx, 1)} disabled={idx === schemeGrades.length-1} style={{ background: "none", border: "none", color: idx === schemeGrades.length-1 ? W.border : W.textMuted, fontSize: 10, cursor: idx === schemeGrades.length-1 ? "default" : "pointer", padding: "1px 4px", lineHeight: 1 }}>▼</button>
+                          </div>
+                          {/* Color dot + picker */}
+                          <div style={{ position: "relative" }}>
+                            <div onClick={() => setSchemeColorPicking(schemeColorPicking === g.id ? null : g.id)} style={{ width: 26, height: 26, borderRadius: "50%", background: g.color || "#888", border: `2px solid ${W.border}`, cursor: "pointer", flexShrink: 0 }} />
+                            {schemeColorPicking === g.id && (
+                              <div style={{ position: "absolute", left: 0, top: 32, zIndex: 10, background: W.surface2, border: `1px solid ${W.border}`, borderRadius: 12, padding: "10px", display: "flex", flexWrap: "wrap", gap: 6, width: 200 }}>
+                                {SCHEME_COLORS.map(c => (
+                                  <div key={c} onClick={() => changeColor(g.id, c)} style={{ width: 28, height: 28, borderRadius: "50%", background: c, border: `2px solid ${g.color === c ? W.accent : W.border}`, cursor: "pointer" }} />
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                          {/* Label */}
+                          <div style={{ flex: 1, color: W.text, fontSize: 14, fontWeight: 600 }}>{g.label}</div>
+                          {/* Delete */}
+                          <button onClick={() => deleteGrade(g.id)} style={{ background: "none", border: "none", color: W.textMuted, fontSize: 20, cursor: "pointer", padding: "0 4px", lineHeight: 1 }}>×</button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+                {/* Color presets */}
+                {schemeGrades.length > 0 && (
+                  <div style={{ marginBottom: 24 }}>
+                    <div style={{ fontSize: 11, fontWeight: 700, color: W.textMuted, textTransform: "uppercase", letterSpacing: 1, marginBottom: 8 }}>Color Presets</div>
+                    <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                      {PRESETS.map(p => (
+                        <button key={p.name} onClick={() => applyPreset(p)} style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 14px", background: W.surface, border: `1px solid ${W.border}`, borderRadius: 12, cursor: "pointer", width: "100%", textAlign: "left" }}>
+                          <div style={{ display: "flex", gap: 3 }}>{p.colors.map((c, i) => <div key={i} style={{ width: 20, height: 20, borderRadius: "50%", background: c }} />)}</div>
+                          <span style={{ color: W.text, fontSize: 13, fontWeight: 600 }}>{p.name}</span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                {/* Save */}
+                <button onClick={saveScheme} disabled={!schemeName.trim() || schemeGrades.length === 0} style={{ width: "100%", padding: "16px", background: schemeName.trim() && schemeGrades.length > 0 ? `linear-gradient(135deg, ${W.accent}, ${W.accentDark})` : W.surface2, border: "none", borderRadius: 16, color: schemeName.trim() && schemeGrades.length > 0 ? "#fff" : W.textDim, fontSize: 16, fontWeight: 800, cursor: schemeName.trim() && schemeGrades.length > 0 ? "pointer" : "default" }}>Save Scheme</button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* Gym Create Modal */}
+      {showGymCreate && (() => {
+        const activities = [
+          { id: "boulder", label: "Bouldering", icon: "🪨" },
+          { id: "rope",    label: "Rope Climbing", icon: "🧗" },
+          { id: "speed",   label: "Speed Climbing", icon: "⚡" },
+          { id: "workout", label: "Working Out", icon: "🏋️" },
+        ];
+        const toggleActivity = (id) => setGymCreateActivities(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
+        const canNext = gymCreateName.trim().length > 0 && gymCreateActivities.length > 0;
+        const hasBoulder = gymCreateActivities.includes("boulder");
+        const hasRope = gymCreateActivities.includes("rope");
+        const allBoulderScales = getAllBoulderScaleNames();
+        const allRopeScales = getAllRopeScaleNames();
+        const saveGym = () => {
+          const name = gymCreateName.trim();
+          if (!name) return;
+          const newGym = {
+            id: gymCreateId || `gym_${Date.now()}`,
+            name,
+            activities: gymCreateActivities,
+            boulderScale: gymCreateBoulderScale,
+            ropeScale: gymCreateRopeScale,
+          };
+          setGyms(prev => gymCreateId ? prev.map(g => g.id === gymCreateId ? newGym : g) : [...prev, newGym]);
+          addCustomLocation(name);
+          setGymScales(prev => ({ ...prev, [name]: { ...prev[name], boulder: gymCreateBoulderScale, rope: gymCreateRopeScale } }));
+          setShowGymCreate(false);
+        };
+        return (
+          <div style={{ position: "fixed", inset: 0, zIndex: 400, background: "rgba(0,0,0,0.7)", display: "flex", flexDirection: "column" }}>
+            <div style={{ background: W.bg, flex: 1, display: "flex", flexDirection: "column", paddingTop: "calc(16px + env(safe-area-inset-top))" }}>
+              {/* Header */}
+              <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "0 20px 16px", borderBottom: `1px solid ${W.border}` }}>
+                <button onClick={() => gymCreateStep > 1 ? setGymCreateStep(gymCreateStep-1) : setShowGymCreate(false)} style={{ background: "none", border: "none", fontSize: 22, color: W.textMuted, cursor: "pointer", padding: 0 }}>←</button>
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontWeight: 800, fontSize: 17, color: W.text }}>{gymCreateStep === 1 ? "New Gym" : "Grading Schemes"}</div>
+                  <div style={{ fontSize: 11, color: W.textMuted }}>Step {gymCreateStep} of 2</div>
+                </div>
+                {/* Step indicators */}
+                <div style={{ display: "flex", gap: 4 }}>
+                  {[1,2].map(s => <div key={s} style={{ width: 8, height: 8, borderRadius: "50%", background: s <= gymCreateStep ? W.accent : W.border }} />)}
+                </div>
+              </div>
+              <div style={{ flex: 1, overflowY: "auto", padding: "24px 20px", paddingBottom: "calc(80px + env(safe-area-inset-bottom))" }}>
+                {gymCreateStep === 1 && (
+                  <>
+                    {/* Name */}
+                    <div style={{ marginBottom: 24 }}>
+                      <div style={{ fontSize: 11, fontWeight: 700, color: W.textMuted, textTransform: "uppercase", letterSpacing: 1, marginBottom: 8 }}>Gym Name</div>
+                      <input autoFocus value={gymCreateName} onChange={e => setGymCreateName(e.target.value)} placeholder="e.g. The Crux Gym" style={{ width: "100%", boxSizing: "border-box", padding: "12px 16px", background: W.surface2, border: `1.5px solid ${W.border}`, borderRadius: 14, color: W.text, fontSize: 16, fontFamily: "inherit" }} />
+                    </div>
+                    {/* Activities */}
+                    <div style={{ marginBottom: 32 }}>
+                      <div style={{ fontSize: 11, fontWeight: 700, color: W.textMuted, textTransform: "uppercase", letterSpacing: 1, marginBottom: 12 }}>What Can You Do Here?</div>
+                      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+                        {activities.map(a => {
+                          const sel = gymCreateActivities.includes(a.id);
+                          return (
+                            <button key={a.id} onClick={() => toggleActivity(a.id)} style={{ padding: "16px 12px", background: sel ? W.accent+"22" : W.surface, border: `2px solid ${sel ? W.accent : W.border}`, borderRadius: 14, cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", gap: 8 }}>
+                              <span style={{ fontSize: 28 }}>{a.icon}</span>
+                              <span style={{ fontSize: 12, fontWeight: 700, color: sel ? W.accent : W.text }}>{a.label}</span>
+                              {sel && <span style={{ fontSize: 14, color: W.accent }}>✓</span>}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                    <button onClick={() => canNext && setGymCreateStep(2)} disabled={!canNext} style={{ width: "100%", padding: "16px", background: canNext ? `linear-gradient(135deg, ${W.accent}, ${W.accentDark})` : W.surface2, border: "none", borderRadius: 16, color: canNext ? "#fff" : W.textDim, fontSize: 16, fontWeight: 800, cursor: canNext ? "pointer" : "default" }}>Next →</button>
+                  </>
+                )}
+                {gymCreateStep === 2 && (
+                  <>
+                    {hasBoulder && (
+                      <div style={{ marginBottom: 28 }}>
+                        <div style={{ fontSize: 14, fontWeight: 800, color: W.text, marginBottom: 4 }}>Boulder Grading</div>
+                        <div style={{ fontSize: 12, color: W.textMuted, marginBottom: 12 }}>What grading system does this gym use for bouldering?</div>
+                        <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 8 }}>
+                          {allBoulderScales.map(s => (
+                            <button key={s} onClick={() => setGymCreateBoulderScale(s)} style={{ padding: "7px 14px", borderRadius: 20, border: `2px solid ${gymCreateBoulderScale === s ? W.accent : W.border}`, background: gymCreateBoulderScale === s ? W.accent+"22" : W.surface2, color: gymCreateBoulderScale === s ? W.accent : W.textDim, fontWeight: 700, fontSize: 12, cursor: "pointer" }}>{s}</button>
+                          ))}
+                        </div>
+                        <button onClick={() => { setSchemeBuilderFor("boulder"); setSchemeName(""); setSchemeGrades([]); setSchemeEditId(null); setShowSchemeBuilder(true); }} style={{ display: "flex", alignItems: "center", gap: 6, padding: "8px 14px", background: W.surface2, border: `1px solid ${W.border}`, borderRadius: 10, color: W.textMuted, fontWeight: 700, fontSize: 12, cursor: "pointer" }}>
+                          <span style={{ fontSize: 16 }}>+</span> Create Custom Scheme
+                        </button>
+                      </div>
+                    )}
+                    {hasRope && (
+                      <div style={{ marginBottom: 28 }}>
+                        <div style={{ fontSize: 14, fontWeight: 800, color: W.text, marginBottom: 4 }}>Rope Grading</div>
+                        <div style={{ fontSize: 12, color: W.textMuted, marginBottom: 12 }}>What grading system does this gym use for rope climbing?</div>
+                        <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 8 }}>
+                          {allRopeScales.map(s => (
+                            <button key={s} onClick={() => setGymCreateRopeScale(s)} style={{ padding: "7px 14px", borderRadius: 20, border: `2px solid ${gymCreateRopeScale === s ? W.accent : W.border}`, background: gymCreateRopeScale === s ? W.accent+"22" : W.surface2, color: gymCreateRopeScale === s ? W.accent : W.textDim, fontWeight: 700, fontSize: 12, cursor: "pointer" }}>{s}</button>
+                          ))}
+                        </div>
+                        <button onClick={() => { setSchemeBuilderFor("rope"); setSchemeName(""); setSchemeGrades([]); setSchemeEditId(null); setShowSchemeBuilder(true); }} style={{ display: "flex", alignItems: "center", gap: 6, padding: "8px 14px", background: W.surface2, border: `1px solid ${W.border}`, borderRadius: 10, color: W.textMuted, fontWeight: 700, fontSize: 12, cursor: "pointer" }}>
+                          <span style={{ fontSize: 16 }}>+</span> Create Custom Scheme
+                        </button>
+                      </div>
+                    )}
+                    {!hasBoulder && !hasRope && (
+                      <div style={{ textAlign: "center", padding: "40px 20px", color: W.textMuted, fontSize: 13 }}>No grading schemes needed for the selected activities.</div>
+                    )}
+                    <button onClick={saveGym} style={{ width: "100%", padding: "16px", background: `linear-gradient(135deg, ${W.accent}, ${W.accentDark})`, border: "none", borderRadius: 16, color: "#fff", fontSize: 16, fontWeight: 800, cursor: "pointer" }}>Add Gym</button>
+                  </>
+                )}
+              </div>
+            </div>
+          </div>
+        );
+      })()}
 
       {/* Abandoned session recovery popup */}
       {abandonedSession && (() => {
