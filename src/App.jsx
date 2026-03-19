@@ -234,11 +234,7 @@ export default function App() {
   const lbPhotoRef         = useRef();
   const sessionInitialized = useRef(false); // prevents persist effect from clearing active:climb before checkSession reads it
   const boulderListRef     = useRef(null);
-  const swipeStartRef      = useRef(null); // { x, y, ts }
-  const swipeLockedRef     = useRef(null); // null | "h" | "v"
-  const swipeAnimRef       = useRef(false);
-  const screenRef          = useRef(screen);
-  const scrollDivRef       = useRef(null);
+  const swipeStartRef      = useRef(null);
 
   const [showClimbForm, setShowClimbForm]       = useState(false);
   const [formProjectPickerOpen, setFormProjectPickerOpen] = useState(false);
@@ -7290,39 +7286,6 @@ export default function App() {
     );
   };
 
-  // ── SWIPE NAVIGATION ──────────────────────────────────────────
-  useEffect(() => { screenRef.current = screen; }, [screen]);
-
-  useEffect(() => {
-    const el = scrollDivRef.current;
-    if (!el) return;
-    const TABS = ["home", "session", "profile"];
-    const handleMove = (e) => {
-      if (!swipeStartRef.current) return;
-      const t = e.touches[0];
-      const dx = t.clientX - swipeStartRef.current.x;
-      const dy = t.clientY - swipeStartRef.current.y;
-      if (!swipeLockedRef.current) {
-        if (Math.abs(dx) > 7 || Math.abs(dy) > 7) {
-          const idx = TABS.indexOf(screenRef.current);
-          const canSwipe = idx !== -1 && !swipeAnimRef.current &&
-            ((dx < 0 && idx < TABS.length - 1) || (dx > 0 && idx > 0));
-          swipeLockedRef.current = (Math.abs(dx) >= Math.abs(dy) && canSwipe) ? "h" : "v";
-        }
-        return;
-      }
-      if (swipeLockedRef.current !== "h") return;
-      e.preventDefault();
-      const idx = TABS.indexOf(screenRef.current);
-      const atEdge = (idx === 0 && dx > 0) || (idx === TABS.length - 1 && dx < 0);
-      const offset = atEdge ? Math.sign(dx) * Math.pow(Math.abs(dx), 0.55) * 5 : dx;
-      el.style.transform = `translateX(${offset}px)`;
-      el.style.transition = "none";
-    };
-    el.addEventListener("touchmove", handleMove, { passive: false });
-    return () => el.removeEventListener("touchmove", handleMove);
-  }, []);
-
   // §RENDER
   const backMap  = { sessionDetail: sessionDetailBackTo, calendar: "profile", projectDetail: "profile", userProfile: userProfileBackTo, social: "profile", leaderboard: "profile" };
   const navItems = [
@@ -7521,69 +7484,28 @@ export default function App() {
           <LocationDropdown value={activeSession?.location || ""} onChange={v => { setActiveSession(s => ({ ...s, location: v })); addCustomLocation(v); setActiveLocationDropdownOpen(false); if (gymScales[v]?.boulder) setPreferredScale(gymScales[v].boulder); if (gymScales[v]?.rope) setPreferredRopeScale(gymScales[v].rope); }} open={activeLocationDropdownOpen} setOpen={setActiveLocationDropdownOpen} knownLocations={knownLocations} onRemove={loc => setHiddenLocations(h => [...h, loc])} />
         </div>
       )}
-      <div ref={scrollDivRef} style={{ flex: 1, overflowY: "auto", paddingBottom: screen === "sessionSummary" ? 0 : "calc(80px + env(safe-area-inset-bottom))" }}
+      <div style={{ flex: 1, overflowY: "auto", paddingBottom: screen === "sessionSummary" ? 0 : "calc(80px + env(safe-area-inset-bottom))" }}
         onTouchStart={e => {
-          if (swipeAnimRef.current) return;
           const t = e.touches[0];
           swipeStartRef.current = { x: t.clientX, y: t.clientY, ts: Date.now() };
-          swipeLockedRef.current = null;
-          if (scrollDivRef.current) scrollDivRef.current.style.willChange = "transform";
         }}
         onTouchEnd={e => {
-          const el = scrollDivRef.current;
-          if (!swipeStartRef.current || swipeLockedRef.current !== "h") {
-            swipeStartRef.current = null;
-            swipeLockedRef.current = null;
-            // Spring back if rubber-banded
-            if (el && el.style.transform && el.style.transform !== "translateX(0px)" && el.style.transform !== "") {
-              el.style.transition = "transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1)";
-              el.style.transform = "translateX(0px)";
-              setTimeout(() => { if (el) { el.style.willChange = "auto"; el.style.transition = ""; } }, 400);
-            }
-            return;
-          }
-          const { x: sx, ts } = swipeStartRef.current;
+          if (!swipeStartRef.current) return;
+          const { x: sx, y: sy, ts } = swipeStartRef.current;
           swipeStartRef.current = null;
-          swipeLockedRef.current = null;
           const t = e.changedTouches[0];
           const dx = t.clientX - sx;
-          const dt = Date.now() - ts;
-          const velocity = Math.abs(dx) / Math.max(dt, 1);
-          const TABS = ["home", "session", "profile"];
-          const idx = TABS.indexOf(screen);
-          if (idx === -1) { if (el) { el.style.transform = ""; el.style.willChange = "auto"; } return; }
-          const canCommit = (Math.abs(dx) >= 58 || velocity > 0.45) &&
-                            ((dx < 0 && idx < TABS.length - 1) || (dx > 0 && idx > 0));
-          if (canCommit) {
-            const nextTab = TABS[dx < 0 ? idx + 1 : idx - 1];
-            const W = window.innerWidth;
-            swipeAnimRef.current = true;
-            // 1. Slide current screen out
-            el.style.transition = "transform 0.22s cubic-bezier(0.4, 0, 1, 1)";
-            el.style.transform = `translateX(${dx < 0 ? -W : W}px)`;
-            setTimeout(() => {
-              if (!scrollDivRef.current) return;
-              // 2. Switch screen and teleport to entry side (no transition)
-              if (nextTab === "session") { activeSession ? setScreen("session") : goToSessionSetup(); }
-              else setScreen(nextTab);
-              scrollDivRef.current.style.transition = "none";
-              scrollDivRef.current.style.transform = `translateX(${dx < 0 ? W : -W}px)`;
-              // 3. Animate new screen in
-              requestAnimationFrame(() => requestAnimationFrame(() => {
-                if (!scrollDivRef.current) return;
-                scrollDivRef.current.style.transition = "transform 0.3s cubic-bezier(0, 0, 0.2, 1)";
-                scrollDivRef.current.style.transform = "translateX(0px)";
-                setTimeout(() => {
-                  if (scrollDivRef.current) { scrollDivRef.current.style.willChange = "auto"; scrollDivRef.current.style.transition = ""; }
-                  swipeAnimRef.current = false;
-                }, 300);
-              }));
-            }, 220);
-          } else {
-            // Spring back to center with slight overshoot
-            el.style.transition = "transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1)";
-            el.style.transform = "translateX(0px)";
-            setTimeout(() => { if (el) { el.style.willChange = "auto"; el.style.transition = ""; } }, 400);
+          const dy = t.clientY - sy;
+          if (Math.abs(dx) < 55 || Math.abs(dx) < Math.abs(dy) * 1.5 || Date.now() - ts > 400) return;
+          const tabs = ["home", "session", "profile"];
+          const idx = tabs.indexOf(screen);
+          if (idx === -1) return;
+          if (dx < 0 && idx < tabs.length - 1) {
+            const next = tabs[idx + 1];
+            if (next === "session") { activeSession ? setScreen("session") : goToSessionSetup(); }
+            else setScreen(next);
+          } else if (dx > 0 && idx > 0) {
+            setScreen(tabs[idx - 1]);
           }
         }}
         onClick={() => { setLocationDropdownOpen(false); setActiveLocationDropdownOpen(false); }}>
