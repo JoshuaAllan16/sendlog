@@ -34,7 +34,7 @@ export const TagChips = ({ wallTypes = [], holdTypes = [] }) => {
 };
 
 // §LOCATION_DROPDOWN
-export const LocationDropdown = ({ value, onChange, open, setOpen, knownLocations, onRemove }) => {
+export const LocationDropdown = ({ value, onChange, open, setOpen, knownLocations, onRemove, onAddNew }) => {
   const W = useTheme();
   const [addPopup, setAddPopup] = useState(false);
   const [newGymInput, setNewGymInput] = useState("");
@@ -65,7 +65,7 @@ export const LocationDropdown = ({ value, onChange, open, setOpen, knownLocation
             )}
           </div>
         ))}
-        <div onClick={() => { setOpen(false); setAddPopup(true); }} style={{ padding: "11px 14px", cursor: "pointer", color: W.accent, fontSize: 13, fontWeight: 700, borderTop: `1px solid ${W.border}`, display: "flex", alignItems: "center", gap: 6 }}>＋ Add new gym location</div>
+        <div onClick={() => { setOpen(false); if (onAddNew) { onAddNew(""); } else { setAddPopup(true); } }} style={{ padding: "11px 14px", cursor: "pointer", color: W.accent, fontSize: 13, fontWeight: 700, borderTop: `1px solid ${W.border}`, display: "flex", alignItems: "center", gap: 6 }}>＋ Add new gym location</div>
       </div>
     )}
     {addPopup && (

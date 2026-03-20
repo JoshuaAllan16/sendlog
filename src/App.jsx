@@ -234,6 +234,7 @@ export default function App() {
   const lbPhotoRef         = useRef();
   const sessionInitialized = useRef(false); // prevents persist effect from clearing active:climb before checkSession reads it
   const boulderListRef     = useRef(null);
+  const gymCreateCallbackRef = useRef(null);
   const swipeStartRef      = useRef(null); // { x, y, ts }
   const swipeLockedRef     = useRef(null); // null | "h" | "v"
   const swipeAnimRef       = useRef(false);
@@ -256,6 +257,8 @@ export default function App() {
   const [gymCreateId, setGymCreateId] = useState(null);
   const [gymCreateBoulderScale, setGymCreateBoulderScale] = useState("V-Scale");
   const [gymCreateRopeScale, setGymCreateRopeScale] = useState("French");
+  const [gymCreateSections, setGymCreateSections] = useState([]);
+  const [gymCreateSectionInput, setGymCreateSectionInput] = useState("");
   const [showSchemeBuilder, setShowSchemeBuilder] = useState(false);
   const [schemeEditId, setSchemeEditId] = useState(null);
   const [schemeName, setSchemeName] = useState("");
@@ -3333,7 +3336,7 @@ export default function App() {
         {/* Location */}
         <div style={{ background: W.surface, borderRadius: 18, padding: "18px 20px", border: `1px solid ${W.border}`, marginBottom: 16 }}>
           <Label>Gym / Location</Label>
-          <LocationDropdown value={pendingLocation} onChange={v => { setPendingLocation(v); addCustomLocation(v); }} open={locationDropdownOpen} setOpen={setLocationDropdownOpen} knownLocations={knownLocations} onRemove={loc => setHiddenLocations(h => [...h, loc])} />
+          <LocationDropdown value={pendingLocation} onChange={v => { setPendingLocation(v); addCustomLocation(v); }} open={locationDropdownOpen} setOpen={setLocationDropdownOpen} knownLocations={knownLocations} onRemove={loc => setHiddenLocations(h => [...h, loc])} onAddNew={name => { gymCreateCallbackRef.current = (n) => setPendingLocation(n); setGymCreateStep(1); setGymCreateName(name || ""); setGymCreateActivities([]); setGymCreateId(null); setGymCreateBoulderScale("V-Scale"); setGymCreateRopeScale("French"); setGymCreateSections([]); setGymCreateSectionInput(""); setShowGymCreate(true); }} />
         </div>
         {/* Session type card */}
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 24 }}>
@@ -4568,7 +4571,7 @@ export default function App() {
         <div style={{ background: W.surface2, borderRadius: 16, padding: "16px", marginBottom: 16, border: `1px solid ${W.border}` }}>
           {!readOnly && editingLocation ? (
             <div>
-              <LocationDropdown value={locationVal} onChange={setLocationVal} open={locDropOpen} setOpen={setLocDropOpen} knownLocations={knownLocations} onRemove={loc => setHiddenLocations(h => [...h, loc])} />
+              <LocationDropdown value={locationVal} onChange={setLocationVal} open={locDropOpen} setOpen={setLocDropOpen} knownLocations={knownLocations} onRemove={loc => setHiddenLocations(h => [...h, loc])} onAddNew={name => { gymCreateCallbackRef.current = (n) => setLocationVal(n); setGymCreateStep(1); setGymCreateName(name || ""); setGymCreateActivities([]); setGymCreateId(null); setGymCreateBoulderScale("V-Scale"); setGymCreateRopeScale("French"); setGymCreateSections([]); setGymCreateSectionInput(""); setShowGymCreate(true); }} />
               <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
                 <button onClick={() => setEditingLocation(false)} style={{ flex: 1, padding: "8px", background: "transparent", border: `1px solid ${W.border}`, borderRadius: 8, color: W.textMuted, cursor: "pointer" }}>Cancel</button>
                 <button onClick={saveLocation} style={{ flex: 1, padding: "8px", background: W.accent, border: "none", borderRadius: 8, color: "#fff", fontWeight: 700, cursor: "pointer" }}>Save</button>
@@ -5389,7 +5392,7 @@ export default function App() {
             {/* Home Gym */}
             <div style={{ marginBottom: 14 }}>
               <div style={{ fontSize: 11, fontWeight: 700, color: W.textMuted, textTransform: "uppercase", letterSpacing: 1.2, marginBottom: 8 }}>Home Gym (default session location)</div>
-              <LocationDropdown value={mainGym} onChange={v => { setMainGym(v); addCustomLocation(v); }} open={homeGymDropOpen} setOpen={setHomeGymDropOpen} knownLocations={knownLocations} onRemove={loc => setHiddenLocations(h => [...h, loc])} />
+              <LocationDropdown value={mainGym} onChange={v => { setMainGym(v); addCustomLocation(v); }} open={homeGymDropOpen} setOpen={setHomeGymDropOpen} knownLocations={knownLocations} onRemove={loc => setHiddenLocations(h => [...h, loc])} onAddNew={name => { gymCreateCallbackRef.current = (n) => setMainGym(n); setGymCreateStep(1); setGymCreateName(name || ""); setGymCreateActivities([]); setGymCreateId(null); setGymCreateBoulderScale("V-Scale"); setGymCreateRopeScale("French"); setGymCreateSections([]); setGymCreateSectionInput(""); setShowGymCreate(true); }} />
             </div>
 
             {/* Profile picture */}
@@ -6926,7 +6929,7 @@ export default function App() {
                 );
               })}
               {/* Add gym card */}
-              <div onClick={() => { setGymCreateStep(1); setGymCreateName(""); setGymCreateActivities([]); setGymCreateId(null); setGymCreateBoulderScale("V-Scale"); setGymCreateRopeScale("French"); setShowGymCreate(true); }} style={{ background: W.surface, border: `2px dashed ${W.border}`, borderRadius: 16, padding: "14px 12px", cursor: "pointer", minHeight: 110, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 6 }}>
+              <div onClick={() => { gymCreateCallbackRef.current = null; setGymCreateStep(1); setGymCreateName(""); setGymCreateActivities([]); setGymCreateId(null); setGymCreateBoulderScale("V-Scale"); setGymCreateRopeScale("French"); setGymCreateSections([]); setGymCreateSectionInput(""); setShowGymCreate(true); }} style={{ background: W.surface, border: `2px dashed ${W.border}`, borderRadius: 16, padding: "14px 12px", cursor: "pointer", minHeight: 110, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 6 }}>
                 <div style={{ fontSize: 32, color: W.textMuted, lineHeight: 1 }}>+</div>
                 <div style={{ fontSize: 11, color: W.textMuted, fontWeight: 700 }}>Add Gym</div>
               </div>
@@ -7637,7 +7640,7 @@ export default function App() {
 
       {screen === "session" && sessionStarted && activeLocationDropdownOpen && (
         <div style={{ padding: "10px 20px 12px", background: W.navBg, borderBottom: `1px solid ${W.border}`, position: "sticky", top: 0, zIndex: 49 }} onClick={e => e.stopPropagation()}>
-          <LocationDropdown value={activeSession?.location || ""} onChange={v => { setActiveSession(s => ({ ...s, location: v })); addCustomLocation(v); setActiveLocationDropdownOpen(false); if (gymScales[v]?.boulder) setPreferredScale(gymScales[v].boulder); if (gymScales[v]?.rope) setPreferredRopeScale(gymScales[v].rope); }} open={activeLocationDropdownOpen} setOpen={setActiveLocationDropdownOpen} knownLocations={knownLocations} onRemove={loc => setHiddenLocations(h => [...h, loc])} />
+          <LocationDropdown value={activeSession?.location || ""} onChange={v => { setActiveSession(s => ({ ...s, location: v })); addCustomLocation(v); setActiveLocationDropdownOpen(false); if (gymScales[v]?.boulder) setPreferredScale(gymScales[v].boulder); if (gymScales[v]?.rope) setPreferredRopeScale(gymScales[v].rope); }} open={activeLocationDropdownOpen} setOpen={setActiveLocationDropdownOpen} knownLocations={knownLocations} onRemove={loc => setHiddenLocations(h => [...h, loc])} onAddNew={name => { gymCreateCallbackRef.current = (n, bs, rs) => { setActiveSession(s => ({ ...s, location: n })); setActiveLocationDropdownOpen(false); setPreferredScale(bs); setPreferredRopeScale(rs); }; setGymCreateStep(1); setGymCreateName(name || ""); setGymCreateActivities([]); setGymCreateId(null); setGymCreateBoulderScale("V-Scale"); setGymCreateRopeScale("French"); setGymCreateSections([]); setGymCreateSectionInput(""); setShowGymCreate(true); }} />
         </div>
       )}
       {/* Clip container — holds main panel + peek panel side by side during swipe */}
@@ -7997,34 +8000,34 @@ export default function App() {
           };
           setGyms(prev => gymCreateId ? prev.map(g => g.id === gymCreateId ? newGym : g) : [...prev, newGym]);
           addCustomLocation(name);
-          setGymScales(prev => ({ ...prev, [name]: { ...prev[name], boulder: gymCreateBoulderScale, rope: gymCreateRopeScale } }));
+          setGymScales(prev => ({ ...prev, [name]: { ...prev[name], boulder: gymCreateBoulderScale, rope: gymCreateRopeScale, wallSections: gymCreateSections } }));
+          if (gymCreateCallbackRef.current) { gymCreateCallbackRef.current(name, gymCreateBoulderScale, gymCreateRopeScale); gymCreateCallbackRef.current = null; }
           setShowGymCreate(false);
         };
+        const stepTitles = ["New Gym", "Grading Schemes", "Wall Sections"];
         return (
           <div style={{ position: "fixed", inset: 0, zIndex: 400, background: "rgba(0,0,0,0.7)", display: "flex", flexDirection: "column" }}>
             <div style={{ background: W.bg, flex: 1, display: "flex", flexDirection: "column", paddingTop: "calc(16px + env(safe-area-inset-top))" }}>
               {/* Header */}
-              <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "0 20px 16px", borderBottom: `1px solid ${W.border}` }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "0 20px 16px", borderBottom: `1px solid ${W.border}`, flexShrink: 0 }}>
                 <button onClick={() => gymCreateStep > 1 ? setGymCreateStep(gymCreateStep-1) : setShowGymCreate(false)} style={{ background: "none", border: "none", fontSize: 22, color: W.textMuted, cursor: "pointer", padding: 0 }}>←</button>
                 <div style={{ flex: 1 }}>
-                  <div style={{ fontWeight: 800, fontSize: 17, color: W.text }}>{gymCreateStep === 1 ? "New Gym" : "Grading Schemes"}</div>
-                  <div style={{ fontSize: 11, color: W.textMuted }}>Step {gymCreateStep} of 2</div>
+                  <div style={{ fontWeight: 800, fontSize: 17, color: W.text }}>{stepTitles[gymCreateStep - 1]}</div>
+                  <div style={{ fontSize: 11, color: W.textMuted }}>Step {gymCreateStep} of 3</div>
                 </div>
-                {/* Step indicators */}
                 <div style={{ display: "flex", gap: 4 }}>
-                  {[1,2].map(s => <div key={s} style={{ width: 8, height: 8, borderRadius: "50%", background: s <= gymCreateStep ? W.accent : W.border }} />)}
+                  {[1,2,3].map(s => <div key={s} style={{ width: 8, height: 8, borderRadius: "50%", background: s <= gymCreateStep ? W.accent : W.border }} />)}
                 </div>
               </div>
-              <div style={{ flex: 1, overflowY: "auto", padding: "24px 20px", paddingBottom: "calc(80px + env(safe-area-inset-bottom))" }}>
+              {/* Scrollable content */}
+              <div style={{ flex: 1, overflowY: "auto", padding: "24px 20px" }}>
                 {gymCreateStep === 1 && (
                   <>
-                    {/* Name */}
                     <div style={{ marginBottom: 24 }}>
                       <div style={{ fontSize: 11, fontWeight: 700, color: W.textMuted, textTransform: "uppercase", letterSpacing: 1, marginBottom: 8 }}>Gym Name</div>
-                      <input autoFocus value={gymCreateName} onChange={e => setGymCreateName(e.target.value)} placeholder="e.g. The Crux Gym" style={{ width: "100%", boxSizing: "border-box", padding: "12px 16px", background: W.surface2, border: `1.5px solid ${W.border}`, borderRadius: 14, color: W.text, fontSize: 16, fontFamily: "inherit" }} />
+                      <input autoFocus value={gymCreateName} onChange={e => setGymCreateName(e.target.value)} onKeyDown={e => e.key === "Enter" && canNext && setGymCreateStep(2)} placeholder="e.g. The Crux Gym" style={{ width: "100%", boxSizing: "border-box", padding: "12px 16px", background: W.surface2, border: `1.5px solid ${W.border}`, borderRadius: 14, color: W.text, fontSize: 16, fontFamily: "inherit" }} />
                     </div>
-                    {/* Activities */}
-                    <div style={{ marginBottom: 32 }}>
+                    <div>
                       <div style={{ fontSize: 11, fontWeight: 700, color: W.textMuted, textTransform: "uppercase", letterSpacing: 1, marginBottom: 12 }}>What Can You Do Here?</div>
                       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
                         {activities.map(a => {
@@ -8039,7 +8042,6 @@ export default function App() {
                         })}
                       </div>
                     </div>
-                    <button onClick={() => canNext && setGymCreateStep(2)} disabled={!canNext} style={{ width: "100%", padding: "16px", background: canNext ? `linear-gradient(135deg, ${W.accent}, ${W.accentDark})` : W.surface2, border: "none", borderRadius: 16, color: canNext ? "#fff" : W.textDim, fontSize: 16, fontWeight: 800, cursor: canNext ? "pointer" : "default" }}>Next →</button>
                   </>
                 )}
                 {gymCreateStep === 2 && (
@@ -8106,8 +8108,45 @@ export default function App() {
                     {!hasBoulder && !hasRope && (
                       <div style={{ textAlign: "center", padding: "40px 20px", color: W.textMuted, fontSize: 13 }}>No grading schemes needed for the selected activities.</div>
                     )}
-                    <button onClick={saveGym} style={{ width: "100%", padding: "16px", background: `linear-gradient(135deg, ${W.accent}, ${W.accentDark})`, border: "none", borderRadius: 16, color: "#fff", fontSize: 16, fontWeight: 800, cursor: "pointer" }}>Add Gym</button>
                   </>
+                )}
+                {gymCreateStep === 3 && (
+                  <>
+                    <div style={{ fontSize: 13, color: W.textMuted, marginBottom: 20, lineHeight: 1.5 }}>Add the wall sections at this gym — e.g. "Overhang Cave", "Slab Wall", "Main Wall". You can always add or remove sections later in gym settings.</div>
+                    <div style={{ display: "flex", gap: 8, marginBottom: 16 }}>
+                      <input
+                        value={gymCreateSectionInput}
+                        onChange={e => setGymCreateSectionInput(e.target.value)}
+                        onKeyDown={e => { if (e.key === "Enter") { const t = gymCreateSectionInput.trim(); if (t && !gymCreateSections.includes(t)) setGymCreateSections(prev => [...prev, t]); setGymCreateSectionInput(""); } }}
+                        placeholder="e.g. Overhang Cave"
+                        style={{ flex: 1, padding: "11px 14px", background: W.surface2, border: `1.5px solid ${W.border}`, borderRadius: 12, color: W.text, fontSize: 14, fontFamily: "inherit" }}
+                      />
+                      <button onClick={() => { const t = gymCreateSectionInput.trim(); if (t && !gymCreateSections.includes(t)) setGymCreateSections(prev => [...prev, t]); setGymCreateSectionInput(""); }} style={{ padding: "11px 18px", background: W.accent, border: "none", borderRadius: 12, color: "#fff", fontWeight: 700, fontSize: 14, cursor: "pointer" }}>Add</button>
+                    </div>
+                    {gymCreateSections.length === 0 && (
+                      <div style={{ textAlign: "center", padding: "20px 0", color: W.textDim, fontSize: 13 }}>No sections added yet — skip to create gym without sections</div>
+                    )}
+                    <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+                      {gymCreateSections.map(sec => (
+                        <div key={sec} style={{ display: "flex", alignItems: "center", gap: 6, background: W.surface, border: `1px solid ${W.border}`, borderRadius: 20, padding: "6px 12px" }}>
+                          <span style={{ fontSize: 13, color: W.text, fontWeight: 600 }}>{sec}</span>
+                          <button onClick={() => setGymCreateSections(prev => prev.filter(s => s !== sec))} style={{ background: "none", border: "none", color: W.textDim, cursor: "pointer", fontSize: 16, lineHeight: 1, padding: 0 }}>×</button>
+                        </div>
+                      ))}
+                    </div>
+                  </>
+                )}
+              </div>
+              {/* Sticky action button — always visible, never buried in scroll */}
+              <div style={{ padding: "12px 20px", paddingBottom: "calc(12px + env(safe-area-inset-bottom))", background: W.bg, borderTop: `1px solid ${W.border}`, flexShrink: 0 }}>
+                {gymCreateStep === 1 && (
+                  <button onClick={() => canNext && setGymCreateStep(2)} disabled={!canNext} style={{ width: "100%", padding: "16px", background: canNext ? `linear-gradient(135deg, ${W.accent}, ${W.accentDark})` : W.surface2, border: "none", borderRadius: 16, color: canNext ? "#fff" : W.textDim, fontSize: 16, fontWeight: 800, cursor: canNext ? "pointer" : "default" }}>Next →</button>
+                )}
+                {gymCreateStep === 2 && (
+                  <button onClick={() => setGymCreateStep(3)} style={{ width: "100%", padding: "16px", background: `linear-gradient(135deg, ${W.accent}, ${W.accentDark})`, border: "none", borderRadius: 16, color: "#fff", fontSize: 16, fontWeight: 800, cursor: "pointer" }}>Next →</button>
+                )}
+                {gymCreateStep === 3 && (
+                  <button onClick={saveGym} style={{ width: "100%", padding: "16px", background: `linear-gradient(135deg, ${W.accent}, ${W.accentDark})`, border: "none", borderRadius: 16, color: "#fff", fontSize: 16, fontWeight: 800, cursor: "pointer" }}>Create Gym</button>
                 )}
               </div>
             </div>
