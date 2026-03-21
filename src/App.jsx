@@ -966,6 +966,8 @@ export default function App() {
     setSessionTypes(defaultTypes);
     setSessionStarted(false);
     setActiveSession({ location: defaultLocation, climbs: [], collapsedSections: { boulder: false, rope: false } });
+    if (gymScales[defaultLocation]?.boulder) setPreferredScale(gymScales[defaultLocation].boulder);
+    if (gymScales[defaultLocation]?.rope) setPreferredRopeScale(gymScales[defaultLocation].rope);
     setSessionTimer(0); setSessionActiveStart(null); setSessionPausedSec(0); setShowMoreClimbTypes(false); setScreen("session");
   };
   const beginTimer = () => {
@@ -1665,11 +1667,14 @@ export default function App() {
       setPhotoPreview(null);
     } else {
       setEditingClimbId(null);
-      const ropeInitScale = preferredRopeScale;
-      const ropeGradeList = preferredRopeScale === "Custom" ? customRopeGrades : (ROPE_GRADES[ropeInitScale] || ROPE_GRADES["French"]);
+      const sessionLoc = activeSession?.location || pendingLocation;
+      const gymBoulderScale = gymScales[sessionLoc]?.boulder || preferredScale;
+      const gymRopeScale = gymScales[sessionLoc]?.rope || preferredRopeScale;
+      const ropeInitScale = gymRopeScale;
+      const ropeGradeList = ropeInitScale === "Custom" ? customRopeGrades : (ROPE_GRADES[ropeInitScale] || ROPE_GRADES["French"]);
       const ropeInitGrade = ropeGradeList[Math.floor(ropeGradeList.length / 2)] || ropeGradeList[0] || "5.9";
-      const boulderGradeList = preferredScale === "Custom" ? customBoulderGrades : (GRADES[preferredScale] || GRADES["V-Scale"]);
-      setClimbForm({ ...blankForm, climbType, scale: climbType === "rope" ? ropeInitScale : preferredScale, grade: climbType === "rope" ? ropeInitGrade : (boulderGradeList[2] || boulderGradeList[0] || "V3") });
+      const boulderGradeList = gymBoulderScale === "Custom" ? customBoulderGrades : (GRADES[gymBoulderScale] || GRADES["V-Scale"]);
+      setClimbForm({ ...blankForm, climbType, scale: climbType === "rope" ? ropeInitScale : gymBoulderScale, grade: climbType === "rope" ? ropeInitGrade : (boulderGradeList[2] || boulderGradeList[0] || "V3") });
       setPhotoPreview(null);
     }
     setShowClimbForm(true);
@@ -3376,7 +3381,7 @@ export default function App() {
         {/* Location */}
         <div style={{ background: W.surface, borderRadius: 18, padding: "18px 20px", border: `1px solid ${W.border}`, marginBottom: 16 }}>
           <Label>Gym / Location</Label>
-          <LocationDropdown value={pendingLocation} onChange={v => { setPendingLocation(v); addCustomLocation(v); }} open={locationDropdownOpen} setOpen={setLocationDropdownOpen} knownLocations={knownLocations} onRemove={loc => setHiddenLocations(h => [...h, loc])} onAddNew={name => { gymCreateCallbackRef.current = (n) => setPendingLocation(n); setGymCreateStep(1); setGymCreateName(name || ""); setGymCreateActivities([]); setGymCreateId(null); setGymCreateBoulderScale("V-Scale"); setGymCreateRopeScale("French"); setGymCreateSections([]); setGymCreateSectionInput(""); setShowGymCreate(true); }} />
+          <LocationDropdown value={pendingLocation} onChange={v => { setPendingLocation(v); addCustomLocation(v); if (gymScales[v]?.boulder) setPreferredScale(gymScales[v].boulder); if (gymScales[v]?.rope) setPreferredRopeScale(gymScales[v].rope); }} open={locationDropdownOpen} setOpen={setLocationDropdownOpen} knownLocations={knownLocations} onRemove={loc => setHiddenLocations(h => [...h, loc])} onAddNew={name => { gymCreateCallbackRef.current = (n) => setPendingLocation(n); setGymCreateStep(1); setGymCreateName(name || ""); setGymCreateActivities([]); setGymCreateId(null); setGymCreateBoulderScale("V-Scale"); setGymCreateRopeScale("French"); setGymCreateSections([]); setGymCreateSectionInput(""); setShowGymCreate(true); }} />
         </div>
         {/* Session type card */}
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 24 }}>
