@@ -1513,6 +1513,18 @@ export default function App() {
     setScreen("profile"); setProfileTab("climbing"); setClimbingSubTab("climbs");
   };
   const saveGymSetEdit = (entryId) => {
+    const newPhoto = photoPreview !== undefined ? photoPreview : null;
+    // Objective fields that should be reflected in every past session entry for this climb
+    const objectiveFields = {
+      name: climbForm.name,
+      grade: climbForm.grade,
+      scale: climbForm.scale,
+      color: climbForm.color,
+      wallTypes: climbForm.wallTypes,
+      holdTypes: climbForm.holdTypes,
+      section: climbForm.section,
+      climbType: climbForm.climbType,
+    };
     setGymSets(prev => {
       const updated = { ...prev };
       for (const loc of Object.keys(updated)) {
@@ -1522,7 +1534,24 @@ export default function App() {
       }
       return updated;
     });
-    setSelectedSetClimb(prev => prev && prev.id === entryId ? { ...prev, ...climbForm } : prev);
+    // Propagate objective changes to all session climbs linked by setClimbId
+    setSessions(prev => prev.map(s => ({
+      ...s,
+      climbs: (s.climbs || []).map(c => c.setClimbId !== entryId ? c : {
+        ...c,
+        ...objectiveFields,
+        photo: photoPreview !== undefined ? photoPreview : c.photo,
+      }),
+    })));
+    setSelectedSession(prev => !prev ? null : {
+      ...prev,
+      climbs: (prev.climbs || []).map(c => c.setClimbId !== entryId ? c : {
+        ...c,
+        ...objectiveFields,
+        photo: photoPreview !== undefined ? photoPreview : c.photo,
+      }),
+    });
+    setSelectedSetClimb(prev => prev && prev.id === entryId ? { ...prev, ...climbForm, photo: photoPreview !== undefined ? photoPreview : prev.photo } : prev);
     setEditSetClimbOpen(false); setShowClimbForm(false); setEditingClimbId(null); setEditingSessionId(null);
   };
 
