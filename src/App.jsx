@@ -1632,7 +1632,10 @@ export default function App() {
   };
 
   const openBoulderAdd = () => {
-    setClimbForm(f => ({ ...f, climbType: "boulder", scale: preferredScale, grade: GRADES[preferredScale]?.[2] || "V3", name: "", color: null, wallTypes: [], holdTypes: [], section: null, comments: "", isProject: false, projectId: null, setClimbId: null }));
+    const sessionLoc = activeSession?.location || pendingLocation;
+    const gymScale = gymScales[sessionLoc]?.boulder || preferredScale;
+    const gradeList = gymScale === "Custom" ? customBoulderGrades : (GRADES[gymScale] || GRADES["V-Scale"]);
+    setClimbForm(f => ({ ...f, climbType: "boulder", scale: gymScale, grade: gradeList[2] || gradeList[0] || "V3", name: "", color: null, wallTypes: [], holdTypes: [], section: null, comments: "", isProject: false, projectId: null, setClimbId: null }));
     setPhotoPreview(null);
     setNewBoulderStep(0);
     setNewBoulderVisited(new Set([0]));
