@@ -1519,7 +1519,10 @@ export default function App() {
       const found = (gymSets[loc] || []).find(e => e.id === entryId);
       if (found) { currentEntry = found; break; }
     }
-    const savedPhoto = photoPreview !== undefined ? photoPreview : (currentEntry?.photo || null);
+    // Fallback photo: entry.photo first, then any session climb photo linked to this entry
+    const existingPhoto = currentEntry?.photo ||
+      sessions.flatMap(s => (s.climbs || []).filter(c => (c.setClimbId === entryId || (currentEntry?.name && c.name === currentEntry.name && c.grade === currentEntry.grade && s.location === currentEntry.location)) && c.photo)).map(c => c.photo)[0] || null;
+    const savedPhoto = photoPreview !== undefined ? photoPreview : existingPhoto;
     // Objective fields — what gets pushed to every matching session climb
     const objectiveFields = {
       name: climbForm.name,
@@ -9870,7 +9873,7 @@ export default function App() {
               <div style={{ fontSize: 12, color: W.textMuted }}>{entry.grade}{entry.climbType === "rope" ? " · Rope" : ""}{entry.location ? ` · ${entry.location}` : ""}</div>
             </div>
             <div style={{ width: 44, height: 44, borderRadius: 10, display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 900, fontSize: 13, background: gradeColor + "30", color: gradeColor, border: `1.5px solid ${gradeColor}60`, flexShrink: 0 }}>{entry.grade}</div>
-            <button onClick={() => { setEditSetClimbOpen(true); setEditingClimbId(entry.id); setClimbForm({ name: entry.name || "", grade: entry.grade || "", scale: entry.scale || "V-Scale", color: entry.color || null, wallTypes: entry.wallTypes || [], holdTypes: entry.holdTypes || [], section: entry.section || null, climbType: entry.climbType || "boulder", comments: entry.comments || "", isProject: entry.isProject || false, projectId: entry.projectId || null, completed: entry.completed || false, tries: entry.tries || 0, setClimbId: entry.id }); setPhotoPreview(entry.photo || null); }} style={{ background: W.surface2, border: `1px solid ${W.border}`, borderRadius: 10, width: 40, height: 40, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18, cursor: "pointer", flexShrink: 0 }} title="Edit">✏️</button>
+            <button onClick={() => { setEditSetClimbOpen(true); setEditingClimbId(entry.id); setClimbForm({ name: entry.name || "", grade: entry.grade || "", scale: entry.scale || "V-Scale", color: entry.color || null, wallTypes: entry.wallTypes || [], holdTypes: entry.holdTypes || [], section: entry.section || null, climbType: entry.climbType || "boulder", comments: entry.comments || "", isProject: entry.isProject || false, projectId: entry.projectId || null, completed: entry.completed || false, tries: entry.tries || 0, setClimbId: entry.id }); setPhotoPreview(entry.photo || entryPhoto || null); }} style={{ background: W.surface2, border: `1px solid ${W.border}`, borderRadius: 10, width: 40, height: 40, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18, cursor: "pointer", flexShrink: 0 }} title="Edit">✏️</button>
             <button onClick={() => setShowClimbShare(true)} style={{ background: W.surface2, border: `1px solid ${W.border}`, borderRadius: 10, width: 40, height: 40, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18, cursor: "pointer", flexShrink: 0 }} title="Share">⬆</button>
           </div>
           {/* Edit form panel */}
