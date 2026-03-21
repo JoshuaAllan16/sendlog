@@ -674,7 +674,7 @@ export default function App() {
       setTimeout(() => setSaveStatus(""), 2000);
     }, 1000);
     return () => clearTimeout(saveTimeoutRef.current);
-  }, [sessions, projects, gymSets, editDisplayName, preferredScale, preferredRopeScale, profilePic, customBoulderGrades, customRopeGrades, customBoulderScaleName, customRopeScaleName, hiddenLocations, customLocations, mainGym, socialFollowing, colorTheme, mutedUsers, notifPrefs, isPrivate, pendingFollowRequests, defaultWarmupItems, autoEndWarmup, warmupTemplates, activeWarmupTemplateId, defaultWorkoutItems, defaultFingerboardItems, workoutRoutines, fingerboardRoutines, activeWorkoutRoutineId, activeFingerboardRoutineId, sessionTypeOrder, gymSetStaleWeeks, gymScales]);
+  }, [sessions, projects, gymSets, editDisplayName, preferredScale, preferredRopeScale, profilePic, customBoulderGrades, customRopeGrades, customBoulderScaleName, customRopeScaleName, hiddenLocations, customLocations, mainGym, socialFollowing, colorTheme, mutedUsers, notifPrefs, isPrivate, pendingFollowRequests, defaultWarmupItems, autoEndWarmup, warmupTemplates, activeWarmupTemplateId, defaultWorkoutItems, defaultFingerboardItems, workoutRoutines, fingerboardRoutines, activeWorkoutRoutineId, activeFingerboardRoutineId, sessionTypeOrder, gymSetStaleWeeks, gymScales, gyms]);
 
   useEffect(() => {
     if (timerRunning) {
@@ -2602,7 +2602,8 @@ export default function App() {
               const loc = isActiveSession ? activeSession?.location
                 : sessions.find(s => s.id === editingSessionId)?.location
                 || Object.keys(gymSets).find(l => (gymSets[l] || []).some(e => e.id === editingClimbId));
-              const sections = (loc ? gymScales[loc]?.wallSections : null) || [];
+              const gymSetSections = loc ? [...new Set((gymSets[loc] || []).map(e => e.section).filter(Boolean))] : [];
+              const sections = [...new Set([...(loc ? gymScales[loc]?.wallSections || [] : []), ...gymSetSections])];
               if (!sections.length) return null;
               return (<>
                 <Label>Section</Label>
@@ -3658,7 +3659,8 @@ export default function App() {
           if (boulderAddMode === "new-boulder") {
             const stepLabels = ["Name & Photo", "Color & Grade", "Wall Section", "Wall Details"];
             const loc = location || null;
-            const wallSections = (loc && gymScales[loc]?.wallSections) || [];
+            const gymSetSec = loc ? [...new Set((gymSets[loc] || []).map(e => e.section).filter(Boolean))] : [];
+            const wallSections = [...new Set([...(loc ? gymScales[loc]?.wallSections || [] : []), ...gymSetSec])];
             const gradeList = GRADES[climbForm.scale] || GRADES["V-Scale"] || [];
             const canGoRight = newBoulderVisited.has(newBoulderStep + 1) || newBoulderStep === 3;
             const touchHandlers = {
@@ -4788,7 +4790,12 @@ export default function App() {
           <div style={{ textAlign: "center", color: W.textDim, padding: "20px 0", fontSize: 13 }}>No climbs logged</div>
         ) : (
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 8 }}>
-            {[...(session.climbs || [])].map(c => {
+            {(() => {
+              const allRanks = (session.climbs || []).map(c => { const list = GRADES[c.scale] || GRADES["V-Scale"]; return list.indexOf(c.grade); }).filter(r => r >= 0);
+              const minRank = allRanks.length ? Math.min(...allRanks) : 0;
+              const maxRank = allRanks.length ? Math.max(...allRanks) : 0;
+              const rankSpread = maxRank - minRank;
+              return [...(session.climbs || [])].map(c => {
               const gradeClr = getGradeColor(c.grade);
               const colorEntry = CLIMB_COLORS.find(cc => cc.id === c.color);
               const photo = c.photo;
@@ -4799,8 +4806,13 @@ export default function App() {
                 { val: attempts, label: "Att." },
                 ...(timeSec > 0 ? [{ val: formatDuration(timeSec), label: "Time" }] : []),
               ];
+              const gradeRankVal = (() => { const list = GRADES[c.scale] || GRADES["V-Scale"]; return list.indexOf(c.grade); })();
+              const intensity = rankSpread > 0 ? (gradeRankVal - minRank) / rankSpread : 0.5;
+              const bAlpha = Math.round(89 + intensity * 166).toString(16).padStart(2, "0");
+              const borderWidth = (1.5 + intensity * 1.5).toFixed(1);
+              const borderStyle = c.isProject ? `1.5px solid ${W.pinkDark}80` : `${borderWidth}px solid ${gradeClr}${bAlpha}`;
               return (
-                <div key={c.id} onClick={() => setSelectedSessionClimb(c)} style={{ border: `1.5px solid ${c.isProject ? W.pinkDark + "80" : W.border}`, borderRadius: 16, overflow: "hidden", cursor: "pointer", position: "relative", minHeight: 150, background: photo ? "transparent" : W.surface }}>
+                <div key={c.id} onClick={() => setSelectedSessionClimb(c)} style={{ border: borderStyle, borderRadius: 16, overflow: "hidden", cursor: "pointer", position: "relative", minHeight: 150, background: photo ? "transparent" : W.surface }}>
                   {photo
                     ? <img src={photo} alt="" style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover" }} />
                     : <div style={{ position: "absolute", inset: 0, background: `linear-gradient(135deg, ${gradeClr}18, ${W.surface2})` }} />
@@ -4837,7 +4849,8 @@ export default function App() {
                   </div>
                 </div>
               );
-            })}
+            });
+            })()}
           </div>
         )}
         {session.warmupChecklist?.length > 0 && (
@@ -8052,7 +8065,7 @@ export default function App() {
           };
           setGyms(prev => gymCreateId ? prev.map(g => g.id === gymCreateId ? newGym : g) : [...prev, newGym]);
           addCustomLocation(name);
-          setGymScales(prev => ({ ...prev, [name]: { ...prev[name], boulder: gymCreateBoulderScale, rope: gymCreateRopeScale, wallSections: gymCreateSections } }));
+          setGymScales(prev => ({ ...prev, [name]: { ...prev[name], boulder: gymCreateBoulderScale, rope: gymCreateRopeScale, ...(gymCreateSections.length > 0 ? { wallSections: gymCreateSections } : {}) } }));
           if (gymCreateCallbackRef.current) { gymCreateCallbackRef.current(name, gymCreateBoulderScale, gymCreateRopeScale); gymCreateCallbackRef.current = null; }
           setShowGymCreate(false);
         };
