@@ -1637,10 +1637,17 @@ export default function App() {
     setSelectedSession(prev => ({ ...prev, climbs: (prev.climbs || []).map(c => c.id === climbId ? { ...c, ...changes } : c) }));
   };
 
+  const resolveGradeList = (scaleName) => {
+    if (!scaleName || scaleName === "Custom") return customBoulderGrades;
+    if (GRADES[scaleName]) return GRADES[scaleName];
+    const custom = customGradingSchemes.find(s => s.name === scaleName);
+    return custom ? (custom.grades || []) : GRADES["V-Scale"];
+  };
+
   const openBoulderAdd = () => {
     const sessionLoc = activeSession?.location || pendingLocation;
     const gymScale = gymScales[sessionLoc]?.boulder || preferredScale;
-    const gradeList = gymScale === "Custom" ? customBoulderGrades : (GRADES[gymScale] || GRADES["V-Scale"]);
+    const gradeList = resolveGradeList(gymScale);
     setClimbForm(f => ({ ...f, climbType: "boulder", scale: gymScale, grade: gradeList[2] || gradeList[0] || "V3", name: "", color: null, wallTypes: [], holdTypes: [], section: null, comments: "", isProject: false, projectId: null, setClimbId: null }));
     setPhotoPreview(null);
     setNewBoulderStep(0);
@@ -3675,7 +3682,7 @@ export default function App() {
             const loc = location || null;
             const gymSetSec = loc ? [...new Set((gymSets[loc] || []).map(e => e.section).filter(Boolean))] : [];
             const wallSections = [...new Set([...(loc ? gymScales[loc]?.wallSections || [] : []), ...gymSetSec])];
-            const gradeList = GRADES[climbForm.scale] || GRADES["V-Scale"] || [];
+            const gradeList = resolveGradeList(climbForm.scale);
             const canGoRight = newBoulderVisited.has(newBoulderStep + 1) || newBoulderStep === 3;
             const touchHandlers = {
               onTouchStart: e => { e.currentTarget._swX = e.touches[0].clientX; },
