@@ -235,6 +235,7 @@ export default function App() {
   const sessionInitialized = useRef(false); // prevents persist effect from clearing active:climb before checkSession reads it
   const boulderListRef     = useRef(null);
   const gymCreateCallbackRef = useRef(null);
+  const dataLoadedRef        = useRef(false); // true only after a successful load from Supabase — prevents saving empty state before data is loaded
   const swipeStartRef      = useRef(null); // { x, y, ts }
   const swipeLockedRef     = useRef(null); // null | "h" | "v"
   const swipeAnimRef       = useRef(false);
@@ -642,6 +643,7 @@ export default function App() {
           loadMyReactions(username).then(setMyReactions).catch(() => {});
           setPendingFollowRequests(userData.profile?.pendingFollowRequests || []);
           storage.get(`followRequests:${username}`).then(r => setMyFollowRequests(r ? JSON.parse(r.value) : [])).catch(() => {});
+          dataLoadedRef.current = true;
           setAuthScreen("app");
           tryRestoreClimbSession(username);
         } else {
@@ -659,7 +661,7 @@ export default function App() {
   // ── AUTO-SAVE when sessions/projects change ────────────────
   const saveTimeoutRef = useRef(null);
   useEffect(() => {
-    if (authScreen !== "app" || !currentUser) return;
+    if (authScreen !== "app" || !currentUser || !dataLoadedRef.current) return;
     clearTimeout(saveTimeoutRef.current);
     setSaveStatus("saving");
     saveTimeoutRef.current = setTimeout(async () => {
@@ -830,6 +832,7 @@ export default function App() {
       }
       if (safeData.profile?.sessionTypeOrder?.length) setSessionTypeOrder(safeData.profile.sessionTypeOrder);
       setGymSets(safeData.gymSets || {});
+      dataLoadedRef.current = true;
       setAuthScreen("app");
       // If session is still live in memory (user logged out and back in without closing browser)
       // just navigate to it directly rather than re-reading localStorage
@@ -855,6 +858,7 @@ export default function App() {
       }));
     }
     try { await storage.delete("active:session"); } catch (e) {}
+    dataLoadedRef.current = false;
     setCurrentUser(null);
     setSessions([]);
     setProjects([]);
