@@ -789,6 +789,8 @@ export default function App() {
       setMainGym(safeData.profile?.mainGym || "");
       setSocialFollowing(safeData.profile?.following || []);
       setGyms(safeData.profile?.gyms || []);
+      setGymScales(safeData.profile?.gymScales || {});
+      if (safeData.profile?.gymSetStaleWeeks != null) setGymSetStaleWeeks(safeData.profile.gymSetStaleWeeks);
       setCustomGradingSchemes(safeData.profile?.customGradingSchemes || []);
       setColorTheme(safeData.profile?.colorTheme || "espresso");
       setMutedUsers(safeData.profile?.mutedUsers || []);
