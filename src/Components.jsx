@@ -3,15 +3,16 @@ import { useTheme } from "./theme.js";
 import { CLIMB_COLORS, getGradeColor, formatDuration, formatRestSec } from "./constants.js";
 
 // §COLOR_DOT
-export const ColorDot = ({ colorId, size = 12 }) => {
+export const ColorDot = ({ colorId, size = 16 }) => {
   if (!colorId) return null;
   const c = CLIMB_COLORS.find(c => c.id === colorId);
   if (!c) return null;
   return (
     <div style={{
-      width: size, height: size, borderRadius: 3, flexShrink: 0,
+      width: size, height: size, borderRadius: "50%", flexShrink: 0,
       background: c.hex,
-      border: c.id === "white" ? "1.5px solid #c8a882" : "1.5px solid rgba(0,0,0,0.18)",
+      border: c.id === "white" ? "2px solid #c8a882" : "2px solid rgba(0,0,0,0.22)",
+      boxShadow: "0 1px 4px rgba(0,0,0,0.25)",
       display: "inline-block",
     }} title={c.label} />
   );
@@ -372,7 +373,7 @@ export const ActiveClimbCard = ({ climb, onEdit, onStartClimbing, onEndAttempt, 
               {/* grade + color dot + name */}
               <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap", justifyContent: "flex-end" }}>
                 {hasBoulderTimer && <div style={{ background: getGradeColor(climb.grade) + (hasPhoto || isActivelyClimbing ? "dd" : "30"), color: hasPhoto || isActivelyClimbing ? "#fff" : getGradeColor(climb.grade), border: `1.5px solid ${getGradeColor(climb.grade)}${hasPhoto || isActivelyClimbing ? "ff" : "60"}`, borderRadius: 8, padding: "2px 8px", fontWeight: 900, fontSize: 12, boxShadow: isActivelyClimbing && !hasPhoto ? `0 1px 8px ${getGradeColor(climb.grade)}55` : "none" }}>{climb.grade}</div>}
-                {climb.color && <ColorDot colorId={climb.color} size={12} />}
+                {climb.color && <ColorDot colorId={climb.color} size={18} />}
                 {climb.name && <span style={{ fontWeight: 700, color: T.text, fontSize: 14, textAlign: "right" }}>{climb.name}</span>}
               </div>
               {/* status badges */}
@@ -395,7 +396,7 @@ export const ActiveClimbCard = ({ climb, onEdit, onStartClimbing, onEndAttempt, 
             <div style={{ width: 38, height: 38, borderRadius: 10, display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 900, fontSize: 12, flexShrink: 0, background: getGradeColor(climb.grade) + (hasPhoto ? "dd" : "30"), color: hasPhoto ? "#fff" : getGradeColor(climb.grade), border: `1.5px solid ${getGradeColor(climb.grade)}${hasPhoto ? "ff" : "60"}` }}>{climb.grade}</div>
             <div style={{ flex: 1, minWidth: 0 }}>
               <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
-                {climb.color && <ColorDot colorId={climb.color} size={11} />}
+                {climb.color && <ColorDot colorId={climb.color} size={18} />}
                 <span style={{ fontWeight: 700, color: T.text, fontSize: 14 }}>{climb.name || climb.grade}</span>
                 {climb.isProject && <span style={{ background: W.pink, color: W.pinkDark, borderRadius: 6, padding: "1px 6px", fontSize: 10, fontWeight: 700 }}>PROJECT</span>}
                 {lapNumber && <span style={{ background: T.sectionBg, color: T.textMuted, borderRadius: 6, padding: "1px 6px", fontSize: 10, fontWeight: 700, border: `1px solid ${T.border}` }}>Lap {lapNumber}</span>}

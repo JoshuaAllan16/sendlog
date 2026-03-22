@@ -2849,7 +2849,7 @@ export default function App() {
           <div style={{ width: 40, height: 40, borderRadius: 10, display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 900, fontSize: 12, flexShrink: 0, background: getGradeColor(climb.grade) + "30", color: getGradeColor(climb.grade), border: `1.5px solid ${getGradeColor(climb.grade)}60` }}>{climb.grade}</div>
           <div style={{ flex: 1, minWidth: 0, cursor: onClimbClick && !inlineEditing && !confirmRemove ? "pointer" : "default" }} onClick={onClimbClick && !inlineEditing && !confirmRemove ? () => onClimbClick(climb) : undefined}>
             <div style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap" }}>
-              {climb.color && <ColorDot colorId={climb.color} size={11} />}
+              {climb.color && <ColorDot colorId={climb.color} size={16} />}
               <span style={{ fontWeight: 700, color: W.text, fontSize: 14 }}>{climb.name || climb.grade}</span>
               {climb.isProject && <span style={{ background: W.pink, color: W.pinkDark, borderRadius: 6, padding: "1px 7px", fontSize: 10, fontWeight: 700 }}>PROJECT</span>}
               {climb.tries === 0 && climb.completed && <span style={{ background: W.yellow, color: W.yellowDark, borderRadius: 6, padding: "1px 7px", fontSize: 10, fontWeight: 700 }}>⚡ FLASH</span>}
@@ -3635,7 +3635,7 @@ export default function App() {
                               {entry.name && <div style={{ fontSize: 10, fontWeight: 800, color: "#fff", textShadow: "0 1px 4px rgba(0,0,0,0.8)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: "100%" }}>{entry.name}</div>}
                               <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
                                 <div style={{ background: gradeColor, color: "#fff", borderRadius: 6, padding: "2px 7px", fontWeight: 900, fontSize: 12 }}>{entry.grade}</div>
-                                {colorEntry && <div style={{ width: 13, height: 13, borderRadius: "50%", background: colorEntry.hex, border: "1.5px solid rgba(255,255,255,0.85)", flexShrink: 0 }} />}
+                                {colorEntry && <div style={{ width: 18, height: 18, borderRadius: "50%", background: colorEntry.hex, border: "2px solid rgba(255,255,255,0.9)", boxShadow: "0 1px 5px rgba(0,0,0,0.45)", flexShrink: 0 }} />}
                               </div>
                             </div>
                             {isSel && <div style={{ position: "absolute", inset: 0, zIndex: 3, border: `3px solid ${W.accent}`, borderRadius: 14, display: "flex", alignItems: "center", justifyContent: "center", background: `${W.accent}33` }}><div style={{ width: 32, height: 32, borderRadius: "50%", background: W.accent, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18, color: "#fff", fontWeight: 900 }}>✓</div></div>}
@@ -4838,7 +4838,7 @@ export default function App() {
                     {c.name && <div style={{ fontSize: 9, fontWeight: 800, color: "#fff", textAlign: "right", lineHeight: 1.2, textShadow: "0 1px 4px rgba(0,0,0,0.8)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: "100%" }}>{c.name}</div>}
                     <div style={{ display: "flex", alignItems: "center", gap: 3 }}>
                       <div style={{ background: gradeClr, color: "#fff", borderRadius: 5, padding: "2px 6px", fontWeight: 900, fontSize: 11, boxShadow: "0 1px 4px rgba(0,0,0,0.4)" }}>{c.grade}</div>
-                      {colorEntry && <div style={{ width: 11, height: 11, borderRadius: "50%", background: colorEntry.hex, border: "1.5px solid rgba(255,255,255,0.85)", flexShrink: 0 }} />}
+                      {colorEntry && <div style={{ width: 18, height: 18, borderRadius: "50%", background: colorEntry.hex, border: "2px solid rgba(255,255,255,0.9)", boxShadow: "0 1px 5px rgba(0,0,0,0.45)", flexShrink: 0 }} />}
                     </div>
                   </div>
                   {/* Flash badge */}
@@ -8520,7 +8520,7 @@ export default function App() {
                         <div style={{ flex: 1, minWidth: 0 }}>
                           <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 2 }}>
                             <div style={{ background: gradeColor, color: "#fff", borderRadius: 5, padding: "1px 7px", fontWeight: 900, fontSize: 12 }}>{c.grade}</div>
-                            {colorEntry && <div style={{ width: 10, height: 10, borderRadius: "50%", background: colorEntry.hex }} />}
+                            {colorEntry && <div style={{ width: 16, height: 16, borderRadius: "50%", background: colorEntry.hex, border: "2px solid rgba(0,0,0,0.18)", boxShadow: "0 1px 3px rgba(0,0,0,0.2)", flexShrink: 0 }} />}
                           </div>
                           {c.name && <div style={{ fontSize: 13, fontWeight: 700, color: W.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{c.name}</div>}
                           {c.section && <div style={{ fontSize: 11, color: W.textMuted }}>Was in: {c.section}</div>}
@@ -8759,7 +8759,7 @@ export default function App() {
                     <div style={{ width: 40, height: 40, borderRadius: 10, display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 900, fontSize: 13, background: gc + "30", color: gc, border: `1.5px solid ${gc}60`, flexShrink: 0 }}>{item.grade}</div>
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                        {!isProjects && item.color && <ColorDot colorId={item.color} size={10} />}
+                        {!isProjects && item.color && <ColorDot colorId={item.color} size={16} />}
                         <span style={{ fontWeight: 700, color: W.text, fontSize: 14, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{item.name || item.grade}</span>
                       </div>
                       <div style={{ fontSize: 11, color: W.textMuted, marginTop: 2 }}>{item.grade} · {item.scale}</div>
@@ -9264,7 +9264,7 @@ export default function App() {
                 {entry.name && <div style={{ fontSize: 10, fontWeight: 800, color: "#fff", textAlign: "right", lineHeight: 1.2, textShadow: "0 1px 4px rgba(0,0,0,0.8)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: "100%" }}>{entry.name}</div>}
                 <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
                   <div style={{ background: gradeColor, color: "#fff", borderRadius: 6, padding: "2px 7px", fontWeight: 900, fontSize: 12, boxShadow: "0 1px 4px rgba(0,0,0,0.4)" }}>{entry.grade}</div>
-                  {colorEntry && <div style={{ width: 13, height: 13, borderRadius: "50%", background: colorEntry.hex, border: "1.5px solid rgba(255,255,255,0.85)", flexShrink: 0 }} />}
+                  {colorEntry && <div style={{ width: 18, height: 18, borderRadius: "50%", background: colorEntry.hex, border: "2px solid rgba(255,255,255,0.9)", boxShadow: "0 1px 5px rgba(0,0,0,0.45)", flexShrink: 0 }} />}
                 </div>
               </div>
               {/* Project badge */}
@@ -9716,7 +9716,7 @@ export default function App() {
                                       {sel && <span style={{ color: "#fff", fontSize: 12, fontWeight: 900 }}>✓</span>}
                                     </div>
                                     <div style={{ background: gradeColor, color: "#fff", borderRadius: 6, padding: "2px 8px", fontWeight: 900, fontSize: 12, flexShrink: 0 }}>{entry.grade}</div>
-                                    {colorEntry && <div style={{ width: 10, height: 10, borderRadius: "50%", background: colorEntry.hex, flexShrink: 0 }} />}
+                                    {colorEntry && <div style={{ width: 16, height: 16, borderRadius: "50%", background: colorEntry.hex, border: "2px solid rgba(0,0,0,0.18)", boxShadow: "0 1px 3px rgba(0,0,0,0.2)", flexShrink: 0 }} />}
                                     <div style={{ flex: 1, minWidth: 0, fontSize: 13, color: W.text, fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{entry.name || entry.grade}</div>
                                   </div>
                                 );
