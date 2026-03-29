@@ -3727,7 +3727,7 @@ export default function App() {
               );
               if (newBoulderStep === 1) return (
                 <div>
-                  {secHead("Wall Section")}
+                  {secHead("Wall Section", true)}
                   {wallSections.length > 0 ? (
                     <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 26 }}>
                       {wallSections.map(sec => { const sel = climbForm.section === sec; return <button key={sec} onClick={() => setClimbForm(f => ({ ...f, section: f.section === sec ? null : sec }))} style={{ padding: "10px 16px", borderRadius: 12, border: `2px solid ${sel ? W.accent : W.border}`, background: sel ? W.accent + "22" : W.surface2, color: sel ? W.accent : W.text, fontWeight: 700, fontSize: 14, cursor: "pointer" }}>{sec}</button>; })}
