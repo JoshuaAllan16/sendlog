@@ -7755,7 +7755,7 @@ export default function App() {
               if (!swipeLockedRef.current) {
                 if (Math.abs(ddx) > 7 || Math.abs(ddy) > 7) {
                   const si = ["home","session","profile"].indexOf(screenRef.current);
-                  const canH = si !== -1 && !swipeAnimRef.current &&
+                  const canH = si !== -1 && !swipeAnimRef.current && !boulderAddMode &&
                     ((ddx < 0 && si < 2) || (ddx > 0 && si > 0));
                   const locked = (Math.abs(ddx) >= Math.abs(ddy) && canH) ? "h" : "v";
                   swipeLockedRef.current = locked;
