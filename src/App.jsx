@@ -3781,7 +3781,7 @@ export default function App() {
                 <div style={{ marginBottom: 20 }}>{stepContent}</div>
                 {/* Submit — always visible, greyed out until grade step has been seen */}
                 {(() => {
-                  const canSubmit = newBoulderVisited.has(1);
+                  const canSubmit = !!climbForm.color && !!climbForm.grade;
                   return <button onClick={canSubmit ? confirmStep : undefined} style={{ width: "100%", marginTop: 16, padding: "17px", background: canSubmit ? `linear-gradient(135deg, ${W.accent}, ${W.accentDark})` : W.surface2, border: canSubmit ? "none" : `2px solid ${W.border}`, borderRadius: 16, color: canSubmit ? "#fff" : W.textMuted, fontWeight: 900, fontSize: 17, cursor: canSubmit ? "pointer" : "default", boxShadow: canSubmit ? `0 6px 24px ${W.accentGlow}` : "none", opacity: canSubmit ? 1 : 0.5 }}>Add Boulder to Session</button>;
                 })()}
               </div>
