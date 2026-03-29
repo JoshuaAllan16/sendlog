@@ -3706,16 +3706,22 @@ export default function App() {
             const tagBtn = (label, selected, onClick) => (
               <button key={label} onClick={onClick} style={{ padding: "9px 16px", borderRadius: 12, border: `2px solid ${selected ? W.accent : W.border}`, background: selected ? W.accent + "22" : W.surface2, color: selected ? W.accent : W.text, fontWeight: 700, fontSize: 14, cursor: "pointer" }}>{label}</button>
             );
+            const secHead = (title, optional = false) => (
+              <div style={{ display: "flex", alignItems: "baseline", gap: 8, marginBottom: 12 }}>
+                <div style={{ fontSize: 16, fontWeight: 800, color: W.text }}>{title}</div>
+                {optional && <span style={{ fontSize: 12, color: W.textMuted, fontStyle: "italic" }}>optional</span>}
+              </div>
+            );
             const stepContent = (() => {
               if (newBoulderStep === 0) return (
                 <div>
-                  <div style={{ fontSize: 11, fontWeight: 700, color: W.textMuted, textTransform: "uppercase", letterSpacing: 1, marginBottom: 10 }}>Hold Color</div>
-                  <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 22 }}>
+                  {secHead("Hold Color")}
+                  <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 26 }}>
                     {CLIMB_COLORS.map(cc => (
                       <button key={cc.id} onClick={() => setClimbForm(f => ({ ...f, color: f.color === cc.id ? null : cc.id }))} style={{ width: 44, height: 44, borderRadius: 12, background: cc.hex, border: `3px solid ${climbForm.color === cc.id ? W.text : "transparent"}`, cursor: "pointer", boxShadow: climbForm.color === cc.id ? "0 0 0 2px " + W.accent : "none", flexShrink: 0 }} title={cc.label} />
                     ))}
                   </div>
-                  <div style={{ fontSize: 11, fontWeight: 700, color: W.textMuted, textTransform: "uppercase", letterSpacing: 1, marginBottom: 10 }}>Grade</div>
+                  {secHead("Grade")}
                   <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
                     {gradeList.map(g => { const gc = GRADE_COLORS[g] || GRADE_COLORS.default; const sel = climbForm.grade === g; return <button key={g} onClick={() => setClimbForm(f => ({ ...f, grade: g }))} style={{ padding: "8px 14px", borderRadius: 10, border: `2px solid ${sel ? gc : W.border}`, background: sel ? gc : "transparent", color: sel ? "#fff" : W.text, fontWeight: 800, fontSize: 14, cursor: "pointer" }}>{g}</button>; })}
                   </div>
@@ -3723,15 +3729,15 @@ export default function App() {
               );
               if (newBoulderStep === 1) return (
                 <div>
-                  <div style={{ fontSize: 11, fontWeight: 700, color: W.textMuted, textTransform: "uppercase", letterSpacing: 1, marginBottom: 10 }}>Wall Section</div>
+                  {secHead("Wall Section")}
                   {wallSections.length > 0 ? (
-                    <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 22 }}>
+                    <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 26 }}>
                       {wallSections.map(sec => { const sel = climbForm.section === sec; return <button key={sec} onClick={() => setClimbForm(f => ({ ...f, section: f.section === sec ? null : sec }))} style={{ padding: "10px 16px", borderRadius: 12, border: `2px solid ${sel ? W.accent : W.border}`, background: sel ? W.accent + "22" : W.surface2, color: sel ? W.accent : W.text, fontWeight: 700, fontSize: 14, cursor: "pointer" }}>{sec}</button>; })}
                     </div>
                   ) : (
-                    <div style={{ fontSize: 13, color: W.textDim, marginBottom: 22 }}>No sections configured for this gym.</div>
+                    <div style={{ fontSize: 13, color: W.textDim, marginBottom: 26 }}>No sections configured for this gym.</div>
                   )}
-                  <div style={{ fontSize: 11, fontWeight: 700, color: W.textMuted, textTransform: "uppercase", letterSpacing: 1, marginBottom: 10 }}>Wall Type</div>
+                  {secHead("Wall Type", true)}
                   <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
                     {WALL_TYPES.map(wt => { const sel = (climbForm.wallTypes || []).includes(wt); return tagBtn(wt, sel, () => toggleTag("wallTypes", wt)); })}
                   </div>
@@ -3739,9 +3745,9 @@ export default function App() {
               );
               if (newBoulderStep === 2) return (
                 <div>
-                  <div style={{ fontSize: 11, fontWeight: 700, color: W.textMuted, textTransform: "uppercase", letterSpacing: 1, marginBottom: 8 }}>Climb Name (optional)</div>
-                  <input value={climbForm.name || ""} onChange={e => setClimbForm(f => ({ ...f, name: e.target.value }))} placeholder="e.g. The Crimp Problem…" style={{ width: "100%", boxSizing: "border-box", padding: "14px 16px", background: W.surface2, border: `1px solid ${W.border}`, borderRadius: 14, color: W.text, fontSize: 16, fontWeight: 600, outline: "none", marginBottom: 22 }} />
-                  <div style={{ fontSize: 11, fontWeight: 700, color: W.textMuted, textTransform: "uppercase", letterSpacing: 1, marginBottom: 10 }}>Photo (optional)</div>
+                  {secHead("Climb Name", true)}
+                  <input value={climbForm.name || ""} onChange={e => setClimbForm(f => ({ ...f, name: e.target.value }))} placeholder="e.g. The Crimp Problem…" style={{ width: "100%", boxSizing: "border-box", padding: "14px 16px", background: W.surface2, border: `1px solid ${W.border}`, borderRadius: 14, color: W.text, fontSize: 16, fontWeight: 600, outline: "none", marginBottom: 26 }} />
+                  {secHead("Photo", true)}
                   <div style={{ position: "relative" }}>
                     <label htmlFor={fileInputId} style={{ display: "block", cursor: photoPreview ? "default" : "pointer" }}>
                       <div style={{ width: "100%", height: 200, borderRadius: 16, overflow: "hidden", border: photoPreview ? "none" : `2px dashed ${W.border}`, background: W.surface2, display: "flex", alignItems: "center", justifyContent: "center", position: "relative" }}>
@@ -3755,11 +3761,11 @@ export default function App() {
               );
               if (newBoulderStep === 3) return (
                 <div>
-                  <div style={{ fontSize: 11, fontWeight: 700, color: W.textMuted, textTransform: "uppercase", letterSpacing: 1, marginBottom: 10 }}>Hold Types</div>
-                  <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 22 }}>
+                  {secHead("Hold Types", true)}
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 26 }}>
                     {HOLD_TYPE_OPTIONS.map(ht => { const sel = (climbForm.holdTypes || []).includes(ht); return tagBtn(ht, sel, () => toggleTag("holdTypes", ht)); })}
                   </div>
-                  <div style={{ fontSize: 11, fontWeight: 700, color: W.textMuted, textTransform: "uppercase", letterSpacing: 1, marginBottom: 10 }}>Climb Type</div>
+                  {secHead("Climb Type", true)}
                   <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
                     {CLIMB_TYPE_OPTIONS.map(ct => { const sel = (climbForm.holdTypes || []).includes(ct); return tagBtn(ct, sel, () => toggleTag("holdTypes", ct)); })}
                   </div>
