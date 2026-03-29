@@ -3174,7 +3174,7 @@ export default function App() {
               const activeTimeSlice = paths.find(p => p.label === activeTimeLabel) || paths[0];
               rightPanel = (
                 <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 4, flexShrink: 0 }}>
-                  <svg width={110} height={110} viewBox="0 0 80 80" style={{ cursor: "pointer" }}>
+                  <svg width={90} height={90} viewBox="0 0 80 80" style={{ cursor: "pointer" }}>
                     <style>{`@keyframes pie-pulse{0%,100%{transform:scale(1)}50%{transform:scale(1.06)}}.pie-p{transform-origin:40px 40px;animation:pie-pulse 0.28s ease}`}</style>
                     {paths.map((s, i) => (
                       <path key={s.label === activeTimeLabel ? `${i}-a` : i} d={s.path} fill={s.color}
@@ -3235,7 +3235,7 @@ export default function App() {
               const activeSlice = paths.find(p => p.label === activeLabel) || paths[0];
               if (paths.length >= 1) rightPanel = (
                 <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 4, flexShrink: 0 }}>
-                  <svg width={110} height={110} viewBox="0 0 80 80" style={{ cursor: "pointer" }}>
+                  <svg width={90} height={90} viewBox="0 0 80 80" style={{ cursor: "pointer" }}>
                     <style>{`@keyframes pie-pulse{0%,100%{transform:scale(1)}50%{transform:scale(1.06)}}.pie-p{transform-origin:40px 40px;animation:pie-pulse 0.28s ease}`}</style>
                     {paths.map((s, i) => (
                       <path key={s.label === activeLabel ? `${i}-a` : i} d={s.path} fill={s.color}
@@ -3267,7 +3267,7 @@ export default function App() {
             <div style={{ padding: "12px 16px 4px" }}>
               <div style={{ fontSize: 10, fontWeight: 700, color: W.textMuted, textTransform: "uppercase", letterSpacing: 1, marginBottom: 10 }}>Stats</div>
               <div style={{ display: "flex", gap: 12, alignItems: "flex-start" }}>
-                <div style={{ flex: 1, display: "grid", gridTemplateColumns: "1fr 1fr", gap: 0 }}>
+                <div style={{ flex: 1, minWidth: 0, display: "grid", gridTemplateColumns: "1fr 1fr", gap: 0 }}>
                   <div style={{ borderRight: `1px solid ${W.border}`, paddingRight: 10 }}>
                     {col1.map((row, i) => (
                       <div key={row.label} style={{ padding: "6px 0", borderBottom: i < col1.length - 1 ? `1px solid ${W.border}` : "none" }}>
