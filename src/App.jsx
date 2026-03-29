@@ -7748,7 +7748,7 @@ export default function App() {
         {/* Main panel */}
         <div
           ref={node => { scrollDivRef.current = node; }}
-          style={{ position: "absolute", inset: 0, overflowY: "auto", overflowX: "hidden", paddingBottom: screen === "sessionSummary" ? 0 : "calc(80px + env(safe-area-inset-bottom))" }}
+          style={{ position: "absolute", inset: 0, overflowY: "auto", overflowX: "hidden", touchAction: "pan-y", paddingBottom: screen === "sessionSummary" ? 0 : "calc(80px + env(safe-area-inset-bottom))" }}
           onTouchStart={e => {
             if (swipeAnimRef.current) return;
             const touch = e.touches[0];
