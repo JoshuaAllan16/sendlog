@@ -1691,7 +1691,7 @@ export default function App() {
     setPhotoPreview(null);
     setNewBoulderStep(0);
     setNewBoulderVisited(new Set([0]));
-    setBoulderAddMode("landing");
+    setBoulderAddMode("set-picker");
   };
 
   const openClimbForm = (existing = null, fromProject = null, climbType = "boulder") => {
@@ -3497,9 +3497,7 @@ export default function App() {
           </div>
         )}
         {showClimbForm && ClimbFormPanel({ isActiveSession: true, onSave: saveClimbToActiveSession, onCancel: () => { setShowClimbForm(false); setPhotoPreview(null); setEditingClimbId(null); } })}
-        {!showClimbForm && boulderAddMode && <div style={{ position: "fixed", inset: 0, zIndex: 400, background: "rgba(0,0,0,0.55)", display: "flex", flexDirection: "column", justifyContent: "flex-end" }} onClick={e => { if (e.target === e.currentTarget) { setBoulderAddMode(null); setSetPickerSelected(new Set()); } }}>
-          <div style={{ background: W.surface, borderRadius: "24px 24px 0 0", maxHeight: "90vh", overflowY: "auto", padding: "0 20px" }}>
-        {(() => {
+        {!showClimbForm && boulderAddMode && (() => {
           const location = activeSession?.location;
           const gradeRank = (grade, scale) => { const list = GRADES[scale] || GRADES["V-Scale"]; const idx = list.indexOf(grade); return idx >= 0 ? idx : -1; };
           const gymEntries = (gymSets[location] || []).filter(e => !e.removed && (e.climbType === "boulder" || !e.climbType));
@@ -3509,9 +3507,6 @@ export default function App() {
             const related = sessions.flatMap(s => (s.climbs||[]).filter(c => c.setClimbId === entry.id));
             return { sends: related.filter(c => c.completed).length, attempts: related.reduce((t,c) => t + climbAttempts(c), 0), sessionCount: related.length };
           };
-          // Quick add: most attempted boulder in set not already in session
-          const quickEntry = gymEntries.filter(e => !inSessionIds.has(e.id)).sort((a, b) => getEntryStats(b).attempts - getEntryStats(a).attempts)[0] || null;
-          const quickPhoto = quickEntry ? getEntryPhoto(quickEntry.id) : null;
           const addFromSetSubmit = () => {
             if (setPickerSelected.size === 0) return;
             const toAdd = gymEntries.filter(e => setPickerSelected.has(e.id));
@@ -3555,65 +3550,7 @@ export default function App() {
             setNewBoulderStep(step);
             setNewBoulderVisited(prev => { const s = new Set(prev); s.add(step); return s; });
           };
-          // ── LANDING SCREEN ──────────────────────────────────────────
-          if (boulderAddMode === "landing") {
-            const quickGradeColor = quickEntry ? (GRADE_COLORS[quickEntry.grade] || GRADE_COLORS.default) : null;
-            const quickColorEntry = quickEntry ? CLIMB_COLORS.find(c => c.id === quickEntry.color) : null;
-            const quickStats = quickEntry ? getEntryStats(quickEntry) : null;
-            return (
-              <div style={{ padding: "0 0 20px" }}>
-                <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "14px 0 18px" }}>
-                  <button onClick={closeBoulderAdd} style={{ background: "none", border: "none", color: W.textMuted, fontSize: 22, cursor: "pointer", padding: "0 4px", lineHeight: 1 }}>←</button>
-                  <div style={{ fontWeight: 900, fontSize: 20, color: W.text }}>Add Boulder</div>
-                </div>
-                {/* Add from Current Set — tall green */}
-                <button onClick={() => location ? setBoulderAddMode("set-picker") : null} style={{ width: "100%", marginBottom: 14, background: location ? `linear-gradient(135deg, #16a34a, #166534)` : W.surface2, border: location ? "2px solid #15803d" : `2px solid ${W.border}`, borderRadius: 20, cursor: location ? "pointer" : "default", padding: "0", overflow: "hidden", display: "flex", flexDirection: "column", minHeight: 200, textAlign: "left", opacity: location ? 1 : 0.7 }}>
-                  <div style={{ padding: "22px 24px 12px", display: "flex", alignItems: "center", gap: 12 }}>
-                    <span style={{ fontSize: 34 }}>🏟️</span>
-                    <div>
-                      <div style={{ fontWeight: 900, fontSize: 22, color: location ? "#fff" : W.text, letterSpacing: 0.3 }}>Add from Current Set</div>
-                      <div style={{ fontSize: 13, color: location ? "rgba(255,255,255,0.75)" : W.textMuted, marginTop: 2 }}>{location ? `${gymEntries.length} climbs in set at ${location}` : "Set a session location first"}</div>
-                    </div>
-                  </div>
-                  {quickEntry ? (
-                    <div style={{ margin: "0 16px 16px", borderRadius: 14, overflow: "hidden", background: "rgba(0,0,0,0.25)", border: "1.5px solid rgba(255,255,255,0.2)", position: "relative", height: 100 }}>
-                      {quickPhoto && <img src={quickPhoto} alt="" style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover" }} />}
-                      <div style={{ position: "absolute", inset: 0, background: "linear-gradient(to right, rgba(0,0,0,0.75) 0%, rgba(0,0,0,0.2) 100%)" }} />
-                      <div style={{ position: "absolute", inset: 0, padding: "10px 14px", display: "flex", alignItems: "center", gap: 10 }}>
-                        <div style={{ background: quickGradeColor, color: "#fff", borderRadius: 8, padding: "4px 10px", fontWeight: 900, fontSize: 18, flexShrink: 0 }}>{quickEntry.grade}</div>
-                        {quickColorEntry && <div style={{ width: 14, height: 14, borderRadius: "50%", background: quickColorEntry.hex, border: "2px solid rgba(255,255,255,0.9)", flexShrink: 0 }} />}
-                        <div style={{ flex: 1, minWidth: 0 }}>
-                          {quickEntry.name && <div style={{ fontSize: 13, fontWeight: 800, color: "#fff", textShadow: "0 1px 3px rgba(0,0,0,0.8)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{quickEntry.name}</div>}
-                          <div style={{ fontSize: 11, color: "rgba(255,255,255,0.75)", marginTop: 1 }}>{quickStats.attempts} attempts · quick add ⚡</div>
-                        </div>
-                      </div>
-                    </div>
-                  ) : (
-                    <div style={{ margin: "0 16px 16px", padding: "12px 14px", borderRadius: 12, background: "rgba(0,0,0,0.2)", border: "1.5px dashed rgba(255,255,255,0.25)" }}>
-                      <div style={{ fontSize: 13, color: "rgba(255,255,255,0.65)", textAlign: "center" }}>{gymEntries.length === 0 ? "No gym set at this location" : "All set climbs already added"}</div>
-                    </div>
-                  )}
-                </button>
-                {/* Create New Boulder — blue/accent */}
-                <button onClick={() => {
-                  // pre-fill grade from median of current gym set (improvement 3)
-                  if (gymEntries.length > 0) {
-                    const sorted = [...gymEntries].sort((a, b) => gradeRank(a.grade, a.scale) - gradeRank(b.grade, b.scale));
-                    const medianGrade = sorted[Math.floor(sorted.length / 2)]?.grade;
-                    if (medianGrade) setClimbForm(f => ({ ...f, grade: medianGrade }));
-                  }
-                  setNewBoulderStep(0); setNewBoulderVisited(new Set([0])); setBoulderAddMode("new-boulder");
-                }} style={{ width: "100%", background: `linear-gradient(135deg, ${W.accent}, ${W.accentDark})`, border: `2px solid ${W.accentDark}`, borderRadius: 20, cursor: "pointer", padding: "22px 24px", display: "flex", alignItems: "center", gap: 12, textAlign: "left" }}>
-                  <span style={{ fontSize: 34 }}>✏️</span>
-                  <div>
-                    <div style={{ fontWeight: 900, fontSize: 22, color: "#fff", letterSpacing: 0.3 }}>Create New Boulder</div>
-                    <div style={{ fontSize: 13, color: "rgba(255,255,255,0.75)", marginTop: 2 }}>Name, grade, color, section & more</div>
-                  </div>
-                </button>
-              </div>
-            );
-          }
-          // ── SET PICKER SCREEN ──────────────────────────────────────
+          // ── SET PICKER SCREEN (Full-Screen) ───────────────────────
           if (boulderAddMode === "set-picker") {
             const sections = [...new Set(gymEntries.map(e => e.section || ""))];
             const sectionGroups = {};
@@ -3623,62 +3560,69 @@ export default function App() {
               sectionGroups[sec].push(e);
             });
             return (
-              <div style={{ padding: "0 0 100px" }}>
-                <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "14px 0 18px" }}>
-                  <button onClick={() => setBoulderAddMode("landing")} style={{ background: "none", border: "none", color: W.textMuted, fontSize: 22, cursor: "pointer", padding: "0 4px", lineHeight: 1 }}>←</button>
-                  <div style={{ fontWeight: 900, fontSize: 20, color: W.text, flex: 1 }}>Add from Set</div>
+              <div style={{ position: "fixed", inset: 0, zIndex: 400, background: W.bg, display: "flex", flexDirection: "column" }}>
+                {/* Header */}
+                <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "16px 20px", borderBottom: `1px solid ${W.border}`, background: W.surface, flexShrink: 0 }}>
+                  <button onClick={closeBoulderAdd} style={{ background: "none", border: "none", color: W.textMuted, fontSize: 22, cursor: "pointer", padding: "0 4px", lineHeight: 1 }}>✕</button>
+                  <div style={{ fontWeight: 900, fontSize: 20, color: W.text, flex: 1 }}>Add Boulder</div>
                   {setPickerSelected.size > 0 && <div style={{ fontSize: 13, fontWeight: 700, color: W.accent }}>{setPickerSelected.size} selected</div>}
                 </div>
-                {gymEntries.length === 0 && <div style={{ textAlign: "center", color: W.textDim, padding: "40px 0", fontSize: 14 }}>No climbs in set at {location || "this gym"}</div>}
-                {sections.map(sec => (
-                  <div key={sec} style={{ marginBottom: 18 }}>
-                    {sec && <div style={{ fontSize: 11, fontWeight: 800, color: W.accent, textTransform: "uppercase", letterSpacing: 1.2, marginBottom: 8 }}>📌 {sec}</div>}
-                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
-                      {(sectionGroups[sec] || []).sort((a, b) => gradeRank(b.grade, b.scale) - gradeRank(a.grade, a.scale)).map(entry => {
-                        const gradeColor = GRADE_COLORS[entry.grade] || GRADE_COLORS.default;
-                        const colorEntry = CLIMB_COLORS.find(c => c.id === entry.color);
-                        const photo = getEntryPhoto(entry.id);
-                        const st = getEntryStats(entry);
-                        const hasSends = st.sends > 0;
-                        const alreadyIn = inSessionIds.has(entry.id);
-                        const isSel = setPickerSelected.has(entry.id);
-                        const ago = (() => { if (!entry.setDate) return null; const d = Math.floor((Date.now()-new Date(entry.setDate))/86400000); if (d===0) return "Today"; if (d===1) return "1d"; if (d<7) return `${d}d`; if (d<30) return `${Math.floor(d/7)}w`; return `${Math.floor(d/30)}mo`; })();
-                        return (
-                          <div key={entry.id} onClick={() => { if (alreadyIn) return; setSetPickerSelected(prev => { const s = new Set(prev); if (s.has(entry.id)) s.delete(entry.id); else s.add(entry.id); return s; }); }} style={{ border: `1.5px solid ${isSel ? W.accent : alreadyIn ? W.border + "88" : W.border}`, borderRadius: 16, overflow: "hidden", cursor: alreadyIn ? "default" : "pointer", position: "relative", minHeight: 180, background: photo ? "transparent" : W.surface, opacity: alreadyIn ? 0.4 : 1 }}>
-                            {photo ? <img src={photo} alt="" style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover" }} /> : <div style={{ position: "absolute", inset: 0, background: `linear-gradient(135deg, ${gradeColor}18, ${W.surface2})` }} />}
-                            <div style={{ position: "absolute", bottom: 0, left: 0, right: 0, height: "55%", background: photo ? "linear-gradient(to top, rgba(0,0,0,0.82) 0%, rgba(0,0,0,0.3) 60%, transparent 100%)" : `linear-gradient(to top, ${W.surface}cc 0%, transparent 100%)`, zIndex: 1 }} />
-                            <div style={{ position: "absolute", top: 8, left: 8, width: 28, height: 28, borderRadius: 8, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 14, fontWeight: 900, background: hasSends ? "rgba(34,197,94,0.85)" : "rgba(239,68,68,0.85)", color: hasSends ? "#14532d" : "#7f1d1d", zIndex: 2 }}>{hasSends ? "✓" : "✗"}</div>
-                            <div style={{ position: "absolute", top: 8, right: 8, maxWidth: "62%", display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 3, zIndex: 2 }}>
-                              {entry.name && <div style={{ fontSize: 10, fontWeight: 800, color: "#fff", textShadow: "0 1px 4px rgba(0,0,0,0.8)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: "100%" }}>{entry.name}</div>}
-                              <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
-                                <div style={{ background: gradeColor, color: "#fff", borderRadius: 6, padding: "2px 7px", fontWeight: 900, fontSize: 12 }}>{entry.grade}</div>
-                                {colorEntry && <div style={{ width: 18, height: 18, borderRadius: "50%", background: colorEntry.hex, border: "2px solid rgba(255,255,255,0.9)", boxShadow: "0 1px 5px rgba(0,0,0,0.45)", flexShrink: 0 }} />}
+                {/* Scrollable tile grid */}
+                <div style={{ flex: 1, overflowY: "auto", padding: "16px 16px 0" }}>
+                  {gymEntries.length === 0 && <div style={{ textAlign: "center", color: W.textDim, padding: "40px 0", fontSize: 14 }}>No climbs in set at {location || "this gym"}<br /><span style={{ fontSize: 12 }}>Use "Create Boulder" below to add one</span></div>}
+                  {sections.map(sec => (
+                    <div key={sec} style={{ marginBottom: 18 }}>
+                      {sec && <div style={{ fontSize: 11, fontWeight: 800, color: W.accent, textTransform: "uppercase", letterSpacing: 1.2, marginBottom: 8 }}>📌 {sec}</div>}
+                      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+                        {(sectionGroups[sec] || []).sort((a, b) => gradeRank(b.grade, b.scale) - gradeRank(a.grade, a.scale)).map(entry => {
+                          const gradeColor = GRADE_COLORS[entry.grade] || GRADE_COLORS.default;
+                          const colorEntry = CLIMB_COLORS.find(c => c.id === entry.color);
+                          const photo = getEntryPhoto(entry.id);
+                          const st = getEntryStats(entry);
+                          const hasSends = st.sends > 0;
+                          const alreadyIn = inSessionIds.has(entry.id);
+                          const isSel = setPickerSelected.has(entry.id);
+                          const ago = (() => { if (!entry.setDate) return null; const d = Math.floor((Date.now()-new Date(entry.setDate))/86400000); if (d===0) return "Today"; if (d===1) return "1d"; if (d<7) return `${d}d`; if (d<30) return `${Math.floor(d/7)}w`; return `${Math.floor(d/30)}mo`; })();
+                          return (
+                            <div key={entry.id} onClick={() => { if (alreadyIn) return; setSetPickerSelected(prev => { const s = new Set(prev); if (s.has(entry.id)) s.delete(entry.id); else s.add(entry.id); return s; }); }} style={{ border: `1.5px solid ${isSel ? W.accent : alreadyIn ? W.border + "88" : W.border}`, borderRadius: 16, overflow: "hidden", cursor: alreadyIn ? "default" : "pointer", position: "relative", minHeight: 180, background: photo ? "transparent" : W.surface, opacity: alreadyIn ? 0.4 : 1 }}>
+                              {photo ? <img src={photo} alt="" style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover" }} /> : <div style={{ position: "absolute", inset: 0, background: `linear-gradient(135deg, ${gradeColor}18, ${W.surface2})` }} />}
+                              <div style={{ position: "absolute", bottom: 0, left: 0, right: 0, height: "55%", background: photo ? "linear-gradient(to top, rgba(0,0,0,0.82) 0%, rgba(0,0,0,0.3) 60%, transparent 100%)" : `linear-gradient(to top, ${W.surface}cc 0%, transparent 100%)`, zIndex: 1 }} />
+                              <div style={{ position: "absolute", top: 8, left: 8, width: 28, height: 28, borderRadius: 8, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 14, fontWeight: 900, background: hasSends ? "rgba(34,197,94,0.85)" : "rgba(239,68,68,0.85)", color: hasSends ? "#14532d" : "#7f1d1d", zIndex: 2 }}>{hasSends ? "✓" : "✗"}</div>
+                              <div style={{ position: "absolute", top: 8, right: 8, maxWidth: "62%", display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 3, zIndex: 2 }}>
+                                {entry.name && <div style={{ fontSize: 10, fontWeight: 800, color: "#fff", textShadow: "0 1px 4px rgba(0,0,0,0.8)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: "100%" }}>{entry.name}</div>}
+                                <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                                  <div style={{ background: gradeColor, color: "#fff", borderRadius: 6, padding: "2px 7px", fontWeight: 900, fontSize: 12 }}>{entry.grade}</div>
+                                  {colorEntry && <div style={{ width: 18, height: 18, borderRadius: "50%", background: colorEntry.hex, border: "2px solid rgba(255,255,255,0.9)", boxShadow: "0 1px 5px rgba(0,0,0,0.45)", flexShrink: 0 }} />}
+                                </div>
+                              </div>
+                              {isSel && <div style={{ position: "absolute", inset: 0, zIndex: 3, border: `3px solid ${W.accent}`, borderRadius: 14, display: "flex", alignItems: "center", justifyContent: "center", background: `${W.accent}33` }}><div style={{ width: 32, height: 32, borderRadius: "50%", background: W.accent, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18, color: "#fff", fontWeight: 900 }}>✓</div></div>}
+                              {alreadyIn && <div style={{ position: "absolute", inset: 0, zIndex: 3, display: "flex", alignItems: "center", justifyContent: "center" }}><div style={{ background: "rgba(0,0,0,0.5)", borderRadius: 8, padding: "4px 10px", fontSize: 11, color: "rgba(255,255,255,0.8)", fontWeight: 700 }}>Already added</div></div>}
+                              <div style={{ position: "absolute", bottom: 0, left: 0, right: 0, zIndex: 2, padding: "6px 4px 4px" }}>
+                                <div style={{ display: "flex", justifyContent: "space-around" }}>
+                                  {[{ val: st.sends, label: "Sends", hi: hasSends }, { val: st.attempts, label: "Att." }, { val: st.sessionCount, label: "Sess." }].map((s, i) => (
+                                    <div key={i} style={{ textAlign: "center", background: "rgba(0,0,0,0.35)", borderRadius: 6, padding: "3px 5px", minWidth: 34 }}>
+                                      <div style={{ fontWeight: 900, fontSize: 13, color: s.hi ? "#86efac" : "#fff", lineHeight: 1 }}>{s.val}</div>
+                                      <div style={{ fontSize: 8, color: "rgba(255,255,255,0.75)", marginTop: 1 }}>{s.label}</div>
+                                    </div>
+                                  ))}
+                                </div>
+                                {ago && <div style={{ fontSize: 8, color: "rgba(255,255,255,0.6)", textAlign: "center", marginTop: 3 }}>Set {ago}</div>}
                               </div>
                             </div>
-                            {isSel && <div style={{ position: "absolute", inset: 0, zIndex: 3, border: `3px solid ${W.accent}`, borderRadius: 14, display: "flex", alignItems: "center", justifyContent: "center", background: `${W.accent}33` }}><div style={{ width: 32, height: 32, borderRadius: "50%", background: W.accent, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18, color: "#fff", fontWeight: 900 }}>✓</div></div>}
-                            {alreadyIn && <div style={{ position: "absolute", inset: 0, zIndex: 3, display: "flex", alignItems: "center", justifyContent: "center" }}><div style={{ background: "rgba(0,0,0,0.5)", borderRadius: 8, padding: "4px 10px", fontSize: 11, color: "rgba(255,255,255,0.8)", fontWeight: 700 }}>Already added</div></div>}
-                            <div style={{ position: "absolute", bottom: 0, left: 0, right: 0, zIndex: 2, padding: "6px 4px 4px" }}>
-                              <div style={{ display: "flex", justifyContent: "space-around" }}>
-                                {[{ val: st.sends, label: "Sends", hi: hasSends }, { val: st.attempts, label: "Att." }, { val: st.sessionCount, label: "Sess." }].map((s, i) => (
-                                  <div key={i} style={{ textAlign: "center", background: "rgba(0,0,0,0.35)", borderRadius: 6, padding: "3px 5px", minWidth: 34 }}>
-                                    <div style={{ fontWeight: 900, fontSize: 13, color: s.hi ? "#86efac" : "#fff", lineHeight: 1 }}>{s.val}</div>
-                                    <div style={{ fontSize: 8, color: "rgba(255,255,255,0.75)", marginTop: 1 }}>{s.label}</div>
-                                  </div>
-                                ))}
-                              </div>
-                              {ago && <div style={{ fontSize: 8, color: "rgba(255,255,255,0.6)", textAlign: "center", marginTop: 3 }}>Set {ago}</div>}
-                            </div>
-                          </div>
-                        );
-                      })}
+                          );
+                        })}
+                      </div>
                     </div>
-                  </div>
-                ))}
-                {setPickerSelected.size > 0 && (
-                  <div style={{ position: "fixed", bottom: 0, left: 0, right: 0, padding: "16px 20px", background: W.surface, borderTop: `1px solid ${W.border}`, zIndex: 500 }}>
+                  ))}
+                </div>
+                {/* Fixed bottom button — "Add to Session" when selected, "Create Boulder" otherwise */}
+                <div style={{ padding: "16px 20px", background: W.surface, borderTop: `1px solid ${W.border}`, flexShrink: 0 }}>
+                  {setPickerSelected.size > 0 ? (
                     <button onClick={addFromSetSubmit} style={{ width: "100%", padding: "16px", background: `linear-gradient(135deg, ${W.accent}, ${W.accentDark})`, border: "none", borderRadius: 16, color: "#fff", fontWeight: 900, fontSize: 17, cursor: "pointer", boxShadow: `0 6px 24px ${W.accentGlow}` }}>Add {setPickerSelected.size} Boulder{setPickerSelected.size > 1 ? "s" : ""} to Session</button>
-                  </div>
-                )}
+                  ) : (
+                    <button onClick={() => { setNewBoulderStep(0); setNewBoulderVisited(new Set([0])); setBoulderAddMode("new-boulder"); }} style={{ width: "100%", padding: "16px", background: W.surface2, border: `2px solid ${W.border}`, borderRadius: 16, color: W.text, fontWeight: 900, fontSize: 17, cursor: "pointer" }}>+ Create Boulder</button>
+                  )}
+                </div>
               </div>
             );
           }
@@ -3773,10 +3717,13 @@ export default function App() {
               return null;
             })();
             return (
+              <div style={{ position: "fixed", inset: 0, zIndex: 400, background: "rgba(0,0,0,0.55)", display: "flex", flexDirection: "column", justifyContent: "flex-end" }}
+                   onClick={e => { if (e.target === e.currentTarget) setBoulderAddMode("set-picker"); }}>
+                <div style={{ background: W.surface, borderRadius: "24px 24px 0 0", maxHeight: "90vh", overflowY: "auto", padding: "0 20px" }}>
               <div style={{ padding: "0 0 20px" }} {...touchHandlers}>
                 {/* Header */}
                 <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "14px 0 18px" }}>
-                  <button onClick={() => newBoulderStep > 0 ? goToStep(newBoulderStep - 1) : setBoulderAddMode("landing")} style={{ background: "none", border: "none", color: W.textMuted, fontSize: 22, cursor: "pointer", padding: "0 4px", lineHeight: 1 }}>←</button>
+                  <button onClick={() => newBoulderStep > 0 ? goToStep(newBoulderStep - 1) : setBoulderAddMode("set-picker")} style={{ background: "none", border: "none", color: W.textMuted, fontSize: 22, cursor: "pointer", padding: "0 4px", lineHeight: 1 }}>←</button>
                   <div style={{ flex: 1 }}>
                     <div style={{ fontWeight: 900, fontSize: 18, color: W.text }}>{stepLabels[newBoulderStep]}</div>
                     <div style={{ display: "flex", gap: 5, marginTop: 4 }}>
@@ -3795,12 +3742,12 @@ export default function App() {
                   return <button onClick={canSubmit ? submitBoulder : undefined} style={{ width: "100%", marginTop: 16, padding: "17px", background: canSubmit ? `linear-gradient(135deg, ${W.accent}, ${W.accentDark})` : W.surface2, border: canSubmit ? "none" : `2px solid ${W.border}`, borderRadius: 16, color: canSubmit ? "#fff" : W.textMuted, fontWeight: 900, fontSize: 17, cursor: canSubmit ? "pointer" : "default", boxShadow: canSubmit ? `0 6px 24px ${W.accentGlow}` : "none", opacity: canSubmit ? 1 : 0.5 }}>Add Boulder to Session</button>;
                 })()}
               </div>
+                </div>
+              </div>
             );
           }
           return null;
         })()}
-          </div>
-        </div>}
 
         {/* ══ TRAINING ROUTINE PICKER (top-level, works regardless of section visibility) ══ */}
         {!showClimbForm && trainingPickerType && (() => {
