@@ -3552,8 +3552,8 @@ export default function App() {
           };
           const goToStep = (step) => {
             if (step < 0 || step > 3) return;
-            if (step > newBoulderStep && !newBoulderVisited.has(step)) return; // can't skip ahead
             setNewBoulderStep(step);
+            setNewBoulderVisited(prev => { const s = new Set(prev); s.add(step); return s; });
           };
           // ── LANDING SCREEN ──────────────────────────────────────────
           if (boulderAddMode === "landing") {
@@ -3694,8 +3694,8 @@ export default function App() {
               onTouchStart: e => { e.currentTarget._swX = e.touches[0].clientX; },
               onTouchEnd: e => {
                 const dx = e.changedTouches[0].clientX - (e.currentTarget._swX || 0);
-                if (dx < -50 && newBoulderStep < 3 && newBoulderVisited.has(newBoulderStep + 1)) setNewBoulderStep(s => s + 1);
-                else if (dx > 50 && newBoulderStep > 0) setNewBoulderStep(s => s - 1);
+                if (dx < -50 && newBoulderStep < 3) goToStep(newBoulderStep + 1);
+                else if (dx > 50 && newBoulderStep > 0) goToStep(newBoulderStep - 1);
               },
             };
             const fileInputId = "boulder-step-photo";
@@ -3766,27 +3766,24 @@ export default function App() {
               <div style={{ padding: "0 0 20px" }} {...touchHandlers}>
                 {/* Header */}
                 <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "14px 0 18px" }}>
-                  <button onClick={() => newBoulderStep > 0 ? setNewBoulderStep(s => s - 1) : setBoulderAddMode("landing")} style={{ background: "none", border: "none", color: W.textMuted, fontSize: 22, cursor: "pointer", padding: "0 4px", lineHeight: 1 }}>←</button>
+                  <button onClick={() => newBoulderStep > 0 ? goToStep(newBoulderStep - 1) : setBoulderAddMode("landing")} style={{ background: "none", border: "none", color: W.textMuted, fontSize: 22, cursor: "pointer", padding: "0 4px", lineHeight: 1 }}>←</button>
                   <div style={{ flex: 1 }}>
                     <div style={{ fontWeight: 900, fontSize: 18, color: W.text }}>{stepLabels[newBoulderStep]}</div>
                     <div style={{ display: "flex", gap: 5, marginTop: 4 }}>
                       {[0,1,2,3].map(i => <div key={i} style={{ width: i === newBoulderStep ? 18 : 8, height: 8, borderRadius: 4, background: i === newBoulderStep ? W.accent : newBoulderVisited.has(i) ? W.accent + "66" : W.border, transition: "all 0.2s" }} />)}
                     </div>
                   </div>
-                  {newBoulderStep < 3 && newBoulderVisited.has(newBoulderStep + 1) && (
-                    <button onClick={() => setNewBoulderStep(s => s + 1)} style={{ background: "none", border: "none", color: W.textMuted, fontSize: 22, cursor: "pointer", padding: "0 4px", lineHeight: 1 }}>→</button>
+                  {newBoulderStep < 3 && (
+                    <button onClick={() => goToStep(newBoulderStep + 1)} style={{ background: "none", border: "none", color: W.textMuted, fontSize: 22, cursor: "pointer", padding: "0 4px", lineHeight: 1 }}>→</button>
                   )}
                 </div>
                 {/* Step content */}
                 <div style={{ marginBottom: 20 }}>{stepContent}</div>
-                {/* Confirm button (not on last step) */}
-                {newBoulderStep < 3 && (
-                  <button onClick={confirmStep} style={{ display: "block", marginLeft: "auto", padding: "10px 22px", background: W.surface2, border: `2px solid ${W.accent}`, borderRadius: 12, color: W.accent, fontWeight: 800, fontSize: 14, cursor: "pointer" }}>Confirm →</button>
-                )}
-                {/* Big submit — shown on all pages once all visited, or on last page always */}
-                {(newBoulderStep === 3 || allStepsVisited) && (
-                  <button onClick={confirmStep} style={{ width: "100%", marginTop: 16, padding: "17px", background: `linear-gradient(135deg, ${W.accent}, ${W.accentDark})`, border: "none", borderRadius: 16, color: "#fff", fontWeight: 900, fontSize: 17, cursor: "pointer", boxShadow: `0 6px 24px ${W.accentGlow}` }}>Add Boulder to Session</button>
-                )}
+                {/* Submit — always visible, greyed out until grade step has been seen */}
+                {(() => {
+                  const canSubmit = newBoulderVisited.has(1);
+                  return <button onClick={canSubmit ? confirmStep : undefined} style={{ width: "100%", marginTop: 16, padding: "17px", background: canSubmit ? `linear-gradient(135deg, ${W.accent}, ${W.accentDark})` : W.surface2, border: canSubmit ? "none" : `2px solid ${W.border}`, borderRadius: 16, color: canSubmit ? "#fff" : W.textMuted, fontWeight: 900, fontSize: 17, cursor: canSubmit ? "pointer" : "default", boxShadow: canSubmit ? `0 6px 24px ${W.accentGlow}` : "none", opacity: canSubmit ? 1 : 0.5 }}>Add Boulder to Session</button>;
+                })()}
               </div>
             );
           }
