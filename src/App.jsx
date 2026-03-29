@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, Component, Fragment } from "react";
+import { useState, useRef, useEffect, useMemo, Component, Fragment } from "react";
 import { createClient } from "@supabase/supabase-js";
 import { ThemeCtx, THEMES } from "./theme.js";
 import { ColorDot, TagChips, LocationDropdown, SpeedSessionCard, BoulderRopeSessionCard, ActiveClimbCard } from "./Components.jsx";
@@ -198,6 +198,38 @@ class ErrorBoundary extends Component {
   }
 }
 function ActiveSessionRenderer({ render }) { return render(); }
+
+// Pure math helpers — defined at module scope so they're stable across renders
+const buildPie = (slices) => {
+  const total = slices.reduce((s, r) => s + r.value, 0);
+  if (!total) return [];
+  let angle = -Math.PI / 2;
+  return slices.map(s => {
+    const startAngle = angle;
+    const a = (s.value / total) * 2 * Math.PI;
+    const end = angle + a;
+    const [r, ir, cx, cy] = [32, 18, 40, 40];
+    const x1 = cx+r*Math.cos(angle), y1 = cy+r*Math.sin(angle);
+    const x2 = cx+r*Math.cos(end),   y2 = cy+r*Math.sin(end);
+    const ix1 = cx+ir*Math.cos(angle), iy1 = cy+ir*Math.sin(angle);
+    const ix2 = cx+ir*Math.cos(end),   iy2 = cy+ir*Math.sin(end);
+    const large = a > Math.PI ? 1 : 0;
+    const path = `M ${ix1.toFixed(1)} ${iy1.toFixed(1)} L ${x1.toFixed(1)} ${y1.toFixed(1)} A ${r} ${r} 0 ${large} 1 ${x2.toFixed(1)} ${y2.toFixed(1)} L ${ix2.toFixed(1)} ${iy2.toFixed(1)} A ${ir} ${ir} 0 ${large} 0 ${ix1.toFixed(1)} ${iy1.toFixed(1)} Z`;
+    angle = end;
+    return { ...s, path, pct: Math.round((s.value / total) * 100), startAngle, endAngle: end, total };
+  });
+};
+const makeSendArc = (startAngle, sendAngle) => {
+  if (sendAngle < 0.01) return null;
+  const [rO, rI, cx, cy] = [32, 27, 40, 40];
+  const end = startAngle + sendAngle;
+  const x1 = cx+rO*Math.cos(startAngle), y1 = cy+rO*Math.sin(startAngle);
+  const x2 = cx+rO*Math.cos(end),        y2 = cy+rO*Math.sin(end);
+  const ix1 = cx+rI*Math.cos(startAngle), iy1 = cy+rI*Math.sin(startAngle);
+  const ix2 = cx+rI*Math.cos(end),        iy2 = cy+rI*Math.sin(end);
+  const large = sendAngle > Math.PI ? 1 : 0;
+  return `M ${ix1.toFixed(1)} ${iy1.toFixed(1)} L ${x1.toFixed(1)} ${y1.toFixed(1)} A ${rO} ${rO} 0 ${large} 1 ${x2.toFixed(1)} ${y2.toFixed(1)} L ${ix2.toFixed(1)} ${iy2.toFixed(1)} A ${rI} ${rI} 0 ${large} 0 ${ix1.toFixed(1)} ${iy1.toFixed(1)} Z`;
+};
 
 // §APP_START
 export default function App() {
@@ -2942,40 +2974,9 @@ export default function App() {
 
 
   // Shared donut pie builder — returns slice paths + startAngle/endAngle/pct/total per slice
-  const buildPie = (slices) => {
-    const total = slices.reduce((s, r) => s + r.value, 0);
-    if (!total) return [];
-    let angle = -Math.PI / 2;
-    return slices.map(s => {
-      const startAngle = angle;
-      const a = (s.value / total) * 2 * Math.PI;
-      const end = angle + a;
-      const [r, ir, cx, cy] = [32, 18, 40, 40];
-      const x1 = cx+r*Math.cos(angle), y1 = cy+r*Math.sin(angle);
-      const x2 = cx+r*Math.cos(end),   y2 = cy+r*Math.sin(end);
-      const ix1 = cx+ir*Math.cos(angle), iy1 = cy+ir*Math.sin(angle);
-      const ix2 = cx+ir*Math.cos(end),   iy2 = cy+ir*Math.sin(end);
-      const large = a > Math.PI ? 1 : 0;
-      const path = `M ${ix1.toFixed(1)} ${iy1.toFixed(1)} L ${x1.toFixed(1)} ${y1.toFixed(1)} A ${r} ${r} 0 ${large} 1 ${x2.toFixed(1)} ${y2.toFixed(1)} L ${ix2.toFixed(1)} ${iy2.toFixed(1)} A ${ir} ${ir} 0 ${large} 0 ${ix1.toFixed(1)} ${iy1.toFixed(1)} Z`;
-      angle = end;
-      return { ...s, path, pct: Math.round((s.value / total) * 100), startAngle, endAngle: end, total };
-    });
-  };
-  // Build a send-ratio arc path at outer edge (r 27–32) for a grade slice
-  const makeSendArc = (startAngle, sendAngle) => {
-    if (sendAngle < 0.01) return null;
-    const [rO, rI, cx, cy] = [32, 27, 40, 40];
-    const end = startAngle + sendAngle;
-    const x1 = cx+rO*Math.cos(startAngle), y1 = cy+rO*Math.sin(startAngle);
-    const x2 = cx+rO*Math.cos(end),        y2 = cy+rO*Math.sin(end);
-    const ix1 = cx+rI*Math.cos(startAngle), iy1 = cy+rI*Math.sin(startAngle);
-    const ix2 = cx+rI*Math.cos(end),        iy2 = cy+rI*Math.sin(end);
-    const large = sendAngle > Math.PI ? 1 : 0;
-    return `M ${ix1.toFixed(1)} ${iy1.toFixed(1)} L ${x1.toFixed(1)} ${y1.toFixed(1)} A ${rO} ${rO} 0 ${large} 1 ${x2.toFixed(1)} ${y2.toFixed(1)} L ${ix2.toFixed(1)} ${iy2.toFixed(1)} A ${rI} ${rI} 0 ${large} 0 ${ix1.toFixed(1)} ${iy1.toFixed(1)} Z`;
-  };
-
   const LogbookSessionCard = ({ session, poster, onNavigate }) => {
-    const stats = getSessionStats(session);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    const stats = useMemo(() => getSessionStats(session), [session.id]);
     const climbPhotos = (session.climbs || []).filter(c => c.photo);
     const [photoIdx, setPhotoIdx] = useState(0);
     const [photoVisible, setPhotoVisible] = useState(true);
@@ -3174,7 +3175,7 @@ export default function App() {
               const activeTimeSlice = paths.find(p => p.label === activeTimeLabel) || paths[0];
               rightPanel = (
                 <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 4, flexShrink: 0 }}>
-                  <svg width={90} height={90} viewBox="0 0 80 80" style={{ cursor: "pointer" }}>
+                  <svg width={Math.min(90, Math.round(window.innerWidth * 0.21))} height={Math.min(90, Math.round(window.innerWidth * 0.21))} viewBox="0 0 80 80" style={{ cursor: "pointer" }}>
                     <style>{`@keyframes pie-pulse{0%,100%{transform:scale(1)}50%{transform:scale(1.06)}}.pie-p{transform-origin:40px 40px;animation:pie-pulse 0.28s ease}`}</style>
                     {paths.map((s, i) => (
                       <path key={s.label === activeTimeLabel ? `${i}-a` : i} d={s.path} fill={s.color}
@@ -3235,7 +3236,7 @@ export default function App() {
               const activeSlice = paths.find(p => p.label === activeLabel) || paths[0];
               if (paths.length >= 1) rightPanel = (
                 <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 4, flexShrink: 0 }}>
-                  <svg width={90} height={90} viewBox="0 0 80 80" style={{ cursor: "pointer" }}>
+                  <svg width={Math.min(90, Math.round(window.innerWidth * 0.21))} height={Math.min(90, Math.round(window.innerWidth * 0.21))} viewBox="0 0 80 80" style={{ cursor: "pointer" }}>
                     <style>{`@keyframes pie-pulse{0%,100%{transform:scale(1)}50%{transform:scale(1.06)}}.pie-p{transform-origin:40px 40px;animation:pie-pulse 0.28s ease}`}</style>
                     {paths.map((s, i) => (
                       <path key={s.label === activeLabel ? `${i}-a` : i} d={s.path} fill={s.color}
@@ -7766,14 +7767,16 @@ export default function App() {
                     ((ddx < 0 && si < 2) || (ddx > 0 && si > 0));
                   const locked = (Math.abs(ddx) >= Math.abs(ddy) && canH) ? "h" : "v";
                   swipeLockedRef.current = locked;
-                  // Initiate peek panel on first horizontal lock
-                  if (locked === "h" && !swipePeekRef.current) {
-                    const si2 = ["home","session","profile"].indexOf(screenRef.current);
-                    const nextTab = ["home","session","profile"][ddx < 0 ? si2 + 1 : si2 - 1];
-                    if (nextTab) {
-                      swipePeekRef.current = { tab: nextTab, fromRight: ddx < 0 };
-                      // Use rAF so peek renders next frame without blocking current touch event
-                      requestAnimationFrame(() => setSwipePeekScreen(nextTab));
+                  if (locked === "h") {
+                    // Prevent the browser from taking scroll ownership on this very first event
+                    me.preventDefault();
+                    if (!swipePeekRef.current) {
+                      const si2 = ["home","session","profile"].indexOf(screenRef.current);
+                      const nextTab = ["home","session","profile"][ddx < 0 ? si2 + 1 : si2 - 1];
+                      if (nextTab) {
+                        swipePeekRef.current = { tab: nextTab, fromRight: ddx < 0 };
+                        requestAnimationFrame(() => setSwipePeekScreen(nextTab));
+                      }
                     }
                   }
                 }
