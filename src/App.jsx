@@ -643,7 +643,8 @@ export default function App() {
           loadMyReactions(username).then(setMyReactions).catch(() => {});
           setPendingFollowRequests(userData.profile?.pendingFollowRequests || []);
           storage.get(`followRequests:${username}`).then(r => setMyFollowRequests(r ? JSON.parse(r.value) : [])).catch(() => {});
-          dataLoadedRef.current = true;
+          // Only allow saves if Supabase returned real data — prevents writing empty state if load failed
+          dataLoadedRef.current = !!freshData;
           setAuthScreen("app");
           tryRestoreClimbSession(username);
         } else {
@@ -768,7 +769,11 @@ export default function App() {
       }
 
       const userData = await loadUserData(username.toLowerCase());
-      const safeData = userData || { profile: { displayName: account.displayName }, sessions: [], projects: [] };
+      if (userData === null) {
+        setAuthLoading(false);
+        return setAuthError("Could not load account data. Please check your connection and try again.");
+      }
+      const safeData = userData;
       // Store only profile in localStorage to avoid QuotaExceededError on large accounts
       const cachedProfile = { profile: safeData.profile };
       await storage.set("active:session", JSON.stringify({ username: username.toLowerCase(), userData: cachedProfile }));
@@ -1641,7 +1646,8 @@ export default function App() {
     if (!scaleName || scaleName === "Custom") return customBoulderGrades;
     if (GRADES[scaleName]) return GRADES[scaleName];
     const custom = customGradingSchemes.find(s => s.name === scaleName);
-    return custom ? (custom.grades || []) : GRADES["V-Scale"];
+    // custom scheme grades are objects { id, label, color } — extract label strings
+    return custom ? (custom.grades || []).map(g => (typeof g === "string" ? g : g.label)).filter(Boolean) : GRADES["V-Scale"];
   };
 
   const openBoulderAdd = () => {
