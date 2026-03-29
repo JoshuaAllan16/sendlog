@@ -3685,7 +3685,7 @@ export default function App() {
           }
           // ── MULTI-STEP NEW BOULDER FORM ───────────────────────────
           if (boulderAddMode === "new-boulder") {
-            const stepLabels = ["Name & Photo", "Color & Grade", "Wall Section", "Wall Details"];
+            const stepLabels = ["Color & Grade", "Wall Info", "Name & Photo", "Hold Types"];
             const loc = location || null;
             const gymSetSec = loc ? [...new Set((gymSets[loc] || []).map(e => e.section).filter(Boolean))] : [];
             const wallSections = [...new Set([...(loc ? gymScales[loc]?.wallSections || [] : []), ...gymSetSec])];
@@ -3700,24 +3700,14 @@ export default function App() {
               },
             };
             const fileInputId = "boulder-step-photo";
+            const HOLD_TYPE_OPTIONS = ["Jugs", "Crimps", "Slopers", "Pinches", "Pockets"];
+            const CLIMB_TYPE_OPTIONS = ["Dyno", "Double Dyno", "Paddle Dyno", "Bat Hang", "Coordination", "Toe Hook", "Heel Hook", "Knee Bar", "Crack", "No Hands", "No Feet"];
+            const toggleTag = (key, val) => setClimbForm(f => { const arr = f[key] || []; return { ...f, [key]: arr.includes(val) ? arr.filter(x => x !== val) : [...arr, val] }; });
+            const tagBtn = (label, selected, onClick) => (
+              <button key={label} onClick={onClick} style={{ padding: "9px 16px", borderRadius: 12, border: `2px solid ${selected ? W.accent : W.border}`, background: selected ? W.accent + "22" : W.surface2, color: selected ? W.accent : W.text, fontWeight: 700, fontSize: 14, cursor: "pointer" }}>{label}</button>
+            );
             const stepContent = (() => {
               if (newBoulderStep === 0) return (
-                <div>
-                  <div style={{ fontSize: 11, fontWeight: 700, color: W.textMuted, textTransform: "uppercase", letterSpacing: 1, marginBottom: 10 }}>Photo (optional)</div>
-                  <div style={{ position: "relative" }}>
-                    <label htmlFor={fileInputId} style={{ display: "block", cursor: photoPreview ? "default" : "pointer" }}>
-                      <div style={{ width: "100%", height: 200, borderRadius: 16, overflow: "hidden", border: photoPreview ? "none" : `2px dashed ${W.border}`, background: W.surface2, display: "flex", alignItems: "center", justifyContent: "center", position: "relative" }}>
-                        {photoPreview ? <img src={photoPreview} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : <div style={{ textAlign: "center", color: W.textDim }}><div style={{ fontSize: 36, marginBottom: 6 }}>📷</div><div style={{ fontSize: 13, fontWeight: 600 }}>Tap to add photo</div></div>}
-                      </div>
-                    </label>
-                    {photoPreview && <button onClick={e => { e.stopPropagation(); setPhotoPreview(null); }} style={{ position: "absolute", top: 8, left: 8, width: 28, height: 28, borderRadius: "50%", background: "rgba(0,0,0,0.65)", border: "none", color: "#fff", fontSize: 14, fontWeight: 900, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", lineHeight: 1, zIndex: 10 }}>✕</button>}
-                  </div>
-                  <input id={fileInputId} type="file" accept="image/*" style={{ display: "none" }} onChange={e => { const f = e.target.files?.[0]; if (!f) return; const r = new FileReader(); r.onload = ev => { const img = new Image(); img.onload = () => { const maxD = 900; const sc = Math.min(1, maxD / Math.max(img.width, img.height)); const c = document.createElement("canvas"); c.width = img.width * sc; c.height = img.height * sc; c.getContext("2d").drawImage(img, 0, 0, c.width, c.height); setPhotoPreview(c.toDataURL("image/jpeg", 0.75)); }; img.src = ev.target.result; }; r.readAsDataURL(f); e.target.value = ""; }} />
-                  <div style={{ fontSize: 11, fontWeight: 700, color: W.textMuted, textTransform: "uppercase", letterSpacing: 1, marginTop: 18, marginBottom: 8 }}>Climb Name (optional)</div>
-                  <input value={climbForm.name || ""} onChange={e => setClimbForm(f => ({ ...f, name: e.target.value }))} placeholder="e.g. The Crimp Problem…" style={{ width: "100%", boxSizing: "border-box", padding: "14px 16px", background: W.surface2, border: `1px solid ${W.border}`, borderRadius: 14, color: W.text, fontSize: 16, fontWeight: 600, outline: "none" }} />
-                </div>
-              );
-              if (newBoulderStep === 1) return (
                 <div>
                   <div style={{ fontSize: 11, fontWeight: 700, color: W.textMuted, textTransform: "uppercase", letterSpacing: 1, marginBottom: 10 }}>Hold Color</div>
                   <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 22 }}>
@@ -3731,33 +3721,47 @@ export default function App() {
                   </div>
                 </div>
               );
-              if (newBoulderStep === 2) return (
+              if (newBoulderStep === 1) return (
                 <div>
                   <div style={{ fontSize: 11, fontWeight: 700, color: W.textMuted, textTransform: "uppercase", letterSpacing: 1, marginBottom: 10 }}>Wall Section</div>
                   {wallSections.length > 0 ? (
-                    <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 14 }}>
+                    <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 22 }}>
                       {wallSections.map(sec => { const sel = climbForm.section === sec; return <button key={sec} onClick={() => setClimbForm(f => ({ ...f, section: f.section === sec ? null : sec }))} style={{ padding: "10px 16px", borderRadius: 12, border: `2px solid ${sel ? W.accent : W.border}`, background: sel ? W.accent + "22" : W.surface2, color: sel ? W.accent : W.text, fontWeight: 700, fontSize: 14, cursor: "pointer" }}>{sec}</button>; })}
                     </div>
                   ) : (
-                    <div style={{ fontSize: 13, color: W.textDim, marginBottom: 14 }}>No sections configured for this gym. Type one below or skip.</div>
+                    <div style={{ fontSize: 13, color: W.textDim, marginBottom: 22 }}>No sections configured for this gym.</div>
                   )}
+                  <div style={{ fontSize: 11, fontWeight: 700, color: W.textMuted, textTransform: "uppercase", letterSpacing: 1, marginBottom: 10 }}>Wall Type</div>
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+                    {WALL_TYPES.map(wt => { const sel = (climbForm.wallTypes || []).includes(wt); return tagBtn(wt, sel, () => toggleTag("wallTypes", wt)); })}
+                  </div>
+                </div>
+              );
+              if (newBoulderStep === 2) return (
+                <div>
+                  <div style={{ fontSize: 11, fontWeight: 700, color: W.textMuted, textTransform: "uppercase", letterSpacing: 1, marginBottom: 8 }}>Climb Name (optional)</div>
+                  <input value={climbForm.name || ""} onChange={e => setClimbForm(f => ({ ...f, name: e.target.value }))} placeholder="e.g. The Crimp Problem…" style={{ width: "100%", boxSizing: "border-box", padding: "14px 16px", background: W.surface2, border: `1px solid ${W.border}`, borderRadius: 14, color: W.text, fontSize: 16, fontWeight: 600, outline: "none", marginBottom: 22 }} />
+                  <div style={{ fontSize: 11, fontWeight: 700, color: W.textMuted, textTransform: "uppercase", letterSpacing: 1, marginBottom: 10 }}>Photo (optional)</div>
+                  <div style={{ position: "relative" }}>
+                    <label htmlFor={fileInputId} style={{ display: "block", cursor: photoPreview ? "default" : "pointer" }}>
+                      <div style={{ width: "100%", height: 200, borderRadius: 16, overflow: "hidden", border: photoPreview ? "none" : `2px dashed ${W.border}`, background: W.surface2, display: "flex", alignItems: "center", justifyContent: "center", position: "relative" }}>
+                        {photoPreview ? <img src={photoPreview} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : <div style={{ textAlign: "center", color: W.textDim }}><div style={{ fontSize: 36, marginBottom: 6 }}>📷</div><div style={{ fontSize: 13, fontWeight: 600 }}>Tap to add photo</div></div>}
+                      </div>
+                    </label>
+                    {photoPreview && <button onClick={e => { e.stopPropagation(); setPhotoPreview(null); }} style={{ position: "absolute", top: 8, left: 8, width: 28, height: 28, borderRadius: "50%", background: "rgba(0,0,0,0.65)", border: "none", color: "#fff", fontSize: 14, fontWeight: 900, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", lineHeight: 1, zIndex: 10 }}>✕</button>}
+                  </div>
+                  <input id={fileInputId} type="file" accept="image/*" style={{ display: "none" }} onChange={e => { const f = e.target.files?.[0]; if (!f) return; const r = new FileReader(); r.onload = ev => { const img = new Image(); img.onload = () => { const maxD = 900; const sc = Math.min(1, maxD / Math.max(img.width, img.height)); const c = document.createElement("canvas"); c.width = img.width * sc; c.height = img.height * sc; c.getContext("2d").drawImage(img, 0, 0, c.width, c.height); setPhotoPreview(c.toDataURL("image/jpeg", 0.75)); }; img.src = ev.target.result; }; r.readAsDataURL(f); e.target.value = ""; }} />
                 </div>
               );
               if (newBoulderStep === 3) return (
                 <div>
-                  <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 14 }}>
-                    <div style={{ fontSize: 11, fontWeight: 700, color: W.textMuted, textTransform: "uppercase", letterSpacing: 1 }}>Wall Type</div>
-                    <span style={{ fontSize: 11, color: W.textDim, fontStyle: "italic" }}>(optional)</span>
-                  </div>
+                  <div style={{ fontSize: 11, fontWeight: 700, color: W.textMuted, textTransform: "uppercase", letterSpacing: 1, marginBottom: 10 }}>Hold Types</div>
                   <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 22 }}>
-                    {WALL_TYPES.map(wt => { const sel = (climbForm.wallTypes || []).includes(wt); return <button key={wt} onClick={() => setClimbForm(f => ({ ...f, wallTypes: sel ? f.wallTypes.filter(x => x !== wt) : [...(f.wallTypes||[]), wt] }))} style={{ padding: "9px 16px", borderRadius: 12, border: `2px solid ${sel ? W.accent : W.border}`, background: sel ? W.accent + "22" : W.surface2, color: sel ? W.accent : W.text, fontWeight: 700, fontSize: 14, cursor: "pointer" }}>{wt}</button>; })}
+                    {HOLD_TYPE_OPTIONS.map(ht => { const sel = (climbForm.holdTypes || []).includes(ht); return tagBtn(ht, sel, () => toggleTag("holdTypes", ht)); })}
                   </div>
-                  <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 14 }}>
-                    <div style={{ fontSize: 11, fontWeight: 700, color: W.textMuted, textTransform: "uppercase", letterSpacing: 1 }}>Hold Types</div>
-                    <span style={{ fontSize: 11, color: W.textDim, fontStyle: "italic" }}>(optional)</span>
-                  </div>
+                  <div style={{ fontSize: 11, fontWeight: 700, color: W.textMuted, textTransform: "uppercase", letterSpacing: 1, marginBottom: 10 }}>Climb Type</div>
                   <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
-                    {HOLD_TYPES.map(ht => { const sel = (climbForm.holdTypes || []).includes(ht); return <button key={ht} onClick={() => setClimbForm(f => ({ ...f, holdTypes: sel ? f.holdTypes.filter(x => x !== ht) : [...(f.holdTypes||[]), ht] }))} style={{ padding: "9px 16px", borderRadius: 12, border: `2px solid ${sel ? W.accent : W.border}`, background: sel ? W.accent + "22" : W.surface2, color: sel ? W.accent : W.text, fontWeight: 700, fontSize: 14, cursor: "pointer" }}>{ht}</button>; })}
+                    {CLIMB_TYPE_OPTIONS.map(ct => { const sel = (climbForm.holdTypes || []).includes(ct); return tagBtn(ct, sel, () => toggleTag("holdTypes", ct)); })}
                   </div>
                 </div>
               );
