@@ -240,6 +240,7 @@ export default function App() {
   const swipeLockedRef     = useRef(null); // null | "h" | "v"
   const swipeAnimRef       = useRef(false);
   const screenRef          = useRef(screen);
+  const boulderAddModeRef  = useRef(null);
   const scrollDivRef       = useRef(null);
   const peekDivRef         = useRef(null);
   const swipePeekRef       = useRef(null); // { tab, fromRight } when peek is active
@@ -7533,6 +7534,7 @@ export default function App() {
   };
 
   screenRef.current = screen; // sync ref each render — no hook needed
+  boulderAddModeRef.current = boulderAddMode;
 
   // §RENDER
   const backMap  = { sessionDetail: sessionDetailBackTo, calendar: "profile", projectDetail: "profile", userProfile: userProfileBackTo, social: "profile", leaderboard: "profile" };
@@ -7752,7 +7754,7 @@ export default function App() {
               if (!swipeLockedRef.current) {
                 if (Math.abs(ddx) > 7 || Math.abs(ddy) > 7) {
                   const si = ["home","session","profile"].indexOf(screenRef.current);
-                  const canH = si !== -1 && !swipeAnimRef.current && !boulderAddMode &&
+                  const canH = si !== -1 && !swipeAnimRef.current && !boulderAddModeRef.current &&
                     ((ddx < 0 && si < 2) || (ddx > 0 && si > 0));
                   const locked = (Math.abs(ddx) >= Math.abs(ddy) && canH) ? "h" : "v";
                   swipeLockedRef.current = locked;
