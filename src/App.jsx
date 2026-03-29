@@ -3526,30 +3526,28 @@ export default function App() {
           };
           const closeBoulderAdd = () => { setBoulderAddMode(null); setSetPickerSelected(new Set()); };
           const allStepsVisited = newBoulderVisited.size >= 4;
-          const confirmStep = () => {
-            if (newBoulderStep < 3) {
-              const next = newBoulderStep + 1;
-              setNewBoulderStep(next);
-              setNewBoulderVisited(prev => { const s = new Set(prev); s.add(next); return s; });
-            } else {
-              // last step: submit
-              const pid = climbForm.projectId || (climbForm.isProject ? `proj_${Date.now()}` : null);
-              const setClimbIdVal = Date.now() + 2;
-              if (location) {
-                const newSetClimb = { id: setClimbIdVal, name: climbForm.name, grade: climbForm.grade, scale: climbForm.scale || preferredScale, color: climbForm.color, wallTypes: climbForm.wallTypes || [], holdTypes: climbForm.holdTypes || [], climbType: "boulder", setDate: new Date().toISOString(), location, removed: false, removedDate: null, section: climbForm.section || null };
-                setGymSets(prev => ({ ...prev, [location]: [...(prev[location] || []), newSetClimb] }));
-              }
-              const newClimb = { id: Date.now(), loggedAt: Date.now(), name: climbForm.name || "", grade: climbForm.grade, scale: climbForm.scale || preferredScale, color: climbForm.color || null, wallTypes: climbForm.wallTypes || [], holdTypes: climbForm.holdTypes || [], section: climbForm.section || null, climbType: "boulder", setClimbId: location ? setClimbIdVal : null, tries: 0, falls: 0, takes: 0, completed: false, isProject: climbForm.isProject || false, projectId: pid, photo: photoPreview || null, comments: climbForm.comments || "", attemptLog: [], fallLog: [], climbingStartedAt: null, lastAttemptEndedAt: null, pausedWorkedMs: 0, paused: false };
-              if (climbForm.isProject && pid && !climbForm.projectId) setProjects(prev => [...prev, { id: pid, name: newClimb.name, grade: newClimb.grade, scale: newClimb.scale, climbType: "boulder", comments: "", active: true, completed: false, dateAdded: new Date().toISOString(), dateSent: null }]);
-              setActiveSession(s => {
-                const now = Date.now();
-                const upd = {};
-                if (!s.boulderStartedAt) { upd.boulderStartedAt = now; upd.boulderActiveStart = now; upd.boulderTotalSec = 0; }
-                return { ...s, ...upd, climbs: [...(s.climbs || []), newClimb] };
-              });
-              setPhotoPreview(null);
-              setBoulderAddMode(null);
+          const submitBoulder = () => {
+            const pid = climbForm.projectId || (climbForm.isProject ? `proj_${Date.now()}` : null);
+            const setClimbIdVal = Date.now() + 2;
+            if (location) {
+              const newSetClimb = { id: setClimbIdVal, name: climbForm.name, grade: climbForm.grade, scale: climbForm.scale || preferredScale, color: climbForm.color, wallTypes: climbForm.wallTypes || [], holdTypes: climbForm.holdTypes || [], climbType: "boulder", setDate: new Date().toISOString(), location, removed: false, removedDate: null, section: climbForm.section || null };
+              setGymSets(prev => ({ ...prev, [location]: [...(prev[location] || []), newSetClimb] }));
             }
+            const newClimb = { id: Date.now(), loggedAt: Date.now(), name: climbForm.name || "", grade: climbForm.grade, scale: climbForm.scale || preferredScale, color: climbForm.color || null, wallTypes: climbForm.wallTypes || [], holdTypes: climbForm.holdTypes || [], section: climbForm.section || null, climbType: "boulder", setClimbId: location ? setClimbIdVal : null, tries: 0, falls: 0, takes: 0, completed: false, isProject: climbForm.isProject || false, projectId: pid, photo: photoPreview || null, comments: climbForm.comments || "", attemptLog: [], fallLog: [], climbingStartedAt: null, lastAttemptEndedAt: null, pausedWorkedMs: 0, paused: false };
+            if (climbForm.isProject && pid && !climbForm.projectId) setProjects(prev => [...prev, { id: pid, name: newClimb.name, grade: newClimb.grade, scale: newClimb.scale, climbType: "boulder", comments: "", active: true, completed: false, dateAdded: new Date().toISOString(), dateSent: null }]);
+            setActiveSession(s => {
+              const now = Date.now();
+              const upd = {};
+              if (!s.boulderStartedAt) { upd.boulderStartedAt = now; upd.boulderActiveStart = now; upd.boulderTotalSec = 0; }
+              return { ...s, ...upd, climbs: [...(s.climbs || []), newClimb] };
+            });
+            setPhotoPreview(null);
+            setBoulderAddMode(null);
+          };
+          const confirmStep = () => {
+            const next = newBoulderStep + 1;
+            setNewBoulderStep(next);
+            setNewBoulderVisited(prev => { const s = new Set(prev); s.add(next); return s; });
           };
           const goToStep = (step) => {
             if (step < 0 || step > 3) return;
@@ -3793,7 +3791,7 @@ export default function App() {
                 {/* Submit — always visible, greyed out until grade step has been seen */}
                 {(() => {
                   const canSubmit = !!climbForm.color && !!climbForm.grade;
-                  return <button onClick={canSubmit ? confirmStep : undefined} style={{ width: "100%", marginTop: 16, padding: "17px", background: canSubmit ? `linear-gradient(135deg, ${W.accent}, ${W.accentDark})` : W.surface2, border: canSubmit ? "none" : `2px solid ${W.border}`, borderRadius: 16, color: canSubmit ? "#fff" : W.textMuted, fontWeight: 900, fontSize: 17, cursor: canSubmit ? "pointer" : "default", boxShadow: canSubmit ? `0 6px 24px ${W.accentGlow}` : "none", opacity: canSubmit ? 1 : 0.5 }}>Add Boulder to Session</button>;
+                  return <button onClick={canSubmit ? submitBoulder : undefined} style={{ width: "100%", marginTop: 16, padding: "17px", background: canSubmit ? `linear-gradient(135deg, ${W.accent}, ${W.accentDark})` : W.surface2, border: canSubmit ? "none" : `2px solid ${W.border}`, borderRadius: 16, color: canSubmit ? "#fff" : W.textMuted, fontWeight: 900, fontSize: 17, cursor: canSubmit ? "pointer" : "default", boxShadow: canSubmit ? `0 6px 24px ${W.accentGlow}` : "none", opacity: canSubmit ? 1 : 0.5 }}>Add Boulder to Session</button>;
                 })()}
               </div>
             );
