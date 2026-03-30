@@ -311,7 +311,14 @@ export const ActiveClimbCard = ({ climb, onEdit, onStartClimbing, onEndAttempt, 
     ? Math.max(0, Math.floor(((Date.now() - climb.climbingStartedAt) + (climb.pausedWorkedMs || 0)) / 1000))
     : Math.floor(totalWorkedMs / 1000);
   const hasBoulderTimer = !isRope && (isActivelyClimbing || totalWorkedMs > 0);
-  const boulderAttemptCount = (climb.attemptLog || []).length + (isActivelyClimbing ? 1 : 0);
+  const fallCount = (climb.fallLog || []).length;
+  const boulderAttemptCount = fallCount + (isActivelyClimbing ? 1 : 0);
+  const lastFallAt = fallCount > 0 ? climb.fallLog[fallCount - 1].at : null;
+  const currentAttemptSec = isActivelyClimbing
+    ? (lastFallAt
+      ? Math.max(0, Math.floor((Date.now() - lastFallAt) / 1000))
+      : boulderTimerSec)
+    : 0;
 
   const outerBorderColor = climb.paused ? W.yellowDark + "99"
     : climb.completed ? W.greenDark
@@ -453,17 +460,17 @@ export const ActiveClimbCard = ({ climb, onEdit, onStartClimbing, onEndAttempt, 
         {/* ── BOULDER attempt history rows ── */}
         {!isRope && !climb.completed && boulderAttemptCount > 0 && (
           <div style={{ padding: "6px 14px 8px", borderTop: `1px solid ${T.border}`, background: T.sectionBg }}>
-            {(climb.attemptLog || []).map((a, i) => (
+            {(climb.fallLog || []).map((f, i) => (
               <div key={i} style={{ display: "flex", alignItems: "center", gap: 6, padding: "3px 0", fontSize: 12 }}>
                 <span style={{ fontWeight: 700, color: T.textMuted, minWidth: 76 }}>Attempt {i + 1}:</span>
-                <span style={{ fontWeight: 800, color: T.text, flex: 1 }}>{formatDuration(Math.floor(a.duration / 1000))}</span>
-                {(a.falls || 0) > 0 && <span style={{ color: hasPhoto ? "#fca5a5" : W.redDark, fontWeight: 900, fontSize: 13 }}>✕</span>}
+                <span style={{ fontWeight: 800, color: T.text, flex: 1 }}>{formatDuration(Math.floor(f.intervalMs / 1000))}</span>
+                <span style={{ color: hasPhoto ? "#fca5a5" : W.redDark, fontWeight: 900, fontSize: 13 }}>✕</span>
               </div>
             ))}
             {isActivelyClimbing && (
               <div style={{ display: "flex", alignItems: "center", gap: 6, padding: "3px 0", fontSize: 12 }}>
-                <span style={{ fontWeight: 700, color: T.greenDark, minWidth: 76 }}>Attempt {(climb.attemptLog || []).length + 1}:</span>
-                <span style={{ fontWeight: 800, color: T.greenDark, fontVariantNumeric: "tabular-nums" }}>{formatDuration(boulderTimerSec)}</span>
+                <span style={{ fontWeight: 700, color: T.greenDark, minWidth: 76 }}>Attempt {fallCount + 1}:</span>
+                <span style={{ fontWeight: 800, color: T.greenDark, fontVariantNumeric: "tabular-nums" }}>{formatDuration(currentAttemptSec)}</span>
               </div>
             )}
           </div>
