@@ -2730,7 +2730,20 @@ export default function App() {
         {type === "speed" && (
           <>
             <Label>Time (SS.HHH)</Label>
-            <input type="text" pattern="[0-9]*" inputMode="numeric" value={climbForm.speedTime} onChange={e => { const digits = e.target.value.replace(/\D/g, "").slice(0, 5); const fmt = digits.length <= 2 ? digits : digits.slice(0, 2) + "." + digits.slice(2); setClimbForm(f => ({ ...f, speedTime: fmt })); }} placeholder="00.000" style={{ width: "100%", padding: "10px 12px", background: W.surface, border: `2px solid ${W.border}`, borderRadius: 10, color: W.text, fontSize: 28, fontWeight: 800, boxSizing: "border-box", marginBottom: 12, fontFamily: "monospace", textAlign: "center", letterSpacing: 4 }} />
+            <div style={{ textAlign: "center", fontSize: 38, fontWeight: 900, fontFamily: "monospace", letterSpacing: 6, color: climbForm.speedTime ? W.text : W.textDim, background: W.surface2, border: `2px solid ${W.border}`, borderRadius: 14, padding: "14px 0", marginBottom: 10 }}>{climbForm.speedTime || "00.000"}</div>
+            {(() => {
+              const pushDigit = (d) => setClimbForm(f => { const digits = (f.speedTime.replace(/\D/g, "") + d).slice(0, 5); const fmt = digits.length <= 2 ? digits : digits.slice(0, 2) + "." + digits.slice(2); return { ...f, speedTime: fmt }; });
+              const backspace = () => setClimbForm(f => { const digits = f.speedTime.replace(/\D/g, "").slice(0, -1); const fmt = digits.length <= 2 ? digits : digits.slice(0, 2) + "." + digits.slice(2); return { ...f, speedTime: fmt }; });
+              const btnStyle = { padding: "15px 0", fontSize: 22, fontWeight: 800, background: W.surface, border: `2px solid ${W.border}`, borderRadius: 12, color: W.text, cursor: "pointer", width: "100%" };
+              return (
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8, marginBottom: 12 }}>
+                  {[1,2,3,4,5,6,7,8,9].map(n => <button key={n} onClick={() => pushDigit(String(n))} style={btnStyle}>{n}</button>)}
+                  <button onClick={backspace} style={{ ...btnStyle, color: W.redDark }}>⌫</button>
+                  <button onClick={() => pushDigit("0")} style={btnStyle}>0</button>
+                  <button onClick={() => setClimbForm(f => ({ ...f, speedTime: "" }))} style={{ ...btnStyle, fontSize: 13, color: W.textMuted }}>CLR</button>
+                </div>
+              );
+            })()}
             <Label>Completed?</Label>
             <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
               <button onClick={() => setClimbForm(f => ({ ...f, completed: true }))} style={{ flex: 1, padding: "9px", borderRadius: 10, border: "2px solid", borderColor: climbForm.completed ? W.greenDark : W.border, background: climbForm.completed ? W.green : W.surface, color: climbForm.completed ? W.greenDark : W.textDim, cursor: "pointer", fontWeight: 700, fontSize: 13 }}>✓ Yes</button>
