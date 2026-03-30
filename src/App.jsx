@@ -4453,7 +4453,7 @@ export default function App() {
           </div>
         )}
         {!showClimbForm && (
-          <div style={{ marginTop: 4 }}>
+          <div style={{ marginTop: 4, marginBottom: 24 }}>
             <button onClick={toggleSessionTimer} style={{ width: "100%", padding: "12px", background: W.surface2, border: `2px solid ${W.border}`, borderRadius: 14, color: W.textMuted, fontWeight: 700, fontSize: 22, cursor: "pointer", marginBottom: 8 }}>{timerRunning ? "⏸" : "▶"}</button>
             <button onClick={() => setShowEndConfirm(true)} style={{ width: "100%", padding: "14px", background: W.surface, border: `2px solid ${W.border}`, borderRadius: 14, color: W.redDark, fontWeight: 700, fontSize: 15, cursor: "pointer" }}>End Session</button>
           </div>
