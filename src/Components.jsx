@@ -346,8 +346,15 @@ export const ActiveClimbCard = ({ climb, onEdit, onStartClimbing, onEndAttempt, 
             {/* Left: timer area */}
             <div style={{ flex: "0 0 auto", display: "flex", flexDirection: "column", justifyContent: "center", minWidth: 68 }}>
               {hasBoulderTimer ? (<>
+                {/* Grade + color above timer when actively climbing */}
+                {isActivelyClimbing && (
+                  <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
+                    <div style={{ background: getGradeColor(climb.grade) + (hasPhoto ? "ee" : "cc"), color: "#fff", border: `2.5px solid ${getGradeColor(climb.grade)}`, borderRadius: 12, padding: "5px 14px", fontWeight: 900, fontSize: 24, lineHeight: 1, boxShadow: `0 2px 14px ${getGradeColor(climb.grade)}66` }}>{climb.grade}</div>
+                    {climb.color && <ColorDot colorId={climb.color} size={30} />}
+                  </div>
+                )}
                 <div style={{ fontSize: 9, color: isActivelyClimbing ? T.greenDark : T.textDim, textTransform: "uppercase", letterSpacing: 0.8, fontWeight: 700, marginBottom: 1 }}>
-                  {isActivelyClimbing ? "Working" : "Worked"}
+                  {isActivelyClimbing ? "Working on for" : "Worked"}
                 </div>
                 <div style={{ fontSize: isActivelyClimbing ? 52 : 32, fontWeight: 900, color: isActivelyClimbing ? T.greenDark : (climb.completed ? T.greenDark : T.accent), fontVariantNumeric: "tabular-nums", lineHeight: 1 }}>
                   {formatDuration(boulderTimerSec)}
@@ -370,10 +377,10 @@ export const ActiveClimbCard = ({ climb, onEdit, onStartClimbing, onEndAttempt, 
                 <button onClick={() => onEdit(climb)} style={{ background: T.sectionBg, border: `1px solid ${T.border}`, borderRadius: 7, padding: "4px 9px", fontSize: 11, color: hasPhoto ? "#fff" : W.accent, fontWeight: 700, cursor: "pointer" }}>Edit</button>
                 <button onClick={() => setConfirmRemove(true)} style={{ background: "none", border: "none", color: hasPhoto ? "rgba(255,120,120,0.9)" : W.redDark, cursor: "pointer", fontSize: 16, padding: "0 2px" }}>🗑</button>
               </div>
-              {/* grade + color dot + name */}
+              {/* grade + color dot + name — grade hidden when actively climbing (moved to left) */}
               <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap", justifyContent: "flex-end" }}>
-                {hasBoulderTimer && <div style={{ background: getGradeColor(climb.grade) + (hasPhoto || isActivelyClimbing ? "dd" : "30"), color: hasPhoto || isActivelyClimbing ? "#fff" : getGradeColor(climb.grade), border: `1.5px solid ${getGradeColor(climb.grade)}${hasPhoto || isActivelyClimbing ? "ff" : "60"}`, borderRadius: 8, padding: "2px 8px", fontWeight: 900, fontSize: 12, boxShadow: isActivelyClimbing && !hasPhoto ? `0 1px 8px ${getGradeColor(climb.grade)}55` : "none" }}>{climb.grade}</div>}
-                {climb.color && <ColorDot colorId={climb.color} size={18} />}
+                {hasBoulderTimer && !isActivelyClimbing && <div style={{ background: getGradeColor(climb.grade) + (hasPhoto ? "dd" : "30"), color: hasPhoto ? "#fff" : getGradeColor(climb.grade), border: `1.5px solid ${getGradeColor(climb.grade)}${hasPhoto ? "ff" : "60"}`, borderRadius: 8, padding: "2px 8px", fontWeight: 900, fontSize: 12 }}>{climb.grade}</div>}
+                {!isActivelyClimbing && climb.color && <ColorDot colorId={climb.color} size={18} />}
                 {climb.name && <span style={{ fontWeight: 700, color: T.text, fontSize: 14, textAlign: "right" }}>{climb.name}</span>}
               </div>
               {/* status badges */}
