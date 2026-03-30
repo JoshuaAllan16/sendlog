@@ -367,22 +367,6 @@ export const ActiveClimbCard = ({ climb, onEdit, onStartClimbing, onEndAttempt, 
                 {sessionCount != null && sessionCount > 1 && <span style={{ fontSize: 10, color: T.textDim }}>{sessionCount} sessions</span>}
               </div>
             )}
-            {/* Attempt history — each attempt on its own row */}
-            {boulderAttemptCount > 0 && (
-              <div style={{ borderTop: `1px solid ${T.border}`, paddingTop: 8, marginTop: 2 }}>
-                {(climb.attemptLog || []).map((a, i) => (
-                  <div key={i} style={{ display: "flex", alignItems: "center", gap: 6, padding: "3px 2px", fontSize: 12 }}>
-                    <span style={{ fontWeight: 700, color: T.textMuted, minWidth: 76 }}>Attempt {i + 1}:</span>
-                    <span style={{ fontWeight: 800, color: T.text, flex: 1 }}>{formatDuration(Math.floor(a.duration / 1000))}</span>
-                    {(a.falls || 0) > 0 && <span style={{ color: hasPhoto ? "#fca5a5" : W.redDark, fontWeight: 900, fontSize: 14 }}>✕</span>}
-                  </div>
-                ))}
-                <div style={{ display: "flex", alignItems: "center", gap: 6, padding: "3px 2px", fontSize: 12 }}>
-                  <span style={{ fontWeight: 700, color: T.greenDark, minWidth: 76 }}>Attempt {(climb.attemptLog || []).length + 1}:</span>
-                  <span style={{ fontWeight: 700, color: T.greenDark, fontStyle: "italic" }}>in progress…</span>
-                </div>
-              </div>
-            )}
           </div>
         ) : (
           /* ── NOT ACTIVELY CLIMBING: original two-column layout ── */
@@ -466,6 +450,25 @@ export const ActiveClimbCard = ({ climb, onEdit, onStartClimbing, onEndAttempt, 
           </div>
         )}
 
+        {/* ── BOULDER attempt history rows ── */}
+        {!isRope && !climb.completed && boulderAttemptCount > 0 && (
+          <div style={{ padding: "6px 14px 8px", borderTop: `1px solid ${T.border}`, background: T.sectionBg }}>
+            {(climb.attemptLog || []).map((a, i) => (
+              <div key={i} style={{ display: "flex", alignItems: "center", gap: 6, padding: "3px 0", fontSize: 12 }}>
+                <span style={{ fontWeight: 700, color: T.textMuted, minWidth: 76 }}>Attempt {i + 1}:</span>
+                <span style={{ fontWeight: 800, color: T.text, flex: 1 }}>{formatDuration(Math.floor(a.duration / 1000))}</span>
+                {(a.falls || 0) > 0 && <span style={{ color: hasPhoto ? "#fca5a5" : W.redDark, fontWeight: 900, fontSize: 13 }}>✕</span>}
+              </div>
+            ))}
+            {isActivelyClimbing && (
+              <div style={{ display: "flex", alignItems: "center", gap: 6, padding: "3px 0", fontSize: 12 }}>
+                <span style={{ fontWeight: 700, color: T.greenDark, minWidth: 76 }}>Attempt {(climb.attemptLog || []).length + 1}:</span>
+                <span style={{ fontWeight: 800, color: T.greenDark, fontVariantNumeric: "tabular-nums" }}>{formatDuration(boulderTimerSec)}</span>
+              </div>
+            )}
+          </div>
+        )}
+
         {/* ── BOULDER action area ── */}
         {!isRope && !climb.completed && (
           <div style={{ borderTop: `1px solid ${T.border}` }}>
@@ -507,11 +510,6 @@ export const ActiveClimbCard = ({ climb, onEdit, onStartClimbing, onEndAttempt, 
                 <button onClick={() => onStartClimbing(climb.id)} style={{ width: "100%", padding: "16px", background: W.green, border: `2px solid ${W.greenDark}`, borderRadius: 14, color: W.greenDark, fontWeight: 800, fontSize: 16, cursor: "pointer" }}>
                   {climb.tries === 0 ? "Start Climbing" : "Start Attempt"}
                 </button>
-              </div>
-            )}
-            {!isActivelyClimbing && (climb.attemptLog || []).length > 0 && (
-              <div style={{ padding: "0 14px 8px", display: "flex", gap: 6, flexWrap: "wrap" }}>
-                {(climb.attemptLog || []).map((a, i) => <span key={i} style={{ fontSize: 10, color: T.textDim, background: T.surface, borderRadius: 6, padding: "2px 7px", border: `1px solid ${T.border}` }}>#{i + 1} {formatDuration(Math.floor(a.duration / 1000))}</span>)}
               </div>
             )}
           </div>
