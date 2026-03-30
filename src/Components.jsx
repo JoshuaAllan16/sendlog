@@ -340,50 +340,78 @@ export const ActiveClimbCard = ({ climb, onEdit, onStartClimbing, onEndAttempt, 
 
       <div style={{ position: "relative", zIndex: 2, background: "transparent" }}>
 
-        {/* ── BOULDER HEADER: left = timer, right = grade/color/name ── */}
-        {!isRope && (
-          <div style={{ display: "flex", gap: 12, padding: isActivelyClimbing ? "22px 14px 18px" : "16px 14px 12px", minHeight: isActivelyClimbing ? 130 : 96 }}>
-            {/* Left: timer area */}
+        {/* ── BOULDER HEADER ── */}
+        {!isRope && (isActivelyClimbing ? (
+          /* ── ACTIVE CLIMBING: centered full-width layout ── */
+          <div style={{ padding: "14px 14px 12px", position: "relative" }}>
+            {/* Edit + delete pinned top-right */}
+            <div style={{ position: "absolute", top: 12, right: 12, display: "flex", gap: 5, zIndex: 1 }}>
+              <button onClick={() => onEdit(climb)} style={{ background: T.sectionBg, border: `1px solid ${T.border}`, borderRadius: 7, padding: "4px 9px", fontSize: 11, color: hasPhoto ? "#fff" : W.accent, fontWeight: 700, cursor: "pointer" }}>Edit</button>
+              <button onClick={() => setConfirmRemove(true)} style={{ background: "none", border: "none", color: hasPhoto ? "rgba(255,120,120,0.9)" : W.redDark, cursor: "pointer", fontSize: 16, padding: "0 2px" }}>🗑</button>
+            </div>
+            {/* Grade + color — smaller, centered */}
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 8, marginBottom: 8 }}>
+              <div style={{ background: getGradeColor(climb.grade) + (hasPhoto ? "ee" : "cc"), color: "#fff", border: `2px solid ${getGradeColor(climb.grade)}`, borderRadius: 10, padding: "3px 11px", fontWeight: 900, fontSize: 18, lineHeight: 1, boxShadow: `0 2px 10px ${getGradeColor(climb.grade)}55` }}>{climb.grade}</div>
+              {climb.color && <ColorDot colorId={climb.color} size={24} />}
+              {climb.name && <span style={{ fontWeight: 700, color: T.textMuted, fontSize: 13 }}>{climb.name}</span>}
+            </div>
+            {/* Label */}
+            <div style={{ textAlign: "center", fontSize: 9, color: T.greenDark, textTransform: "uppercase", letterSpacing: 0.8, fontWeight: 700, marginBottom: 2 }}>Working on for</div>
+            {/* Big centered timer */}
+            <div style={{ textAlign: "center", fontSize: 60, fontWeight: 900, color: T.greenDark, fontVariantNumeric: "tabular-nums", lineHeight: 1, marginBottom: 6 }}>{formatDuration(boulderTimerSec)}</div>
+            {/* Status badges */}
+            {(climb.isProject || lapNumber || sessionCount > 1) && (
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 5, flexWrap: "wrap", marginBottom: 6 }}>
+                {climb.isProject && <span style={{ background: W.pink, color: W.pinkDark, borderRadius: 6, padding: "1px 6px", fontSize: 10, fontWeight: 700 }}>PROJECT</span>}
+                {lapNumber && <span style={{ background: T.sectionBg, color: T.textMuted, borderRadius: 6, padding: "1px 6px", fontSize: 10, fontWeight: 700, border: `1px solid ${T.border}` }}>Lap {lapNumber}</span>}
+                {sessionCount != null && sessionCount > 1 && <span style={{ fontSize: 10, color: T.textDim }}>{sessionCount} sessions</span>}
+              </div>
+            )}
+            {/* Attempt history — each attempt on its own row */}
+            {boulderAttemptCount > 0 && (
+              <div style={{ borderTop: `1px solid ${T.border}`, paddingTop: 8, marginTop: 2 }}>
+                {(climb.attemptLog || []).map((a, i) => (
+                  <div key={i} style={{ display: "flex", alignItems: "center", gap: 6, padding: "3px 2px", fontSize: 12 }}>
+                    <span style={{ fontWeight: 700, color: T.textMuted, minWidth: 76 }}>Attempt {i + 1}:</span>
+                    <span style={{ fontWeight: 800, color: T.text, flex: 1 }}>{formatDuration(Math.floor(a.duration / 1000))}</span>
+                    {(a.falls || 0) > 0 && <span style={{ color: hasPhoto ? "#fca5a5" : W.redDark, fontWeight: 900, fontSize: 14 }}>✕</span>}
+                  </div>
+                ))}
+                <div style={{ display: "flex", alignItems: "center", gap: 6, padding: "3px 2px", fontSize: 12 }}>
+                  <span style={{ fontWeight: 700, color: T.greenDark, minWidth: 76 }}>Attempt {(climb.attemptLog || []).length + 1}:</span>
+                  <span style={{ fontWeight: 700, color: T.greenDark, fontStyle: "italic" }}>in progress…</span>
+                </div>
+              </div>
+            )}
+          </div>
+        ) : (
+          /* ── NOT ACTIVELY CLIMBING: original two-column layout ── */
+          <div style={{ display: "flex", gap: 12, padding: "16px 14px 12px", minHeight: 96 }}>
+            {/* Left: timer / rest / grade */}
             <div style={{ flex: "0 0 auto", display: "flex", flexDirection: "column", justifyContent: "center", minWidth: 68 }}>
               {hasBoulderTimer ? (<>
-                {/* Grade + color above timer when actively climbing */}
-                {isActivelyClimbing && (
-                  <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
-                    <div style={{ background: getGradeColor(climb.grade) + (hasPhoto ? "ee" : "cc"), color: "#fff", border: `2.5px solid ${getGradeColor(climb.grade)}`, borderRadius: 12, padding: "5px 14px", fontWeight: 900, fontSize: 24, lineHeight: 1, boxShadow: `0 2px 14px ${getGradeColor(climb.grade)}66` }}>{climb.grade}</div>
-                    {climb.color && <ColorDot colorId={climb.color} size={30} />}
-                  </div>
-                )}
-                <div style={{ fontSize: 9, color: isActivelyClimbing ? T.greenDark : T.textDim, textTransform: "uppercase", letterSpacing: 0.8, fontWeight: 700, marginBottom: 1 }}>
-                  {isActivelyClimbing ? "Working on for" : "Worked"}
-                </div>
-                <div style={{ fontSize: isActivelyClimbing ? 52 : 32, fontWeight: 900, color: isActivelyClimbing ? T.greenDark : (climb.completed ? T.greenDark : T.accent), fontVariantNumeric: "tabular-nums", lineHeight: 1 }}>
-                  {formatDuration(boulderTimerSec)}
-                </div>
+                <div style={{ fontSize: 9, color: T.textDim, textTransform: "uppercase", letterSpacing: 0.8, fontWeight: 700, marginBottom: 1 }}>Worked</div>
+                <div style={{ fontSize: 32, fontWeight: 900, color: climb.completed ? T.greenDark : T.accent, fontVariantNumeric: "tabular-nums", lineHeight: 1 }}>{formatDuration(boulderTimerSec)}</div>
                 {boulderAttemptCount > 0 && <div style={{ fontSize: 10, color: T.textDim, marginTop: 3 }}>{boulderAttemptCount} attempt{boulderAttemptCount !== 1 ? "s" : ""}</div>}
                 {sessionCount != null && sessionCount > 1 && <div style={{ fontSize: 10, color: T.textDim }}>{sessionCount} sessions</div>}
               </>) : restSec !== null ? (<>
                 <div style={{ fontSize: 9, color: showReady ? T.accent : T.textDim, textTransform: "uppercase", letterSpacing: 0.8, fontWeight: showReady ? 700 : 400 }}>{showReady ? "⚡ Ready?" : "Resting"}</div>
                 <div style={{ fontSize: 28, fontWeight: 800, color: showReady ? T.accent : T.textMuted, fontVariantNumeric: "tabular-nums", lineHeight: 1 }}>{formatDuration(restSec)}</div>
               </>) : (
-                /* No timer yet — grade badge on left */
-                <div style={{ width: 46, height: 46, borderRadius: 12, display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 900, fontSize: 15, background: getGradeColor(climb.grade) + (hasPhoto || isActivelyClimbing ? "dd" : "30"), color: hasPhoto || isActivelyClimbing ? "#fff" : getGradeColor(climb.grade), border: `2px solid ${getGradeColor(climb.grade)}${hasPhoto || isActivelyClimbing ? "ff" : "60"}`, boxShadow: isActivelyClimbing && !hasPhoto ? `0 2px 10px ${getGradeColor(climb.grade)}66` : "none" }}>{climb.grade}</div>
+                <div style={{ width: 46, height: 46, borderRadius: 12, display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 900, fontSize: 15, background: getGradeColor(climb.grade) + (hasPhoto ? "dd" : "30"), color: hasPhoto ? "#fff" : getGradeColor(climb.grade), border: `2px solid ${getGradeColor(climb.grade)}${hasPhoto ? "ff" : "60"}` }}>{climb.grade}</div>
               )}
             </div>
-
             {/* Right: grade + color + name + actions */}
             <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 5, minWidth: 0 }}>
-              {/* action buttons */}
               <div style={{ display: "flex", gap: 5 }}>
                 <button onClick={() => onEdit(climb)} style={{ background: T.sectionBg, border: `1px solid ${T.border}`, borderRadius: 7, padding: "4px 9px", fontSize: 11, color: hasPhoto ? "#fff" : W.accent, fontWeight: 700, cursor: "pointer" }}>Edit</button>
                 <button onClick={() => setConfirmRemove(true)} style={{ background: "none", border: "none", color: hasPhoto ? "rgba(255,120,120,0.9)" : W.redDark, cursor: "pointer", fontSize: 16, padding: "0 2px" }}>🗑</button>
               </div>
-              {/* grade + color dot + name — grade hidden when actively climbing (moved to left) */}
               <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap", justifyContent: "flex-end" }}>
-                {hasBoulderTimer && !isActivelyClimbing && <div style={{ background: getGradeColor(climb.grade) + (hasPhoto ? "dd" : "30"), color: hasPhoto ? "#fff" : getGradeColor(climb.grade), border: `1.5px solid ${getGradeColor(climb.grade)}${hasPhoto ? "ff" : "60"}`, borderRadius: 8, padding: "2px 8px", fontWeight: 900, fontSize: 12 }}>{climb.grade}</div>}
-                {!isActivelyClimbing && climb.color && <ColorDot colorId={climb.color} size={18} />}
+                {hasBoulderTimer && <div style={{ background: getGradeColor(climb.grade) + (hasPhoto ? "dd" : "30"), color: hasPhoto ? "#fff" : getGradeColor(climb.grade), border: `1.5px solid ${getGradeColor(climb.grade)}${hasPhoto ? "ff" : "60"}`, borderRadius: 8, padding: "2px 8px", fontWeight: 900, fontSize: 12 }}>{climb.grade}</div>}
+                {climb.color && <ColorDot colorId={climb.color} size={18} />}
                 {climb.name && <span style={{ fontWeight: 700, color: T.text, fontSize: 14, textAlign: "right" }}>{climb.name}</span>}
               </div>
-              {/* status badges */}
               <div style={{ display: "flex", gap: 4, flexWrap: "wrap", justifyContent: "flex-end" }}>
                 {climb.isProject && <span style={{ background: W.pink, color: W.pinkDark, borderRadius: 6, padding: "1px 6px", fontSize: 10, fontWeight: 700 }}>PROJECT</span>}
                 {lapNumber && <span style={{ background: T.sectionBg, color: T.textMuted, borderRadius: 6, padding: "1px 6px", fontSize: 10, fontWeight: 700, border: `1px solid ${T.border}` }}>Lap {lapNumber}</span>}
@@ -395,7 +423,7 @@ export const ActiveClimbCard = ({ climb, onEdit, onStartClimbing, onEndAttempt, 
               <TagChips wallTypes={climb.wallTypes} holdTypes={climb.holdTypes} />
             </div>
           </div>
-        )}
+        ))}
 
         {/* ── ROPE HEADER (unchanged) ── */}
         {isRope && (
@@ -481,7 +509,7 @@ export const ActiveClimbCard = ({ climb, onEdit, onStartClimbing, onEndAttempt, 
                 </button>
               </div>
             )}
-            {(climb.attemptLog || []).length > 0 && (
+            {!isActivelyClimbing && (climb.attemptLog || []).length > 0 && (
               <div style={{ padding: "0 14px 8px", display: "flex", gap: 6, flexWrap: "wrap" }}>
                 {(climb.attemptLog || []).map((a, i) => <span key={i} style={{ fontSize: 10, color: T.textDim, background: T.surface, borderRadius: 6, padding: "2px 7px", border: `1px solid ${T.border}` }}>#{i + 1} {formatDuration(Math.floor(a.duration / 1000))}</span>)}
               </div>
