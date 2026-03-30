@@ -3551,7 +3551,7 @@ export default function App() {
             setNewBoulderVisited(prev => { const s = new Set(prev); s.add(step); return s; });
           };
           // ── SET PICKER SCREEN (Full-Screen) ───────────────────────
-          if (boulderAddMode === "set-picker") {
+          if (boulderAddMode === "set-picker" || boulderAddMode === "new-boulder") {
             const sections = [...new Set(gymEntries.map(e => e.section || ""))];
             const sectionGroups = {};
             gymEntries.forEach(e => {
@@ -3559,10 +3559,10 @@ export default function App() {
               if (!sectionGroups[sec]) sectionGroups[sec] = [];
               sectionGroups[sec].push(e);
             });
-            return (
+            const setPickerDiv = (
               <div style={{ position: "fixed", inset: 0, zIndex: 400, background: W.bg, display: "flex", flexDirection: "column" }}>
                 {/* Header */}
-                <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "16px 20px", borderBottom: `1px solid ${W.border}`, background: W.surface, flexShrink: 0 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "max(16px, env(safe-area-inset-top)) 20px 16px", borderBottom: `1px solid ${W.border}`, background: W.surface, flexShrink: 0 }}>
                   <button onClick={closeBoulderAdd} style={{ background: "none", border: "none", color: W.textMuted, fontSize: 22, cursor: "pointer", padding: "0 4px", lineHeight: 1 }}>✕</button>
                   <div style={{ fontWeight: 900, fontSize: 20, color: W.text, flex: 1 }}>Add Boulder</div>
                   {setPickerSelected.size > 0 && <div style={{ fontSize: 13, fontWeight: 700, color: W.accent }}>{setPickerSelected.size} selected</div>}
@@ -3625,9 +3625,9 @@ export default function App() {
                 </div>
               </div>
             );
-          }
+            if (boulderAddMode === "set-picker") return setPickerDiv;
           // ── MULTI-STEP NEW BOULDER FORM ───────────────────────────
-          if (boulderAddMode === "new-boulder") {
+          // (boulderAddMode === "new-boulder" — set picker stays visible behind sheet)
             const stepLabels = ["Color & Grade", "Wall Info", "Name & Photo", "Hold Types"];
             const loc = location || null;
             const gymSetSec = loc ? [...new Set((gymSets[loc] || []).map(e => e.section).filter(Boolean))] : [];
@@ -3717,7 +3717,9 @@ export default function App() {
               return null;
             })();
             return (
-              <div style={{ position: "fixed", inset: 0, zIndex: 400, background: "rgba(0,0,0,0.55)", display: "flex", flexDirection: "column", justifyContent: "flex-end" }}
+              <>
+              {setPickerDiv}
+              <div style={{ position: "fixed", inset: 0, zIndex: 401, background: "rgba(0,0,0,0.55)", display: "flex", flexDirection: "column", justifyContent: "flex-end" }}
                    onClick={e => { if (e.target === e.currentTarget) setBoulderAddMode("set-picker"); }}>
                 <div style={{ background: W.surface, borderRadius: "24px 24px 0 0", maxHeight: "90vh", overflowY: "auto", padding: "0 20px" }}>
               <div style={{ padding: "0 0 20px" }} {...touchHandlers}>
@@ -3744,6 +3746,7 @@ export default function App() {
               </div>
                 </div>
               </div>
+              </>
             );
           }
           return null;
