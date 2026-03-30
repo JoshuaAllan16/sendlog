@@ -561,8 +561,15 @@ export const ActiveClimbCard = ({ climb, onEdit, onStartClimbing, onEndAttempt, 
             </div>
           </div>
         )}
-        {climb.completed && onClimbAgain && !confirmRemove && (
-          <button onClick={() => onClimbAgain(climb)} style={{ width: "100%", padding: "9px", background: "transparent", border: "none", borderTop: `1px solid ${T.border}`, color: T.textMuted, fontSize: 12, fontWeight: 700, cursor: "pointer" }}>↩ Climb Again</button>
+        {climb.completed && !confirmRemove && (onClimbAgain || onToggleCompleted) && (
+          <div style={{ display: "flex", borderTop: `1px solid ${T.border}` }}>
+            {onClimbAgain && (
+              <button onClick={() => onClimbAgain(climb)} style={{ flex: 1, padding: "9px", background: "transparent", border: "none", borderRight: onToggleCompleted ? `1px solid ${T.border}` : "none", color: T.textMuted, fontSize: 12, fontWeight: 700, cursor: "pointer" }}>↩ Climb Again</button>
+            )}
+            {onToggleCompleted && (
+              <button onClick={() => onToggleCompleted(climb.id)} style={{ flex: 1, padding: "9px", background: "transparent", border: "none", color: T.textMuted, fontSize: 12, fontWeight: 700, cursor: "pointer" }}>✕ Unsend</button>
+            )}
+          </div>
         )}
       </div>
     </div>
