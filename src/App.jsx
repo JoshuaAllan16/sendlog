@@ -3,6 +3,7 @@ import { createClient } from "@supabase/supabase-js";
 import { ThemeCtx, THEMES } from "./theme.js";
 import { ColorDot, TagChips, LocationDropdown, SpeedSessionCard, BoulderRopeSessionCard, ActiveClimbCard } from "./Components.jsx";
 import { ProjectDetailScreen, SessionSummaryScreen } from "./Screens.jsx";
+import { EXERCISES } from "./exercises.js";
 import { GRADES, ROPE_GRADES, GRADE_COLORS, CLIMB_COLORS, WALL_TYPES, HOLD_TYPES, getGradeColor, formatDate, formatDuration, formatTotalTime, formatRestSec } from "./constants.js";
 
 // §CONSTANTS — all constants and utils are in ./constants.js
@@ -381,9 +382,9 @@ export default function App() {
   const [routineImportError, setRoutineImportError] = useState("");
   const [showImportRoutine, setShowImportRoutine]   = useState(false);
   const [routineRestTimer, setRoutineRestTimer]     = useState(null); // { itemId, endsAt }
-  const [fitnessPickerStep, setFitnessPickerStep] = useState(null); // null | "choose" | "routine-type" | "routine-list" | "exercise"
-  const [fitnessPickerRoutineType, setFitnessPickerRoutineType] = useState(null); // "warmup"|"workout"|"fingerboard"
-  const [fitnessNewExerciseName, setFitnessNewExerciseName] = useState("");
+  const [showTrainingPicker, setShowTrainingPicker] = useState(false);
+  const [trainingPickerTab, setTrainingPickerTab]   = useState("exercises"); // "exercises" | "routines"
+  const [trainingPickerSearch, setTrainingPickerSearch] = useState("");
   const [fitnessNewItemTexts, setFitnessNewItemTexts]       = useState({}); // { [sectionId]: string }
   const [fitnessDragIdx, setFitnessDragIdx]                 = useState(null);
   const [trainingPickerType, setTrainingPickerType]         = useState(null); // null | "warmup" | "workout" | "fingerboard"
@@ -1336,7 +1337,7 @@ export default function App() {
 
   // ── Fitness section ──────────────────────────────────────
   const startFitnessSession = () => {
-    setFitnessPickerStep("choose");
+    setShowTrainingPicker(true);
   };
 
   const addFitnessRoutine = (routineType, routine) => {
@@ -1351,23 +1352,21 @@ export default function App() {
       endedAt: null,
     };
     setActiveSession(s => ({ ...s, fitnessSections: [...(s.fitnessSections || []), newSection] }));
-    setFitnessPickerStep(null);
-    setFitnessPickerRoutineType(null);
+    setShowTrainingPicker(false);
   };
 
-  const addFitnessExercise = () => {
-    if (!fitnessNewExerciseName.trim()) return;
+  const addFitnessExercise = (name) => {
+    if (!name?.trim()) return;
     const newSection = {
       id: Date.now(),
       kind: "exercise",
-      name: fitnessNewExerciseName.trim(),
+      name: name.trim(),
       items: [],
       startedAt: Date.now(),
       endedAt: null,
     };
     setActiveSession(s => ({ ...s, fitnessSections: [...(s.fitnessSections || []), newSection] }));
-    setFitnessPickerStep(null);
-    setFitnessNewExerciseName("");
+    setShowTrainingPicker(false);
   };
 
   const toggleFitnessItem = (sectionId, itemId) => {
@@ -4074,27 +4073,7 @@ export default function App() {
                     if (bt > 0) parts.push(`${(activeSession?.fitnessSections || []).filter(s => s.endedAt).length}/${bt} blocks`);
                     return parts.length > 0 ? <div style={{ fontSize: 12, color: W.textMuted, fontWeight: 600, marginBottom: 10 }}>{parts.join(" · ")}</div> : null;
                   })()}
-                  {hasAnyFitnessActivity ? (
-                    <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                      <button onClick={() => setTrainingPickerType("workout")} style={{ padding: "8px 14px", background: `${W.accent}22`, border: `1.5px solid ${W.accentDark}`, borderRadius: 10, color: W.accentDark, fontWeight: 700, fontSize: 13, cursor: "pointer" }}>+ Workout</button>
-                      <button onClick={() => setTrainingPickerType("fingerboard")} style={{ padding: "8px 14px", background: W.yellow, border: `1.5px solid ${W.yellowDark}`, borderRadius: 10, color: W.yellowDark, fontWeight: 700, fontSize: 13, cursor: "pointer" }}>+ Fingerboard</button>
-                      <button onClick={startFitnessSession} style={{ padding: "8px 14px", background: `${orangeColor}18`, border: `1.5px solid ${orangeColor}`, borderRadius: 10, color: orangeColor, fontWeight: 700, fontSize: 13, cursor: "pointer" }}>+ Block</button>
-                    </div>
-                  ) : (
-                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginTop: 4 }}>
-                      {[
-                        { id: "workout",     label: "Workout",     icon: "💪", bg: `${W.accent}22`, tc: W.accentDark, fn: () => setTrainingPickerType("workout") },
-                        { id: "fingerboard", label: "Fingerboard", icon: "🤲", bg: W.yellow,        tc: W.yellowDark, fn: () => setTrainingPickerType("fingerboard") },
-                        { id: "warmup",      label: "Warm Up",     icon: "🔥", bg: W.pink,          tc: W.pinkDark,   fn: startWarmupSection, disabled: !!activeSession?.warmupStartedAt },
-                        { id: "exercise",    label: "Exercise",    icon: "🏋️", bg: `${orangeColor}18`, tc: orangeColor, fn: startFitnessSession },
-                      ].map(opt => (
-                        <button key={opt.id} onClick={opt.disabled ? undefined : opt.fn} style={{ padding: "16px 10px", background: opt.disabled ? W.surface2 : opt.bg, border: `1.5px solid ${opt.disabled ? W.border : opt.tc}`, borderRadius: 14, cursor: opt.disabled ? "default" : "pointer", display: "flex", flexDirection: "column", alignItems: "center", gap: 6, opacity: opt.disabled ? 0.45 : 1 }}>
-                          <span style={{ fontSize: 26 }}>{opt.icon}</span>
-                          <span style={{ fontWeight: 800, fontSize: 12, color: opt.disabled ? W.textDim : opt.tc }}>{opt.label}</span>
-                        </button>
-                      ))}
-                    </div>
-                  )}
+                  <button onClick={() => setShowTrainingPicker(true)} style={{ padding: "10px 20px", background: `${orangeColor}18`, border: `2px solid ${orangeColor}`, borderRadius: 12, color: orangeColor, fontWeight: 900, fontSize: 20, cursor: "pointer", alignSelf: "flex-start" }}>+</button>
                 </div>
               </div>
               {!isCollapsedT && (
@@ -4243,93 +4222,94 @@ export default function App() {
           );
         })()}
 
-        {/* ── Fitness Picker ───────────────────────────────────── */}
-        {!showClimbForm && fitnessPickerStep && (() => {
+        {/* ── Training Picker (full-screen) ───────────────────── */}
+        {!showClimbForm && showTrainingPicker && (() => {
           const orangeColor = "#f97316";
-          const orangeLight = "#fff7ed";
-          if (fitnessPickerStep === "choose") return (
-            <div style={{ marginBottom: 16, background: W.surface, border: `2px solid ${orangeColor}55`, borderRadius: 14, padding: "16px" }}>
-              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
-                <div style={{ fontWeight: 800, fontSize: 16, color: W.text }}>🏋️ Add to Fitness</div>
-                <button onClick={() => setFitnessPickerStep(null)} style={{ background: "none", border: "none", color: W.textDim, fontSize: 20, cursor: "pointer", padding: "0 4px", lineHeight: 1 }}>×</button>
+          const search = trainingPickerSearch.toLowerCase();
+          return (
+            <div style={{ position: "fixed", inset: 0, zIndex: 400, background: W.bg, display: "flex", flexDirection: "column" }}>
+              {/* Header */}
+              <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "max(16px, env(safe-area-inset-top)) 20px 16px", borderBottom: `1px solid ${W.border}`, background: W.surface, flexShrink: 0 }}>
+                <button onClick={() => { setShowTrainingPicker(false); setTrainingPickerSearch(""); }} style={{ background: "none", border: "none", color: W.textMuted, fontSize: 22, cursor: "pointer", padding: "0 4px", lineHeight: 1 }}>✕</button>
+                <div style={{ fontWeight: 900, fontSize: 20, color: W.text, flex: 1 }}>Add to Training</div>
               </div>
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
-                <div onClick={() => setFitnessPickerStep("routine-type")} style={{ background: W.surface2, border: `2px solid ${W.border}`, borderRadius: 14, padding: "18px 14px", cursor: "pointer", textAlign: "center" }}>
-                  <div style={{ fontSize: 28, marginBottom: 6 }}>📋</div>
-                  <div style={{ fontWeight: 800, fontSize: 14, color: W.text }}>Add a Routine</div>
-                  <div style={{ fontSize: 11, color: W.textMuted, marginTop: 4 }}>Pick from your saved routines</div>
-                </div>
-                <div onClick={() => setFitnessPickerStep("exercise")} style={{ background: W.surface2, border: `2px solid ${W.border}`, borderRadius: 14, padding: "18px 14px", cursor: "pointer", textAlign: "center" }}>
-                  <div style={{ fontSize: 28, marginBottom: 6 }}>✏️</div>
-                  <div style={{ fontWeight: 800, fontSize: 14, color: W.text }}>Add an Exercise</div>
-                  <div style={{ fontSize: 11, color: W.textMuted, marginTop: 4 }}>Log a custom exercise</div>
-                </div>
+              {/* Search */}
+              <div style={{ padding: "12px 16px", background: W.surface, borderBottom: `1px solid ${W.border}`, flexShrink: 0 }}>
+                <input value={trainingPickerSearch} onChange={e => setTrainingPickerSearch(e.target.value)} placeholder="Search exercises & routines…" style={{ width: "100%", boxSizing: "border-box", padding: "10px 14px", background: W.surface2, border: `1px solid ${W.border}`, borderRadius: 12, color: W.text, fontSize: 15, outline: "none", fontFamily: "inherit" }} />
               </div>
-            </div>
-          );
-          if (fitnessPickerStep === "routine-type") return (
-            <div style={{ marginBottom: 16, background: W.surface, border: `2px solid ${orangeColor}55`, borderRadius: 14, padding: "16px" }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 14 }}>
-                <button onClick={() => setFitnessPickerStep("choose")} style={{ background: W.surface2, border: `1px solid ${W.border}`, borderRadius: 8, padding: "6px 10px", color: W.textDim, fontWeight: 700, cursor: "pointer", fontSize: 13 }}>← Back</button>
-                <div style={{ fontWeight: 800, fontSize: 15, color: W.text }}>Choose Routine Type</div>
-              </div>
-              {[
-                { type: "warmup", emoji: "🧘", label: "Warmup", routines: warmupTemplates },
-                { type: "workout", emoji: "💪", label: "Workout", routines: workoutRoutines },
-                { type: "fingerboard", emoji: "🤙", label: "Fingerboard", routines: fingerboardRoutines },
-              ].map(opt => (
-                <div key={opt.type} onClick={() => { setFitnessPickerRoutineType(opt.type); setFitnessPickerStep("routine-list"); }} style={{ display: "flex", alignItems: "center", gap: 12, background: W.surface2, border: `1px solid ${W.border}`, borderRadius: 12, padding: "12px 14px", marginBottom: 8, cursor: "pointer" }}>
-                  <span style={{ fontSize: 22 }}>{opt.emoji}</span>
-                  <div style={{ flex: 1 }}>
-                    <div style={{ fontWeight: 700, fontSize: 14, color: W.text }}>{opt.label}</div>
-                    <div style={{ fontSize: 11, color: W.textMuted }}>{opt.routines.length} routine{opt.routines.length !== 1 ? "s" : ""}</div>
-                  </div>
-                  <span style={{ color: W.textMuted, fontSize: 18 }}>›</span>
-                </div>
-              ))}
-            </div>
-          );
-          if (fitnessPickerStep === "routine-list") {
-            const rType = fitnessPickerRoutineType;
-            const routineList = rType === "warmup" ? warmupTemplates : rType === "workout" ? workoutRoutines : fingerboardRoutines;
-            const typeEmoji = rType === "warmup" ? "🧘" : rType === "workout" ? "💪" : "🤙";
-            const typeLabel2 = rType === "warmup" ? "Warmup" : rType === "workout" ? "Workout" : "Fingerboard";
-            return (
-              <div style={{ marginBottom: 16, background: W.surface, border: `2px solid ${orangeColor}55`, borderRadius: 14, padding: "16px" }}>
-                <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 14 }}>
-                  <button onClick={() => setFitnessPickerStep("routine-type")} style={{ background: W.surface2, border: `1px solid ${W.border}`, borderRadius: 8, padding: "6px 10px", color: W.textDim, fontWeight: 700, cursor: "pointer", fontSize: 13 }}>← Back</button>
-                  <div style={{ fontWeight: 800, fontSize: 15, color: W.text }}>{typeEmoji} {typeLabel2} Routines</div>
-                </div>
-                {routineList.length === 0 && <div style={{ color: W.textDim, fontSize: 13, textAlign: "center", padding: "16px 0" }}>No {rType} routines yet. Add one in your profile.</div>}
-                {routineList.map(r => (
-                  <div key={r.id} onClick={() => addFitnessRoutine(rType, r)} style={{ background: W.surface2, border: `1px solid ${W.border}`, borderRadius: 12, padding: "12px 14px", marginBottom: 8, cursor: "pointer" }}>
-                    <div style={{ fontWeight: 700, fontSize: 14, color: W.text }}>{r.name}</div>
-                    {r.description && <div style={{ fontSize: 11, color: W.textMuted, marginTop: 2 }}>{r.description}</div>}
-                    <div style={{ fontSize: 11, color: W.textDim, marginTop: 4 }}>{(r.items || []).length} tasks</div>
-                  </div>
+              {/* Tab toggle */}
+              <div style={{ display: "flex", background: W.surface, borderBottom: `1px solid ${W.border}`, flexShrink: 0 }}>
+                {[["exercises","Exercises"],["routines","Routines"]].map(([val, label]) => (
+                  <button key={val} onClick={() => setTrainingPickerTab(val)} style={{ flex: 1, padding: "12px", fontWeight: 800, fontSize: 14, background: "none", border: "none", borderBottom: `3px solid ${trainingPickerTab === val ? orangeColor : "transparent"}`, color: trainingPickerTab === val ? orangeColor : W.textMuted, cursor: "pointer" }}>{label}</button>
                 ))}
               </div>
-            );
-          }
-          if (fitnessPickerStep === "exercise") {
-            const QUICK_EXERCISES = ["Pull-ups","Push-ups","Dips","Plank","Core Circuit","Hangboard","Campus Board","Antagonist","Stretching","Cool Down"];
-            return (
-              <div style={{ marginBottom: 16, background: W.surface, border: `2px solid ${orangeColor}55`, borderRadius: 14, padding: "16px" }}>
-                <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 14 }}>
-                  <button onClick={() => setFitnessPickerStep("choose")} style={{ background: W.surface2, border: `1px solid ${W.border}`, borderRadius: 8, padding: "6px 10px", color: W.textDim, fontWeight: 700, cursor: "pointer", fontSize: 13 }}>← Back</button>
-                  <div style={{ fontWeight: 800, fontSize: 15, color: W.text }}>Add an Exercise</div>
-                </div>
-                <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 12 }}>
-                  {QUICK_EXERCISES.map(name => (
-                    <button key={name} onClick={() => { setFitnessNewExerciseName(name); }} style={{ padding: "5px 10px", borderRadius: 20, border: `1px solid ${fitnessNewExerciseName === name ? orangeColor : orangeColor + "55"}`, background: fitnessNewExerciseName === name ? `${orangeColor}22` : W.surface2, color: fitnessNewExerciseName === name ? orangeColor : W.textMuted, fontSize: 11, fontWeight: 600, cursor: "pointer" }}>{name}</button>
-                  ))}
-                </div>
-                <input value={fitnessNewExerciseName} onChange={e => setFitnessNewExerciseName(e.target.value)} onKeyDown={e => { if (e.key === "Enter") addFitnessExercise(); }} placeholder="Or type a custom name…" style={{ width: "100%", boxSizing: "border-box", padding: "10px 12px", borderRadius: 10, border: `1px solid ${W.border}`, background: W.surface2, color: W.text, fontSize: 14, outline: "none", marginBottom: 10 }} />
-                <button onClick={addFitnessExercise} disabled={!fitnessNewExerciseName.trim()} style={{ width: "100%", padding: "12px", background: fitnessNewExerciseName.trim() ? orangeColor : W.surface2, border: "none", borderRadius: 12, color: fitnessNewExerciseName.trim() ? "#fff" : W.textDim, fontWeight: 800, fontSize: 14, cursor: fitnessNewExerciseName.trim() ? "pointer" : "default", transition: "background 0.15s" }}>Add Exercise</button>
+              {/* Content */}
+              <div style={{ flex: 1, overflowY: "auto", paddingBottom: 20 }}>
+                {trainingPickerTab === "exercises" ? (() => {
+                  const filtered = EXERCISES.map(g => ({ ...g, exercises: g.exercises.filter(e => !search || e.name.toLowerCase().includes(search) || (e.description || "").toLowerCase().includes(search)) })).filter(g => g.exercises.length > 0);
+                  if (filtered.length === 0) return <div style={{ textAlign: "center", color: W.textDim, padding: "40px 0", fontSize: 14 }}>No exercises found</div>;
+                  return filtered.map(group => (
+                    <div key={group.group}>
+                      <div style={{ fontSize: 11, fontWeight: 800, color: orangeColor, textTransform: "uppercase", letterSpacing: 1.2, padding: "14px 16px 6px", background: W.bg }}>📌 {group.group}</div>
+                      {group.exercises.map(ex => (
+                        <div key={ex.name} onClick={() => addFitnessExercise(ex.name)} style={{ display: "flex", alignItems: "center", padding: "13px 16px", borderBottom: `1px solid ${W.border}22`, cursor: "pointer", background: W.surface, active: { background: W.surface2 } }}>
+                          <div style={{ flex: 1 }}>
+                            <div style={{ fontWeight: 700, fontSize: 15, color: W.text }}>{ex.name}</div>
+                            {ex.description && <div style={{ fontSize: 12, color: W.textMuted, marginTop: 2 }}>{ex.description}</div>}
+                          </div>
+                          <span style={{ color: W.textMuted, fontSize: 20, fontWeight: 300, marginLeft: 8 }}>+</span>
+                        </div>
+                      ))}
+                    </div>
+                  ));
+                })() : (() => {
+                  const customRoutines = [
+                    ...(warmupTemplates || []).map(r => ({ ...r, rtype: "warmup", emoji: "🧘" })),
+                    ...(workoutRoutines || []).map(r => ({ ...r, rtype: "workout", emoji: "💪" })),
+                    ...(fingerboardRoutines || []).map(r => ({ ...r, rtype: "fingerboard", emoji: "🤙" })),
+                  ].filter(r => !search || r.name.toLowerCase().includes(search));
+                  const premadeAll = [
+                    ...WARMUP_PRESETS.map((r, i) => ({ ...r, rtype: "warmup", emoji: "🧘", id: `wp${i}` })),
+                    ...WORKOUT_PRESETS.map((r, i) => ({ ...r, rtype: "workout", emoji: "💪", id: `wkp${i}` })),
+                    ...FINGERBOARD_PRESETS.map((r, i) => ({ ...r, rtype: "fingerboard", emoji: "🤙", id: `fp${i}` })),
+                  ].filter(r => !search || r.name.toLowerCase().includes(search));
+                  const rowStyle = { display: "flex", alignItems: "center", padding: "13px 16px", borderBottom: `1px solid ${W.border}22`, cursor: "pointer", background: W.surface };
+                  return (
+                    <>
+                      {customRoutines.length > 0 && <>
+                        <div style={{ fontSize: 11, fontWeight: 800, color: orangeColor, textTransform: "uppercase", letterSpacing: 1.2, padding: "14px 16px 6px", background: W.bg }}>My Routines</div>
+                        {customRoutines.map(r => (
+                          <div key={r.id} onClick={() => addFitnessRoutine(r.rtype, r)} style={rowStyle}>
+                            <span style={{ fontSize: 20, marginRight: 12 }}>{r.emoji}</span>
+                            <div style={{ flex: 1 }}>
+                              <div style={{ fontWeight: 700, fontSize: 15, color: W.text }}>{r.name}</div>
+                              <div style={{ fontSize: 12, color: W.textMuted, marginTop: 2 }}>{(r.items || []).length} tasks · {r.rtype}</div>
+                            </div>
+                            <span style={{ color: W.textMuted, fontSize: 20, fontWeight: 300, marginLeft: 8 }}>+</span>
+                          </div>
+                        ))}
+                      </>}
+                      {premadeAll.length > 0 && <>
+                        <div style={{ fontSize: 11, fontWeight: 800, color: orangeColor, textTransform: "uppercase", letterSpacing: 1.2, padding: "14px 16px 6px", background: W.bg }}>Premade Routines</div>
+                        {premadeAll.map(r => (
+                          <div key={r.id} onClick={() => addFitnessRoutine(r.rtype, r)} style={rowStyle}>
+                            <span style={{ fontSize: 20, marginRight: 12 }}>{r.emoji}</span>
+                            <div style={{ flex: 1 }}>
+                              <div style={{ fontWeight: 700, fontSize: 15, color: W.text }}>{r.name}</div>
+                              {r.description && <div style={{ fontSize: 12, color: W.textMuted, marginTop: 2 }}>{r.description}</div>}
+                              <div style={{ fontSize: 11, color: W.textDim, marginTop: 1 }}>{(r.items || []).length} tasks · {r.rtype}</div>
+                            </div>
+                            <span style={{ color: W.textMuted, fontSize: 20, fontWeight: 300, marginLeft: 8 }}>+</span>
+                          </div>
+                        ))}
+                      </>}
+                      {customRoutines.length === 0 && premadeAll.length === 0 && <div style={{ textAlign: "center", color: W.textDim, padding: "40px 0", fontSize: 14 }}>No routines found</div>}
+                    </>
+                  );
+                })()}
               </div>
-            );
-          }
-          return null;
+            </div>
+          );
         })()}
 
         {/* ── Fitness Sections ─────────────────────────────────── */}
