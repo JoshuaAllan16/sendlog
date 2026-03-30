@@ -1457,7 +1457,7 @@ export default function App() {
       ...s,
       fitnessSections: (s.fitnessSections || []).map(sec =>
         sec.id === sectionId
-          ? { ...sec, sets: [...(sec.sets || []), newSet], restEndsAt: Date.now() + (sec.restDuration || 90) * 1000 }
+          ? { ...sec, sets: [...(sec.sets || []), newSet] }
           : sec
       ),
     }));
@@ -4503,10 +4503,7 @@ export default function App() {
                   <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
                     <div style={{ flex: 1 }}>
                       <div style={{ fontWeight: 900, fontSize: 17, color: W.text }}>{section.name}</div>
-                      <div style={{ display: "flex", gap: 6, marginTop: 4 }}>
-                        {tags.map(t => <span key={t} style={{ fontSize: 10, fontWeight: 800, padding: "2px 7px", borderRadius: 6, background: `${orangeColor}22`, color: orangeColor, textTransform: "uppercase", letterSpacing: 0.5 }}>{t === "reps" ? "Reps/Sets" : t === "weight" ? "Weight" : "Timer"}</span>)}
-                        {isEnded && <span style={{ fontSize: 10, fontWeight: 800, padding: "2px 7px", borderRadius: 6, background: `${orangeColor}cc`, color: "#fff" }}>DONE</span>}
-                      </div>
+                      {isEnded && <div style={{ display: "flex", gap: 6, marginTop: 4 }}><span style={{ fontSize: 10, fontWeight: 800, padding: "2px 7px", borderRadius: 6, background: `${orangeColor}cc`, color: "#fff" }}>DONE</span></div>}
                     </div>
                     <div style={{ fontWeight: 900, fontSize: 22, color: isActive ? orangeColor : W.textMuted, fontVariantNumeric: "tabular-nums", fontFamily: "monospace", minWidth: 60, textAlign: "right" }}>{fmt(elapsedSec)}</div>
                     <button onClick={() => setActiveSession(s => ({ ...s, collapsedSections: { ...(s.collapsedSections || {}), [`fitness_${section.id}`]: !s.collapsedSections?.[`fitness_${section.id}`] } }))} style={{ background: "none", border: `1px solid ${orangeColor}44`, borderRadius: 8, color: orangeColor, fontSize: 14, cursor: "pointer", padding: "4px 8px", lineHeight: 1 }}>{isCollapsed ? "▼" : "▲"}</button>
@@ -4539,40 +4536,11 @@ export default function App() {
                             ))}
                           </div>
                         )}
-                        {/* Rest timer */}
-                        {showRest && (
-                          <div style={{ marginBottom: 10, padding: "8px 12px", borderRadius: 10, background: restDone ? `${W.accent}18` : `${orangeColor}11`, border: `1px solid ${restDone ? W.accent + "44" : orangeColor + "44"}` }}>
-                            {restDone ? (
-                              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                                <span style={{ fontWeight: 800, fontSize: 13, color: W.accent }}>💪 Rest done — go again!</span>
-                                <button onClick={() => setActiveSession(s => ({ ...s, fitnessSections: (s.fitnessSections || []).map(sec => sec.id === section.id ? { ...sec, restEndsAt: null } : sec) }))} style={{ background: "none", border: "none", color: W.textMuted, fontSize: 14, cursor: "pointer", padding: "0 4px" }}>✕</button>
-                              </div>
-                            ) : (
-                              <>
-                                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 5 }}>
-                                  <span style={{ fontWeight: 700, fontSize: 13, color: W.textMuted }}>Rest: <span style={{ fontWeight: 900, color: orangeColor, fontFamily: "monospace" }}>{fmt(restRemaining)}</span></span>
-                                  <button onClick={() => setActiveSession(s => ({ ...s, fitnessSections: (s.fitnessSections || []).map(sec => sec.id === section.id ? { ...sec, restEndsAt: null } : sec) }))} style={{ background: "none", border: `1px solid ${W.border}`, borderRadius: 6, color: W.textMuted, fontSize: 11, fontWeight: 700, cursor: "pointer", padding: "2px 8px" }}>Skip</button>
-                                </div>
-                                <div style={{ height: 4, borderRadius: 2, background: `${orangeColor}22`, overflow: "hidden" }}>
-                                  <div style={{ height: "100%", width: `${((restDuration - restRemaining) / restDuration) * 100}%`, background: orangeColor, borderRadius: 2, transition: "width 1s linear" }} />
-                                </div>
-                              </>
-                            )}
-                          </div>
-                        )}
                         {!isEnded && (
-                          <div>
-                            <div style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 8 }}>
-                              <input type="text" inputMode="numeric" pattern="[0-9]*" value={fitnessRepsTexts[section.id] || ""} onChange={e => setFitnessRepsTexts(p => ({ ...p, [section.id]: e.target.value.replace(/\D/g, "") }))} placeholder="Reps" style={{ width: 70, padding: "8px 10px", background: W.surface2, border: `1.5px solid ${W.border}`, borderRadius: 10, color: W.text, fontSize: 14, fontWeight: 700, outline: "none", boxSizing: "border-box", textAlign: "center" }} />
-                              {hasWeight && <input type="text" value={fitnessWeightTexts[section.id] || ""} onChange={e => setFitnessWeightTexts(p => ({ ...p, [section.id]: e.target.value }))} placeholder={section.lastWeight ? `Last: ${section.lastWeight}` : "e.g. 25kg"} style={{ flex: 1, padding: "8px 10px", background: W.surface2, border: `1.5px solid ${W.border}`, borderRadius: 10, color: W.text, fontSize: 14, fontWeight: 700, outline: "none", boxSizing: "border-box" }} />}
-                              <button onClick={() => addExerciseSet(section.id, fitnessRepsTexts[section.id], fitnessWeightTexts[section.id])} style={{ padding: "8px 14px", background: (fitnessRepsTexts[section.id] || "").trim() ? `${orangeColor}22` : W.surface2, border: `1.5px solid ${(fitnessRepsTexts[section.id] || "").trim() ? orangeColor : W.border}`, borderRadius: 10, color: (fitnessRepsTexts[section.id] || "").trim() ? orangeColor : W.textMuted, fontWeight: 800, fontSize: 13, cursor: "pointer" }}>+ Set</button>
-                            </div>
-                            <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
-                              <span style={{ fontSize: 11, color: W.textMuted, fontWeight: 600 }}>Rest:</span>
-                              {[30, 60, 90, 120].map(s => (
-                                <button key={s} onClick={() => setActiveSession(sess => ({ ...sess, fitnessSections: (sess.fitnessSections || []).map(sec => sec.id === section.id ? { ...sec, restDuration: s } : sec) }))} style={{ padding: "3px 8px", borderRadius: 6, border: `1px solid ${restDuration === s ? orangeColor : W.border}`, background: restDuration === s ? `${orangeColor}22` : "none", color: restDuration === s ? orangeColor : W.textMuted, fontWeight: 700, fontSize: 11, cursor: "pointer" }}>{s < 60 ? `${s}s` : `${s / 60}m`}</button>
-                              ))}
-                            </div>
+                          <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                            <input type="text" inputMode="numeric" pattern="[0-9]*" value={fitnessRepsTexts[section.id] || ""} onChange={e => setFitnessRepsTexts(p => ({ ...p, [section.id]: e.target.value.replace(/\D/g, "") }))} placeholder="Reps" style={{ width: 70, padding: "8px 10px", background: W.surface2, border: `1.5px solid ${W.border}`, borderRadius: 10, color: W.text, fontSize: 14, fontWeight: 700, outline: "none", boxSizing: "border-box", textAlign: "center" }} />
+                            {hasWeight && <input type="text" value={fitnessWeightTexts[section.id] || ""} onChange={e => setFitnessWeightTexts(p => ({ ...p, [section.id]: e.target.value }))} placeholder={section.lastWeight ? `Last: ${section.lastWeight}` : "e.g. 25kg"} style={{ flex: 1, padding: "8px 10px", background: W.surface2, border: `1.5px solid ${W.border}`, borderRadius: 10, color: W.text, fontSize: 14, fontWeight: 700, outline: "none", boxSizing: "border-box" }} />}
+                            <button onClick={() => addExerciseSet(section.id, fitnessRepsTexts[section.id], fitnessWeightTexts[section.id])} style={{ padding: "8px 14px", background: (fitnessRepsTexts[section.id] || "").trim() ? `${orangeColor}22` : W.surface2, border: `1.5px solid ${(fitnessRepsTexts[section.id] || "").trim() ? orangeColor : W.border}`, borderRadius: 10, color: (fitnessRepsTexts[section.id] || "").trim() ? orangeColor : W.textMuted, fontWeight: 800, fontSize: 13, cursor: "pointer" }}>+ Set</button>
                           </div>
                         )}
                       </div>
