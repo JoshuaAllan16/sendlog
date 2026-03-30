@@ -3620,7 +3620,7 @@ export default function App() {
                   {setPickerSelected.size > 0 ? (
                     <button onClick={addFromSetSubmit} style={{ width: "100%", padding: "16px", background: `linear-gradient(135deg, ${W.accent}, ${W.accentDark})`, border: "none", borderRadius: 16, color: "#fff", fontWeight: 900, fontSize: 17, cursor: "pointer", boxShadow: `0 6px 24px ${W.accentGlow}` }}>Add {setPickerSelected.size} Boulder{setPickerSelected.size > 1 ? "s" : ""} to Session</button>
                   ) : (
-                    <button onClick={() => { setNewBoulderStep(0); setNewBoulderVisited(new Set([0])); setBoulderAddMode("new-boulder"); }} style={{ width: "100%", padding: "16px", background: W.surface2, border: `2px solid ${W.border}`, borderRadius: 16, color: W.text, fontWeight: 900, fontSize: 17, cursor: "pointer" }}>+ Create Boulder</button>
+                    <button onClick={() => { setNewBoulderStep(0); setNewBoulderVisited(new Set([0])); setBoulderAddMode("new-boulder"); }} style={{ width: "100%", padding: "16px", background: W.green, border: `2px solid ${W.greenDark}`, borderRadius: 16, color: W.greenDark, fontWeight: 900, fontSize: 17, cursor: "pointer" }}>+ Create Boulder</button>
                   )}
                 </div>
               </div>
