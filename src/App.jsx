@@ -4581,26 +4581,40 @@ export default function App() {
                         )}
                         {/* Editable set rows */}
                         {sets.map((st, i) => (
-                          <div key={st.id} style={{ display: "flex", alignItems: "center", gap: 8, padding: "5px 0", borderBottom: `1px solid ${W.border}33` }}>
-                            <span style={{ fontSize: 12, fontWeight: 700, color: W.textMuted, minWidth: 44 }}>Set {i + 1}</span>
-                            <input
-                              type="text" inputMode="numeric" pattern="[0-9]*"
-                              value={st.reps?.toString() || ""}
-                              onChange={e => updateSetField(section.id, st.id, "reps", parseInt(e.target.value.replace(/\D/g, "")) || null)}
-                              placeholder={lastSessionSets[i]?.reps?.toString() || "Reps"}
-                              style={{ width: 62, padding: "5px 8px", background: W.surface2, border: `1.5px solid ${W.border}`, borderRadius: 8, color: W.text, fontSize: 14, fontWeight: 700, outline: "none", textAlign: "center", boxSizing: "border-box" }}
-                            />
-                            {hasWeight && (
+                          <div key={st.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "5px 0", borderBottom: `1px solid ${W.border}33` }}>
+                            {/* Left: delete + set label */}
+                            <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                              {!isEnded && <button onClick={() => removeExerciseSet(section.id, st.id)} style={{ background: "none", border: "none", color: W.textMuted, fontSize: 14, cursor: "pointer", padding: "0 2px", lineHeight: 1, opacity: 0.5 }}>✕</button>}
+                              <span style={{ fontSize: 12, fontWeight: 700, color: W.textMuted }}>Set {i + 1}</span>
+                            </div>
+                            {/* Right: reps + weight + checkmark */}
+                            <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
                               <input
-                                type="text"
-                                value={st.weight || ""}
-                                onChange={e => updateSetField(section.id, st.id, "weight", e.target.value || null)}
-                                placeholder={section.lastWeight || lastSessionSets[i]?.weight || "weight"}
-                                style={{ flex: 1, padding: "5px 8px", background: W.surface2, border: `1.5px solid ${W.border}`, borderRadius: 8, color: W.text, fontSize: 14, fontWeight: 700, outline: "none", boxSizing: "border-box" }}
+                                type="text" inputMode="numeric" pattern="[0-9]*"
+                                value={st.reps?.toString() || ""}
+                                onChange={e => updateSetField(section.id, st.id, "reps", parseInt(e.target.value.replace(/\D/g, "")) || null)}
+                                placeholder={lastSessionSets[i]?.reps?.toString() || "Reps"}
+                                style={{ width: 58, padding: "5px 8px", background: W.surface2, border: `1.5px solid ${W.border}`, borderRadius: 8, color: W.text, fontSize: 14, fontWeight: 700, outline: "none", textAlign: "center", boxSizing: "border-box" }}
                               />
-                            )}
-                            <button onClick={() => updateSetField(section.id, st.id, "done", !st.done)} style={{ width: 28, height: 28, borderRadius: 7, border: `2px solid ${st.done ? orangeColor : W.border}`, background: st.done ? orangeColor : "none", color: st.done ? "#fff" : W.border, fontSize: 15, fontWeight: 900, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, transition: "all 0.15s" }}>✓</button>
-                            {!isEnded && <button onClick={() => removeExerciseSet(section.id, st.id)} style={{ background: "none", border: "none", color: W.textMuted, fontSize: 16, cursor: "pointer", padding: "0 4px", lineHeight: 1 }}>✕</button>}
+                              {hasWeight && (
+                                <input
+                                  type="text"
+                                  value={st.weight || ""}
+                                  onChange={e => updateSetField(section.id, st.id, "weight", e.target.value || null)}
+                                  placeholder={section.lastWeight || lastSessionSets[i]?.weight || "weight"}
+                                  style={{ width: 72, padding: "5px 8px", background: W.surface2, border: `1.5px solid ${W.border}`, borderRadius: 8, color: W.text, fontSize: 14, fontWeight: 700, outline: "none", boxSizing: "border-box" }}
+                                />
+                              )}
+                              <button
+                                onClick={() => {
+                                  const newDone = !st.done;
+                                  const placeholderReps = lastSessionSets[i]?.reps;
+                                  const finalReps = newDone && !st.reps && placeholderReps ? placeholderReps : st.reps;
+                                  setActiveSession(s => ({ ...s, fitnessSections: (s.fitnessSections || []).map(sec => sec.id === section.id ? { ...sec, sets: (sec.sets || []).map(st2 => st2.id === st.id ? { ...st2, done: newDone, reps: finalReps } : st2) } : sec) }));
+                                }}
+                                style={{ width: 28, height: 28, borderRadius: 7, border: `2px solid ${st.done ? orangeColor : W.border}`, background: st.done ? orangeColor : "none", color: st.done ? "#fff" : W.border, fontSize: 15, fontWeight: 900, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, transition: "all 0.15s" }}
+                              >✓</button>
+                            </div>
                           </div>
                         ))}
                         {/* Rest timer (opt-in) */}
