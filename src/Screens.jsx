@@ -273,36 +273,51 @@ export const SessionSummaryScreen = ({
         );
       })()}
       {(() => {
-        const fitnessSections = session.fitnessSections || [];
+        const fitnessSections = (session.fitnessSections || []).filter(s => s.kind === "exercise" || !s.kind);
         if (!fitnessSections.length) return null;
-        const totalTasks = fitnessSections.reduce((t, s) => t + (s.items || []).length, 0);
-        const doneTasks  = fitnessSections.reduce((t, s) => t + (s.items || []).filter(i => i.checked).length, 0);
         const doneBlocks = fitnessSections.filter(s => s.endedAt).length;
         const allDone = doneBlocks === fitnessSections.length && fitnessSections.length > 0;
         const orangeColor = "#f97316";
-        const pct = totalTasks > 0 ? doneTasks / totalTasks : doneBlocks / fitnessSections.length;
+        const pct = fitnessSections.length > 0 ? doneBlocks / fitnessSections.length : 0;
         const r = 18, circ = 2 * Math.PI * r;
         const dash = pct * circ;
+        const totalSets = fitnessSections.reduce((t, s) => t + (s.sets || []).length, 0);
+        const totalReps = fitnessSections.reduce((t, s) => t + (s.sets || []).reduce((a, st) => a + (st.reps || 0), 0), 0);
         return (
-          <div style={{ display: "flex", alignItems: "center", gap: 14, background: allDone ? `${orangeColor}18` : W.surface2, border: `1px solid ${allDone ? orangeColor + "44" : W.border}`, borderRadius: 16, padding: "12px 16px", marginBottom: 14 }}>
-            <svg width={48} height={48} viewBox="0 0 48 48">
-              <circle cx={24} cy={24} r={r} fill="none" stroke={W.border} strokeWidth={4} />
-              <circle cx={24} cy={24} r={r} fill="none" stroke={orangeColor} strokeWidth={4}
-                strokeDasharray={`${dash.toFixed(2)} ${circ.toFixed(2)}`}
-                strokeLinecap="round" transform="rotate(-90 24 24)" />
-              <text x={24} y={28} textAnchor="middle" fontSize={12} fontWeight={900} fill={orangeColor}>🏋️</text>
-            </svg>
-            <div style={{ flex: 1 }}>
-              <div style={{ fontSize: 14, fontWeight: 800, color: allDone ? orangeColor : W.text }}>{allDone ? "Fitness Complete!" : `Fitness — ${doneBlocks}/${fitnessSections.length} blocks done`}</div>
-              <div style={{ fontSize: 11, color: W.textMuted, marginTop: 2 }}>
-                {fitnessSections.map(s => {
-                  const dur = s.endedAt ? formatDuration(Math.floor((s.endedAt - s.startedAt) / 1000)) : null;
-                  return dur ? `${s.name} (${dur})` : s.name;
-                }).join(" · ")}
-                {totalTasks > 0 && ` · ${doneTasks}/${totalTasks} tasks`}
+          <div style={{ background: allDone ? `${orangeColor}18` : W.surface2, border: `1px solid ${allDone ? orangeColor + "44" : W.border}`, borderRadius: 16, padding: "14px 16px", marginBottom: 14 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 14, marginBottom: 10 }}>
+              <svg width={48} height={48} viewBox="0 0 48 48">
+                <circle cx={24} cy={24} r={r} fill="none" stroke={W.border} strokeWidth={4} />
+                <circle cx={24} cy={24} r={r} fill="none" stroke={orangeColor} strokeWidth={4}
+                  strokeDasharray={`${dash.toFixed(2)} ${circ.toFixed(2)}`}
+                  strokeLinecap="round" transform="rotate(-90 24 24)" />
+                <text x={24} y={28} textAnchor="middle" fontSize={12} fontWeight={900} fill={orangeColor}>🏋️</text>
+              </svg>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontSize: 14, fontWeight: 800, color: allDone ? orangeColor : W.text }}>{allDone ? "Training Complete!" : `Training — ${doneBlocks}/${fitnessSections.length} done`}</div>
+                <div style={{ fontSize: 11, color: W.textMuted, marginTop: 2 }}>
+                  {totalSets > 0 ? `${totalSets} sets · ${totalReps} reps total` : `${fitnessSections.length} exercise${fitnessSections.length !== 1 ? "s" : ""}`}
+                </div>
               </div>
+              {allDone && <div style={{ fontSize: 22 }}>✅</div>}
             </div>
-            {allDone && <div style={{ fontSize: 22 }}>✅</div>}
+            <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+              {fitnessSections.map(s => {
+                const sets = s.sets || [];
+                const totalExReps = sets.reduce((a, st) => a + (st.reps || 0), 0);
+                const lastWeight = sets.length > 0 ? [...sets].reverse().find(st => st.weight)?.weight : null;
+                const dur = s.totalSec || (s.endedAt && s.startedAt ? Math.floor((s.endedAt - s.startedAt) / 1000) : 0);
+                return (
+                  <div key={s.id} style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 10px", borderRadius: 8, background: s.endedAt ? `${orangeColor}11` : W.surface, border: `1px solid ${s.endedAt ? orangeColor + "33" : W.border}` }}>
+                    <span style={{ fontSize: 14 }}>{s.endedAt ? "✓" : "○"}</span>
+                    <span style={{ fontWeight: 700, fontSize: 13, color: W.text, flex: 1 }}>{s.name}</span>
+                    <span style={{ fontSize: 11, color: W.textMuted, textAlign: "right" }}>
+                      {sets.length > 0 ? `${sets.length} sets${totalExReps > 0 ? ` · ${totalExReps} reps` : ""}${lastWeight ? ` · ${lastWeight}` : ""}` : dur > 0 ? formatDuration(dur) : ""}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
           </div>
         );
       })()}
@@ -383,7 +398,7 @@ export const SessionSummaryScreen = ({
           <div style={{ background: `#f9731622`, borderRadius: 14, padding: "14px", border: `1px solid ${W.border}` }}>
             <div style={{ fontSize: 20, marginBottom: 4 }}>🏋️</div>
             <div style={{ fontSize: 20, fontWeight: 800, color: "#f97316" }}>{session.fitnessSections.filter(s => s.endedAt).length}/{session.fitnessSections.length}</div>
-            <div style={{ fontSize: 11, color: W.textMuted, marginTop: 2 }}>Fitness blocks</div>
+            <div style={{ fontSize: 11, color: W.textMuted, marginTop: 2 }}>Training done</div>
           </div>
         )}
         {hasRestData && [
