@@ -386,6 +386,9 @@ export default function App() {
   const [trainingPickerTab, setTrainingPickerTab]   = useState("exercises"); // "exercises" | "routines"
   const [trainingPickerSearch, setTrainingPickerSearch] = useState("");
   const [fitnessNewItemTexts, setFitnessNewItemTexts]       = useState({}); // { [sectionId]: string }
+  const [fitnessRepsTexts, setFitnessRepsTexts]             = useState({}); // { [sectionId]: string }
+  const [fitnessWeightTexts, setFitnessWeightTexts]         = useState({}); // { [sectionId]: string }
+  const [fitnessCountdownTexts, setFitnessCountdownTexts]   = useState({}); // { [sectionId]: string } — duration in seconds
   const [fitnessDragIdx, setFitnessDragIdx]                 = useState(null);
   const [trainingPickerType, setTrainingPickerType]         = useState(null); // null | "warmup" | "workout" | "fingerboard"
   const [sessionSetupClimbingOpen, setSessionSetupClimbingOpen] = useState(true);
@@ -1357,16 +1360,100 @@ export default function App() {
 
   const addFitnessExercise = (name) => {
     if (!name?.trim()) return;
+    // look up tags from the exercise library; default to reps if not found
+    let tags = ["reps"];
+    for (const group of EXERCISES) {
+      const found = group.exercises.find(e => e.name.toLowerCase() === name.trim().toLowerCase());
+      if (found) { tags = found.tags || ["reps"]; break; }
+    }
     const newSection = {
       id: Date.now(),
       kind: "exercise",
       name: name.trim(),
+      tags,
+      sets: [],
+      activeStart: null,
+      totalSec: 0,
+      countdown: null,
       items: [],
       startedAt: Date.now(),
       endedAt: null,
     };
     setActiveSession(s => ({ ...s, fitnessSections: [...(s.fitnessSections || []), newSection] }));
     setShowTrainingPicker(false);
+    setTrainingPickerSearch("");
+  };
+
+  const startFitnessExercise = (id) => {
+    const now = Date.now();
+    setActiveSession(s => ({
+      ...s,
+      fitnessSections: (s.fitnessSections || []).map(sec => {
+        if (sec.id === id) {
+          if (sec.activeStart) return sec; // already active
+          return { ...sec, activeStart: now };
+        }
+        if (sec.activeStart && !sec.endedAt) {
+          // pause any currently active exercise
+          return { ...sec, totalSec: (sec.totalSec || 0) + Math.max(0, Math.floor((now - sec.activeStart) / 1000)), activeStart: null };
+        }
+        return sec;
+      }),
+    }));
+  };
+
+  const pauseFitnessExercise = (id) => {
+    const now = Date.now();
+    setActiveSession(s => ({
+      ...s,
+      fitnessSections: (s.fitnessSections || []).map(sec =>
+        sec.id === id && sec.activeStart
+          ? { ...sec, totalSec: (sec.totalSec || 0) + Math.max(0, Math.floor((now - sec.activeStart) / 1000)), activeStart: null }
+          : sec
+      ),
+    }));
+  };
+
+  const addExerciseSet = (sectionId, reps, weight) => {
+    if (!reps || isNaN(parseInt(reps))) return;
+    const newSet = { id: Date.now(), reps: parseInt(reps), weight: weight?.trim() || null };
+    setActiveSession(s => ({
+      ...s,
+      fitnessSections: (s.fitnessSections || []).map(sec =>
+        sec.id === sectionId ? { ...sec, sets: [...(sec.sets || []), newSet] } : sec
+      ),
+    }));
+    setFitnessRepsTexts(p => ({ ...p, [sectionId]: "" }));
+    setFitnessWeightTexts(p => ({ ...p, [sectionId]: "" }));
+  };
+
+  const removeExerciseSet = (sectionId, setId) => {
+    setActiveSession(s => ({
+      ...s,
+      fitnessSections: (s.fitnessSections || []).map(sec =>
+        sec.id === sectionId ? { ...sec, sets: (sec.sets || []).filter(st => st.id !== setId) } : sec
+      ),
+    }));
+  };
+
+  const startExerciseCountdown = (sectionId, duration) => {
+    const secs = parseInt(duration);
+    if (!secs || secs <= 0) return;
+    setActiveSession(s => ({
+      ...s,
+      fitnessSections: (s.fitnessSections || []).map(sec =>
+        sec.id === sectionId ? { ...sec, countdown: { duration: secs, startedAt: Date.now(), done: false } } : sec
+      ),
+    }));
+  };
+
+  const cancelExerciseCountdown = (sectionId) => {
+    setActiveSession(s => ({
+      ...s,
+      fitnessSections: (s.fitnessSections || []).map(sec =>
+        sec.id === sectionId ? { ...sec, countdown: null } : sec
+      ),
+    }));
   };
 
   const toggleFitnessItem = (sectionId, itemId) => {
@@ -4247,21 +4334,45 @@ export default function App() {
               <div style={{ flex: 1, overflowY: "auto", paddingBottom: 20 }}>
                 {trainingPickerTab === "exercises" ? (() => {
                   const filtered = EXERCISES.map(g => ({ ...g, exercises: g.exercises.filter(e => !search || e.name.toLowerCase().includes(search) || (e.description || "").toLowerCase().includes(search)) })).filter(g => g.exercises.length > 0);
-                  if (filtered.length === 0) return <div style={{ textAlign: "center", color: W.textDim, padding: "40px 0", fontSize: 14 }}>No exercises found</div>;
-                  return filtered.map(group => (
-                    <div key={group.group}>
-                      <div style={{ fontSize: 11, fontWeight: 800, color: orangeColor, textTransform: "uppercase", letterSpacing: 1.2, padding: "14px 16px 6px", background: W.bg }}>📌 {group.group}</div>
-                      {group.exercises.map(ex => (
-                        <div key={ex.name} onClick={() => addFitnessExercise(ex.name)} style={{ display: "flex", alignItems: "center", padding: "13px 16px", borderBottom: `1px solid ${W.border}22`, cursor: "pointer", background: W.surface, active: { background: W.surface2 } }}>
+                  if (filtered.length === 0) return (
+                    <div style={{ padding: "20px 16px" }}>
+                      <div style={{ textAlign: "center", color: W.textDim, fontSize: 14, marginBottom: 16 }}>No exercises found</div>
+                      {trainingPickerSearch.trim() && (
+                        <div onClick={() => addFitnessExercise(trainingPickerSearch.trim())} style={{ display: "flex", alignItems: "center", padding: "14px 16px", borderRadius: 14, border: `2px solid ${W.accent}`, background: `${W.accent}11`, cursor: "pointer" }}>
                           <div style={{ flex: 1 }}>
-                            <div style={{ fontWeight: 700, fontSize: 15, color: W.text }}>{ex.name}</div>
-                            {ex.description && <div style={{ fontSize: 12, color: W.textMuted, marginTop: 2 }}>{ex.description}</div>}
+                            <div style={{ fontWeight: 800, fontSize: 15, color: W.accent }}>+ Add "{trainingPickerSearch.trim()}"</div>
+                            <div style={{ fontSize: 12, color: W.textMuted, marginTop: 2 }}>Create a custom exercise</div>
                           </div>
-                          <span style={{ color: W.textMuted, fontSize: 20, fontWeight: 300, marginLeft: 8 }}>+</span>
+                        </div>
+                      )}
+                    </div>
+                  );
+                  return (
+                    <>
+                      {trainingPickerSearch.trim() && (
+                        <div onClick={() => addFitnessExercise(trainingPickerSearch.trim())} style={{ display: "flex", alignItems: "center", padding: "13px 16px", borderBottom: `1px solid ${W.border}22`, cursor: "pointer", background: `${W.accent}11` }}>
+                          <div style={{ flex: 1 }}>
+                            <div style={{ fontWeight: 800, fontSize: 15, color: W.accent }}>+ Add "{trainingPickerSearch.trim()}"</div>
+                            <div style={{ fontSize: 12, color: W.textMuted, marginTop: 2 }}>Custom exercise</div>
+                          </div>
+                        </div>
+                      )}
+                      {filtered.map(group => (
+                        <div key={group.group}>
+                          <div style={{ fontSize: 11, fontWeight: 800, color: orangeColor, textTransform: "uppercase", letterSpacing: 1.2, padding: "14px 16px 6px", background: W.bg }}>📌 {group.group}</div>
+                          {group.exercises.map(ex => (
+                            <div key={ex.name} onClick={() => addFitnessExercise(ex.name)} style={{ display: "flex", alignItems: "center", padding: "13px 16px", borderBottom: `1px solid ${W.border}22`, cursor: "pointer", background: W.surface }}>
+                              <div style={{ flex: 1 }}>
+                                <div style={{ fontWeight: 700, fontSize: 15, color: W.text }}>{ex.name}</div>
+                                {ex.description && <div style={{ fontSize: 12, color: W.textMuted, marginTop: 2 }}>{ex.description}</div>}
+                              </div>
+                              <span style={{ color: W.textMuted, fontSize: 20, fontWeight: 300, marginLeft: 8 }}>+</span>
+                            </div>
+                          ))}
                         </div>
                       ))}
-                    </div>
-                  ));
+                    </>
+                  );
                 })() : (() => {
                   const customRoutines = [
                     ...(warmupTemplates || []).map(r => ({ ...r, rtype: "warmup", emoji: "🧘" })),
@@ -4312,84 +4423,117 @@ export default function App() {
           );
         })()}
 
-        {/* ── Fitness Sections ─────────────────────────────────── */}
-        {!showClimbForm && (activeSession?.fitnessSections || []).map((section, secIdx) => {
+        {/* ── Exercise Tiles ───────────────────────────────────── */}
+        {!showClimbForm && (activeSession?.fitnessSections || []).map((section) => {
+          if (section.kind === "routine") return null; // routines handled separately
           const orangeColor = "#f97316";
-          const orangeLight = "#fff7ed";
           const isEnded = !!section.endedAt;
-          const doneCount = (section.items || []).filter(i => i.checked).length;
-          const totalItems = (section.items || []).length;
-          const blockSec = isEnded ? Math.floor((section.endedAt - section.startedAt) / 1000) : Math.floor((Date.now() - section.startedAt) / 1000);
-          const isDragTarget = fitnessDragIdx !== null && fitnessDragIdx !== secIdx;
+          const isActive = !!section.activeStart;
+          const elapsedSec = (section.totalSec || 0) + (isActive ? Math.max(0, Math.floor((Date.now() - section.activeStart) / 1000)) : 0);
+          const tags = section.tags || ["reps"];
+          const hasReps = tags.includes("reps");
+          const hasWeight = tags.includes("weight");
+          const hasTimer = tags.includes("timer");
+          const sets = section.sets || [];
+          const countdown = section.countdown;
+          const countdownRemaining = countdown && !countdown.done ? Math.max(0, countdown.duration - Math.floor((Date.now() - countdown.startedAt) / 1000)) : null;
+          if (countdownRemaining === 0 && countdown && !countdown.done) {
+            // mark done
+            setTimeout(() => {
+              setActiveSession(s => ({
+                ...s,
+                fitnessSections: (s.fitnessSections || []).map(sec =>
+                  sec.id === section.id && sec.countdown && !sec.countdown.done ? { ...sec, countdown: { ...sec.countdown, done: true } } : sec
+                ),
+              }));
+            }, 0);
+          }
+          const fmt = (s) => `${String(Math.floor(s/60)).padStart(2,"0")}:${String(s%60).padStart(2,"0")}`;
+          const isCollapsed = !!activeSession?.collapsedSections?.[`fitness_${section.id}`];
           return (
-            <div key={section.id} style={{ marginBottom: 16, opacity: fitnessDragIdx === secIdx ? 0.5 : 1, transition: "opacity 0.15s" }}
-              draggable
-              onDragStart={() => setFitnessDragIdx(secIdx)}
-              onDragOver={e => { e.preventDefault(); }}
-              onDrop={() => { reorderFitnessSections(fitnessDragIdx, secIdx); setFitnessDragIdx(null); }}
-              onDragEnd={() => setFitnessDragIdx(null)}
-            >
-              <div style={{ borderRadius: 14, border: `2px solid ${isDragTarget ? orangeColor : orangeColor + "55"}`, marginBottom: 10, overflow: "hidden", background: W.surface }}>
-                <div style={{ background: `${orangeColor}18`, padding: "14px" }}>
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 6 }}>
-                    <div style={{ display: "flex", alignItems: "center", gap: 7 }}>
-                      <span style={{ fontSize: 14, color: orangeColor, cursor: "grab", opacity: 0.6, userSelect: "none" }}>⠿</span>
-                      <div style={{ fontWeight: 800, color: orangeColor, fontSize: 16 }}>🏋️ {section.name}</div>
-                      {section.kind === "routine" && <span style={{ fontSize: 10, color: orangeColor, background: `${orangeColor}22`, borderRadius: 5, padding: "1px 6px", fontWeight: 700 }}>{section.routineType}</span>}
-                      {isEnded && <span style={{ background: orangeColor, color: "#fff", borderRadius: 6, padding: "1px 7px", fontSize: 10, fontWeight: 800 }}>DONE</span>}
-                      <span style={{ fontSize: 10, color: orangeColor, fontWeight: 700, opacity: 0.8 }}>{formatDuration(blockSec)}</span>
-                    </div>
-                    <div style={{ display: "flex", gap: 4 }}>
-                      <button onClick={() => setActiveSession(s => ({ ...s, collapsedSections: { ...(s.collapsedSections || {}), [`fitness_${section.id}`]: !s.collapsedSections?.[`fitness_${section.id}`] } }))} style={{ background: "none", border: `1px solid ${orangeColor}44`, borderRadius: 7, color: orangeColor, fontSize: 14, cursor: "pointer", padding: "3px 9px", lineHeight: 1 }}>
-                        {activeSession.collapsedSections?.[`fitness_${section.id}`] ? "▼" : "▲"}
-                      </button>
-                      {!isEnded && <button onClick={() => removeFitnessBlock(section.id)} style={{ background: "none", border: `1px solid ${orangeColor}44`, borderRadius: 7, color: orangeColor, fontSize: 12, cursor: "pointer", padding: "3px 8px", lineHeight: 1, fontWeight: 700 }}>×</button>}
-                    </div>
-                  </div>
-                  {totalItems > 0 && (
-                    <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
-                      <div style={{ flex: 1, height: 4, borderRadius: 2, background: `${orangeColor}33`, overflow: "hidden" }}>
-                        <div style={{ height: "100%", width: `${totalItems ? (doneCount / totalItems) * 100 : 0}%`, background: orangeColor, borderRadius: 2, transition: "width 0.3s ease" }} />
+            <div key={section.id} style={{ marginBottom: 12 }}>
+              <div style={{ borderRadius: 16, border: `2px solid ${isActive ? orangeColor : orangeColor + "44"}`, background: W.surface, overflow: "hidden", boxShadow: isActive ? `0 0 0 3px ${orangeColor}22` : "none", transition: "box-shadow 0.2s" }}>
+                {/* Header */}
+                <div style={{ background: isActive ? `${orangeColor}22` : `${orangeColor}11`, padding: "14px 16px" }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                    <div style={{ flex: 1 }}>
+                      <div style={{ fontWeight: 900, fontSize: 17, color: W.text }}>{section.name}</div>
+                      <div style={{ display: "flex", gap: 6, marginTop: 4 }}>
+                        {tags.map(t => <span key={t} style={{ fontSize: 10, fontWeight: 800, padding: "2px 7px", borderRadius: 6, background: `${orangeColor}22`, color: orangeColor, textTransform: "uppercase", letterSpacing: 0.5 }}>{t === "reps" ? "Reps/Sets" : t === "weight" ? "Weight" : "Timer"}</span>)}
+                        {isEnded && <span style={{ fontSize: 10, fontWeight: 800, padding: "2px 7px", borderRadius: 6, background: `${orangeColor}cc`, color: "#fff" }}>DONE</span>}
                       </div>
-                      <span style={{ fontSize: 11, fontWeight: 700, color: orangeColor, flexShrink: 0 }}>{doneCount}/{totalItems}</span>
                     </div>
-                  )}
+                    <div style={{ fontWeight: 900, fontSize: 22, color: isActive ? orangeColor : W.textMuted, fontVariantNumeric: "tabular-nums", fontFamily: "monospace", minWidth: 60, textAlign: "right" }}>{fmt(elapsedSec)}</div>
+                    <button onClick={() => setActiveSession(s => ({ ...s, collapsedSections: { ...(s.collapsedSections || {}), [`fitness_${section.id}`]: !s.collapsedSections?.[`fitness_${section.id}`] } }))} style={{ background: "none", border: `1px solid ${orangeColor}44`, borderRadius: 8, color: orangeColor, fontSize: 14, cursor: "pointer", padding: "4px 8px", lineHeight: 1 }}>{isCollapsed ? "▼" : "▲"}</button>
+                  </div>
+                  {/* Timer controls */}
                   {!isEnded && (
-                    <div style={{ display: "flex", gap: 6, justifyContent: "flex-end" }}>
-                      {totalItems > 0 && doneCount < totalItems && <button onClick={() => setActiveSession(s => ({ ...s, fitnessSections: (s.fitnessSections || []).map(sec => sec.id === section.id ? { ...sec, items: sec.items.map(i => ({ ...i, checked: true })) } : sec) }))} style={{ background: `${orangeColor}33`, border: `1px solid ${orangeColor}44`, color: orangeColor, fontSize: 12, fontWeight: 700, cursor: "pointer", padding: "7px 14px", borderRadius: 8 }}>✓ All</button>}
-                      <button onClick={() => endFitnessBlock(section.id)} style={{ background: `${orangeColor}22`, border: `1px solid ${orangeColor}44`, color: orangeColor, fontSize: 12, fontWeight: 700, cursor: "pointer", padding: "7px 14px", borderRadius: 8 }}>Done</button>
+                    <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
+                      {isActive
+                        ? <button onClick={() => pauseFitnessExercise(section.id)} style={{ flex: 1, padding: "9px", background: `${orangeColor}22`, border: `1.5px solid ${orangeColor}`, borderRadius: 10, color: orangeColor, fontWeight: 800, fontSize: 13, cursor: "pointer" }}>⏸ Pause</button>
+                        : <button onClick={() => startFitnessExercise(section.id)} style={{ flex: 1, padding: "9px", background: orangeColor, border: "none", borderRadius: 10, color: "#fff", fontWeight: 800, fontSize: 13, cursor: "pointer" }}>▶ Start</button>
+                      }
+                      <button onClick={() => { if (isActive) pauseFitnessExercise(section.id); setActiveSession(s => ({ ...s, fitnessSections: (s.fitnessSections || []).map(sec => sec.id === section.id ? { ...sec, endedAt: Date.now() } : sec) })); }} style={{ padding: "9px 16px", background: `${orangeColor}11`, border: `1.5px solid ${orangeColor}55`, borderRadius: 10, color: orangeColor, fontWeight: 700, fontSize: 13, cursor: "pointer" }}>Done</button>
+                      <button onClick={() => removeFitnessBlock(section.id)} style={{ padding: "9px 10px", background: "none", border: `1px solid ${W.border}`, borderRadius: 10, color: W.textMuted, fontWeight: 700, fontSize: 13, cursor: "pointer" }}>✕</button>
                     </div>
                   )}
                 </div>
+                {/* Body */}
+                {!isCollapsed && (
+                  <div style={{ padding: "14px 16px" }}>
+                    {/* REPS/SETS */}
+                    {hasReps && (
+                      <div style={{ marginBottom: hasTimer ? 14 : 0 }}>
+                        {sets.length > 0 && (
+                          <div style={{ marginBottom: 10 }}>
+                            {sets.map((st, i) => (
+                              <div key={st.id} style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 0", borderBottom: `1px solid ${W.border}33` }}>
+                                <span style={{ fontSize: 12, fontWeight: 700, color: W.textMuted, minWidth: 40 }}>Set {i + 1}</span>
+                                <span style={{ fontWeight: 800, fontSize: 15, color: W.text, flex: 1 }}>{st.reps} reps{st.weight ? ` × ${st.weight}` : ""}</span>
+                                {!isEnded && <button onClick={() => removeExerciseSet(section.id, st.id)} style={{ background: "none", border: "none", color: W.textMuted, fontSize: 16, cursor: "pointer", padding: "0 4px", lineHeight: 1 }}>✕</button>}
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                        {!isEnded && (
+                          <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                            <input type="text" inputMode="numeric" pattern="[0-9]*" value={fitnessRepsTexts[section.id] || ""} onChange={e => setFitnessRepsTexts(p => ({ ...p, [section.id]: e.target.value.replace(/\D/g, "") }))} placeholder="Reps" style={{ width: 70, padding: "8px 10px", background: W.surface2, border: `1.5px solid ${W.border}`, borderRadius: 10, color: W.text, fontSize: 14, fontWeight: 700, outline: "none", boxSizing: "border-box", textAlign: "center" }} />
+                            {hasWeight && <input type="text" value={fitnessWeightTexts[section.id] || ""} onChange={e => setFitnessWeightTexts(p => ({ ...p, [section.id]: e.target.value }))} placeholder="e.g. 25kg" style={{ flex: 1, padding: "8px 10px", background: W.surface2, border: `1.5px solid ${W.border}`, borderRadius: 10, color: W.text, fontSize: 14, fontWeight: 700, outline: "none", boxSizing: "border-box" }} />}
+                            <button onClick={() => addExerciseSet(section.id, fitnessRepsTexts[section.id], fitnessWeightTexts[section.id])} style={{ padding: "8px 14px", background: (fitnessRepsTexts[section.id] || "").trim() ? `${orangeColor}22` : W.surface2, border: `1.5px solid ${(fitnessRepsTexts[section.id] || "").trim() ? orangeColor : W.border}`, borderRadius: 10, color: (fitnessRepsTexts[section.id] || "").trim() ? orangeColor : W.textMuted, fontWeight: 800, fontSize: 13, cursor: "pointer" }}>+ Set</button>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                    {/* COUNTDOWN TIMER */}
+                    {hasTimer && (
+                      <div>
+                        {!countdown ? (
+                          <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                            <input type="text" inputMode="numeric" pattern="[0-9]*" value={fitnessCountdownTexts[section.id] || ""} onChange={e => setFitnessCountdownTexts(p => ({ ...p, [section.id]: e.target.value.replace(/\D/g, "") }))} placeholder="Duration (secs)" style={{ flex: 1, padding: "8px 10px", background: W.surface2, border: `1.5px solid ${W.border}`, borderRadius: 10, color: W.text, fontSize: 14, fontWeight: 700, outline: "none", boxSizing: "border-box" }} />
+                            <button onClick={() => startExerciseCountdown(section.id, fitnessCountdownTexts[section.id] || "60")} style={{ padding: "8px 14px", background: `${orangeColor}22`, border: `1.5px solid ${orangeColor}`, borderRadius: 10, color: orangeColor, fontWeight: 800, fontSize: 13, cursor: "pointer" }}>▶ Start</button>
+                          </div>
+                        ) : countdown.done ? (
+                          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                            <div style={{ fontWeight: 900, fontSize: 18, color: W.accent }}>✓ Timer done!</div>
+                            <button onClick={() => cancelExerciseCountdown(section.id)} style={{ padding: "6px 12px", background: W.surface2, border: `1px solid ${W.border}`, borderRadius: 8, color: W.textMuted, fontWeight: 700, fontSize: 12, cursor: "pointer" }}>Reset</button>
+                          </div>
+                        ) : (
+                          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                            <div style={{ fontWeight: 900, fontSize: 36, color: orangeColor, fontVariantNumeric: "tabular-nums", fontFamily: "monospace" }}>{fmt(countdownRemaining)}</div>
+                            <div style={{ flex: 1 }}>
+                              <div style={{ height: 6, borderRadius: 3, background: `${orangeColor}22`, overflow: "hidden" }}>
+                                <div style={{ height: "100%", width: `${(countdownRemaining / countdown.duration) * 100}%`, background: orangeColor, borderRadius: 3, transition: "width 1s linear" }} />
+                              </div>
+                              <div style={{ fontSize: 11, color: W.textMuted, marginTop: 4 }}>{countdown.duration}s total</div>
+                            </div>
+                            <button onClick={() => cancelExerciseCountdown(section.id)} style={{ padding: "6px 10px", background: "none", border: `1px solid ${W.border}`, borderRadius: 8, color: W.textMuted, fontWeight: 700, fontSize: 12, cursor: "pointer" }}>✕</button>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
-              {!activeSession.collapsedSections?.[`fitness_${section.id}`] && (
-                <div style={{ borderLeft: `3px solid ${orangeColor}44`, paddingLeft: 10, marginLeft: 2 }}>
-                  {!isEnded && (
-                    <div style={{ display: "flex", gap: 8, marginBottom: 6, marginTop: 2 }}>
-                      <input value={fitnessNewItemTexts[section.id] || ""} onChange={e => setFitnessNewItemTexts(prev => ({ ...prev, [section.id]: e.target.value }))} onKeyDown={e => { if (e.key === "Enter") addFitnessItem(section.id, fitnessNewItemTexts[section.id] || ""); }} placeholder="Add a task…" style={{ flex: 1, padding: "8px 12px", borderRadius: 10, border: `1px solid ${W.border}`, background: W.surface, color: W.text, fontSize: 13, outline: "none" }} />
-                      <button onClick={() => addFitnessItem(section.id, fitnessNewItemTexts[section.id] || "")} style={{ padding: "8px 14px", borderRadius: 10, border: `1px solid ${orangeColor}55`, background: `${orangeColor}18`, color: orangeColor, fontWeight: 700, fontSize: 13, cursor: "pointer" }}>+</button>
-                    </div>
-                  )}
-                  {(section.items || []).map(item => (
-                    <div key={item.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "9px 12px", marginBottom: 6, background: item.checked ? `${orangeColor}18` : W.surface2, border: `1px solid ${item.checked ? orangeColor + "44" : W.border}`, borderRadius: 10, cursor: "pointer" }}
-                      onClick={() => toggleFitnessItem(section.id, item.id)}>
-                      <div style={{ width: 20, height: 20, borderRadius: 6, border: `2px solid ${item.checked ? orangeColor : W.border}`, background: item.checked ? orangeColor : "transparent", flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center" }}>
-                        {item.checked && <span style={{ fontSize: 11, color: "#fff", fontWeight: 900 }}>✓</span>}
-                      </div>
-                      <div style={{ flex: 1, minWidth: 0 }}>
-                        <span style={{ fontSize: 13, fontWeight: 600, color: item.checked ? orangeColor : W.text, textDecoration: item.checked ? "line-through" : "none" }}>{item.text}</span>
-                        {item.detail && <div style={{ fontSize: 11, color: W.textMuted, marginTop: 1 }}>{item.detail}</div>}
-                      </div>
-                      {item.restDuration > 0 && <span style={{ fontSize: 10, color: W.textMuted, fontWeight: 600 }}>{item.restDuration}s rest</span>}
-                    </div>
-                  ))}
-                  {/* Result + Note fields */}
-                  <div style={{ display: "flex", gap: 6, marginTop: 4, marginBottom: 4 }}>
-                    <input value={section.result || ""} onChange={e => updateFitnessBlockResult(section.id, e.target.value)} placeholder="Result (e.g. 3×10, 90s, 12 reps)…" style={{ flex: 1, padding: "7px 10px", borderRadius: 9, border: `1px solid ${orangeColor}44`, background: W.surface, color: W.text, fontSize: 12, outline: "none" }} />
-                  </div>
-                  <input value={section.note || ""} onChange={e => updateFitnessBlockNote(section.id, e.target.value)} placeholder="Notes (weight, intensity, observations)…" style={{ width: "100%", boxSizing: "border-box", padding: "7px 10px", borderRadius: 9, border: `1px solid ${W.border}`, background: W.surface, color: W.text, fontSize: 12, outline: "none", marginBottom: 4 }} />
-                </div>
-              )}
             </div>
           );
         })}
