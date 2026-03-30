@@ -497,11 +497,6 @@ export const ActiveClimbCard = ({ climb, onEdit, onStartClimbing, onEndAttempt, 
                     <button onClick={() => onUpdateTries(climb.id, 1)} style={{ width: 62, height: 62, borderRadius: 14, border: "none", background: W.accentDark, color: "#fff", fontSize: 34, cursor: "pointer", fontWeight: 900, display: "flex", alignItems: "center", justifyContent: "center", boxShadow: `0 2px 8px ${W.accentGlow}` }}>+</button>
                   </div>
                 </div>
-                {(climb.fallLog || []).length > 0 && (
-                  <div style={{ padding: "4px 14px 8px", display: "flex", gap: 5, flexWrap: "wrap" }}>
-                    {climb.fallLog.map((f, i) => <span key={i} style={{ fontSize: 10, color: T.textDim, background: T.surface, borderRadius: 6, padding: "2px 7px", border: `1px solid ${T.border}` }}>F{i + 1} +{formatDuration(Math.floor(f.intervalMs / 1000))}</span>)}
-                  </div>
-                )}
               </div>
             ) : climb.paused ? (
               <div style={{ display: "flex", alignItems: "center", padding: "12px 14px", gap: 10 }}>
