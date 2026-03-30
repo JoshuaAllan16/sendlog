@@ -1714,7 +1714,7 @@ export default function App() {
         });
       }
       setEditingClimbId(existing.id);
-      setClimbForm({ name: existing.name || "", grade: existing.grade, scale: existing.scale, isProject: existing.isProject, comments: existing.comments, photo: existing.photo, projectId: existing.projectId, tries: existing.tries, completed: existing.completed, color: existing.color || null, wallTypes: existing.wallTypes || [], holdTypes: existing.holdTypes || [], climbType: existing.climbType || "boulder", ropeStyle: existing.ropeStyle || "lead", speedTime: existing.speedTime || "" });
+      setClimbForm({ name: existing.name || "", grade: existing.grade, scale: existing.scale, isProject: existing.isProject, comments: existing.comments, photo: existing.photo, projectId: existing.projectId, tries: existing.tries, completed: existing.completed, color: existing.color || null, wallTypes: existing.wallTypes || [], holdTypes: existing.holdTypes || [], climbType: existing.climbType || "boulder", ropeStyle: existing.ropeStyle || "lead", speedTime: (existing.speedTime || "").replace(".", ":") });
       setPhotoPreview(existing.photo);
     } else if (fromProject) {
       setEditingClimbId(null);
@@ -1758,7 +1758,7 @@ export default function App() {
           }
         }
         const pid = climbForm.isProject ? (climbForm.projectId || Date.now() + 1) : null;
-        const speedGrade = climbForm.climbType === "speed" ? (climbForm.speedTime ? climbForm.speedTime + "s" : "—") : undefined;
+        const speedGrade = climbForm.climbType === "speed" ? (climbForm.speedTime ? climbForm.speedTime : "—") : undefined;
         // Gym set tracking: link to existing set climb or create a new one
         const location = activeSession?.location;
         let setClimbId = climbForm.setClimbId || null;
@@ -2729,8 +2729,8 @@ export default function App() {
         {/* Speed: time input */}
         {type === "speed" && (
           <>
-            <Label>Time (seconds)</Label>
-            <input type="number" min="0" step="0.01" value={climbForm.speedTime} onChange={e => setClimbForm(f => ({ ...f, speedTime: e.target.value }))} placeholder="e.g. 14.83" style={{ width: "100%", padding: "10px 12px", background: W.surface, border: `2px solid ${W.border}`, borderRadius: 10, color: W.text, fontSize: 20, fontWeight: 800, boxSizing: "border-box", marginBottom: 12, fontFamily: "inherit" }} />
+            <Label>Time (SS:HH)</Label>
+            <input type="text" inputMode="numeric" value={climbForm.speedTime} onChange={e => { const digits = e.target.value.replace(/\D/g, "").slice(0, 4); const fmt = digits.length <= 2 ? digits : digits.slice(0, 2) + ":" + digits.slice(2); setClimbForm(f => ({ ...f, speedTime: fmt })); }} placeholder="00:00" style={{ width: "100%", padding: "10px 12px", background: W.surface, border: `2px solid ${W.border}`, borderRadius: 10, color: W.text, fontSize: 28, fontWeight: 800, boxSizing: "border-box", marginBottom: 12, fontFamily: "monospace", textAlign: "center", letterSpacing: 4 }} />
             <Label>Completed?</Label>
             <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
               <button onClick={() => setClimbForm(f => ({ ...f, completed: true }))} style={{ flex: 1, padding: "9px", borderRadius: 10, border: "2px solid", borderColor: climbForm.completed ? W.greenDark : W.border, background: climbForm.completed ? W.green : W.surface, color: climbForm.completed ? W.greenDark : W.textDim, cursor: "pointer", fontWeight: 700, fontSize: 13 }}>✓ Yes</button>
