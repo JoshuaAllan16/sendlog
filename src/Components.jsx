@@ -314,10 +314,11 @@ export const ActiveClimbCard = ({ climb, onEdit, onStartClimbing, onEndAttempt, 
   const fallCount = (climb.fallLog || []).length;
   const boulderAttemptCount = fallCount + (isActivelyClimbing ? 1 : 0);
   const lastFallAt = fallCount > 0 ? climb.fallLog[fallCount - 1].at : null;
-  const currentAttemptSec = isActivelyClimbing
-    ? (lastFallAt
-      ? Math.max(0, Math.floor((Date.now() - lastFallAt) / 1000))
-      : boulderTimerSec)
+  const currentAttemptStart = isActivelyClimbing
+    ? (lastFallAt && lastFallAt > climb.climbingStartedAt ? lastFallAt : climb.climbingStartedAt)
+    : null;
+  const currentAttemptSec = currentAttemptStart
+    ? Math.max(0, Math.floor((Date.now() - currentAttemptStart) / 1000))
     : 0;
 
   const outerBorderColor = climb.paused ? W.yellowDark + "99"
