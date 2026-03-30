@@ -4601,9 +4601,9 @@ export default function App() {
                                 />
                                 {hasWeight && (
                                   <input
-                                    type="text" inputMode="numeric" pattern="[0-9]*"
+                                    type="text" inputMode="decimal" pattern="[0-9.]*"
                                     value={st.weight || ""}
-                                    onChange={e => updateSetField(section.id, st.id, "weight", e.target.value.replace(/\D/g, "") || null)}
+                                    onChange={e => updateSetField(section.id, st.id, "weight", e.target.value.replace(/[^0-9.]/g, "") || null)}
                                     placeholder={weightPh}
                                     style={{ width: 72, padding: "5px 8px", background: W.surface2, border: `1.5px solid ${W.border}`, borderRadius: 8, color: W.text, fontSize: 14, fontWeight: 700, outline: "none", boxSizing: "border-box", textAlign: "center" }}
                                   />
