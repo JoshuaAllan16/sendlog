@@ -357,11 +357,11 @@ export const ActiveClimbCard = ({ climb, onEdit, onStartClimbing, onEndAttempt, 
               <button onClick={() => onEdit(climb)} style={{ background: T.sectionBg, border: `1px solid ${T.border}`, borderRadius: 7, padding: "4px 9px", fontSize: 11, color: hasPhoto ? "#fff" : W.accent, fontWeight: 700, cursor: "pointer" }}>Edit</button>
               <button onClick={() => setConfirmRemove(true)} style={{ background: "none", border: "none", color: hasPhoto ? "rgba(255,120,120,0.9)" : W.redDark, cursor: "pointer", fontSize: 16, padding: "0 2px" }}>🗑</button>
             </div>
-            {/* Grade + color — smaller, centered */}
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 8, marginBottom: 8 }}>
-              <div style={{ background: getGradeColor(climb.grade) + (hasPhoto ? "ee" : "cc"), color: "#fff", border: `2px solid ${getGradeColor(climb.grade)}`, borderRadius: 10, padding: "3px 11px", fontWeight: 900, fontSize: 18, lineHeight: 1, boxShadow: `0 2px 10px ${getGradeColor(climb.grade)}55` }}>{climb.grade}</div>
-              {climb.color && <ColorDot colorId={climb.color} size={24} />}
-              {climb.name && <span style={{ fontWeight: 700, color: T.textMuted, fontSize: 13 }}>{climb.name}</span>}
+            {/* Grade + color — top left */}
+            <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 8 }}>
+              <div style={{ background: getGradeColor(climb.grade) + (hasPhoto ? "ee" : "cc"), color: "#fff", border: `1.5px solid ${getGradeColor(climb.grade)}`, borderRadius: 8, padding: "2px 8px", fontWeight: 900, fontSize: 14, lineHeight: 1 }}>{climb.grade}</div>
+              {climb.color && <ColorDot colorId={climb.color} size={18} />}
+              {climb.name && <span style={{ fontWeight: 700, color: T.textMuted, fontSize: 12 }}>{climb.name}</span>}
             </div>
             {/* Label */}
             <div style={{ textAlign: "center", fontSize: 9, color: T.greenDark, textTransform: "uppercase", letterSpacing: 0.8, fontWeight: 700, marginBottom: 2 }}>Working on for</div>
