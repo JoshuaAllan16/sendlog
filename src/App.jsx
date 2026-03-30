@@ -1450,19 +1450,31 @@ export default function App() {
     }));
   };
 
-  const addExerciseSet = (sectionId, reps, weight) => {
-    if (!reps || isNaN(parseInt(reps))) return;
-    const newSet = { id: Date.now(), reps: parseInt(reps), weight: weight?.trim() || null };
+  const addExerciseSet = (sectionId) => {
+    const sec = (activeSession?.fitnessSections || []).find(s => s.id === sectionId);
+    if (!sec) return;
+    const currentSetCount = (sec.sets || []).length;
+    // Find last session containing this exercise to auto-populate
+    const lastSessionWithExercise = [...(sessions || [])].find(s =>
+      (s.fitnessSections || []).some(fs => fs.name === sec.name && fs.kind === "exercise")
+    );
+    const lastSets = lastSessionWithExercise
+      ? (lastSessionWithExercise.fitnessSections.find(fs => fs.name === sec.name && fs.kind === "exercise")?.sets || [])
+      : [];
+    const lastSet = lastSets[currentSetCount];
+    // If no last session data for this slot, carry forward weight from the most recent set in current session
+    const prevSet = currentSetCount > 0 ? (sec.sets || [])[currentSetCount - 1] : null;
+    const newSet = {
+      id: Date.now(),
+      reps: lastSet?.reps || null,
+      weight: lastSet?.weight || prevSet?.weight || null,
+    };
     setActiveSession(s => ({
       ...s,
-      fitnessSections: (s.fitnessSections || []).map(sec =>
-        sec.id === sectionId
-          ? { ...sec, sets: [...(sec.sets || []), newSet] }
-          : sec
+      fitnessSections: (s.fitnessSections || []).map(sc =>
+        sc.id === sectionId ? { ...sc, sets: [...(sc.sets || []), newSet] } : sc
       ),
     }));
-    setFitnessRepsTexts(p => ({ ...p, [sectionId]: "" }));
-    setFitnessWeightTexts(p => ({ ...p, [sectionId]: "" }));
   };
 
   const removeExerciseSet = (sectionId, setId) => {
@@ -1470,6 +1482,17 @@ export default function App() {
       ...s,
       fitnessSections: (s.fitnessSections || []).map(sec =>
         sec.id === sectionId ? { ...sec, sets: (sec.sets || []).filter(st => st.id !== setId) } : sec
+      ),
+    }));
+  };
+
+  const updateSetField = (sectionId, setId, field, value) => {
+    setActiveSession(s => ({
+      ...s,
+      fitnessSections: (s.fitnessSections || []).map(sec =>
+        sec.id === sectionId
+          ? { ...sec, sets: (sec.sets || []).map(st => st.id === setId ? { ...st, [field]: value } : st) }
+          : sec
       ),
     }));
   };
@@ -4495,6 +4518,13 @@ export default function App() {
           const restDone = showRest && restRemaining === 0;
           const fmt = (s) => `${String(Math.floor(s/60)).padStart(2,"0")}:${String(s%60).padStart(2,"0")}`;
           const isCollapsed = !!activeSession?.collapsedSections?.[`fitness_${section.id}`];
+          // Last session data for this exercise (for auto-populate hints)
+          const lastSessionWithEx = [...(sessions || [])].find(s =>
+            (s.fitnessSections || []).some(fs => fs.name === section.name && fs.kind === "exercise")
+          );
+          const lastSessionSets = lastSessionWithEx
+            ? (lastSessionWithEx.fitnessSections.find(fs => fs.name === section.name && fs.kind === "exercise")?.sets || [])
+            : [];
           return (
             <div key={section.id} style={{ marginBottom: 12 }}>
               <div style={{ borderRadius: 16, border: `2px solid ${isActive ? orangeColor : orangeColor + "44"}`, background: W.surface, overflow: "hidden", boxShadow: isActive ? `0 0 0 3px ${orangeColor}22` : "none", transition: "box-shadow 0.2s" }}>
@@ -4505,7 +4535,11 @@ export default function App() {
                       <div style={{ fontWeight: 900, fontSize: 17, color: W.text }}>{section.name}</div>
                       {sets.length > 0 && (
                         <div style={{ fontSize: 11, color: W.textMuted, marginTop: 2, fontVariantNumeric: "tabular-nums" }}>
-                          {sets.length} set{sets.length !== 1 ? "s" : ""} · {sets.reduce((sum, st) => sum + st.reps, 0)} reps{sets[sets.length - 1]?.weight ? ` · ${sets[sets.length - 1].weight}` : ""}
+                          {(() => {
+                            const totalReps = sets.reduce((sum, st) => sum + (parseInt(st.reps) || 0), 0);
+                            const lastWeight = sets[sets.length - 1]?.weight;
+                            return `${sets.length} set${sets.length !== 1 ? "s" : ""}${totalReps > 0 ? ` · ${totalReps} reps` : ""}${lastWeight ? ` · ${lastWeight}` : ""}`;
+                          })()}
                         </div>
                       )}
                       {isCollapsed && section.notes ? (
@@ -4533,19 +4567,44 @@ export default function App() {
                     {/* REPS/SETS */}
                     {hasReps && (
                       <div style={{ marginBottom: hasTimer ? 14 : 0 }}>
-                        {sets.length > 0 && (
-                          <div style={{ marginBottom: 10 }}>
-                            {sets.map((st, i) => (
-                              <div key={st.id} style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 0", borderBottom: `1px solid ${W.border}33` }}>
-                                <span style={{ fontSize: 12, fontWeight: 700, color: W.textMuted, minWidth: 40 }}>Set {i + 1}</span>
-                                <span style={{ fontWeight: 800, fontSize: 15, color: W.text, flex: 1 }}>{st.reps} reps{st.weight ? ` × ${st.weight}` : ""}</span>
-                                {!isEnded && <button onClick={() => removeExerciseSet(section.id, st.id)} style={{ background: "none", border: "none", color: W.textMuted, fontSize: 16, cursor: "pointer", padding: "0 4px", lineHeight: 1 }}>✕</button>}
-                              </div>
-                            ))}
+                        {/* Last session hint — shown until current sets match last session count */}
+                        {lastSessionSets.length > 0 && sets.length < lastSessionSets.length && (
+                          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8, padding: "5px 10px", background: `${orangeColor}11`, borderRadius: 8 }}>
+                            <span style={{ fontSize: 11, color: W.textMuted }}>
+                              Last: {lastSessionSets.map((s, i) => `${s.reps || "?"}${s.weight ? ` @ ${s.weight}` : ""}`).join(" · ")}
+                            </span>
+                            <button onClick={() => {
+                              const setsToAdd = lastSessionSets.slice(sets.length).map((s, i) => ({ id: Date.now() + i, reps: s.reps || null, weight: s.weight || null }));
+                              setActiveSession(sess => ({ ...sess, fitnessSections: (sess.fitnessSections || []).map(sc => sc.id === section.id ? { ...sc, sets: [...(sc.sets || []), ...setsToAdd] } : sc) }));
+                            }} style={{ fontSize: 11, fontWeight: 800, color: orangeColor, background: "none", border: `1px solid ${orangeColor}55`, borderRadius: 6, padding: "2px 8px", cursor: "pointer" }}>Copy all</button>
                           </div>
                         )}
+                        {/* Editable set rows */}
+                        {sets.map((st, i) => (
+                          <div key={st.id} style={{ display: "flex", alignItems: "center", gap: 8, padding: "5px 0", borderBottom: `1px solid ${W.border}33` }}>
+                            <span style={{ fontSize: 12, fontWeight: 700, color: W.textMuted, minWidth: 44 }}>Set {i + 1}</span>
+                            <input
+                              type="text" inputMode="numeric" pattern="[0-9]*"
+                              value={st.reps?.toString() || ""}
+                              onChange={e => updateSetField(section.id, st.id, "reps", parseInt(e.target.value.replace(/\D/g, "")) || null)}
+                              placeholder={lastSessionSets[i]?.reps?.toString() || "Reps"}
+                              style={{ width: 62, padding: "5px 8px", background: W.surface2, border: `1.5px solid ${W.border}`, borderRadius: 8, color: W.text, fontSize: 14, fontWeight: 700, outline: "none", textAlign: "center", boxSizing: "border-box" }}
+                            />
+                            {hasWeight && (
+                              <input
+                                type="text"
+                                value={st.weight || ""}
+                                onChange={e => updateSetField(section.id, st.id, "weight", e.target.value || null)}
+                                placeholder={section.lastWeight || lastSessionSets[i]?.weight || "weight"}
+                                style={{ flex: 1, padding: "5px 8px", background: W.surface2, border: `1.5px solid ${W.border}`, borderRadius: 8, color: W.text, fontSize: 14, fontWeight: 700, outline: "none", boxSizing: "border-box" }}
+                              />
+                            )}
+                            {!isEnded && <button onClick={() => removeExerciseSet(section.id, st.id)} style={{ background: "none", border: "none", color: W.textMuted, fontSize: 16, cursor: "pointer", padding: "0 4px", lineHeight: 1 }}>✕</button>}
+                          </div>
+                        ))}
+                        {/* Rest timer (opt-in) */}
                         {showRest && (
-                          <div style={{ marginBottom: 10, padding: "8px 12px", borderRadius: 10, background: restDone ? `${W.accent}18` : `${orangeColor}11`, border: `1px solid ${restDone ? W.accent + "44" : orangeColor + "44"}` }}>
+                          <div style={{ margin: "8px 0", padding: "8px 12px", borderRadius: 10, background: restDone ? `${W.accent}18` : `${orangeColor}11`, border: `1px solid ${restDone ? W.accent + "44" : orangeColor + "44"}` }}>
                             {restDone ? (
                               <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
                                 <span style={{ fontWeight: 800, fontSize: 13, color: W.accent }}>💪 Rest done — go again!</span>
@@ -4566,11 +4625,7 @@ export default function App() {
                         )}
                         {!isEnded && (
                           <>
-                            <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-                              <input type="text" inputMode="numeric" pattern="[0-9]*" value={fitnessRepsTexts[section.id] || ""} onChange={e => setFitnessRepsTexts(p => ({ ...p, [section.id]: e.target.value.replace(/\D/g, "") }))} placeholder="Reps" style={{ width: 70, padding: "8px 10px", background: W.surface2, border: `1.5px solid ${W.border}`, borderRadius: 10, color: W.text, fontSize: 14, fontWeight: 700, outline: "none", boxSizing: "border-box", textAlign: "center" }} />
-                              {hasWeight && <input type="text" value={fitnessWeightTexts[section.id] || ""} onChange={e => setFitnessWeightTexts(p => ({ ...p, [section.id]: e.target.value }))} placeholder={section.lastWeight ? `Last: ${section.lastWeight}` : "e.g. 25kg"} style={{ flex: 1, padding: "8px 10px", background: W.surface2, border: `1.5px solid ${W.border}`, borderRadius: 10, color: W.text, fontSize: 14, fontWeight: 700, outline: "none", boxSizing: "border-box" }} />}
-                              <button onClick={() => addExerciseSet(section.id, fitnessRepsTexts[section.id], fitnessWeightTexts[section.id])} style={{ padding: "8px 14px", background: (fitnessRepsTexts[section.id] || "").trim() ? `${orangeColor}22` : W.surface2, border: `1.5px solid ${(fitnessRepsTexts[section.id] || "").trim() ? orangeColor : W.border}`, borderRadius: 10, color: (fitnessRepsTexts[section.id] || "").trim() ? orangeColor : W.textMuted, fontWeight: 800, fontSize: 13, cursor: "pointer" }}>+ Set</button>
-                            </div>
+                            <button onClick={() => addExerciseSet(section.id)} style={{ width: "100%", padding: "7px", background: "none", border: `1.5px dashed ${orangeColor}55`, borderRadius: 10, color: W.textMuted, fontWeight: 700, fontSize: 13, cursor: "pointer", marginTop: sets.length > 0 ? 8 : 0 }}>+ Add Set</button>
                             {sets.length > 0 && !showRest && (
                               <div style={{ display: "flex", gap: 6, alignItems: "center", marginTop: 8 }}>
                                 <span style={{ fontSize: 11, color: W.textMuted, fontWeight: 600 }}>Rest:</span>
