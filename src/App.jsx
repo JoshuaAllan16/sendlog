@@ -4599,6 +4599,7 @@ export default function App() {
                                 style={{ flex: 1, padding: "5px 8px", background: W.surface2, border: `1.5px solid ${W.border}`, borderRadius: 8, color: W.text, fontSize: 14, fontWeight: 700, outline: "none", boxSizing: "border-box" }}
                               />
                             )}
+                            <button onClick={() => updateSetField(section.id, st.id, "done", !st.done)} style={{ width: 28, height: 28, borderRadius: 7, border: `2px solid ${st.done ? orangeColor : W.border}`, background: st.done ? orangeColor : "none", color: st.done ? "#fff" : W.border, fontSize: 15, fontWeight: 900, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, transition: "all 0.15s" }}>✓</button>
                             {!isEnded && <button onClick={() => removeExerciseSet(section.id, st.id)} style={{ background: "none", border: "none", color: W.textMuted, fontSize: 16, cursor: "pointer", padding: "0 4px", lineHeight: 1 }}>✕</button>}
                           </div>
                         ))}
