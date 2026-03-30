@@ -1754,11 +1754,11 @@ export default function App() {
     let climbUpdates = { tries: newTries };
     if (delta > 0 && climb.climbingStartedAt) {
       const now = Date.now();
-      // Boulder: record fall interval, keep timer and boulder section timer running
-      const lastFallAt = (climb.fallLog || []).length > 0
-        ? climb.fallLog[climb.fallLog.length - 1].at
-        : climb.climbingStartedAt;
-      climbUpdates = { ...climbUpdates, fallLog: [...(climb.fallLog || []), { at: now, intervalMs: now - lastFallAt }] };
+      // Boulder: record fall interval — use whichever is more recent: last fall or climbingStartedAt
+      // (climbingStartedAt resets when switching boulders, so this correctly excludes time spent on other boulders)
+      const lastFallAt = (climb.fallLog || []).length > 0 ? climb.fallLog[climb.fallLog.length - 1].at : null;
+      const attemptStart = Math.max(lastFallAt || 0, climb.climbingStartedAt || 0);
+      climbUpdates = { ...climbUpdates, fallLog: [...(climb.fallLog || []), { at: now, intervalMs: now - attemptStart }] };
       // climbingStartedAt stays set — timer keeps running
     }
     return { ...s, climbs: (s.climbs || []).map(c => c.id === id ? { ...c, ...climbUpdates } : c) };
@@ -1770,9 +1770,11 @@ export default function App() {
     let climbUpdates = { completed: newCompleted };
     if (newCompleted && climb.climbingStartedAt) {
       const now = Date.now();
-      const duration = now - climb.climbingStartedAt + (climb.pausedWorkedMs || 0);
+      const lastFallAt = (climb.fallLog || []).length > 0 ? climb.fallLog[climb.fallLog.length - 1].at : null;
+      const attemptStart = Math.max(lastFallAt || 0, climb.climbingStartedAt);
+      const duration = now - attemptStart;
       climbUpdates = { ...climbUpdates, climbingStartedAt: null, pausedWorkedMs: 0, sentAt: now,
-        attemptLog: [...(climb.attemptLog || []), { startedAt: climb.climbingStartedAt, duration }] };
+        attemptLog: [...(climb.attemptLog || []), { startedAt: attemptStart, duration }] };
       // Boulder section timer keeps running — don't flush it here
     }
     return { ...s, climbs: (s.climbs || []).map(c => c.id === id ? { ...c, ...climbUpdates } : c) };
