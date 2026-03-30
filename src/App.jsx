@@ -4593,7 +4593,7 @@ export default function App() {
                                 type="text" inputMode="numeric" pattern="[0-9]*"
                                 value={st.reps?.toString() || ""}
                                 onChange={e => updateSetField(section.id, st.id, "reps", parseInt(e.target.value.replace(/\D/g, "")) || null)}
-                                placeholder={lastSessionSets[i]?.reps?.toString() || "Reps"}
+                                placeholder={((i > 0 && sets[i-1]?.reps) ? sets[i-1].reps.toString() : lastSessionSets[i]?.reps?.toString()) || "Reps"}
                                 style={{ width: 58, padding: "5px 8px", background: W.surface2, border: `1.5px solid ${W.border}`, borderRadius: 8, color: W.text, fontSize: 14, fontWeight: 700, outline: "none", textAlign: "center", boxSizing: "border-box" }}
                               />
                               {hasWeight && (
@@ -4608,7 +4608,7 @@ export default function App() {
                               <button
                                 onClick={() => {
                                   const newDone = !st.done;
-                                  const placeholderReps = lastSessionSets[i]?.reps;
+                                  const placeholderReps = (i > 0 && sets[i-1]?.reps) ? sets[i-1].reps : lastSessionSets[i]?.reps;
                                   const finalReps = newDone && !st.reps && placeholderReps ? placeholderReps : st.reps;
                                   setActiveSession(s => ({ ...s, fitnessSections: (s.fitnessSections || []).map(sec => sec.id === section.id ? { ...sec, sets: (sec.sets || []).map(st2 => st2.id === st.id ? { ...st2, done: newDone, reps: finalReps } : st2) } : sec) }));
                                 }}
