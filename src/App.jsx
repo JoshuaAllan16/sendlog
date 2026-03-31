@@ -9032,10 +9032,9 @@ export default function App() {
         {navItems.map(item => {
           const isActive = screen === item.id || (item.id === "session" && (screen === "session" || screen === "sessionSummary"));
           return (
-            <button key={item.id} onClick={item.action || (() => setScreen(item.id))} style={{ background: isActive ? W.accent + "18" : "none", border: "none", display: "flex", flexDirection: "column", alignItems: "center", gap: 1, cursor: "pointer", padding: "4px 18px", borderRadius: 12, position: "relative" }}>
-              <span style={{ fontSize: 18, color: isActive ? W.accent : W.textDim, lineHeight: 1.2 }}>{item.label}</span>
-              <span style={{ fontSize: 10, fontWeight: 700, color: isActive ? W.accent : W.textDim, letterSpacing: 0.3 }}>{item.text}</span>
-              {item.id === "session" && timerRunning && <div style={{ position: "absolute", top: 3, right: 12, width: 5, height: 5, borderRadius: "50%", background: W.accent }} />}
+            <button key={item.id} onClick={item.action || (() => setScreen(item.id))} style={{ background: isActive ? W.accent + "18" : "none", border: "none", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", padding: "8px 18px", borderRadius: 12, position: "relative" }}>
+              <span style={{ fontSize: 15, fontWeight: isActive ? 900 : 700, color: isActive ? W.accent : W.textDim, letterSpacing: 0.2 }}>{item.text}</span>
+              {item.id === "session" && timerRunning && <div style={{ position: "absolute", top: 4, right: 10, width: 6, height: 6, borderRadius: "50%", background: W.accent }} />}
             </button>
           );
         })}
