@@ -8592,7 +8592,7 @@ export default function App() {
             {/* Nav items */}
             <div style={{ flex: 1, padding: "8px 0" }}>
               {/* Alerts */}
-              <button onClick={() => { setShowSidebar(false); setShowNotifPanel(true); }} style={{ width: "100%", display: "flex", alignItems: "center", gap: 14, padding: "14px 20px", background: "none", border: "none", cursor: "pointer", textAlign: "left" }}>
+              <button onClick={() => { setShowSidebar(false); setShowNotifPanel(true); if (notifCount > 0) { const marked = notifications.map(n => ({ ...n, read: true })); setNotifications(marked); setNotifCount(0); storage.set(`notifications:${currentUser.username}`, JSON.stringify(marked)).catch(() => {}); } }} style={{ width: "100%", display: "flex", alignItems: "center", gap: 14, padding: "14px 20px", background: "none", border: "none", cursor: "pointer", textAlign: "left" }}>
                 <span style={{ fontSize: 20, position: "relative" }}>
                   🔔
                   {notifCount > 0 && <span style={{ position: "absolute", top: -4, right: -6, background: W.accent, color: "#fff", borderRadius: "50%", minWidth: 14, height: 14, fontSize: 9, fontWeight: 800, display: "flex", alignItems: "center", justifyContent: "center", padding: "0 2px" }}>{notifCount > 9 ? "9+" : notifCount}</span>}
