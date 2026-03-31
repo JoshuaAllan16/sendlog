@@ -2944,21 +2944,19 @@ export default function App() {
         <Label>Comments</Label>
         <textarea value={climbForm.comments} onChange={e => setClimbForm(f => ({ ...f, comments: e.target.value }))} placeholder="Beta, notes..." style={{ width: "100%", padding: "10px 12px", background: W.surface, border: `2px solid ${W.border}`, borderRadius: 10, color: W.text, fontSize: 13, resize: "none", height: 70, boxSizing: "border-box", marginBottom: 12, fontFamily: "inherit" }} />
         <Label>Photo</Label>
-        <div style={{ border: `2px dashed ${W.border}`, borderRadius: 10, padding: photoPreview ? "0" : "12px", textAlign: "center", marginBottom: photoPreview ? 8 : 12, background: W.surface, overflow: "hidden", position: "relative" }}>
+        <div style={{ border: `2px dashed ${W.border}`, borderRadius: 10, padding: photoPreview ? "0" : "12px", textAlign: "center", marginBottom: 12, background: W.surface, overflow: "hidden", position: "relative" }}>
           {photoPreview ? (
             <>
               <img src={photoPreview} alt="climb" onClick={() => setLightboxPhoto({ photos: [{ src: photoPreview, grade: climbForm.grade, name: climbForm.name, colorId: climbForm.color }], idx: 0 })} style={{ width: "100%", borderRadius: 8, maxHeight: 140, objectFit: "cover", display: "block", cursor: "zoom-in" }} />
-              <button onClick={() => fileRef.current.click()} style={{ position: "absolute", bottom: 8, right: 8, background: "rgba(0,0,0,0.55)", border: "none", borderRadius: 7, color: "#fff", fontSize: 11, fontWeight: 700, padding: "4px 10px", cursor: "pointer" }}>Change</button>
+              <button onClick={() => fileRef.current.click()} style={{ position: "absolute", bottom: 8, left: 8, background: "rgba(0,0,0,0.55)", border: "none", borderRadius: 7, color: "#fff", fontSize: 11, fontWeight: 700, padding: "4px 10px", cursor: "pointer" }}>Change</button>
+              <button onClick={() => setShowAnnotationEditor(true)} style={{ position: "absolute", bottom: 8, right: 8, background: annotationData ? (CLIMB_COLORS.find(c => c.id === climbForm.color)?.hex || "rgba(255,255,255,0.9)") : "rgba(0,0,0,0.55)", border: "none", borderRadius: 7, color: annotationData ? "#fff" : "#fff", fontSize: 11, fontWeight: 700, padding: "4px 10px", cursor: "pointer" }}>
+                {annotationData ? "✎ Identifiers" : "⬤ Add Identifiers"}
+              </button>
             </>
           ) : (
             <div onClick={() => fileRef.current.click()} style={{ color: W.textDim, fontSize: 13, cursor: "pointer" }}>📷 Tap to upload</div>
           )}
         </div>
-        {photoPreview && (
-          <button onClick={() => setShowAnnotationEditor(true)} style={{ width: "100%", marginBottom: 12, padding: "8px", background: annotationData ? `${CLIMB_COLORS.find(c => c.id === climbForm.color)?.hex || W.accent}22` : W.surface2, border: `1.5px solid ${annotationData ? (CLIMB_COLORS.find(c => c.id === climbForm.color)?.hex || W.accent) : W.border}`, borderRadius: 10, color: annotationData ? (CLIMB_COLORS.find(c => c.id === climbForm.color)?.hex || W.accent) : W.textMuted, fontWeight: 700, fontSize: 13, cursor: "pointer" }}>
-            {annotationData ? "✎ Edit Hold Identifiers" : "⬤ Add Hold Identifiers"}
-          </button>
-        )}
         <input ref={fileRef} type="file" accept="image/*" style={{ display: "none" }} onChange={e => { const f = e.target.files[0]; if (!f) return; const r = new FileReader(); r.onload = ev => { const img = new Image(); img.onload = () => { const MAX = 900; const scale = Math.min(1, MAX / Math.max(img.width, img.height)); const canvas = document.createElement("canvas"); canvas.width = Math.round(img.width * scale); canvas.height = Math.round(img.height * scale); canvas.getContext("2d").drawImage(img, 0, 0, canvas.width, canvas.height); setPhotoPreview(canvas.toDataURL("image/jpeg", 0.75)); }; img.src = ev.target.result; }; r.readAsDataURL(f); }} />
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
           <button onClick={onCancel} style={{ padding: "11px", background: "transparent", border: `1px solid ${W.border}`, borderRadius: 12, color: W.textMuted, cursor: "pointer", fontWeight: 600 }}>Cancel</button>
