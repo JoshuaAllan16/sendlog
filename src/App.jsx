@@ -278,6 +278,7 @@ export default function App() {
   const peekDivRef         = useRef(null);
   const swipePeekRef       = useRef(null); // { tab, fromRight } when peek is active
   const gymOverlayRef      = useRef(null);
+  const sidebarSwipeXRef   = useRef(null);
   const gymSwipeRef        = useRef(null);
 
   const [swipePeekScreen, setSwipePeekScreen]   = useState(null); // "home"|"session"|"profile" during swipe
@@ -8570,7 +8571,12 @@ export default function App() {
       {showSidebar && (
         <div style={{ position: "fixed", inset: 0, zIndex: 300, display: "flex" }} onClick={() => setShowSidebar(false)}>
           {/* Drawer */}
-          <div style={{ width: 280, maxWidth: "80vw", height: "100%", background: W.surface, borderRight: `1px solid ${W.border}`, display: "flex", flexDirection: "column", overflowY: "auto", paddingBottom: "env(safe-area-inset-bottom)" }} onClick={e => e.stopPropagation()}>
+          <div
+            style={{ width: 280, maxWidth: "80vw", height: "100%", background: W.surface, borderRight: `1px solid ${W.border}`, display: "flex", flexDirection: "column", overflowY: "auto", paddingBottom: "env(safe-area-inset-bottom)" }}
+            onClick={e => e.stopPropagation()}
+            onTouchStart={e => { sidebarSwipeXRef.current = e.touches[0].clientX; }}
+            onTouchEnd={e => { if (sidebarSwipeXRef.current !== null && e.changedTouches[0].clientX - sidebarSwipeXRef.current < -40) setShowSidebar(false); sidebarSwipeXRef.current = null; }}
+          >
             {/* Sidebar header */}
             <div style={{ padding: "calc(20px + env(safe-area-inset-top)) 20px 16px", borderBottom: `1px solid ${W.border}`, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
               <span style={{ fontWeight: 900, fontSize: 20, color: W.text }}>SendLog</span>
