@@ -542,6 +542,7 @@ export default function App() {
   const [notifications, setNotifications]         = useState([]);
   const [notifCount, setNotifCount]               = useState(0);
   const [showNotifPanel, setShowNotifPanel]       = useState(false);
+  const [showSidebar, setShowSidebar]             = useState(false);
   const [mutedUsers, setMutedUsers]               = useState([]);
   const [myReactions, setMyReactions]             = useState({}); // { sessionId: emoji }
   const [feedReactionCounts, setFeedReactionCounts] = useState({}); // { sessionId: { "🔥": 2 } }
@@ -5681,11 +5682,9 @@ export default function App() {
               </button>
             </div>
           </div>
-          {/* Compact action buttons stacked vertically */}
+          {/* Compact action buttons */}
           <div style={{ display: "flex", flexDirection: "column", gap: 5, flexShrink: 0 }}>
-            <button onClick={() => setShowAccountPanel(true)} style={{ padding: "6px 10px", background: W.surface2, border: `1px solid ${W.border}`, borderRadius: 9, fontSize: 16, color: W.textMuted, cursor: "pointer" }}>⚙️</button>
             <button onClick={() => setScreen("social")} style={{ padding: "6px 10px", background: W.surface2, border: `1px solid ${W.border}`, borderRadius: 9, fontSize: 16, color: W.textMuted, cursor: "pointer" }}>👥</button>
-            <button onClick={goToLeaderboard} style={{ padding: "6px 10px", background: W.surface2, border: `1px solid ${W.border}`, borderRadius: 9, fontSize: 16, color: W.textMuted, cursor: "pointer" }}>🏆</button>
           </div>
         </div>
 
@@ -7963,13 +7962,24 @@ export default function App() {
     )}
     <div style={{ width: "100%", minHeight: "100vh", background: W.bg, fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif", display: "flex", justifyContent: "center", zoom: 1.1 }}>
     <div style={{ width: "100%", maxWidth: 420, display: "flex", flexDirection: "column" }}>
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "14px 20px", paddingTop: "calc(14px + env(safe-area-inset-top))", borderBottom: `1px solid ${W.border}`, background: W.navBg, position: "sticky", top: 0, zIndex: 50 }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-          {(backMap[screen] || screen === "session" || screen === "sessionSummary") && (
-            <button onClick={() => { if (screen === "session" && sessionStarted && showClimbForm) { setShowClimbForm(false); setPhotoPreview(null); setEditingClimbId(null); setShowNewBoulderForm(false); } else if (screen === "session" && !sessionStarted) setScreen("home"); else if (screen === "sessionSummary") setShowSummaryLeaveWarn(true); else if (backMap[screen]) { setScreen(backMap[screen]); setShowClimbForm(false); if (screen === "calendar" || screen === "projectDetail") setProfileTab("stats"); if (screen === "sessionDetail") setSessionReadOnly(false); } }} style={{ background: "none", border: "none", color: W.accent, fontSize: 16, cursor: "pointer", padding: 0, marginRight: 4 }}>←</button>
+      <div style={{ display: "flex", alignItems: "center", padding: "14px 16px", paddingTop: "calc(14px + env(safe-area-inset-top))", borderBottom: `1px solid ${W.border}`, background: W.navBg, position: "sticky", top: 0, zIndex: 50 }}>
+        {/* Left slot: hamburger or back button */}
+        <div style={{ width: 44, display: "flex", alignItems: "center" }}>
+          {(backMap[screen] || screen === "session" || screen === "sessionSummary") ? (
+            <button onClick={() => { if (screen === "session" && sessionStarted && showClimbForm) { setShowClimbForm(false); setPhotoPreview(null); setEditingClimbId(null); setShowNewBoulderForm(false); } else if (screen === "session" && !sessionStarted) setScreen("home"); else if (screen === "sessionSummary") setShowSummaryLeaveWarn(true); else if (backMap[screen]) { setScreen(backMap[screen]); setShowClimbForm(false); if (screen === "calendar" || screen === "projectDetail") setProfileTab("stats"); if (screen === "sessionDetail") setSessionReadOnly(false); } }} style={{ background: "none", border: "none", color: W.accent, fontSize: 16, cursor: "pointer", padding: 0 }}>←</button>
+          ) : (
+            <button onClick={() => setShowSidebar(true)} style={{ background: "none", border: "none", cursor: "pointer", padding: "2px 0", display: "flex", flexDirection: "column", gap: 4, position: "relative" }}>
+              <span style={{ display: "block", width: 20, height: 2, borderRadius: 2, background: W.text }} />
+              <span style={{ display: "block", width: 20, height: 2, borderRadius: 2, background: W.text }} />
+              <span style={{ display: "block", width: 20, height: 2, borderRadius: 2, background: W.text }} />
+              {notifCount > 0 && <span style={{ position: "absolute", top: -3, right: -5, background: W.accent, borderRadius: "50%", minWidth: 10, height: 10, fontSize: 7, fontWeight: 800, display: "flex", alignItems: "center", justifyContent: "center" }} />}
+            </button>
           )}
+        </div>
+        {/* Center: logo or session info */}
+        <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center" }}>
           {screen === "session" && sessionStarted ? (
-            <div style={{ display: "flex", flexDirection: "column", gap: 1 }}>
+            <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 1 }}>
               <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
                 <div style={{ fontWeight: 800, fontSize: 15, color: W.text, lineHeight: 1.2 }}>{activeSession?.location || "Session"}</div>
                 <button onClick={() => setActiveLocationDropdownOpen(o => !o)} style={{ background: "none", border: "none", color: W.textMuted, cursor: "pointer", padding: "0 2px", fontSize: 12, lineHeight: 1 }}>✏️</button>
@@ -7977,23 +7987,15 @@ export default function App() {
               <div style={{ fontSize: 11, color: W.textMuted, fontWeight: 600 }}>{(activeSession?.climbs || []).filter(c => c.climbType !== "speed-session").reduce((sum, c) => sum + (c.tries || 0) + (c.completed ? 1 : 0), 0)} attempts</div>
             </div>
           ) : (
-            <>
-              <span style={{ fontSize: 20 }}>🧗</span>
-              <span style={{ fontWeight: 800, fontSize: 18, color: W.text }}>SendLog</span>
-            </>
+            <span style={{ fontWeight: 900, fontSize: 18, color: W.text, letterSpacing: -0.5 }}>SendLog</span>
           )}
         </div>
-        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-          {screen === "session" && sessionStarted && <div style={{ fontWeight: 900, fontSize: 26, color: W.text, fontVariantNumeric: "tabular-nums", letterSpacing: 1, lineHeight: 1 }}>{formatDuration(sessionTimer)}</div>}
-          {timerRunning && screen !== "session" && <div style={{ background: W.accent, borderRadius: 20, padding: "4px 12px", color: "#fff", fontSize: 12, fontWeight: 700 }}>⏱ {formatDuration(sessionTimer)}</div>}
+        {/* Right slot: timer / save status */}
+        <div style={{ width: 44, display: "flex", alignItems: "center", justifyContent: "flex-end" }}>
+          {screen === "session" && sessionStarted && <div style={{ fontWeight: 900, fontSize: 22, color: W.text, fontVariantNumeric: "tabular-nums", letterSpacing: 1, lineHeight: 1 }}>{formatDuration(sessionTimer)}</div>}
+          {timerRunning && screen !== "session" && <div style={{ background: W.accent, borderRadius: 20, padding: "3px 9px", color: "#fff", fontSize: 11, fontWeight: 700 }}>⏱ {formatDuration(sessionTimer)}</div>}
           {saveStatus === "saving" && <div style={{ fontSize: 11, color: W.textDim, fontWeight: 600 }}>💾</div>}
           {saveStatus === "saved" && <div style={{ fontSize: 11, color: W.greenDark, fontWeight: 600 }}>✓</div>}
-          {screen === "home" && (
-            <button onClick={() => setShowNotifPanel(true)} style={{ position: "relative", background: "none", border: "none", cursor: "pointer", fontSize: 20, padding: "2px 4px", color: notifCount > 0 ? W.accent : W.textDim }}>
-              🔔
-              {notifCount > 0 && <span style={{ position: "absolute", top: -2, right: -2, background: W.accent, color: "#fff", borderRadius: "50%", minWidth: 15, height: 15, fontSize: 9, fontWeight: 800, display: "flex", alignItems: "center", justifyContent: "center", padding: "0 2px" }}>{notifCount > 9 ? "9+" : notifCount}</span>}
-            </button>
-          )}
         </div>
       </div>
 
@@ -8022,14 +8024,17 @@ export default function App() {
               if (!swipeLockedRef.current) {
                 if (Math.abs(ddx) > 7 || Math.abs(ddy) > 7) {
                   const si = ["home","session","profile"].indexOf(screenRef.current);
+                  const isSidebarSwipe = si === 0 && ddx > 0;
                   const canH = si !== -1 && !swipeAnimRef.current && !boulderAddModeRef.current &&
-                    ((ddx < 0 && si < 2) || (ddx > 0 && si > 0));
+                    ((ddx < 0 && si < 2) || (ddx > 0 && si > 0) || isSidebarSwipe);
                   const locked = (Math.abs(ddx) >= Math.abs(ddy) && canH) ? "h" : "v";
                   swipeLockedRef.current = locked;
                   if (locked === "h") {
                     // Prevent the browser from taking scroll ownership on this very first event
                     me.preventDefault();
-                    if (!swipePeekRef.current) {
+                    if (isSidebarSwipe) {
+                      // Opening sidebar — no peek panel needed, just allow drag
+                    } else if (!swipePeekRef.current) {
                       const si2 = ["home","session","profile"].indexOf(screenRef.current);
                       const nextTab = ["home","session","profile"][ddx < 0 ? si2 + 1 : si2 - 1];
                       if (nextTab) {
@@ -8088,9 +8093,13 @@ export default function App() {
             const STABS = ["home","session","profile"];
             const si = STABS.indexOf(screen);
             if (si === -1) { if (el) { el.style.transform = ""; } return; }
+            const isSidebarSwipe = si === 0 && ddx > 0;
             const shouldCommit = (Math.abs(ddx) >= 58 || velocity > 0.45) &&
-              ((ddx < 0 && si < 2) || (ddx > 0 && si > 0));
-            if (shouldCommit) {
+              ((ddx < 0 && si < 2) || (ddx > 0 && si > 0) || isSidebarSwipe);
+            if (shouldCommit && isSidebarSwipe) {
+              if (el) { el.style.transition = "transform 0.22s ease"; el.style.transform = "translateX(0)"; setTimeout(() => { if (el) { el.style.transform = ""; el.style.transition = ""; } }, 220); }
+              setShowSidebar(true);
+            } else if (shouldCommit) {
               const nextTab = STABS[ddx < 0 ? si + 1 : si - 1];
               const vpW = window.innerWidth;
               swipeAnimRef.current = true;
@@ -8554,6 +8563,51 @@ export default function App() {
               <button onClick={() => setShowSummaryLeaveWarn(false)} style={{ padding: "11px", background: "transparent", border: `1px solid ${W.border}`, borderRadius: 12, color: W.textMuted, fontWeight: 600, fontSize: 13, cursor: "pointer" }}>Stay</button>
             </div>
           </div>
+        </div>
+      )}
+
+      {/* Sidebar */}
+      {showSidebar && (
+        <div style={{ position: "fixed", inset: 0, zIndex: 300, display: "flex" }} onClick={() => setShowSidebar(false)}>
+          {/* Drawer */}
+          <div style={{ width: 280, maxWidth: "80vw", height: "100%", background: W.surface, borderRight: `1px solid ${W.border}`, display: "flex", flexDirection: "column", overflowY: "auto", paddingBottom: "env(safe-area-inset-bottom)" }} onClick={e => e.stopPropagation()}>
+            {/* Sidebar header */}
+            <div style={{ padding: "calc(20px + env(safe-area-inset-top)) 20px 16px", borderBottom: `1px solid ${W.border}`, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+              <span style={{ fontWeight: 900, fontSize: 20, color: W.text }}>SendLog</span>
+              <button onClick={() => setShowSidebar(false)} style={{ background: "none", border: "none", color: W.textMuted, fontSize: 22, cursor: "pointer", padding: 0, lineHeight: 1 }}>×</button>
+            </div>
+            {/* User info */}
+            {currentUser && (
+              <div style={{ padding: "16px 20px", borderBottom: `1px solid ${W.border}` }}>
+                <div style={{ fontWeight: 800, fontSize: 16, color: W.text }}>{currentUser.displayName || currentUser.username}</div>
+                <div style={{ fontSize: 12, color: W.textMuted, marginTop: 2 }}>@{currentUser.username}</div>
+              </div>
+            )}
+            {/* Nav items */}
+            <div style={{ flex: 1, padding: "8px 0" }}>
+              {/* Alerts */}
+              <button onClick={() => { setShowSidebar(false); setShowNotifPanel(true); }} style={{ width: "100%", display: "flex", alignItems: "center", gap: 14, padding: "14px 20px", background: "none", border: "none", cursor: "pointer", textAlign: "left" }}>
+                <span style={{ fontSize: 20, position: "relative" }}>
+                  🔔
+                  {notifCount > 0 && <span style={{ position: "absolute", top: -4, right: -6, background: W.accent, color: "#fff", borderRadius: "50%", minWidth: 14, height: 14, fontSize: 9, fontWeight: 800, display: "flex", alignItems: "center", justifyContent: "center", padding: "0 2px" }}>{notifCount > 9 ? "9+" : notifCount}</span>}
+                </span>
+                <span style={{ fontWeight: 700, fontSize: 15, color: W.text }}>Alerts</span>
+                {notifCount > 0 && <span style={{ marginLeft: "auto", background: W.accent, color: "#fff", borderRadius: 20, minWidth: 20, height: 20, fontSize: 11, fontWeight: 800, display: "inline-flex", alignItems: "center", justifyContent: "center", padding: "0 5px" }}>{notifCount}</span>}
+              </button>
+              {/* Leaderboard */}
+              <button onClick={() => { setShowSidebar(false); goToLeaderboard(); }} style={{ width: "100%", display: "flex", alignItems: "center", gap: 14, padding: "14px 20px", background: "none", border: "none", cursor: "pointer", textAlign: "left" }}>
+                <span style={{ fontSize: 20 }}>🏆</span>
+                <span style={{ fontWeight: 700, fontSize: 15, color: W.text }}>Leaderboard</span>
+              </button>
+              {/* Settings */}
+              <button onClick={() => { setShowSidebar(false); setShowAccountPanel(true); }} style={{ width: "100%", display: "flex", alignItems: "center", gap: 14, padding: "14px 20px", background: "none", border: "none", cursor: "pointer", textAlign: "left" }}>
+                <span style={{ fontSize: 20 }}>⚙️</span>
+                <span style={{ fontWeight: 700, fontSize: 15, color: W.text }}>Settings</span>
+              </button>
+            </div>
+          </div>
+          {/* Scrim */}
+          <div style={{ flex: 1, background: "rgba(0,0,0,0.45)" }} />
         </div>
       )}
 
