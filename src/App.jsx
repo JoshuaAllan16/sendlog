@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect, useMemo, Component, Fragment } from "react";
 import { createClient } from "@supabase/supabase-js";
 import { ThemeCtx, THEMES } from "./theme.js";
-import { ColorDot, TagChips, LocationDropdown, SpeedSessionCard, BoulderRopeSessionCard, ActiveClimbCard } from "./Components.jsx";
+import { ColorDot, TagChips, LocationDropdown, SpeedSessionCard, BoulderRopeSessionCard, ActiveClimbCard, ImageAnnotationEditor } from "./Components.jsx";
 import { ProjectDetailScreen, SessionSummaryScreen } from "./Screens.jsx";
 import { EXERCISES } from "./exercises.js";
 import { GRADES, ROPE_GRADES, GRADE_COLORS, CLIMB_COLORS, WALL_TYPES, HOLD_TYPES, getGradeColor, formatDate, formatDuration, formatTotalTime, formatRestSec } from "./constants.js";
@@ -416,6 +416,9 @@ export default function App() {
 
   const [climbForm, setClimbForm]   = useState(blankForm);
   const [photoPreview, setPhotoPreview] = useState(null);
+  const [photoOriginal, setPhotoOriginal] = useState(null);
+  const [annotationData, setAnnotationData] = useState(null);
+  const [showAnnotationEditor, setShowAnnotationEditor] = useState(false);
   const [boulderAddMode, setBoulderAddMode] = useState(null); // null | "landing" | "set-picker" | "new-boulder"
   const [setPickerSelected, setSetPickerSelected] = useState(new Set());
   const [newBoulderStep, setNewBoulderStep] = useState(0);
@@ -592,7 +595,8 @@ export default function App() {
       } else if (ss && sa) {
         // Restore photos from sessionStorage (stripped from localStorage to avoid quota errors)
         const savedPhotos = JSON.parse(sessionStorage.getItem("active:photos") || "{}");
-        const restoredSession = { ...sa, climbs: (sa.climbs || []).map(c => ({ ...c, photo: savedPhotos[c.id] || null })) };
+        const savedPhotosOrig = JSON.parse(sessionStorage.getItem("active:photos-orig") || "{}");
+        const restoredSession = { ...sa, climbs: (sa.climbs || []).map(c => ({ ...c, photo: savedPhotos[c.id] || null, photoOriginal: savedPhotosOrig[c.id] || null })) };
         setActiveSession(restoredSession);
         if (tr && sas && lat) {
           const gapSec = Math.floor((Date.now() - lat) / 1000);
@@ -738,10 +742,10 @@ export default function App() {
     // Preserve stored username if currentUser is null (logged-out state) so restore still works after page reload
     const savedUsername = currentUser?.username || (() => { try { return JSON.parse(localStorage.getItem("active:climb") || "{}").username; } catch (e) { return null; } })();
     // Strip photos from climbs before persisting to avoid localStorage quota errors on mobile
-    const sessionForStorage = { ...activeSession, climbs: (activeSession.climbs || []).map(c => ({ ...c, photo: null })) };
+    const sessionForStorage = { ...activeSession, climbs: (activeSession.climbs || []).map(c => ({ ...c, photo: null, photoOriginal: null })) };
     try { localStorage.setItem("active:climb", JSON.stringify({ username: savedUsername, activeSession: sessionForStorage, sessionActiveStart, sessionPausedSec, sessionStarted, timerRunning, pendingLocation, lastActivityAt: Date.now() })); } catch (e) { console.warn("active:climb storage failed:", e); }
     // Save photos separately in sessionStorage (survives page refresh within same tab)
-    try { const photoMap = {}; (activeSession.climbs || []).forEach(c => { if (c.photo) photoMap[c.id] = c.photo; }); sessionStorage.setItem("active:photos", JSON.stringify(photoMap)); } catch (e) {}
+    try { const photoMap = {}; const photoOrigMap = {}; (activeSession.climbs || []).forEach(c => { if (c.photo) photoMap[c.id] = c.photo; if (c.photoOriginal) photoOrigMap[c.id] = c.photoOriginal; }); sessionStorage.setItem("active:photos", JSON.stringify(photoMap)); sessionStorage.setItem("active:photos-orig", JSON.stringify(photoOrigMap)); } catch (e) {}
   }, [activeSession, sessionActiveStart, sessionPausedSec, sessionStarted, timerRunning, pendingLocation, currentUser]);
 
   // §HANDLERS
@@ -1865,6 +1869,8 @@ export default function App() {
       setEditingClimbId(existing.id);
       setClimbForm({ name: existing.name || "", grade: existing.grade, scale: existing.scale, isProject: existing.isProject, comments: existing.comments, photo: existing.photo, projectId: existing.projectId, tries: existing.tries, completed: existing.completed, color: existing.color || null, wallTypes: existing.wallTypes || [], holdTypes: existing.holdTypes || [], climbType: existing.climbType || "boulder", ropeStyle: existing.ropeStyle || "lead", speedTime: existing.speedTime || "" });
       setPhotoPreview(existing.photo);
+      setPhotoOriginal(existing.photoOriginal || null);
+      setAnnotationData(existing.annotations || null);
     } else if (fromProject) {
       setEditingClimbId(null);
       setClimbForm({ ...blankForm, name: fromProject.name || "", grade: fromProject.grade, scale: fromProject.scale, isProject: true, comments: fromProject.comments || "", projectId: fromProject.id, climbType: fromProject.climbType || "boulder" });
@@ -1916,7 +1922,7 @@ export default function App() {
           const newSetClimb = { id: setClimbId, name: climbForm.name, grade: climbForm.grade, scale: climbForm.scale, color: climbForm.color, wallTypes: climbForm.wallTypes, holdTypes: climbForm.holdTypes, climbType: climbForm.climbType || "boulder", setDate: new Date().toISOString(), location, removed: false, removedDate: null, section: climbForm.section || null };
           setGymSets(prev => ({ ...prev, [location]: [...(prev[location] || []), newSetClimb] }));
         }
-        const newClimb = { ...climbForm, photo: photoPreview, projectId: pid, id: Date.now(), loggedAt: Date.now(), tries: climbForm.climbType === "speed" ? 1 : 0, completed: climbForm.climbType === "speed" ? climbForm.completed : false, ...(speedGrade ? { grade: speedGrade, scale: "Speed" } : {}), ...(setClimbId ? { setClimbId } : {}) };
+        const newClimb = { ...climbForm, photo: photoPreview, photoOriginal: photoOriginal || null, annotations: annotationData || null, projectId: pid, id: Date.now(), loggedAt: Date.now(), tries: climbForm.climbType === "speed" ? 1 : 0, completed: climbForm.climbType === "speed" ? climbForm.completed : false, ...(speedGrade ? { grade: speedGrade, scale: "Speed" } : {}), ...(setClimbId ? { setClimbId } : {}) };
         if (newClimb.isProject && !climbForm.projectId) setProjects(prev => [...prev, { id: pid, name: newClimb.name, grade: newClimb.grade, scale: newClimb.scale, climbType: newClimb.climbType || "boulder", comments: newClimb.comments, active: true, completed: false, dateAdded: new Date().toISOString(), dateSent: null }]);
         setActiveSession(s => {
           const now = Date.now();
@@ -1930,10 +1936,10 @@ export default function App() {
       if (!editingClimbId && !activeSession?.warmupStartedAt && sessionActiveStart && Date.now() - sessionActiveStart < 120000) {
         setShowWarmupNudge(true);
       }
-      setShowClimbForm(false); setPhotoPreview(null); setEditingClimbId(null); setClimbForm(blankForm);
+      setShowClimbForm(false); setPhotoPreview(null); setPhotoOriginal(null); setAnnotationData(null); setEditingClimbId(null); setClimbForm(blankForm);
     } catch (e) {
       console.error("saveClimbToActiveSession error:", e);
-      setShowClimbForm(false); setPhotoPreview(null); setEditingClimbId(null); setClimbForm(blankForm);
+      setShowClimbForm(false); setPhotoPreview(null); setPhotoOriginal(null); setAnnotationData(null); setEditingClimbId(null); setClimbForm(blankForm);
     }
   };
 
@@ -2938,7 +2944,7 @@ export default function App() {
         <Label>Comments</Label>
         <textarea value={climbForm.comments} onChange={e => setClimbForm(f => ({ ...f, comments: e.target.value }))} placeholder="Beta, notes..." style={{ width: "100%", padding: "10px 12px", background: W.surface, border: `2px solid ${W.border}`, borderRadius: 10, color: W.text, fontSize: 13, resize: "none", height: 70, boxSizing: "border-box", marginBottom: 12, fontFamily: "inherit" }} />
         <Label>Photo</Label>
-        <div style={{ border: `2px dashed ${W.border}`, borderRadius: 10, padding: photoPreview ? "0" : "12px", textAlign: "center", marginBottom: 12, background: W.surface, overflow: "hidden", position: "relative" }}>
+        <div style={{ border: `2px dashed ${W.border}`, borderRadius: 10, padding: photoPreview ? "0" : "12px", textAlign: "center", marginBottom: photoPreview ? 8 : 12, background: W.surface, overflow: "hidden", position: "relative" }}>
           {photoPreview ? (
             <>
               <img src={photoPreview} alt="climb" onClick={() => setLightboxPhoto({ photos: [{ src: photoPreview, grade: climbForm.grade, name: climbForm.name, colorId: climbForm.color }], idx: 0 })} style={{ width: "100%", borderRadius: 8, maxHeight: 140, objectFit: "cover", display: "block", cursor: "zoom-in" }} />
@@ -2948,6 +2954,11 @@ export default function App() {
             <div onClick={() => fileRef.current.click()} style={{ color: W.textDim, fontSize: 13, cursor: "pointer" }}>📷 Tap to upload</div>
           )}
         </div>
+        {photoPreview && (
+          <button onClick={() => setShowAnnotationEditor(true)} style={{ width: "100%", marginBottom: 12, padding: "8px", background: annotationData ? `${CLIMB_COLORS.find(c => c.id === climbForm.color)?.hex || W.accent}22` : W.surface2, border: `1.5px solid ${annotationData ? (CLIMB_COLORS.find(c => c.id === climbForm.color)?.hex || W.accent) : W.border}`, borderRadius: 10, color: annotationData ? (CLIMB_COLORS.find(c => c.id === climbForm.color)?.hex || W.accent) : W.textMuted, fontWeight: 700, fontSize: 13, cursor: "pointer" }}>
+            {annotationData ? "✎ Edit Hold Identifiers" : "⬤ Add Hold Identifiers"}
+          </button>
+        )}
         <input ref={fileRef} type="file" accept="image/*" style={{ display: "none" }} onChange={e => { const f = e.target.files[0]; if (!f) return; const r = new FileReader(); r.onload = ev => { const img = new Image(); img.onload = () => { const MAX = 900; const scale = Math.min(1, MAX / Math.max(img.width, img.height)); const canvas = document.createElement("canvas"); canvas.width = Math.round(img.width * scale); canvas.height = Math.round(img.height * scale); canvas.getContext("2d").drawImage(img, 0, 0, canvas.width, canvas.height); setPhotoPreview(canvas.toDataURL("image/jpeg", 0.75)); }; img.src = ev.target.result; }; r.readAsDataURL(f); }} />
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
           <button onClick={onCancel} style={{ padding: "11px", background: "transparent", border: `1px solid ${W.border}`, borderRadius: 12, color: W.textMuted, cursor: "pointer", fontWeight: 600 }}>Cancel</button>
@@ -8908,6 +8919,22 @@ export default function App() {
             }
           </div>
         </div>
+      )}
+
+      {/* Hold identifier annotation editor */}
+      {showAnnotationEditor && (
+        <ImageAnnotationEditor
+          photoSrc={photoOriginal || photoPreview}
+          holdColorHex={CLIMB_COLORS.find(c => c.id === climbForm.color)?.hex || "#ffffff"}
+          initialAnnotations={annotationData}
+          onSave={({ photoAnnotated, annotations }) => {
+            if (!photoOriginal) setPhotoOriginal(photoPreview);
+            setPhotoPreview(photoAnnotated);
+            setAnnotationData(annotations);
+            setShowAnnotationEditor(false);
+          }}
+          onClose={() => setShowAnnotationEditor(false)}
+        />
       )}
 
       {/* Photo lightbox */}

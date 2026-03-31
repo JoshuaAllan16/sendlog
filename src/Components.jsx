@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 import { useTheme } from "./theme.js";
 import { CLIMB_COLORS, getGradeColor, formatDuration, formatRestSec } from "./constants.js";
 
@@ -607,6 +607,252 @@ export const ActiveClimbCard = ({ climb, onEdit, onStartClimbing, onEndAttempt, 
             )}
           </div>
         )}
+      </div>
+    </div>
+  );
+};
+
+// §IMAGE_ANNOTATION_EDITOR
+export const ImageAnnotationEditor = ({ photoSrc, holdColorHex = "#ffffff", initialAnnotations, onSave, onClose }) => {
+  const canvasRef = useRef(null);
+  const containerRef = useRef(null);
+  const imgRef = useRef(null);
+  const [mode, setMode] = useState("circles"); // "circles" | "brush"
+  const [circleSubMode, setCircleSubMode] = useState("add"); // "add" | "edit"
+  const [circles, setCircles] = useState(initialAnnotations?.circles || []);
+  const [strokes, setStrokes] = useState(initialAnnotations?.strokes || []);
+  const [selectedId, setSelectedId] = useState(null);
+  const draggingRef = useRef(null);
+  const currentStrokeRef = useRef(null);
+  const [history, setHistory] = useState([]);
+  const [imgLoaded, setImgLoaded] = useState(false);
+  const [canvasW, setCanvasW] = useState(0);
+  const [canvasH, setCanvasH] = useState(0);
+  const circlesRef = useRef(circles);
+  const strokesRef = useRef(strokes);
+  const selectedIdRef = useRef(selectedId);
+  const circleSubModeRef = useRef(circleSubMode);
+  useEffect(() => { circlesRef.current = circles; }, [circles]);
+  useEffect(() => { strokesRef.current = strokes; }, [strokes]);
+  useEffect(() => { selectedIdRef.current = selectedId; }, [selectedId]);
+  useEffect(() => { circleSubModeRef.current = circleSubMode; }, [circleSubMode]);
+
+  useEffect(() => {
+    const img = new Image();
+    img.onload = () => { imgRef.current = img; setImgLoaded(true); };
+    img.src = photoSrc;
+  }, [photoSrc]);
+
+  useEffect(() => {
+    if (!containerRef.current) return;
+    const obs = new ResizeObserver(entries => {
+      const r = entries[0].contentRect;
+      setCanvasW(r.width); setCanvasH(r.height);
+    });
+    obs.observe(containerRef.current);
+    return () => obs.disconnect();
+  }, []);
+
+  const getImgRect = () => {
+    const img = imgRef.current;
+    if (!img || !canvasW || !canvasH) return { ix: 0, iy: 0, iw: 0, ih: 0 };
+    const scale = Math.min(canvasW / img.width, canvasH / img.height);
+    const iw = img.width * scale, ih = img.height * scale;
+    return { ix: (canvasW - iw) / 2, iy: (canvasH - ih) / 2, iw, ih };
+  };
+
+  const renderCanvas = (cList, sList, curStroke, selId, subMode) => {
+    const canvas = canvasRef.current;
+    if (!canvas || !imgRef.current || !canvasW || !canvasH) return;
+    canvas.width = canvasW; canvas.height = canvasH;
+    const ctx = canvas.getContext("2d");
+    const img = imgRef.current;
+    const { ix, iy, iw, ih } = getImgRect();
+    const allStrokes = curStroke ? [...sList, curStroke] : sList;
+    ctx.clearRect(0, 0, canvasW, canvasH);
+    ctx.drawImage(img, ix, iy, iw, ih);
+    if (allStrokes.length > 0) {
+      const off = document.createElement("canvas");
+      off.width = canvasW; off.height = canvasH;
+      const octx = off.getContext("2d");
+      octx.filter = "grayscale(1) brightness(0.5)";
+      octx.drawImage(img, ix, iy, iw, ih);
+      octx.filter = "none";
+      octx.globalCompositeOperation = "destination-out";
+      allStrokes.forEach(stroke => {
+        if (!stroke.points.length) return;
+        octx.beginPath();
+        octx.moveTo(stroke.points[0].x, stroke.points[0].y);
+        stroke.points.forEach((p, i) => { if (i > 0) octx.lineTo(p.x, p.y); });
+        octx.lineWidth = stroke.width; octx.lineCap = "round"; octx.lineJoin = "round";
+        octx.strokeStyle = "rgba(0,0,0,1)"; octx.stroke();
+      });
+      ctx.drawImage(off, 0, 0);
+    }
+    cList.forEach(c => {
+      const cx = ix + c.cx * iw, cy = iy + c.cy * ih, r = c.r * Math.min(iw, ih);
+      const isSel = c.id === selId;
+      ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2);
+      ctx.strokeStyle = holdColorHex; ctx.lineWidth = isSel ? 4 : 3; ctx.stroke();
+      ctx.fillStyle = holdColorHex + "33"; ctx.fill();
+      if (isSel && subMode === "edit") {
+        ctx.beginPath(); ctx.arc(cx + r, cy, 9, 0, Math.PI * 2);
+        ctx.fillStyle = holdColorHex; ctx.fill();
+        ctx.strokeStyle = "#00000088"; ctx.lineWidth = 1.5; ctx.stroke();
+      }
+    });
+  };
+
+  useEffect(() => {
+    renderCanvas(circles, strokes, null, selectedId, circleSubMode);
+  }, [imgLoaded, canvasW, canvasH, circles, strokes, selectedId, holdColorHex, circleSubMode]);
+
+  const getPt = (e) => {
+    const rect = canvasRef.current.getBoundingClientRect();
+    const src = e.touches ? e.touches[0] : e;
+    return { x: src.clientX - rect.left, y: src.clientY - rect.top };
+  };
+
+  const hitTest = (pt) => {
+    const { ix, iy, iw, ih } = getImgRect();
+    for (const c of [...circlesRef.current].reverse()) {
+      const cx = ix + c.cx * iw, cy = iy + c.cy * ih, r = c.r * Math.min(iw, ih);
+      if (Math.hypot(pt.x - (cx + r), pt.y - cy) < 18) return { hit: "resize", c };
+      if (Math.hypot(pt.x - cx, pt.y - cy) < r + 18) return { hit: "move", c };
+    }
+    return null;
+  };
+
+  const onPtrDown = (e) => {
+    e.preventDefault();
+    const pt = getPt(e);
+    if (mode === "brush") {
+      currentStrokeRef.current = { id: Date.now(), points: [pt], width: 46 };
+      renderCanvas(circlesRef.current, strokesRef.current, currentStrokeRef.current, selectedIdRef.current, circleSubModeRef.current);
+    } else if (circleSubMode === "add") {
+      const { ix, iy, iw, ih } = getImgRect();
+      const id = Date.now();
+      const nc = { id, cx: (pt.x - ix) / iw, cy: (pt.y - iy) / ih, r: 0.09 };
+      const next = [...circlesRef.current, nc];
+      circlesRef.current = next; setCircles(next);
+      setHistory(h => [...h, { type: "circle", id }]);
+      selectedIdRef.current = id; setSelectedId(id);
+      renderCanvas(next, strokesRef.current, null, id, circleSubModeRef.current);
+    } else {
+      const h = hitTest(pt);
+      if (h) {
+        const { ix, iy, iw, ih } = getImgRect();
+        draggingRef.current = { ...h, startX: pt.x, startY: pt.y, origCx: h.c.cx, origCy: h.c.cy, origR: h.c.r, ix, iy, iw, ih };
+        selectedIdRef.current = h.c.id; setSelectedId(h.c.id);
+      } else {
+        selectedIdRef.current = null; setSelectedId(null);
+      }
+    }
+  };
+
+  const onPtrMove = (e) => {
+    e.preventDefault();
+    const pt = getPt(e);
+    if (mode === "brush" && currentStrokeRef.current) {
+      currentStrokeRef.current = { ...currentStrokeRef.current, points: [...currentStrokeRef.current.points, pt] };
+      renderCanvas(circlesRef.current, strokesRef.current, currentStrokeRef.current, selectedIdRef.current, circleSubModeRef.current);
+    } else if (draggingRef.current) {
+      const d = draggingRef.current;
+      let next;
+      if (d.hit === "move") {
+        const dx = (pt.x - d.startX) / d.iw, dy = (pt.y - d.startY) / d.ih;
+        next = circlesRef.current.map(c => c.id === d.c.id ? { ...c, cx: d.origCx + dx, cy: d.origCy + dy } : c);
+      } else {
+        const dist = Math.hypot(pt.x - (d.ix + d.origCx * d.iw), pt.y - (d.iy + d.origCy * d.ih));
+        next = circlesRef.current.map(c => c.id === d.c.id ? { ...c, r: Math.max(0.03, dist / Math.min(d.iw, d.ih)) } : c);
+      }
+      circlesRef.current = next;
+      renderCanvas(next, strokesRef.current, null, selectedIdRef.current, circleSubModeRef.current);
+    }
+  };
+
+  const onPtrUp = () => {
+    if (mode === "brush" && currentStrokeRef.current) {
+      if (currentStrokeRef.current.points.length > 1) {
+        const next = [...strokesRef.current, currentStrokeRef.current];
+        strokesRef.current = next; setStrokes(next);
+        setHistory(h => [...h, { type: "stroke", id: currentStrokeRef.current.id }]);
+      }
+      currentStrokeRef.current = null;
+    } else if (draggingRef.current) {
+      setCircles([...circlesRef.current]);
+      draggingRef.current = null;
+    }
+    renderCanvas(circlesRef.current, strokesRef.current, null, selectedIdRef.current, circleSubModeRef.current);
+  };
+
+  const undo = () => {
+    setHistory(h => {
+      if (!h.length) return h;
+      const last = h[h.length - 1];
+      if (last.type === "circle") {
+        const next = circlesRef.current.filter(c => c.id !== last.id);
+        circlesRef.current = next; setCircles(next);
+        if (selectedIdRef.current === last.id) { selectedIdRef.current = null; setSelectedId(null); }
+      } else {
+        const next = strokesRef.current.filter(s => s.id !== last.id);
+        strokesRef.current = next; setStrokes(next);
+      }
+      renderCanvas(circlesRef.current, strokesRef.current, null, selectedIdRef.current, circleSubModeRef.current);
+      return h.slice(0, -1);
+    });
+  };
+
+  const deleteSelected = () => {
+    const next = circlesRef.current.filter(c => c.id !== selectedIdRef.current);
+    circlesRef.current = next; setCircles(next);
+    setHistory(h => h.filter(x => x.id !== selectedIdRef.current));
+    selectedIdRef.current = null; setSelectedId(null);
+    renderCanvas(next, strokesRef.current, null, null, circleSubModeRef.current);
+  };
+
+  const save = () => {
+    renderCanvas(circlesRef.current, strokesRef.current, null, null, "add");
+    setTimeout(() => {
+      const dataUrl = canvasRef.current.toDataURL("image/jpeg", 0.88);
+      onSave({ photoAnnotated: dataUrl, annotations: { circles: circlesRef.current, strokes: strokesRef.current } });
+    }, 50);
+  };
+
+  const btn = (active, color) => ({
+    flex: 1, padding: "10px 0", borderRadius: 10, fontWeight: 800, fontSize: 13, cursor: "pointer",
+    border: `2px solid ${active ? color : "#444"}`, background: active ? color + "22" : "none", color: active ? color : "#888",
+  });
+
+  return (
+    <div style={{ position: "fixed", inset: 0, zIndex: 9000, background: "#000", display: "flex", flexDirection: "column" }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 14px", background: "#111", flexShrink: 0 }}>
+        <button onClick={onClose} style={{ padding: "7px 14px", borderRadius: 9, border: "1.5px solid #444", background: "none", color: "#aaa", fontWeight: 700, fontSize: 13, cursor: "pointer" }}>Cancel</button>
+        <span style={{ color: "#fff", fontWeight: 800, fontSize: 14 }}>Hold Identifiers</span>
+        <button onClick={save} style={{ padding: "7px 14px", borderRadius: 9, border: `1.5px solid ${holdColorHex}`, background: holdColorHex + "22", color: holdColorHex, fontWeight: 800, fontSize: 13, cursor: "pointer" }}>Save</button>
+      </div>
+      <div ref={containerRef} style={{ flex: 1, position: "relative", overflow: "hidden", background: "#111" }}>
+        <canvas ref={canvasRef} style={{ position: "absolute", inset: 0, touchAction: "none", cursor: mode === "brush" ? "crosshair" : "default" }}
+          onPointerDown={onPtrDown} onPointerMove={onPtrMove} onPointerUp={onPtrUp} onPointerLeave={onPtrUp} />
+      </div>
+      <div style={{ background: "#111", padding: "10px 14px 20px", flexShrink: 0 }}>
+        <div style={{ display: "flex", gap: 8, marginBottom: 10 }}>
+          <button onClick={() => setMode("circles")} style={btn(mode === "circles", holdColorHex)}>⬤ Hold Circles</button>
+          <button onClick={() => setMode("brush")} style={btn(mode === "brush", "#fff")}>🖌 Highlight</button>
+        </div>
+        {mode === "circles" && (
+          <div style={{ display: "flex", gap: 8, marginBottom: 10 }}>
+            <button onClick={() => setCircleSubMode("add")} style={{ ...btn(circleSubMode === "add", holdColorHex), fontSize: 12 }}>+ Add</button>
+            <button onClick={() => setCircleSubMode("edit")} style={{ ...btn(circleSubMode === "edit", "#fff"), fontSize: 12 }}>✎ Move / Resize</button>
+            {selectedId && circleSubMode === "edit" && (
+              <button onClick={deleteSelected} style={{ ...btn(true, "#ef4444"), fontSize: 12 }}>✕ Delete</button>
+            )}
+          </div>
+        )}
+        <button onClick={undo} disabled={!history.length}
+          style={{ width: "100%", padding: "9px", borderRadius: 10, border: `1.5px solid ${history.length ? "#555" : "#333"}`, background: "none", color: history.length ? "#ccc" : "#444", fontWeight: 700, fontSize: 13, cursor: history.length ? "pointer" : "default" }}>
+          ↩ Undo
+        </button>
       </div>
     </div>
   );
