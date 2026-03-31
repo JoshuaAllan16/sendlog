@@ -632,10 +632,12 @@ export const ImageAnnotationEditor = ({ photoSrc, holdColorHex = "#ffffff", init
   const strokesRef = useRef(strokes);
   const selectedIdRef = useRef(selectedId);
   const circleSubModeRef = useRef(circleSubMode);
+  const modeRef = useRef(mode);
   useEffect(() => { circlesRef.current = circles; }, [circles]);
   useEffect(() => { strokesRef.current = strokes; }, [strokes]);
   useEffect(() => { selectedIdRef.current = selectedId; }, [selectedId]);
   useEffect(() => { circleSubModeRef.current = circleSubMode; }, [circleSubMode]);
+  useEffect(() => { modeRef.current = mode; }, [mode]);
 
   useEffect(() => {
     const img = new Image();
@@ -661,7 +663,7 @@ export const ImageAnnotationEditor = ({ photoSrc, holdColorHex = "#ffffff", init
     return { ix: (canvasW - iw) / 2, iy: (canvasH - ih) / 2, iw, ih };
   };
 
-  const renderCanvas = (cList, sList, curStroke, selId, subMode) => {
+  const renderCanvas = (cList, sList, curStroke, selId, subMode, curMode) => {
     const canvas = canvasRef.current;
     if (!canvas || !imgRef.current || !canvasW || !canvasH) return;
     canvas.width = canvasW; canvas.height = canvasH;
@@ -671,13 +673,16 @@ export const ImageAnnotationEditor = ({ photoSrc, holdColorHex = "#ffffff", init
     const allStrokes = curStroke ? [...sList, curStroke] : sList;
     ctx.clearRect(0, 0, canvasW, canvasH);
     ctx.drawImage(img, ix, iy, iw, ih);
-    if (allStrokes.length > 0) {
+    // In brush mode: grey overlay everywhere, punch holes where user has painted
+    const isBrushMode = curStroke !== undefined && (sList !== undefined);
+    if (isBrushMode && curMode === "brush") {
       const off = document.createElement("canvas");
       off.width = canvasW; off.height = canvasH;
       const octx = off.getContext("2d");
-      octx.filter = "grayscale(1) brightness(0.5)";
-      octx.drawImage(img, ix, iy, iw, ih);
-      octx.filter = "none";
+      // Grey overlay covers the whole canvas
+      octx.fillStyle = "rgba(30,30,30,0.62)";
+      octx.fillRect(ix, iy, iw, ih);
+      // Punch holes where strokes are to reveal full colour beneath
       octx.globalCompositeOperation = "destination-out";
       allStrokes.forEach(stroke => {
         if (!stroke.points.length) return;
@@ -704,8 +709,8 @@ export const ImageAnnotationEditor = ({ photoSrc, holdColorHex = "#ffffff", init
   };
 
   useEffect(() => {
-    renderCanvas(circles, strokes, null, selectedId, circleSubMode);
-  }, [imgLoaded, canvasW, canvasH, circles, strokes, selectedId, holdColorHex, circleSubMode]);
+    renderCanvas(circles, strokes, null, selectedId, circleSubMode, mode);
+  }, [imgLoaded, canvasW, canvasH, circles, strokes, selectedId, holdColorHex, circleSubMode, mode]);
 
   const getPt = (e) => {
     const rect = canvasRef.current.getBoundingClientRect();
@@ -728,7 +733,7 @@ export const ImageAnnotationEditor = ({ photoSrc, holdColorHex = "#ffffff", init
     const pt = getPt(e);
     if (mode === "brush") {
       currentStrokeRef.current = { id: Date.now(), points: [pt], width: 46 };
-      renderCanvas(circlesRef.current, strokesRef.current, currentStrokeRef.current, selectedIdRef.current, circleSubModeRef.current);
+      renderCanvas(circlesRef.current, strokesRef.current, currentStrokeRef.current, selectedIdRef.current, circleSubModeRef.current, modeRef.current);
     } else if (circleSubMode === "add") {
       const { ix, iy, iw, ih } = getImgRect();
       const id = Date.now();
@@ -737,7 +742,7 @@ export const ImageAnnotationEditor = ({ photoSrc, holdColorHex = "#ffffff", init
       circlesRef.current = next; setCircles(next);
       setHistory(h => [...h, { type: "circle", id }]);
       selectedIdRef.current = id; setSelectedId(id);
-      renderCanvas(next, strokesRef.current, null, id, circleSubModeRef.current);
+      renderCanvas(next, strokesRef.current, null, id, circleSubModeRef.current, modeRef.current);
     } else {
       const h = hitTest(pt);
       if (h) {
@@ -755,7 +760,7 @@ export const ImageAnnotationEditor = ({ photoSrc, holdColorHex = "#ffffff", init
     const pt = getPt(e);
     if (mode === "brush" && currentStrokeRef.current) {
       currentStrokeRef.current = { ...currentStrokeRef.current, points: [...currentStrokeRef.current.points, pt] };
-      renderCanvas(circlesRef.current, strokesRef.current, currentStrokeRef.current, selectedIdRef.current, circleSubModeRef.current);
+      renderCanvas(circlesRef.current, strokesRef.current, currentStrokeRef.current, selectedIdRef.current, circleSubModeRef.current, modeRef.current);
     } else if (draggingRef.current) {
       const d = draggingRef.current;
       let next;
@@ -767,7 +772,7 @@ export const ImageAnnotationEditor = ({ photoSrc, holdColorHex = "#ffffff", init
         next = circlesRef.current.map(c => c.id === d.c.id ? { ...c, r: Math.max(0.03, dist / Math.min(d.iw, d.ih)) } : c);
       }
       circlesRef.current = next;
-      renderCanvas(next, strokesRef.current, null, selectedIdRef.current, circleSubModeRef.current);
+      renderCanvas(next, strokesRef.current, null, selectedIdRef.current, circleSubModeRef.current, modeRef.current);
     }
   };
 
@@ -783,7 +788,7 @@ export const ImageAnnotationEditor = ({ photoSrc, holdColorHex = "#ffffff", init
       setCircles([...circlesRef.current]);
       draggingRef.current = null;
     }
-    renderCanvas(circlesRef.current, strokesRef.current, null, selectedIdRef.current, circleSubModeRef.current);
+    renderCanvas(circlesRef.current, strokesRef.current, null, selectedIdRef.current, circleSubModeRef.current, modeRef.current);
   };
 
   const undo = () => {
@@ -798,7 +803,7 @@ export const ImageAnnotationEditor = ({ photoSrc, holdColorHex = "#ffffff", init
         const next = strokesRef.current.filter(s => s.id !== last.id);
         strokesRef.current = next; setStrokes(next);
       }
-      renderCanvas(circlesRef.current, strokesRef.current, null, selectedIdRef.current, circleSubModeRef.current);
+      renderCanvas(circlesRef.current, strokesRef.current, null, selectedIdRef.current, circleSubModeRef.current, modeRef.current);
       return h.slice(0, -1);
     });
   };
@@ -808,11 +813,11 @@ export const ImageAnnotationEditor = ({ photoSrc, holdColorHex = "#ffffff", init
     circlesRef.current = next; setCircles(next);
     setHistory(h => h.filter(x => x.id !== selectedIdRef.current));
     selectedIdRef.current = null; setSelectedId(null);
-    renderCanvas(next, strokesRef.current, null, null, circleSubModeRef.current);
+    renderCanvas(next, strokesRef.current, null, null, circleSubModeRef.current, modeRef.current);
   };
 
   const save = () => {
-    renderCanvas(circlesRef.current, strokesRef.current, null, null, "add");
+    renderCanvas(circlesRef.current, strokesRef.current, null, null, "add", "circles");
     setTimeout(() => {
       const dataUrl = canvasRef.current.toDataURL("image/jpeg", 0.88);
       onSave({ photoAnnotated: dataUrl, annotations: { circles: circlesRef.current, strokes: strokesRef.current } });
