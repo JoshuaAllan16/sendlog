@@ -554,6 +554,19 @@ export default function App() {
   const [commentLoading, setCommentLoading]       = useState(false);
   const [commentPanelOwner, setCommentPanelOwner] = useState(null); // username of session owner
 
+  // §GYM STATE
+  const [gymsIndex, setGymsIndex]             = useState(null);
+  const [gymsLoading, setGymsLoading]         = useState(false);
+  const [publicGym, setPublicGym]             = useState(null);
+  const [gymLog, setGymLog]                   = useState([]);
+  const [gymTab, setGymTab]                   = useState("set");
+  const [gymLogModal, setGymLogModal]         = useState(null);
+  const [gymAddClimbOpen, setGymAddClimbOpen] = useState(false);
+  const [gymEditClimb, setGymEditClimb]       = useState(null);
+  const [gymAddGymOpen, setGymAddGymOpen]     = useState(false);
+  const [gymClimbForm, setGymClimbForm]       = useState({ name: "", grade: "V3", scale: "V-Scale", color: "#3b82f6", wallTypes: [], holdTypes: [] });
+  const [gymForm, setGymForm]                 = useState({ name: "", location: "" });
+
   // §EFFECTS
   // Prevent background scroll when any full-screen popup is open
   useEffect(() => {
@@ -7798,11 +7811,391 @@ export default function App() {
     );
   };
 
+  // §GYM_FUNCTIONS
+  const goToGyms = async () => {
+    setScreen("gyms");
+    setGymsLoading(true);
+    try {
+      const data = await storage.get("gyms:index");
+      setGymsIndex(data ? JSON.parse(data.value) : []);
+    } catch { setGymsIndex([]); }
+    finally { setGymsLoading(false); }
+  };
+
+  const openGym = async (gym) => {
+    setPublicGym(gym);
+    setGymTab("set");
+    setScreen("gymDetail");
+    try {
+      const [detailRes, logRes] = await Promise.all([
+        storage.get(`gym:${gym.id}`),
+        storage.get(`gymLog:${gym.id}`)
+      ]);
+      if (detailRes) setPublicGym(JSON.parse(detailRes.value));
+      setGymLog(logRes ? JSON.parse(logRes.value) : []);
+    } catch {}
+  };
+
+  const startEditGymClimb = (climb) => {
+    setGymEditClimb(climb);
+    setGymClimbForm({ name: climb.name, grade: climb.grade, scale: climb.scale || "V-Scale", color: climb.color || "#3b82f6", wallTypes: climb.wallTypes || [], holdTypes: climb.holdTypes || [] });
+    setGymAddClimbOpen(true);
+  };
+
+  const saveGymClimb = async () => {
+    const isEdit = !!gymEditClimb;
+    const climb = isEdit
+      ? { ...gymEditClimb, ...gymClimbForm }
+      : { ...gymClimbForm, id: Date.now(), setter: currentUser.username, setAt: new Date().toISOString(), active: true };
+    const updatedClimbs = isEdit
+      ? (publicGym.climbs || []).map(c => c.id === climb.id ? climb : c)
+      : [...(publicGym.climbs || []), climb];
+    const updated = { ...publicGym, climbs: updatedClimbs };
+    setPublicGym(updated);
+    await storage.set(`gym:${updated.id}`, JSON.stringify(updated));
+    const activeCount = updatedClimbs.filter(c => c.active).length;
+    const newIndex = (gymsIndex || []).map(g => g.id === updated.id ? { ...g, climbCount: activeCount } : g);
+    setGymsIndex(newIndex);
+    await storage.set("gyms:index", JSON.stringify(newIndex));
+    setGymAddClimbOpen(false);
+    setGymEditClimb(null);
+    setGymClimbForm({ name: "", grade: "V3", scale: "V-Scale", color: "#3b82f6", wallTypes: [], holdTypes: [] });
+  };
+
+  const retireGymClimb = async (climbId) => {
+    const updatedClimbs = (publicGym.climbs || []).map(c => c.id === climbId ? { ...c, active: false } : c);
+    const updated = { ...publicGym, climbs: updatedClimbs };
+    setPublicGym(updated);
+    await storage.set(`gym:${updated.id}`, JSON.stringify(updated));
+    const activeCount = updatedClimbs.filter(c => c.active).length;
+    const newIndex = (gymsIndex || []).map(g => g.id === updated.id ? { ...g, climbCount: activeCount } : g);
+    setGymsIndex(newIndex);
+    await storage.set("gyms:index", JSON.stringify(newIndex));
+  };
+
+  const logGymAttempt = async (climbId, result) => {
+    const entry = { id: Date.now(), username: currentUser.username, displayName: currentUser.profile?.displayName || currentUser.username, climbId, result, at: new Date().toISOString() };
+    const updated = [...gymLog, entry];
+    setGymLog(updated);
+    await storage.set(`gymLog:${publicGym.id}`, JSON.stringify(updated));
+    setGymLogModal(null);
+  };
+
+  const createGym = async () => {
+    const gym = { id: Date.now(), name: gymForm.name.trim(), location: gymForm.location.trim(), moderators: ["job"], climbs: [], climbCount: 0 };
+    const updated = [...(gymsIndex || []), gym];
+    setGymsIndex(updated);
+    await storage.set("gyms:index", JSON.stringify(updated));
+    await storage.set(`gym:${gym.id}`, JSON.stringify(gym));
+    setGymAddGymOpen(false);
+    setGymForm({ name: "", location: "" });
+  };
+
+  // §SCREEN_GYMS
+  const PublicGymsScreen = () => {
+    const isSuperMod = currentUser?.username === "job";
+    return (
+      <div style={{ minHeight: "100%", background: W.bg, paddingBottom: 60 }}>
+        <div style={{ padding: "calc(16px + env(safe-area-inset-top)) 20px 16px", background: W.surface, borderBottom: `1px solid ${W.border}` }}>
+          <div style={{ fontWeight: 900, fontSize: 22, color: W.text }}>Public Gyms</div>
+          <div style={{ fontSize: 13, color: W.textMuted, marginTop: 2 }}>Community-managed climbing gyms</div>
+        </div>
+        <div style={{ padding: 16 }}>
+          {gymsLoading && <div style={{ textAlign: "center", color: W.textMuted, padding: 40 }}>Loading...</div>}
+          {!gymsLoading && (gymsIndex || []).length === 0 && (
+            <div style={{ textAlign: "center", color: W.textMuted, padding: "48px 20px", fontSize: 14 }}>No gyms yet.</div>
+          )}
+          {(gymsIndex || []).map(gym => (
+            <div key={gym.id} onClick={() => openGym(gym)} style={{ background: W.surface, borderRadius: 16, padding: 16, marginBottom: 12, border: `1px solid ${W.border}`, cursor: "pointer", display: "flex", alignItems: "center", gap: 14 }}>
+              <div style={{ width: 48, height: 48, borderRadius: 14, background: W.accent + "22", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 24, flexShrink: 0 }}>🏟</div>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontWeight: 800, fontSize: 16, color: W.text }}>{gym.name}</div>
+                {gym.location && <div style={{ fontSize: 12, color: W.textMuted, marginTop: 2 }}>{gym.location}</div>}
+                <div style={{ fontSize: 12, color: W.textMuted, marginTop: 4 }}>{gym.climbCount || 0} active climb{gym.climbCount !== 1 ? "s" : ""}</div>
+              </div>
+              <span style={{ color: W.textMuted, fontSize: 20 }}>›</span>
+            </div>
+          ))}
+          {isSuperMod && (
+            <button onClick={() => setGymAddGymOpen(true)} style={{ width: "100%", padding: 14, background: W.accent, color: "#fff", border: "none", borderRadius: 14, fontWeight: 800, fontSize: 15, cursor: "pointer", marginTop: 4 }}>
+              + Add Gym
+            </button>
+          )}
+        </div>
+        {gymAddGymOpen && (
+          <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.6)", zIndex: 500, display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }} onClick={() => setGymAddGymOpen(false)}>
+            <div style={{ background: W.surface, borderRadius: 20, padding: 24, width: "100%", maxWidth: 380 }} onClick={e => e.stopPropagation()}>
+              <div style={{ fontWeight: 800, fontSize: 18, color: W.text, marginBottom: 20 }}>Add Gym</div>
+              <div style={{ marginBottom: 14 }}>
+                <div style={{ fontSize: 12, fontWeight: 700, color: W.textMuted, marginBottom: 6 }}>GYM NAME</div>
+                <input value={gymForm.name} onChange={e => setGymForm(f => ({ ...f, name: e.target.value }))} placeholder="e.g. The Climbing Works" style={{ width: "100%", padding: "10px 14px", background: W.surface2, border: `1px solid ${W.border}`, borderRadius: 10, color: W.text, fontSize: 15, boxSizing: "border-box" }} />
+              </div>
+              <div style={{ marginBottom: 20 }}>
+                <div style={{ fontSize: 12, fontWeight: 700, color: W.textMuted, marginBottom: 6 }}>LOCATION</div>
+                <input value={gymForm.location} onChange={e => setGymForm(f => ({ ...f, location: e.target.value }))} placeholder="e.g. Calgary, AB" style={{ width: "100%", padding: "10px 14px", background: W.surface2, border: `1px solid ${W.border}`, borderRadius: 10, color: W.text, fontSize: 15, boxSizing: "border-box" }} />
+              </div>
+              <div style={{ display: "flex", gap: 10 }}>
+                <button onClick={() => setGymAddGymOpen(false)} style={{ flex: 1, padding: 12, background: W.surface2, border: `1px solid ${W.border}`, borderRadius: 12, color: W.textMuted, fontWeight: 700, cursor: "pointer" }}>Cancel</button>
+                <button onClick={createGym} disabled={!gymForm.name.trim()} style={{ flex: 2, padding: 12, background: gymForm.name.trim() ? W.accent : W.surface2, color: gymForm.name.trim() ? "#fff" : W.textMuted, border: "none", borderRadius: 12, fontWeight: 800, fontSize: 15, cursor: gymForm.name.trim() ? "pointer" : "default" }}>Create</button>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  // §SCREEN_GYM_DETAIL
+  const GymDetailScreen = () => {
+    if (!publicGym) return null;
+    const isModerator = (publicGym.moderators || []).includes(currentUser?.username);
+    const activeClimbs = (publicGym.climbs || []).filter(c => c.active);
+    const today = new Date().toDateString();
+    const gradeList = GRADES[gymClimbForm.scale] || GRADES["V-Scale"];
+
+    // Per-climb stats
+    const climbStats = activeClimbs.map(climb => {
+      const logs = gymLog.filter(l => l.climbId === climb.id);
+      const todayLogs = logs.filter(l => new Date(l.at).toDateString() === today);
+      const myLogs = logs.filter(l => l.username === currentUser?.username);
+      const myBest = myLogs.some(l => l.result === "flash") ? "flash" : myLogs.some(l => l.result === "send") ? "send" : myLogs.length > 0 ? "attempt" : null;
+      return {
+        ...climb,
+        totalAttempts: logs.length,
+        totalSends: logs.filter(l => l.result === "send" || l.result === "flash").length,
+        totalFlashes: logs.filter(l => l.result === "flash").length,
+        todayAttempts: todayLogs.length,
+        todaySends: todayLogs.filter(l => l.result === "send" || l.result === "flash").length,
+        uniqueClimbers: new Set(logs.map(l => l.username)).size,
+        myBest,
+      };
+    });
+
+    const todayTotals = {
+      attempts: gymLog.filter(l => new Date(l.at).toDateString() === today).length,
+      sends: gymLog.filter(l => new Date(l.at).toDateString() === today && (l.result === "send" || l.result === "flash")).length,
+      flashes: gymLog.filter(l => new Date(l.at).toDateString() === today && l.result === "flash").length,
+      climbers: new Set(gymLog.filter(l => new Date(l.at).toDateString() === today).map(l => l.username)).size,
+    };
+
+    const allTimeTotals = {
+      attempts: gymLog.length,
+      sends: gymLog.filter(l => l.result === "send" || l.result === "flash").length,
+      flashes: gymLog.filter(l => l.result === "flash").length,
+      climbers: new Set(gymLog.map(l => l.username)).size,
+    };
+
+    const myLogsForModal = gymLogModal ? gymLog.filter(l => l.climbId === gymLogModal.id && l.username === currentUser?.username).slice(-5).reverse() : [];
+
+    const resultColor = { attempt: W.textMuted, send: "#22c55e", flash: "#f59e0b" };
+    const resultLabel = { attempt: "Attempt", send: "Send", flash: "Flash" };
+
+    return (
+      <div style={{ minHeight: "100%", background: W.bg, paddingBottom: 60 }}>
+        {/* Header */}
+        <div style={{ padding: "calc(16px + env(safe-area-inset-top)) 20px 0", background: W.surface, borderBottom: `1px solid ${W.border}` }}>
+          <div style={{ fontWeight: 900, fontSize: 20, color: W.text }}>{publicGym.name}</div>
+          {publicGym.location && <div style={{ fontSize: 13, color: W.textMuted, marginTop: 2 }}>{publicGym.location}</div>}
+          {isModerator && <div style={{ display: "inline-flex", alignItems: "center", gap: 4, marginTop: 6, background: W.accent + "22", borderRadius: 8, padding: "2px 8px" }}><span style={{ fontSize: 10, fontWeight: 800, color: W.accent }}>MODERATOR</span></div>}
+          {/* Tabs */}
+          <div style={{ display: "flex", gap: 0, marginTop: 14 }}>
+            {["set", ...(isModerator ? ["stats"] : [])].map(t => (
+              <button key={t} onClick={() => setGymTab(t)} style={{ flex: 1, padding: "10px 0", background: "none", border: "none", borderBottom: `3px solid ${gymTab === t ? W.accent : "transparent"}`, color: gymTab === t ? W.accent : W.textMuted, fontWeight: gymTab === t ? 800 : 600, fontSize: 14, cursor: "pointer", textTransform: "capitalize" }}>
+                {t === "set" ? "Current Set" : "Stats"}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Set tab */}
+        {gymTab === "set" && (
+          <div style={{ padding: 16 }}>
+            {activeClimbs.length === 0 && (
+              <div style={{ textAlign: "center", color: W.textMuted, padding: "48px 20px", fontSize: 14 }}>No climbs in the current set.</div>
+            )}
+            {climbStats.map(climb => (
+              <div key={climb.id} style={{ background: W.surface, borderRadius: 16, padding: "14px 16px", marginBottom: 10, border: `1px solid ${W.border}`, display: "flex", alignItems: "center", gap: 12 }}>
+                <div style={{ width: 36, height: 36, borderRadius: 10, background: climb.color || "#3b82f6", flexShrink: 0, border: "2px solid rgba(255,255,255,0.2)" }} />
+                <div style={{ flex: 1, minWidth: 0 }} onClick={() => setGymLogModal(climb)}>
+                  <div style={{ fontWeight: 800, fontSize: 15, color: W.text }}>{climb.name || climb.grade}</div>
+                  <div style={{ fontSize: 12, color: W.textMuted, marginTop: 2 }}>
+                    {climb.grade}{climb.wallTypes?.length ? " · " + climb.wallTypes.join(", ") : ""}
+                  </div>
+                  {climb.myBest && (
+                    <div style={{ fontSize: 11, fontWeight: 700, color: resultColor[climb.myBest], marginTop: 3 }}>
+                      My best: {resultLabel[climb.myBest]}
+                    </div>
+                  )}
+                </div>
+                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                  <button onClick={() => setGymLogModal(climb)} style={{ padding: "6px 14px", background: W.accent, color: "#fff", border: "none", borderRadius: 10, fontWeight: 800, fontSize: 13, cursor: "pointer" }}>Log</button>
+                  {isModerator && (
+                    <>
+                      <button onClick={() => startEditGymClimb(climb)} style={{ padding: "6px 10px", background: W.surface2, border: `1px solid ${W.border}`, borderRadius: 10, color: W.textMuted, fontSize: 13, cursor: "pointer" }}>✏️</button>
+                      <button onClick={() => retireGymClimb(climb.id)} style={{ padding: "6px 10px", background: W.surface2, border: `1px solid ${W.border}`, borderRadius: 10, color: W.textMuted, fontSize: 13, cursor: "pointer" }}>🗑</button>
+                    </>
+                  )}
+                </div>
+              </div>
+            ))}
+            {isModerator && (
+              <button onClick={() => { setGymEditClimb(null); setGymClimbForm({ name: "", grade: "V3", scale: "V-Scale", color: "#3b82f6", wallTypes: [], holdTypes: [] }); setGymAddClimbOpen(true); }} style={{ width: "100%", padding: 14, background: W.accent, color: "#fff", border: "none", borderRadius: 14, fontWeight: 800, fontSize: 15, cursor: "pointer", marginTop: 4 }}>
+                + Add Climb
+              </button>
+            )}
+          </div>
+        )}
+
+        {/* Stats tab */}
+        {gymTab === "stats" && isModerator && (
+          <div style={{ padding: 16 }}>
+            {/* Today summary */}
+            <div style={{ background: W.surface, borderRadius: 16, padding: 16, marginBottom: 16, border: `1px solid ${W.border}` }}>
+              <div style={{ fontWeight: 800, fontSize: 14, color: W.textMuted, marginBottom: 12 }}>TODAY</div>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+                {[["Attempts", todayTotals.attempts], ["Sends", todayTotals.sends], ["Flashes", todayTotals.flashes], ["Climbers", todayTotals.climbers]].map(([label, val]) => (
+                  <div key={label} style={{ background: W.surface2, borderRadius: 12, padding: "12px 14px" }}>
+                    <div style={{ fontSize: 24, fontWeight: 900, color: W.text }}>{val}</div>
+                    <div style={{ fontSize: 12, color: W.textMuted, marginTop: 2 }}>{label}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+            {/* All time summary */}
+            <div style={{ background: W.surface, borderRadius: 16, padding: 16, marginBottom: 16, border: `1px solid ${W.border}` }}>
+              <div style={{ fontWeight: 800, fontSize: 14, color: W.textMuted, marginBottom: 12 }}>ALL TIME</div>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+                {[["Attempts", allTimeTotals.attempts], ["Sends", allTimeTotals.sends], ["Flashes", allTimeTotals.flashes], ["Unique Climbers", allTimeTotals.climbers]].map(([label, val]) => (
+                  <div key={label} style={{ background: W.surface2, borderRadius: 12, padding: "12px 14px" }}>
+                    <div style={{ fontSize: 24, fontWeight: 900, color: W.text }}>{val}</div>
+                    <div style={{ fontSize: 12, color: W.textMuted, marginTop: 2 }}>{label}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+            {/* Per-climb breakdown */}
+            <div style={{ fontWeight: 800, fontSize: 15, color: W.text, marginBottom: 10 }}>Per Climb</div>
+            {climbStats.length === 0 && <div style={{ color: W.textMuted, fontSize: 13 }}>No climbs in set.</div>}
+            {climbStats.map(climb => (
+              <div key={climb.id} style={{ background: W.surface, borderRadius: 14, padding: "12px 14px", marginBottom: 8, border: `1px solid ${W.border}` }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10 }}>
+                  <div style={{ width: 28, height: 28, borderRadius: 8, background: climb.color || "#3b82f6", flexShrink: 0 }} />
+                  <div>
+                    <div style={{ fontWeight: 800, fontSize: 14, color: W.text }}>{climb.name || climb.grade}</div>
+                    <div style={{ fontSize: 11, color: W.textMuted }}>{climb.grade}</div>
+                  </div>
+                </div>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: 6 }}>
+                  {[["Attempts", climb.totalAttempts], ["Sends", climb.totalSends], ["Flashes", climb.totalFlashes], ["Climbers", climb.uniqueClimbers]].map(([label, val]) => (
+                    <div key={label} style={{ background: W.surface2, borderRadius: 8, padding: "8px 6px", textAlign: "center" }}>
+                      <div style={{ fontSize: 18, fontWeight: 900, color: W.text }}>{val}</div>
+                      <div style={{ fontSize: 10, color: W.textMuted }}>{label}</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* Log attempt modal */}
+        {gymLogModal && (
+          <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.6)", zIndex: 500, display: "flex", alignItems: "flex-end", justifyContent: "center" }} onClick={() => setGymLogModal(null)}>
+            <div style={{ background: W.surface, borderRadius: "20px 20px 0 0", padding: "20px 20px", paddingBottom: "calc(20px + env(safe-area-inset-bottom))", width: "100%", maxWidth: 420 }} onClick={e => e.stopPropagation()}>
+              <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 20 }}>
+                <div style={{ width: 40, height: 40, borderRadius: 12, background: gymLogModal.color || "#3b82f6", flexShrink: 0 }} />
+                <div>
+                  <div style={{ fontWeight: 800, fontSize: 17, color: W.text }}>{gymLogModal.name || gymLogModal.grade}</div>
+                  <div style={{ fontSize: 13, color: W.textMuted }}>{gymLogModal.grade}{gymLogModal.wallTypes?.length ? " · " + gymLogModal.wallTypes.join(", ") : ""}</div>
+                </div>
+              </div>
+              {myLogsForModal.length > 0 && (
+                <div style={{ marginBottom: 16 }}>
+                  <div style={{ fontSize: 12, fontWeight: 700, color: W.textMuted, marginBottom: 8 }}>YOUR RECENT ATTEMPTS</div>
+                  {myLogsForModal.map(l => (
+                    <div key={l.id} style={{ display: "flex", justifyContent: "space-between", fontSize: 13, color: W.textMuted, padding: "4px 0", borderBottom: `1px solid ${W.border}` }}>
+                      <span style={{ fontWeight: 700, color: resultColor[l.result] }}>{resultLabel[l.result]}</span>
+                      <span>{new Date(l.at).toLocaleDateString("en-US", { month: "short", day: "numeric" })}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+              <div style={{ fontWeight: 700, fontSize: 13, color: W.textMuted, marginBottom: 10 }}>LOG RESULT</div>
+              <div style={{ display: "flex", gap: 10 }}>
+                {[["attempt", "Attempt", W.surface2, W.text], ["send", "Send", "#22c55e22", "#22c55e"], ["flash", "Flash", "#f59e0b22", "#f59e0b"]].map(([result, label, bg, color]) => (
+                  <button key={result} onClick={() => logGymAttempt(gymLogModal.id, result)} style={{ flex: 1, padding: "14px 0", background: bg, border: `2px solid ${color}`, borderRadius: 14, color, fontWeight: 800, fontSize: 15, cursor: "pointer" }}>
+                    {label}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Add/Edit climb modal */}
+        {gymAddClimbOpen && (
+          <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.6)", zIndex: 500, display: "flex", alignItems: "flex-end", justifyContent: "center" }} onClick={() => { setGymAddClimbOpen(false); setGymEditClimb(null); }}>
+            <div style={{ background: W.surface, borderRadius: "20px 20px 0 0", padding: "20px 20px", paddingBottom: "calc(20px + env(safe-area-inset-bottom))", width: "100%", maxWidth: 420, maxHeight: "85vh", overflowY: "auto" }} onClick={e => e.stopPropagation()}>
+              <div style={{ fontWeight: 800, fontSize: 18, color: W.text, marginBottom: 20 }}>{gymEditClimb ? "Edit Climb" : "Add Climb"}</div>
+              {/* Name */}
+              <div style={{ marginBottom: 16 }}>
+                <div style={{ fontSize: 12, fontWeight: 700, color: W.textMuted, marginBottom: 6 }}>NAME (optional)</div>
+                <input value={gymClimbForm.name} onChange={e => setGymClimbForm(f => ({ ...f, name: e.target.value }))} placeholder="e.g. The Crimpy Roof" style={{ width: "100%", padding: "10px 14px", background: W.surface2, border: `1px solid ${W.border}`, borderRadius: 10, color: W.text, fontSize: 15, boxSizing: "border-box" }} />
+              </div>
+              {/* Grade */}
+              <div style={{ marginBottom: 16 }}>
+                <div style={{ fontSize: 12, fontWeight: 700, color: W.textMuted, marginBottom: 6 }}>GRADE</div>
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+                  {gradeList.map(g => (
+                    <button key={g} onClick={() => setGymClimbForm(f => ({ ...f, grade: g }))} style={{ padding: "6px 12px", borderRadius: 8, border: `2px solid ${gymClimbForm.grade === g ? W.accent : W.border}`, background: gymClimbForm.grade === g ? W.accent + "22" : W.surface2, color: gymClimbForm.grade === g ? W.accent : W.text, fontWeight: 700, fontSize: 13, cursor: "pointer" }}>{g}</button>
+                  ))}
+                </div>
+              </div>
+              {/* Color */}
+              <div style={{ marginBottom: 16 }}>
+                <div style={{ fontSize: 12, fontWeight: 700, color: W.textMuted, marginBottom: 6 }}>HOLD COLOR</div>
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+                  {CLIMB_COLORS.map(c => (
+                    <div key={c.id} onClick={() => setGymClimbForm(f => ({ ...f, color: c.hex }))} style={{ width: 34, height: 34, borderRadius: 10, background: c.hex, border: `3px solid ${gymClimbForm.color === c.hex ? W.accent : "transparent"}`, cursor: "pointer", boxShadow: c.hex === "#ffffff" ? `0 0 0 1px ${W.border}` : "none" }} />
+                  ))}
+                </div>
+              </div>
+              {/* Wall types */}
+              <div style={{ marginBottom: 16 }}>
+                <div style={{ fontSize: 12, fontWeight: 700, color: W.textMuted, marginBottom: 6 }}>WALL TYPE</div>
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+                  {WALL_TYPES.map(wt => {
+                    const sel = (gymClimbForm.wallTypes || []).includes(wt);
+                    return <button key={wt} onClick={() => setGymClimbForm(f => ({ ...f, wallTypes: sel ? f.wallTypes.filter(x => x !== wt) : [...(f.wallTypes || []), wt] }))} style={{ padding: "6px 12px", borderRadius: 8, border: `2px solid ${sel ? W.accent : W.border}`, background: sel ? W.accent + "22" : W.surface2, color: sel ? W.accent : W.text, fontWeight: 700, fontSize: 13, cursor: "pointer" }}>{wt}</button>;
+                  })}
+                </div>
+              </div>
+              {/* Hold types */}
+              <div style={{ marginBottom: 20 }}>
+                <div style={{ fontSize: 12, fontWeight: 700, color: W.textMuted, marginBottom: 6 }}>HOLD TYPE</div>
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+                  {HOLD_TYPES.map(ht => {
+                    const sel = (gymClimbForm.holdTypes || []).includes(ht);
+                    return <button key={ht} onClick={() => setGymClimbForm(f => ({ ...f, holdTypes: sel ? f.holdTypes.filter(x => x !== ht) : [...(f.holdTypes || []), ht] }))} style={{ padding: "6px 12px", borderRadius: 8, border: `2px solid ${sel ? W.accent : W.border}`, background: sel ? W.accent + "22" : W.surface2, color: sel ? W.accent : W.text, fontWeight: 700, fontSize: 13, cursor: "pointer" }}>{ht}</button>;
+                  })}
+                </div>
+              </div>
+              <div style={{ display: "flex", gap: 10 }}>
+                <button onClick={() => { setGymAddClimbOpen(false); setGymEditClimb(null); }} style={{ flex: 1, padding: 13, background: W.surface2, border: `1px solid ${W.border}`, borderRadius: 12, color: W.textMuted, fontWeight: 700, cursor: "pointer" }}>Cancel</button>
+                <button onClick={saveGymClimb} style={{ flex: 2, padding: 13, background: W.accent, color: "#fff", border: "none", borderRadius: 12, fontWeight: 800, fontSize: 15, cursor: "pointer" }}>{gymEditClimb ? "Save Changes" : "Add Climb"}</button>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  };
+
   screenRef.current = screen; // sync ref each render — no hook needed
   boulderAddModeRef.current = boulderAddMode;
 
   // §RENDER
-  const backMap  = { sessionDetail: sessionDetailBackTo, calendar: "profile", projectDetail: "profile", userProfile: userProfileBackTo, social: "profile", leaderboard: "profile" };
+  const backMap  = { sessionDetail: sessionDetailBackTo, calendar: "profile", projectDetail: "profile", userProfile: userProfileBackTo, social: "profile", leaderboard: "profile", gyms: "home", gymDetail: "gyms" };
   const navItems = [
     { id: "home",    label: "🏠", text: "Home" },
     { id: "session", label: "⏱", text: "Session", action: () => activeSession ? setScreen("session") : goToSessionSetup() },
@@ -8169,6 +8562,8 @@ export default function App() {
             setProfileTab={setProfileTab}
           />}
           {screen === "leaderboard"    && LeaderboardScreen()}
+          {screen === "gyms"           && PublicGymsScreen()}
+          {screen === "gymDetail"      && GymDetailScreen()}
           {screen === "sessionSummary" && sessionSummary && <SessionSummaryScreen
             session={sessionSummary}
             getSessionStats={getSessionStats}
@@ -8596,6 +8991,11 @@ export default function App() {
                 </span>
                 <span style={{ fontWeight: 700, fontSize: 15, color: W.text }}>Alerts</span>
                 {notifCount > 0 && <span style={{ marginLeft: "auto", background: W.accent, color: "#fff", borderRadius: 20, minWidth: 20, height: 20, fontSize: 11, fontWeight: 800, display: "inline-flex", alignItems: "center", justifyContent: "center", padding: "0 5px" }}>{notifCount}</span>}
+              </button>
+              {/* Public Gyms */}
+              <button onClick={() => { setShowSidebar(false); goToGyms(); }} style={{ width: "100%", display: "flex", alignItems: "center", gap: 14, padding: "14px 20px", background: "none", border: "none", cursor: "pointer", textAlign: "left" }}>
+                <span style={{ fontSize: 20 }}>🏟</span>
+                <span style={{ fontWeight: 700, fontSize: 15, color: W.text }}>Public Gyms</span>
               </button>
               {/* Leaderboard */}
               <button onClick={() => { setShowSidebar(false); goToLeaderboard(); }} style={{ width: "100%", display: "flex", alignItems: "center", gap: 14, padding: "14px 20px", background: "none", border: "none", cursor: "pointer", textAlign: "left" }}>
