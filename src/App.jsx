@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useMemo, Component, Fragment } from "react";
-import { createClient } from "@supabase/supabase-js";
+// Supabase removed — storage now points to self-hosted KV server
 import { ThemeCtx, THEMES } from "./theme.js";
 import { ColorDot, TagChips, LocationDropdown, SpeedSessionCard, BoulderRopeSessionCard, ActiveClimbCard, ImageAnnotationEditor } from "./Components.jsx";
 import { ProjectDetailScreen, SessionSummaryScreen } from "./Screens.jsx";
@@ -87,44 +87,41 @@ const FINGERBOARD_PRESETS = [
 // §STORAGE
 
 // ── STORAGE HELPERS ────────────────────────────────────────
-const supabase = createClient(
-  import.meta.env.VITE_SUPABASE_URL,
-  import.meta.env.VITE_SUPABASE_ANON_KEY
-);
+const KV_BASE = import.meta.env.VITE_KV_URL || "http://localhost:3001";
 
-// active:session stays in localStorage (it's device-specific — who is logged in on this browser)
-// everything else (accounts, user data) goes to Supabase
+// active:session stays in localStorage (device-specific — who is logged in on this browser)
+// everything else goes to the self-hosted KV server
 const storage = {
   get: async (key) => {
     if (key === "active:session") {
       const val = localStorage.getItem(key);
       return val ? { value: val } : null;
     }
-    const { data, error } = await supabase
-      .from("kv_store")
-      .select("value")
-      .eq("key", key)
-      .maybeSingle();
-    if (error) throw error;
-    return data || null;
+    const res = await fetch(`${KV_BASE}/kv/${encodeURIComponent(key)}`);
+    if (!res.ok) throw new Error(`KV GET failed: ${res.status}`);
+    return res.json();
   },
   set: async (key, value) => {
     if (key === "active:session") {
       localStorage.setItem(key, value);
       return;
     }
-    const { error } = await supabase
-      .from("kv_store")
-      .upsert({ key, value, updated_at: new Date().toISOString() });
-    if (error) throw error;
+    let parsed;
+    try { parsed = JSON.parse(value); } catch { parsed = value; }
+    const res = await fetch(`${KV_BASE}/kv/${encodeURIComponent(key)}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(parsed),
+    });
+    if (!res.ok) throw new Error(`KV SET failed: ${res.status}`);
   },
   delete: async (key) => {
     if (key === "active:session") {
       localStorage.removeItem(key);
       return;
     }
-    const { error } = await supabase.from("kv_store").delete().eq("key", key);
-    if (error) throw error;
+    const res = await fetch(`${KV_BASE}/kv/${encodeURIComponent(key)}`, { method: "DELETE" });
+    if (!res.ok) throw new Error(`KV DELETE failed: ${res.status}`);
   },
 };
 
