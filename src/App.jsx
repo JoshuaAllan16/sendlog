@@ -566,6 +566,9 @@ export default function App() {
   const [gymAddGymOpen, setGymAddGymOpen]     = useState(false);
   const [gymClimbForm, setGymClimbForm]       = useState({ name: "", grade: "V3", scale: "V-Scale", color: "#3b82f6", wallTypes: [], holdTypes: [] });
   const [gymForm, setGymForm]                 = useState({ name: "", location: "" });
+  const [publicGymSettingsOpen, setPublicGymSettingsOpen] = useState(false);
+  const [publicGymSectionInput, setPublicGymSectionInput] = useState("");
+  const [publicGymConfirmDelete, setPublicGymConfirmDelete] = useState(false);
 
   // §EFFECTS
   // Prevent background scroll when any full-screen popup is open
@@ -7951,7 +7954,15 @@ export default function App() {
     const isModerator = (publicGym.moderators || []).includes(currentUser?.username);
     const activeClimbs = (publicGym.climbs || []).filter(c => c.active);
     const today = new Date().toDateString();
-    const gradeList = GRADES[gymClimbForm.scale] || GRADES["V-Scale"];
+    const gymBoulderScaleName = publicGym.boulderScale || "V-Scale";
+    const gradeList = (() => {
+      if (gymBoulderScaleName === "Custom" || customGradingSchemes.find(s => s.name === gymBoulderScaleName)) {
+        const custom = customGradingSchemes.find(s => s.name === gymBoulderScaleName);
+        return custom ? (custom.grades || []).map(g => typeof g === "string" ? g : g.label).filter(Boolean) : GRADES["V-Scale"];
+      }
+      return GRADES[gymBoulderScaleName] || GRADES["V-Scale"];
+    })();
+    const gymWallSections = publicGym.wallSections || [];
 
     // Per-climb stats
     const climbStats = activeClimbs.map(climb => {
@@ -7994,9 +8005,18 @@ export default function App() {
       <div style={{ minHeight: "100%", background: W.bg, paddingBottom: 60 }}>
         {/* Header */}
         <div style={{ padding: "calc(16px + env(safe-area-inset-top)) 20px 0", background: W.surface, borderBottom: `1px solid ${W.border}` }}>
-          <div style={{ fontWeight: 900, fontSize: 20, color: W.text }}>{publicGym.name}</div>
-          {publicGym.location && <div style={{ fontSize: 13, color: W.textMuted, marginTop: 2 }}>{publicGym.location}</div>}
-          {isModerator && <div style={{ display: "inline-flex", alignItems: "center", gap: 4, marginTop: 6, background: W.accent + "22", borderRadius: 8, padding: "2px 8px" }}><span style={{ fontSize: 10, fontWeight: 800, color: W.accent }}>MODERATOR</span></div>}
+          <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between" }}>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ fontWeight: 900, fontSize: 20, color: W.text }}>{publicGym.name}</div>
+              {publicGym.location && <div style={{ fontSize: 13, color: W.textMuted, marginTop: 2 }}>{publicGym.location}</div>}
+              {isModerator && (
+                <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 6 }}>
+                  <button onClick={() => { setPublicGymSettingsOpen(true); setPublicGymConfirmDelete(false); }} style={{ background: W.surface2, border: `1px solid ${W.border}`, borderRadius: 8, padding: "3px 10px", color: W.textMuted, fontWeight: 700, fontSize: 12, cursor: "pointer" }}>⚙️ Settings</button>
+                  <div style={{ display: "inline-flex", alignItems: "center", gap: 4, background: W.accent + "22", borderRadius: 8, padding: "2px 8px" }}><span style={{ fontSize: 10, fontWeight: 800, color: W.accent }}>MODERATOR</span></div>
+                </div>
+              )}
+            </div>
+          </div>
           {/* Tabs */}
           <div style={{ display: "flex", gap: 0, marginTop: 14 }}>
             {["set", ...(isModerator ? ["stats"] : [])].map(t => (
@@ -8019,7 +8039,7 @@ export default function App() {
                 <div style={{ flex: 1, minWidth: 0 }} onClick={() => setGymLogModal(climb)}>
                   <div style={{ fontWeight: 800, fontSize: 15, color: W.text }}>{climb.name || climb.grade}</div>
                   <div style={{ fontSize: 12, color: W.textMuted, marginTop: 2 }}>
-                    {climb.grade}{climb.wallTypes?.length ? " · " + climb.wallTypes.join(", ") : ""}
+                    {climb.grade}{climb.section ? ` · ${climb.section}` : ""}{climb.wallTypes?.length ? " · " + climb.wallTypes.join(", ") : ""}
                   </div>
                   {climb.myBest && (
                     <div style={{ fontSize: 11, fontWeight: 700, color: resultColor[climb.myBest], marginTop: 3 }}>
@@ -8171,7 +8191,7 @@ export default function App() {
                 </div>
               </div>
               {/* Hold types */}
-              <div style={{ marginBottom: 20 }}>
+              <div style={{ marginBottom: gymWallSections.length > 0 ? 16 : 20 }}>
                 <div style={{ fontSize: 12, fontWeight: 700, color: W.textMuted, marginBottom: 6 }}>HOLD TYPE</div>
                 <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
                   {HOLD_TYPES.map(ht => {
@@ -8180,9 +8200,122 @@ export default function App() {
                   })}
                 </div>
               </div>
+              {/* Wall section (only if gym has sections configured) */}
+              {gymWallSections.length > 0 && (
+                <div style={{ marginBottom: 20 }}>
+                  <div style={{ fontSize: 12, fontWeight: 700, color: W.textMuted, marginBottom: 6 }}>WALL SECTION</div>
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+                    {gymWallSections.map(sec => {
+                      const sel = gymClimbForm.section === sec;
+                      return <button key={sec} onClick={() => setGymClimbForm(f => ({ ...f, section: sel ? null : sec }))} style={{ padding: "6px 12px", borderRadius: 8, border: `2px solid ${sel ? W.accent : W.border}`, background: sel ? W.accent + "22" : W.surface2, color: sel ? W.accent : W.text, fontWeight: 700, fontSize: 13, cursor: "pointer" }}>{sec}</button>;
+                    })}
+                  </div>
+                </div>
+              )}
               <div style={{ display: "flex", gap: 10 }}>
                 <button onClick={() => { setGymAddClimbOpen(false); setGymEditClimb(null); }} style={{ flex: 1, padding: 13, background: W.surface2, border: `1px solid ${W.border}`, borderRadius: 12, color: W.textMuted, fontWeight: 700, cursor: "pointer" }}>Cancel</button>
                 <button onClick={saveGymClimb} style={{ flex: 2, padding: 13, background: W.accent, color: "#fff", border: "none", borderRadius: 12, fontWeight: 800, fontSize: 15, cursor: "pointer" }}>{gymEditClimb ? "Save Changes" : "Add Climb"}</button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Gym Settings Modal */}
+        {publicGymSettingsOpen && (
+          <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.6)", zIndex: 500, display: "flex", alignItems: "flex-end", justifyContent: "center" }} onClick={() => { setPublicGymSettingsOpen(false); setPublicGymConfirmDelete(false); }}>
+            <div style={{ background: W.bg, borderRadius: "20px 20px 0 0", width: "100%", maxWidth: 480, maxHeight: "82vh", overflowY: "auto", padding: "20px 20px 0", paddingBottom: "calc(20px + env(safe-area-inset-bottom))" }} onClick={e => e.stopPropagation()}>
+              <div style={{ fontWeight: 900, fontSize: 18, color: W.text, marginBottom: 20 }}>⚙️ Gym Settings</div>
+
+              {/* Wall Sections */}
+              <div style={{ fontSize: 12, fontWeight: 700, color: W.textMuted, marginBottom: 6 }}>WALL SECTIONS</div>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 8 }}>
+                {(publicGym.wallSections || []).map(sec => (
+                  <div key={sec} style={{ display: "flex", alignItems: "center", gap: 4, background: W.surface2, borderRadius: 8, padding: "4px 10px", border: `1px solid ${W.border}` }}>
+                    <span style={{ fontSize: 12, color: W.text }}>{sec}</span>
+                    <button onClick={async () => {
+                      const updated = { ...publicGym, wallSections: (publicGym.wallSections || []).filter(s => s !== sec) };
+                      setPublicGym(updated);
+                      await storage.set(`gym:${updated.id}`, JSON.stringify(updated));
+                    }} style={{ background: "none", border: "none", color: W.textMuted, cursor: "pointer", fontSize: 14, lineHeight: 1, padding: 0, marginLeft: 2 }}>×</button>
+                  </div>
+                ))}
+              </div>
+              <div style={{ display: "flex", gap: 6, marginBottom: 20 }}>
+                <input value={publicGymSectionInput} onChange={e => setPublicGymSectionInput(e.target.value)} onKeyDown={async e => {
+                  if (e.key === "Enter" && publicGymSectionInput.trim()) {
+                    const updated = { ...publicGym, wallSections: [...(publicGym.wallSections || []), publicGymSectionInput.trim()] };
+                    setPublicGym(updated);
+                    await storage.set(`gym:${updated.id}`, JSON.stringify(updated));
+                    setPublicGymSectionInput("");
+                  }
+                }} placeholder="Add section…" style={{ flex: 1, padding: "8px 12px", background: W.surface2, border: `1px solid ${W.border}`, borderRadius: 10, color: W.text, fontSize: 13, fontFamily: "inherit", outline: "none" }} />
+                <button onClick={async () => {
+                  if (!publicGymSectionInput.trim()) return;
+                  const updated = { ...publicGym, wallSections: [...(publicGym.wallSections || []), publicGymSectionInput.trim()] };
+                  setPublicGym(updated);
+                  await storage.set(`gym:${updated.id}`, JSON.stringify(updated));
+                  setPublicGymSectionInput("");
+                }} style={{ padding: "8px 16px", background: W.accent, border: "none", borderRadius: 10, color: "#fff", fontWeight: 700, fontSize: 13, cursor: "pointer" }}>Add</button>
+              </div>
+
+              {/* Boulder Grading Scale */}
+              <div style={{ fontSize: 12, fontWeight: 700, color: W.textMuted, marginBottom: 6 }}>BOULDER GRADING SCALE</div>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 6 }}>
+                {getAllBoulderScaleNames().map(scale => (
+                  <button key={scale} onClick={async () => {
+                    const updated = { ...publicGym, boulderScale: scale };
+                    setPublicGym(updated);
+                    await storage.set(`gym:${updated.id}`, JSON.stringify(updated));
+                  }} style={{ padding: "5px 12px", background: (publicGym.boulderScale || "V-Scale") === scale ? W.accent : W.surface2, border: `1px solid ${(publicGym.boulderScale || "V-Scale") === scale ? W.accent : W.border}`, borderRadius: 8, color: (publicGym.boulderScale || "V-Scale") === scale ? "#fff" : W.textMuted, fontWeight: 700, fontSize: 11, cursor: "pointer" }}>{scale}</button>
+                ))}
+              </div>
+              {publicGym.boulderScale && customGradingSchemes.find(s => s.name === publicGym.boulderScale) && (
+                <button onClick={() => { const s = customGradingSchemes.find(cs => cs.name === publicGym.boulderScale); setSchemeEditId(s.id); setSchemeName(s.name); setSchemeGrades(s.grades || []); setSchemeBuilderFor("public-gym-boulder"); setShowSchemeBuilder(true); setPublicGymSettingsOpen(false); }} style={{ marginBottom: 14, padding: "5px 12px", background: "none", border: `1px solid ${W.accent}`, borderRadius: 8, color: W.accent, fontWeight: 700, fontSize: 11, cursor: "pointer" }}>✏️ Edit "{publicGym.boulderScale}" scheme</button>
+              )}
+              <button onClick={() => { setSchemeEditId(null); setSchemeName(""); setSchemeGrades([]); setSchemeBuilderFor("public-gym-boulder"); setShowSchemeBuilder(true); setPublicGymSettingsOpen(false); }} style={{ marginBottom: 16, padding: "5px 12px", background: "none", border: `1px solid ${W.border}`, borderRadius: 8, color: W.textMuted, fontWeight: 700, fontSize: 11, cursor: "pointer" }}>+ New Custom Scale</button>
+
+              {/* Rope Grading Scale */}
+              <div style={{ fontSize: 12, fontWeight: 700, color: W.textMuted, marginBottom: 6 }}>ROPE GRADING SCALE</div>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 6 }}>
+                {getAllRopeScaleNames().map(scale => (
+                  <button key={scale} onClick={async () => {
+                    const updated = { ...publicGym, ropeScale: scale };
+                    setPublicGym(updated);
+                    await storage.set(`gym:${updated.id}`, JSON.stringify(updated));
+                  }} style={{ padding: "5px 12px", background: publicGym.ropeScale === scale ? W.accent : W.surface2, border: `1px solid ${publicGym.ropeScale === scale ? W.accent : W.border}`, borderRadius: 8, color: publicGym.ropeScale === scale ? "#fff" : W.textMuted, fontWeight: 700, fontSize: 11, cursor: "pointer" }}>{scale}</button>
+                ))}
+              </div>
+              {publicGym.ropeScale && customGradingSchemes.find(s => s.name === publicGym.ropeScale) && (
+                <button onClick={() => { const s = customGradingSchemes.find(cs => cs.name === publicGym.ropeScale); setSchemeEditId(s.id); setSchemeName(s.name); setSchemeGrades(s.grades || []); setSchemeBuilderFor("public-gym-rope"); setShowSchemeBuilder(true); setPublicGymSettingsOpen(false); }} style={{ marginBottom: 14, padding: "5px 12px", background: "none", border: `1px solid ${W.accent}`, borderRadius: 8, color: W.accent, fontWeight: 700, fontSize: 11, cursor: "pointer" }}>✏️ Edit "{publicGym.ropeScale}" scheme</button>
+              )}
+              <button onClick={() => { setSchemeEditId(null); setSchemeName(""); setSchemeGrades([]); setSchemeBuilderFor("public-gym-rope"); setShowSchemeBuilder(true); setPublicGymSettingsOpen(false); }} style={{ marginBottom: 20, padding: "5px 12px", background: "none", border: `1px solid ${W.border}`, borderRadius: 8, color: W.textMuted, fontWeight: 700, fontSize: 11, cursor: "pointer" }}>+ New Custom Scale</button>
+
+              <button onClick={() => { setPublicGymSettingsOpen(false); setPublicGymConfirmDelete(false); }} style={{ width: "100%", padding: 13, background: W.accent, border: "none", borderRadius: 14, color: "#fff", fontWeight: 700, fontSize: 15, cursor: "pointer", marginBottom: 16 }}>Done</button>
+
+              {/* Delete gym */}
+              <div style={{ borderTop: `1px solid ${W.border}`, paddingTop: 16, marginBottom: 4 }}>
+                {publicGymConfirmDelete ? (
+                  <div style={{ background: "rgba(220,50,50,0.08)", border: "1px solid rgba(220,50,50,0.3)", borderRadius: 12, padding: "12px 14px" }}>
+                    <div style={{ fontSize: 13, color: W.text, fontWeight: 700, marginBottom: 4 }}>Delete "{publicGym.name}"?</div>
+                    <div style={{ fontSize: 12, color: W.textMuted, marginBottom: 12 }}>This permanently removes the gym and its entire set. Logged attempts are also deleted.</div>
+                    <div style={{ display: "flex", gap: 8 }}>
+                      <button onClick={() => setPublicGymConfirmDelete(false)} style={{ flex: 1, padding: 10, background: W.surface2, border: `1px solid ${W.border}`, borderRadius: 10, color: W.text, fontWeight: 700, fontSize: 13, cursor: "pointer" }}>Cancel</button>
+                      <button onClick={async () => {
+                        const newIndex = (gymsIndex || []).filter(g => g.id !== publicGym.id);
+                        setGymsIndex(newIndex);
+                        await storage.set("gyms:index", JSON.stringify(newIndex));
+                        await storage.delete(`gym:${publicGym.id}`);
+                        await storage.delete(`gymLog:${publicGym.id}`);
+                        setPublicGymSettingsOpen(false);
+                        setPublicGymConfirmDelete(false);
+                        setPublicGym(null);
+                        setScreen("gyms");
+                      }} style={{ flex: 1, padding: 10, background: "#dc3232", border: "none", borderRadius: 10, color: "#fff", fontWeight: 700, fontSize: 13, cursor: "pointer" }}>Delete</button>
+                    </div>
+                  </div>
+                ) : (
+                  <button onClick={() => setPublicGymConfirmDelete(true)} style={{ width: "100%", padding: 10, background: "none", border: `1px solid rgba(220,50,50,0.4)`, borderRadius: 10, color: "#dc3232", fontWeight: 700, fontSize: 13, cursor: "pointer", marginBottom: 8 }}>Delete Gym</button>
+                )}
               </div>
             </div>
           </div>
@@ -8659,6 +8792,16 @@ export default function App() {
           if (schemeBuilderFor === "rope") setGymCreateRopeScale(scheme.name);
           if (schemeBuilderFor === "gym-boulder" && selectedGym) setGymScales(prev => ({ ...prev, [selectedGym]: { ...(prev[selectedGym] || {}), boulder: scheme.name } }));
           if (schemeBuilderFor === "gym-rope" && selectedGym) setGymScales(prev => ({ ...prev, [selectedGym]: { ...(prev[selectedGym] || {}), rope: scheme.name } }));
+          if (schemeBuilderFor === "public-gym-boulder" && publicGym) {
+            const updated = { ...publicGym, boulderScale: scheme.name };
+            setPublicGym(updated);
+            storage.set(`gym:${updated.id}`, JSON.stringify(updated)).catch(() => {});
+          }
+          if (schemeBuilderFor === "public-gym-rope" && publicGym) {
+            const updated = { ...publicGym, ropeScale: scheme.name };
+            setPublicGym(updated);
+            storage.set(`gym:${updated.id}`, JSON.stringify(updated)).catch(() => {});
+          }
           setShowSchemeBuilder(false);
           setSchemeEditId(null); setSchemeName(""); setSchemeGrades([]); setSchemeBuilderFor(null);
         };
