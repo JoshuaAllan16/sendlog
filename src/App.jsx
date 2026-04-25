@@ -569,6 +569,9 @@ export default function App() {
   const [publicGymSettingsOpen, setPublicGymSettingsOpen] = useState(false);
   const [publicGymSectionInput, setPublicGymSectionInput] = useState("");
   const [publicGymConfirmDelete, setPublicGymConfirmDelete] = useState(false);
+  const [gymAddSource, setGymAddSource]           = useState(null); // null | "picker" | "from-set"
+  const [gymSetPickerLoc, setGymSetPickerLoc]     = useState(null); // selected personal gym name
+  const [gymSetPickerSel, setGymSetPickerSel]     = useState(new Set()); // selected entry ids
 
   // §EFFECTS
   // Prevent background scroll when any full-screen popup is open
@@ -8059,7 +8062,7 @@ export default function App() {
               </div>
             ))}
             {isModerator && (
-              <button onClick={() => { setGymEditClimb(null); setGymClimbForm({ name: "", grade: "V3", scale: "V-Scale", color: "#3b82f6", wallTypes: [], holdTypes: [] }); setGymAddClimbOpen(true); }} style={{ width: "100%", padding: 14, background: W.accent, color: "#fff", border: "none", borderRadius: 14, fontWeight: 800, fontSize: 15, cursor: "pointer", marginTop: 4 }}>
+              <button onClick={() => { setGymAddSource("picker"); setGymSetPickerLoc(null); setGymSetPickerSel(new Set()); }} style={{ width: "100%", padding: 14, background: W.accent, color: "#fff", border: "none", borderRadius: 14, fontWeight: 800, fontSize: 15, cursor: "pointer", marginTop: 4 }}>
                 + Add Climb
               </button>
             )}
@@ -8219,6 +8222,127 @@ export default function App() {
             </div>
           </div>
         )}
+
+        {/* Add Climb — Source Picker */}
+        {gymAddSource === "picker" && (
+          <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.6)", zIndex: 500, display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }} onClick={() => setGymAddSource(null)}>
+            <div style={{ background: W.surface, borderRadius: 20, padding: 24, width: "100%", maxWidth: 360 }} onClick={e => e.stopPropagation()}>
+              <div style={{ fontWeight: 800, fontSize: 18, color: W.text, marginBottom: 6 }}>Add Climb</div>
+              <div style={{ fontSize: 13, color: W.textMuted, marginBottom: 20 }}>Create a new climb or import from your personal gym sets.</div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                <button onClick={() => { setGymAddSource(null); setGymEditClimb(null); setGymClimbForm({ name: "", grade: "V3", scale: "V-Scale", color: "#3b82f6", wallTypes: [], holdTypes: [] }); setGymAddClimbOpen(true); }} style={{ padding: "16px 20px", background: W.accent, color: "#fff", border: "none", borderRadius: 14, fontWeight: 800, fontSize: 15, cursor: "pointer", textAlign: "left" }}>
+                  <div>+ New Climb</div>
+                  <div style={{ fontSize: 12, fontWeight: 500, opacity: 0.85, marginTop: 3 }}>Create a climb from scratch</div>
+                </button>
+                <button onClick={() => { setGymAddSource("from-set"); setGymSetPickerLoc(null); setGymSetPickerSel(new Set()); }} style={{ padding: "16px 20px", background: W.surface2, border: `1px solid ${W.border}`, borderRadius: 14, fontWeight: 800, fontSize: 15, color: W.text, cursor: "pointer", textAlign: "left" }}>
+                  <div>From My Gyms</div>
+                  <div style={{ fontSize: 12, fontWeight: 500, color: W.textMuted, marginTop: 3 }}>Import climbs from your personal gym sets</div>
+                </button>
+              </div>
+              <button onClick={() => setGymAddSource(null)} style={{ width: "100%", marginTop: 14, padding: 12, background: "none", border: `1px solid ${W.border}`, borderRadius: 12, color: W.textMuted, fontWeight: 700, cursor: "pointer" }}>Cancel</button>
+            </div>
+          </div>
+        )}
+
+        {/* Add Climb — From Personal Gym Sets */}
+        {gymAddSource === "from-set" && (() => {
+          const personalGyms = Object.keys(gymSets).filter(loc => (gymSets[loc] || []).some(e => !e.removed));
+          const locEntries = gymSetPickerLoc ? (gymSets[gymSetPickerLoc] || []).filter(e => !e.removed) : [];
+          const getEntryPhoto = (entryId) => sessions.flatMap(s => (s.climbs || []).filter(c => c.setClimbId === entryId && c.photo)).map(c => c.photo)[0] || null;
+
+          const importSelected = async () => {
+            if (gymSetPickerSel.size === 0) return;
+            const toImport = locEntries.filter(e => gymSetPickerSel.has(e.id));
+            const newClimbs = toImport.map(e => ({
+              id: Date.now() + Math.random(),
+              name: e.name || "",
+              grade: e.grade || "V3",
+              scale: e.scale || "V-Scale",
+              color: e.color ? (CLIMB_COLORS.find(c => c.id === e.color)?.hex || e.color) : "#3b82f6",
+              wallTypes: e.wallTypes || [],
+              holdTypes: e.holdTypes || [],
+              section: e.section || null,
+              setter: currentUser.username,
+              setAt: new Date().toISOString(),
+              active: true,
+            }));
+            const updatedClimbs = [...(publicGym.climbs || []), ...newClimbs];
+            const updated = { ...publicGym, climbs: updatedClimbs };
+            setPublicGym(updated);
+            await storage.set(`gym:${updated.id}`, JSON.stringify(updated));
+            const activeCount = updatedClimbs.filter(c => c.active).length;
+            const newIndex = (gymsIndex || []).map(g => g.id === updated.id ? { ...g, climbCount: activeCount } : g);
+            setGymsIndex(newIndex);
+            await storage.set("gyms:index", JSON.stringify(newIndex));
+            setGymAddSource(null);
+            setGymSetPickerSel(new Set());
+          };
+
+          return (
+            <div style={{ position: "fixed", inset: 0, background: W.bg, zIndex: 500, display: "flex", flexDirection: "column", paddingTop: "env(safe-area-inset-top)" }}>
+              {/* Header */}
+              <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "16px 20px 12px", background: W.surface, borderBottom: `1px solid ${W.border}` }}>
+                <button onClick={() => gymSetPickerLoc ? setGymSetPickerLoc(null) : setGymAddSource("picker")} style={{ background: W.surface2, border: `1px solid ${W.border}`, borderRadius: 10, padding: "7px 14px", color: W.text, fontWeight: 700, fontSize: 14, cursor: "pointer" }}>←</button>
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontWeight: 800, fontSize: 17, color: W.text }}>{gymSetPickerLoc ? gymSetPickerLoc : "From My Gyms"}</div>
+                  <div style={{ fontSize: 12, color: W.textMuted }}>
+                    {gymSetPickerLoc ? `${gymSetPickerSel.size} selected` : "Select a gym"}
+                  </div>
+                </div>
+                {gymSetPickerLoc && gymSetPickerSel.size > 0 && (
+                  <button onClick={importSelected} style={{ padding: "8px 18px", background: W.accent, color: "#fff", border: "none", borderRadius: 12, fontWeight: 800, fontSize: 14, cursor: "pointer" }}>
+                    Add {gymSetPickerSel.size}
+                  </button>
+                )}
+              </div>
+
+              <div style={{ flex: 1, overflowY: "auto", padding: 16 }}>
+                {/* Gym list */}
+                {!gymSetPickerLoc && (
+                  personalGyms.length === 0
+                    ? <div style={{ textAlign: "center", color: W.textMuted, padding: "48px 20px", fontSize: 14 }}>No personal gym sets found.</div>
+                    : personalGyms.map(loc => {
+                        const active = (gymSets[loc] || []).filter(e => !e.removed);
+                        return (
+                          <div key={loc} onClick={() => setGymSetPickerLoc(loc)} style={{ background: W.surface, borderRadius: 14, padding: "14px 16px", marginBottom: 10, border: `1px solid ${W.border}`, cursor: "pointer", display: "flex", alignItems: "center", gap: 12 }}>
+                            <div style={{ width: 40, height: 40, borderRadius: 12, background: W.accent + "22", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 20, flexShrink: 0 }}>🏟</div>
+                            <div style={{ flex: 1 }}>
+                              <div style={{ fontWeight: 800, fontSize: 15, color: W.text }}>{loc}</div>
+                              <div style={{ fontSize: 12, color: W.textMuted, marginTop: 2 }}>{active.length} climb{active.length !== 1 ? "s" : ""}</div>
+                            </div>
+                            <span style={{ color: W.textMuted, fontSize: 20 }}>›</span>
+                          </div>
+                        );
+                      })
+                )}
+
+                {/* Climb list for selected gym */}
+                {gymSetPickerLoc && locEntries.map(entry => {
+                  const sel = gymSetPickerSel.has(entry.id);
+                  const photo = getEntryPhoto(entry.id);
+                  const colorHex = entry.color ? (CLIMB_COLORS.find(c => c.id === entry.color)?.hex || entry.color) : "#3b82f6";
+                  return (
+                    <div key={entry.id} onClick={() => setGymSetPickerSel(prev => { const n = new Set(prev); sel ? n.delete(entry.id) : n.add(entry.id); return n; })} style={{ background: W.surface, borderRadius: 14, padding: "12px 14px", marginBottom: 8, border: `2px solid ${sel ? W.accent : W.border}`, cursor: "pointer", display: "flex", alignItems: "center", gap: 12 }}>
+                      {photo
+                        ? <img src={photo} alt="" style={{ width: 44, height: 44, borderRadius: 10, objectFit: "cover", flexShrink: 0, border: `2px solid ${colorHex}` }} />
+                        : <div style={{ width: 44, height: 44, borderRadius: 10, background: colorHex, flexShrink: 0, border: "2px solid rgba(255,255,255,0.2)" }} />
+                      }
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontWeight: 800, fontSize: 15, color: W.text }}>{entry.name || entry.grade}</div>
+                        <div style={{ fontSize: 12, color: W.textMuted, marginTop: 2 }}>
+                          {entry.grade}{entry.section ? ` · ${entry.section}` : ""}{entry.wallTypes?.length ? " · " + entry.wallTypes.join(", ") : ""}
+                        </div>
+                      </div>
+                      <div style={{ width: 26, height: 26, borderRadius: "50%", border: `2px solid ${sel ? W.accent : W.border}`, background: sel ? W.accent : "transparent", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                        {sel && <span style={{ color: "#fff", fontSize: 14, lineHeight: 1 }}>✓</span>}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          );
+        })()}
 
         {/* Gym Settings Modal */}
         {publicGymSettingsOpen && (
