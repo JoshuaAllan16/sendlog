@@ -8038,7 +8038,10 @@ export default function App() {
             )}
             {climbStats.map(climb => (
               <div key={climb.id} style={{ background: W.surface, borderRadius: 16, padding: "14px 16px", marginBottom: 10, border: `1px solid ${W.border}`, display: "flex", alignItems: "center", gap: 12 }}>
-                <div style={{ width: 36, height: 36, borderRadius: 10, background: climb.color || "#3b82f6", flexShrink: 0, border: "2px solid rgba(255,255,255,0.2)" }} />
+                {climb.photo
+                  ? <img src={climb.photo} alt="" style={{ width: 36, height: 36, borderRadius: 10, objectFit: "cover", flexShrink: 0, border: `2px solid ${climb.color || "#3b82f6"}` }} />
+                  : <div style={{ width: 36, height: 36, borderRadius: 10, background: climb.color || "#3b82f6", flexShrink: 0, border: "2px solid rgba(255,255,255,0.2)" }} />
+                }
                 <div style={{ flex: 1, minWidth: 0 }} onClick={() => setGymLogModal(climb)}>
                   <div style={{ fontWeight: 800, fontSize: 15, color: W.text }}>{climb.name || climb.grade}</div>
                   <div style={{ fontSize: 12, color: W.textMuted, marginTop: 2 }}>
@@ -8126,7 +8129,10 @@ export default function App() {
           <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.6)", zIndex: 500, display: "flex", alignItems: "flex-end", justifyContent: "center" }} onClick={() => setGymLogModal(null)}>
             <div style={{ background: W.surface, borderRadius: "20px 20px 0 0", padding: "20px 20px", paddingBottom: "calc(20px + env(safe-area-inset-bottom))", width: "100%", maxWidth: 420 }} onClick={e => e.stopPropagation()}>
               <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 20 }}>
-                <div style={{ width: 40, height: 40, borderRadius: 12, background: gymLogModal.color || "#3b82f6", flexShrink: 0 }} />
+                {gymLogModal.photo
+                  ? <img src={gymLogModal.photo} alt="" style={{ width: 40, height: 40, borderRadius: 12, objectFit: "cover", flexShrink: 0, border: `2px solid ${gymLogModal.color || "#3b82f6"}` }} />
+                  : <div style={{ width: 40, height: 40, borderRadius: 12, background: gymLogModal.color || "#3b82f6", flexShrink: 0 }} />
+                }
                 <div>
                   <div style={{ fontWeight: 800, fontSize: 17, color: W.text }}>{gymLogModal.name || gymLogModal.grade}</div>
                   <div style={{ fontSize: 13, color: W.textMuted }}>{gymLogModal.grade}{gymLogModal.wallTypes?.length ? " · " + gymLogModal.wallTypes.join(", ") : ""}</div>
@@ -8248,7 +8254,7 @@ export default function App() {
         {gymAddSource === "from-set" && (() => {
           const personalGyms = Object.keys(gymSets).filter(loc => (gymSets[loc] || []).some(e => !e.removed));
           const locEntries = gymSetPickerLoc ? (gymSets[gymSetPickerLoc] || []).filter(e => !e.removed) : [];
-          const getEntryPhoto = (entryId) => sessions.flatMap(s => (s.climbs || []).filter(c => c.setClimbId === entryId && c.photo)).map(c => c.photo)[0] || null;
+          const getEntryPhoto = (entryId) => sessions.flatMap(s => (s.climbs || []).filter(c => c.setClimbId === entryId && c.photo)).map(c => c.photo)[0] || Object.values(gymSets).flat().find(e => e.id === entryId)?.photo || null;
 
           const importSelected = async () => {
             if (gymSetPickerSel.size === 0) return;
@@ -8262,6 +8268,7 @@ export default function App() {
               wallTypes: e.wallTypes || [],
               holdTypes: e.holdTypes || [],
               section: e.section || null,
+              photo: getEntryPhoto(e.id) || null,
               setter: currentUser.username,
               setAt: new Date().toISOString(),
               active: true,
