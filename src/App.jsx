@@ -572,6 +572,8 @@ export default function App() {
   const [gymAddSource, setGymAddSource]           = useState(null); // null | "picker" | "from-set"
   const [gymSetPickerLoc, setGymSetPickerLoc]     = useState(null); // selected personal gym name
   const [gymSetPickerSel, setGymSetPickerSel]     = useState(new Set()); // selected entry ids
+  const [followedGymIds, setFollowedGymIds]       = useState([]); // public gym IDs user follows
+  const [followedGymsData, setFollowedGymsData]   = useState({}); // { [gymId]: gymDetail }
 
   // §EFFECTS
   // Prevent background scroll when any full-screen popup is open
@@ -702,6 +704,17 @@ export default function App() {
           loadMyReactions(username).then(setMyReactions).catch(() => {});
           setPendingFollowRequests(userData.profile?.pendingFollowRequests || []);
           storage.get(`followRequests:${username}`).then(r => setMyFollowRequests(r ? JSON.parse(r.value) : [])).catch(() => {});
+          // Load followed public gyms
+          storage.get(`gymFollows:${username}`).then(async r => {
+            const ids = r ? JSON.parse(r.value) : [];
+            setFollowedGymIds(ids);
+            if (ids.length) {
+              const results = await Promise.all(ids.map(id => storage.get(`gym:${id}`).catch(() => null)));
+              const map = {};
+              results.forEach((res, i) => { if (res) { try { map[ids[i]] = JSON.parse(res.value); } catch {} } });
+              setFollowedGymsData(map);
+            }
+          }).catch(() => {});
           // Only allow saves if Supabase returned real data — prevents writing empty state if load failed
           dataLoadedRef.current = !!freshData;
           setAuthScreen("app");
@@ -867,6 +880,16 @@ export default function App() {
       loadMyReactions(username.toLowerCase()).then(setMyReactions).catch(() => {});
       setPendingFollowRequests(safeData.profile?.pendingFollowRequests || []);
       storage.get(`followRequests:${username.toLowerCase()}`).then(r => setMyFollowRequests(r ? JSON.parse(r.value) : [])).catch(() => {});
+      storage.get(`gymFollows:${username.toLowerCase()}`).then(async r => {
+        const ids = r ? JSON.parse(r.value) : [];
+        setFollowedGymIds(ids);
+        if (ids.length) {
+          const results = await Promise.all(ids.map(id => storage.get(`gym:${id}`).catch(() => null)));
+          const map = {};
+          results.forEach((res, i) => { if (res) { try { map[ids[i]] = JSON.parse(res.value); } catch {} } });
+          setFollowedGymsData(map);
+        }
+      }).catch(() => {});
       // Load fields that checkSession sets but handleLogin previously missed
       setDefaultWarmupItems(safeData.profile?.defaultWarmupItems || DEFAULT_WARMUP_ITEMS);
       if (safeData.profile?.warmupTemplates?.length) {
@@ -1013,10 +1036,11 @@ export default function App() {
   const W = THEMES[colorTheme] || THEMES.espresso;
 
   // ── APP LOGIC ──────────────────────────────────────────────
+  const followedGymNames = Object.values(followedGymsData).map(g => g.name);
   const knownLocations = (() => {
     const seen = new Set();
-    // Build ordered list: mainGym first, then sessions by recency, then custom, then pending/active
-    const ordered = [mainGym, ...sessions.map(s => s.location), ...customLocations, pendingLocation, activeSession?.location]
+    // Build ordered list: mainGym first, then sessions by recency, then custom, then followed public gyms, then pending/active
+    const ordered = [mainGym, ...sessions.map(s => s.location), ...customLocations, ...followedGymNames, pendingLocation, activeSession?.location]
       .filter(Boolean)
       .filter(l => { const k = l.trim().toLowerCase(); if (seen.has(k)) return false; seen.add(k); return true; })
       .filter(l => !hiddenLocations.includes(l));
@@ -3594,7 +3618,7 @@ export default function App() {
         {/* Location */}
         <div style={{ background: W.surface, borderRadius: 18, padding: "18px 20px", border: `1px solid ${W.border}`, marginBottom: 16 }}>
           <Label>Gym / Location</Label>
-          <LocationDropdown value={pendingLocation} onChange={v => { setPendingLocation(v); addCustomLocation(v); if (gymScales[v]?.boulder) setPreferredScale(gymScales[v].boulder); if (gymScales[v]?.rope) setPreferredRopeScale(gymScales[v].rope); }} open={locationDropdownOpen} setOpen={setLocationDropdownOpen} knownLocations={knownLocations} onRemove={loc => setHiddenLocations(h => [...h, loc])} onAddNew={name => { gymCreateCallbackRef.current = (n) => setPendingLocation(n); setGymCreateStep(1); setGymCreateName(name || ""); setGymCreateActivities([]); setGymCreateId(null); setGymCreateBoulderScale("V-Scale"); setGymCreateRopeScale("French"); setGymCreateSections([]); setGymCreateSectionInput(""); setShowGymCreate(true); }} />
+          <LocationDropdown value={pendingLocation} onChange={v => { setPendingLocation(v); addCustomLocation(v); if (gymScales[v]?.boulder) setPreferredScale(gymScales[v].boulder); if (gymScales[v]?.rope) setPreferredRopeScale(gymScales[v].rope); }} open={locationDropdownOpen} setOpen={setLocationDropdownOpen} knownLocations={knownLocations} publicGymLocations={followedGymNames} onRemove={loc => { if (!followedGymNames.includes(loc)) setHiddenLocations(h => [...h, loc]); }} onAddNew={name => { gymCreateCallbackRef.current = (n) => setPendingLocation(n); setGymCreateStep(1); setGymCreateName(name || ""); setGymCreateActivities([]); setGymCreateId(null); setGymCreateBoulderScale("V-Scale"); setGymCreateRopeScale("French"); setGymCreateSections([]); setGymCreateSectionInput(""); setShowGymCreate(true); }} />
         </div>
         {/* Session type card */}
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 24 }}>
@@ -3689,7 +3713,7 @@ export default function App() {
         {!showClimbForm && boulderAddMode && (() => {
           const location = activeSession?.location;
           const gradeRank = (grade, scale) => { const list = GRADES[scale] || GRADES["V-Scale"]; const idx = list.indexOf(grade); return idx >= 0 ? idx : -1; };
-          const gymEntries = (gymSets[location] || []).filter(e => !e.removed && (e.climbType === "boulder" || !e.climbType));
+          const gymEntries = getSetForLocation(location).filter(e => e.climbType === "boulder" || !e.climbType);
           const inSessionIds = new Set((activeSession?.climbs || []).map(c => c.setClimbId).filter(Boolean));
           const getEntryPhoto = (entryId) => sessions.flatMap(s => (s.climbs||[]).filter(c => c.setClimbId === entryId && c.photo)).map(c => c.photo)[0] || Object.values(gymSets).flat().find(e => e.id === entryId)?.photo || null;
           const getEntryStats = (entry) => {
@@ -7818,6 +7842,29 @@ export default function App() {
   };
 
   // §GYM_FUNCTIONS
+  // Returns set climbs for a location — personal gymSets OR followed public gym climbs
+  const getSetForLocation = (location) => {
+    if (!location) return [];
+    if (gymSets[location]) return gymSets[location].filter(e => !e.removed);
+    const pg = Object.values(followedGymsData).find(g => g.name === location);
+    if (pg) return (pg.climbs || []).filter(c => c.active).map(c => ({ ...c, removed: false, climbType: c.climbType || "boulder" }));
+    return [];
+  };
+
+  const followPublicGym = async (gym) => {
+    const newIds = [...followedGymIds, gym.id];
+    setFollowedGymIds(newIds);
+    setFollowedGymsData(prev => ({ ...prev, [gym.id]: gym }));
+    await storage.set(`gymFollows:${currentUser.username}`, JSON.stringify(newIds));
+  };
+
+  const unfollowPublicGym = async (gymId) => {
+    const newIds = followedGymIds.filter(id => id !== gymId);
+    setFollowedGymIds(newIds);
+    setFollowedGymsData(prev => { const n = { ...prev }; delete n[gymId]; return n; });
+    await storage.set(`gymFollows:${currentUser.username}`, JSON.stringify(newIds));
+  };
+
   const goToGyms = async () => {
     setScreen("gyms");
     setGymsLoading(true);
@@ -7955,6 +8002,7 @@ export default function App() {
   const GymDetailScreen = () => {
     if (!publicGym) return null;
     const isModerator = (publicGym.moderators || []).includes(currentUser?.username);
+    const isFollowing = followedGymIds.includes(publicGym.id);
     const activeClimbs = (publicGym.climbs || []).filter(c => c.active);
     const today = new Date().toDateString();
     const gymBoulderScaleName = publicGym.boulderScale || "V-Scale";
@@ -8012,12 +8060,19 @@ export default function App() {
             <div style={{ flex: 1, minWidth: 0 }}>
               <div style={{ fontWeight: 900, fontSize: 20, color: W.text }}>{publicGym.name}</div>
               {publicGym.location && <div style={{ fontSize: 13, color: W.textMuted, marginTop: 2 }}>{publicGym.location}</div>}
-              {isModerator && (
-                <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 6 }}>
-                  <button onClick={() => { setPublicGymSettingsOpen(true); setPublicGymConfirmDelete(false); }} style={{ background: W.surface2, border: `1px solid ${W.border}`, borderRadius: 8, padding: "3px 10px", color: W.textMuted, fontWeight: 700, fontSize: 12, cursor: "pointer" }}>⚙️ Settings</button>
-                  <div style={{ display: "inline-flex", alignItems: "center", gap: 4, background: W.accent + "22", borderRadius: 8, padding: "2px 8px" }}><span style={{ fontSize: 10, fontWeight: 800, color: W.accent }}>MODERATOR</span></div>
-                </div>
-              )}
+              <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 8, flexWrap: "wrap" }}>
+                {!isModerator && (
+                  <button onClick={() => isFollowing ? unfollowPublicGym(publicGym.id) : followPublicGym(publicGym)} style={{ padding: "5px 14px", background: isFollowing ? W.surface2 : W.accent, border: `1px solid ${isFollowing ? W.border : W.accent}`, borderRadius: 10, color: isFollowing ? W.textMuted : "#fff", fontWeight: 700, fontSize: 13, cursor: "pointer" }}>
+                    {isFollowing ? "Following ✓" : "+ Follow"}
+                  </button>
+                )}
+                {isModerator && (
+                  <>
+                    <button onClick={() => { setPublicGymSettingsOpen(true); setPublicGymConfirmDelete(false); }} style={{ background: W.surface2, border: `1px solid ${W.border}`, borderRadius: 8, padding: "4px 12px", color: W.textMuted, fontWeight: 700, fontSize: 12, cursor: "pointer" }}>⚙️ Settings</button>
+                    <div style={{ display: "inline-flex", alignItems: "center", gap: 4, background: W.accent + "22", borderRadius: 8, padding: "3px 8px" }}><span style={{ fontSize: 10, fontWeight: 800, color: W.accent }}>MODERATOR</span></div>
+                  </>
+                )}
+              </div>
             </div>
           </div>
           {/* Tabs */}
@@ -8031,46 +8086,75 @@ export default function App() {
         </div>
 
         {/* Set tab */}
-        {gymTab === "set" && (
-          <div style={{ padding: 16 }}>
-            {activeClimbs.length === 0 && (
-              <div style={{ textAlign: "center", color: W.textMuted, padding: "48px 20px", fontSize: 14 }}>No climbs in the current set.</div>
-            )}
-            {climbStats.map(climb => (
-              <div key={climb.id} style={{ background: W.surface, borderRadius: 16, padding: "14px 16px", marginBottom: 10, border: `1px solid ${W.border}`, display: "flex", alignItems: "center", gap: 12 }}>
-                {climb.photo
-                  ? <img src={climb.photo} alt="" style={{ width: 36, height: 36, borderRadius: 10, objectFit: "cover", flexShrink: 0, border: `2px solid ${climb.color || "#3b82f6"}` }} />
-                  : <div style={{ width: 36, height: 36, borderRadius: 10, background: climb.color || "#3b82f6", flexShrink: 0, border: "2px solid rgba(255,255,255,0.2)" }} />
-                }
-                <div style={{ flex: 1, minWidth: 0 }} onClick={() => setGymLogModal(climb)}>
-                  <div style={{ fontWeight: 800, fontSize: 15, color: W.text }}>{climb.name || climb.grade}</div>
-                  <div style={{ fontSize: 12, color: W.textMuted, marginTop: 2 }}>
-                    {climb.grade}{climb.section ? ` · ${climb.section}` : ""}{climb.wallTypes?.length ? " · " + climb.wallTypes.join(", ") : ""}
+        {gymTab === "set" && (() => {
+          // Group by section; unsectioned climbs go under null key
+          const gymSections = publicGym.wallSections || [];
+          const grouped = {};
+          climbStats.forEach(climb => {
+            const sec = climb.section && gymSections.includes(climb.section) ? climb.section : null;
+            if (!grouped[sec]) grouped[sec] = [];
+            grouped[sec].push(climb);
+          });
+          // Order: defined sections first (in wallSections order), then unsectioned
+          const sectionOrder = [
+            ...gymSections.filter(s => grouped[s]?.length > 0),
+            ...(grouped[null]?.length > 0 ? [null] : []),
+          ];
+          const hasSections = gymSections.length > 0;
+
+          const ClimbCard = (climb) => (
+            <div key={climb.id} style={{ background: W.surface, borderRadius: 16, padding: "14px 16px", marginBottom: 10, border: `1px solid ${W.border}`, display: "flex", alignItems: "center", gap: 12 }}>
+              {climb.photo
+                ? <img src={climb.photo} alt="" style={{ width: 36, height: 36, borderRadius: 10, objectFit: "cover", flexShrink: 0, border: `2px solid ${climb.color || "#3b82f6"}` }} />
+                : <div style={{ width: 36, height: 36, borderRadius: 10, background: climb.color || "#3b82f6", flexShrink: 0, border: "2px solid rgba(255,255,255,0.2)" }} />
+              }
+              <div style={{ flex: 1, minWidth: 0 }} onClick={() => setGymLogModal(climb)}>
+                <div style={{ fontWeight: 800, fontSize: 15, color: W.text }}>{climb.name || climb.grade}</div>
+                <div style={{ fontSize: 12, color: W.textMuted, marginTop: 2 }}>
+                  {climb.grade}{!hasSections && climb.section ? ` · ${climb.section}` : ""}{climb.wallTypes?.length ? " · " + climb.wallTypes.join(", ") : ""}
+                </div>
+                {climb.myBest && (
+                  <div style={{ fontSize: 11, fontWeight: 700, color: resultColor[climb.myBest], marginTop: 3 }}>
+                    My best: {resultLabel[climb.myBest]}
                   </div>
-                  {climb.myBest && (
-                    <div style={{ fontSize: 11, fontWeight: 700, color: resultColor[climb.myBest], marginTop: 3 }}>
-                      My best: {resultLabel[climb.myBest]}
-                    </div>
-                  )}
-                </div>
-                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                  <button onClick={() => setGymLogModal(climb)} style={{ padding: "6px 14px", background: W.accent, color: "#fff", border: "none", borderRadius: 10, fontWeight: 800, fontSize: 13, cursor: "pointer" }}>Log</button>
-                  {isModerator && (
-                    <>
-                      <button onClick={() => startEditGymClimb(climb)} style={{ padding: "6px 10px", background: W.surface2, border: `1px solid ${W.border}`, borderRadius: 10, color: W.textMuted, fontSize: 13, cursor: "pointer" }}>✏️</button>
-                      <button onClick={() => retireGymClimb(climb.id)} style={{ padding: "6px 10px", background: W.surface2, border: `1px solid ${W.border}`, borderRadius: 10, color: W.textMuted, fontSize: 13, cursor: "pointer" }}>🗑</button>
-                    </>
-                  )}
-                </div>
+                )}
               </div>
-            ))}
-            {isModerator && (
-              <button onClick={() => { setGymAddSource("picker"); setGymSetPickerLoc(null); setGymSetPickerSel(new Set()); }} style={{ width: "100%", padding: 14, background: W.accent, color: "#fff", border: "none", borderRadius: 14, fontWeight: 800, fontSize: 15, cursor: "pointer", marginTop: 4 }}>
-                + Add Climb
-              </button>
-            )}
-          </div>
-        )}
+              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <button onClick={() => setGymLogModal(climb)} style={{ padding: "6px 14px", background: W.accent, color: "#fff", border: "none", borderRadius: 10, fontWeight: 800, fontSize: 13, cursor: "pointer" }}>Log</button>
+                {isModerator && (
+                  <>
+                    <button onClick={() => startEditGymClimb(climb)} style={{ padding: "6px 10px", background: W.surface2, border: `1px solid ${W.border}`, borderRadius: 10, color: W.textMuted, fontSize: 13, cursor: "pointer" }}>✏️</button>
+                    <button onClick={() => retireGymClimb(climb.id)} style={{ padding: "6px 10px", background: W.surface2, border: `1px solid ${W.border}`, borderRadius: 10, color: W.textMuted, fontSize: 13, cursor: "pointer" }}>🗑</button>
+                  </>
+                )}
+              </div>
+            </div>
+          );
+
+          return (
+            <div style={{ padding: 16 }}>
+              {activeClimbs.length === 0 && (
+                <div style={{ textAlign: "center", color: W.textMuted, padding: "48px 20px", fontSize: 14 }}>No climbs in the current set.</div>
+              )}
+              {hasSections
+                ? sectionOrder.map(sec => (
+                    <div key={sec ?? "__none__"} style={{ marginBottom: 20 }}>
+                      <div style={{ fontSize: 12, fontWeight: 800, color: W.textMuted, textTransform: "uppercase", letterSpacing: 1, marginBottom: 10, paddingLeft: 2 }}>
+                        {sec ?? "Other"}
+                      </div>
+                      {(grouped[sec] || []).map(climb => ClimbCard(climb))}
+                    </div>
+                  ))
+                : climbStats.map(climb => ClimbCard(climb))
+              }
+              {isModerator && (
+                <button onClick={() => { setGymAddSource("picker"); setGymSetPickerLoc(null); setGymSetPickerSel(new Set()); }} style={{ width: "100%", padding: 14, background: W.accent, color: "#fff", border: "none", borderRadius: 14, fontWeight: 800, fontSize: 15, cursor: "pointer", marginTop: 4 }}>
+                  + Add Climb
+                </button>
+              )}
+            </div>
+          );
+        })()}
 
         {/* Stats tab */}
         {gymTab === "stats" && isModerator && (
@@ -9727,7 +9811,7 @@ export default function App() {
       const location = activeSession?.location;
       const rawList = isProjects
         ? activeProjects.filter(p => isRopeCtx ? p.climbType === "rope" : (!p.climbType || p.climbType === "boulder"))
-        : (location ? (gymSets[location] || []).filter(c => !c.removed && (isRopeCtx ? c.climbType === "rope" : c.climbType !== "rope")) : []);
+        : getSetForLocation(location).filter(c => isRopeCtx ? c.climbType === "rope" : c.climbType !== "rope");
       const sorted = [...rawList].sort((a, b) => getGradeIndex(b.grade, b.scale) - getGradeIndex(a.grade, a.scale));
       const title = isProjects ? (isRopeCtx ? "Rope Projects" : "Boulder Projects") : `Current Set · ${location || "No gym"}`;
       const accentColor = isProjects ? W.pinkDark : W.accent;

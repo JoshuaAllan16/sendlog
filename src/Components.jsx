@@ -35,7 +35,7 @@ export const TagChips = ({ wallTypes = [], holdTypes = [] }) => {
 };
 
 // §LOCATION_DROPDOWN
-export const LocationDropdown = ({ value, onChange, open, setOpen, knownLocations, onRemove, onAddNew }) => {
+export const LocationDropdown = ({ value, onChange, open, setOpen, knownLocations, publicGymLocations = [], onRemove, onAddNew }) => {
   const W = useTheme();
   const [addPopup, setAddPopup] = useState(false);
   const [newGymInput, setNewGymInput] = useState("");
@@ -45,16 +45,20 @@ export const LocationDropdown = ({ value, onChange, open, setOpen, knownLocation
     if (trimmed) onChange(trimmed);
     setNewGymInput(""); setAddPopup(false);
   };
+  const personalLocs = knownLocations.filter(l => !publicGymLocations.includes(l));
+  const publicLocs = knownLocations.filter(l => publicGymLocations.includes(l));
+  const isPublic = value && publicGymLocations.includes(value);
   return (
   <div style={{ position: "relative" }} onClick={e => e.stopPropagation()}>
     <button onClick={() => setOpen(o => !o)} style={{ width: "100%", padding: "11px 14px", background: W.surface, border: `2px solid ${open ? W.accent : W.border}`, borderRadius: open ? "12px 12px 0 0" : "12px", color: value ? W.text : W.textDim, fontSize: 14, textAlign: "left", cursor: "pointer", display: "flex", justifyContent: "space-between", alignItems: "center", fontFamily: "inherit", fontWeight: value ? 600 : 400 }}>
-      <span>📍 {value || "Select a location"}</span>
+      <span>{isPublic ? "🏟" : "📍"} {value || "Select a location"}</span>
       <span style={{ color: W.textMuted, fontSize: 12 }}>{open ? "▲" : "▼"}</span>
     </button>
     {open && (
-      <div style={{ position: "absolute", top: "100%", left: 0, right: 0, background: W.surface, border: `2px solid ${W.accent}`, borderTop: "none", borderRadius: "0 0 12px 12px", zIndex: 100, maxHeight: 220, overflowY: "auto", boxShadow: "0 8px 20px rgba(0,0,0,0.12)" }}>
+      <div style={{ position: "absolute", top: "100%", left: 0, right: 0, background: W.surface, border: `2px solid ${W.accent}`, borderTop: "none", borderRadius: "0 0 12px 12px", zIndex: 100, maxHeight: 260, overflowY: "auto", boxShadow: "0 8px 20px rgba(0,0,0,0.12)" }}>
         {knownLocations.length === 0 && <div style={{ padding: "12px 14px", color: W.textDim, fontSize: 13 }}>No locations yet — add one below</div>}
-        {knownLocations.map(loc => (
+        {personalLocs.length > 0 && publicLocs.length > 0 && <div style={{ padding: "6px 14px 4px", fontSize: 10, fontWeight: 800, color: W.textMuted, textTransform: "uppercase", letterSpacing: 0.8 }}>My Gyms</div>}
+        {personalLocs.map(loc => (
           <div key={loc} style={{ display: "flex", alignItems: "center", borderBottom: `1px solid ${W.border}`, background: loc === value ? W.accent + "14" : "transparent" }}>
             <div onClick={() => { onChange(loc); setOpen(false); }} style={{ flex: 1, padding: "10px 14px", cursor: "pointer", color: loc === value ? W.accent : W.text, fontSize: 14, fontWeight: loc === value ? 700 : 400 }}>📍 {loc}{loc === value ? " ✓" : ""}</div>
             {onRemove && (removeConfirm === loc
@@ -64,6 +68,12 @@ export const LocationDropdown = ({ value, onChange, open, setOpen, knownLocation
                 </div>
               : <button onClick={e => { e.stopPropagation(); setRemoveConfirm(loc); }} style={{ background: "none", border: "none", padding: "0 12px", cursor: "pointer", color: W.textDim, fontSize: 16, lineHeight: 1 }}>×</button>
             )}
+          </div>
+        ))}
+        {publicLocs.length > 0 && <div style={{ padding: "6px 14px 4px", fontSize: 10, fontWeight: 800, color: W.textMuted, textTransform: "uppercase", letterSpacing: 0.8, borderTop: personalLocs.length > 0 ? `1px solid ${W.border}` : "none" }}>Public Gyms</div>}
+        {publicLocs.map(loc => (
+          <div key={loc} style={{ display: "flex", alignItems: "center", borderBottom: `1px solid ${W.border}`, background: loc === value ? W.accent + "14" : "transparent" }}>
+            <div onClick={() => { onChange(loc); setOpen(false); }} style={{ flex: 1, padding: "10px 14px", cursor: "pointer", color: loc === value ? W.accent : W.text, fontSize: 14, fontWeight: loc === value ? 700 : 400 }}>🏟 {loc}{loc === value ? " ✓" : ""}</div>
           </div>
         ))}
         <div onClick={() => { setOpen(false); if (onAddNew) { onAddNew(""); } else { setAddPopup(true); } }} style={{ padding: "11px 14px", cursor: "pointer", color: W.accent, fontSize: 13, fontWeight: 700, borderTop: `1px solid ${W.border}`, display: "flex", alignItems: "center", gap: 6 }}>＋ Add new gym location</div>
